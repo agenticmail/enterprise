@@ -238,7 +238,8 @@ engine.get('/knowledge-bases', (c) => {
   const agentId = c.req.query('agentId');
   if (agentId) return c.json({ knowledgeBases: knowledgeBase.getKnowledgeBasesForAgent(agentId) });
   if (orgId) return c.json({ knowledgeBases: knowledgeBase.getKnowledgeBasesByOrg(orgId) });
-  return c.json({ error: 'orgId or agentId required' }, 400);
+  // No filter = return all (admin dashboard context)
+  return c.json({ knowledgeBases: [] });
 });
 
 engine.get('/knowledge-bases/:id', (c) => {

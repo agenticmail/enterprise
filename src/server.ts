@@ -87,7 +87,7 @@ export function createServer(config: ServerConfig): ServerInstance {
   app.use('*', cors({
     origin: config.corsOrigins || '*',
     credentials: true,
-    allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-Id'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-Id', 'X-CSRF-Token'],
     exposeHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'Retry-After'],
   }));
 
@@ -145,19 +145,23 @@ export function createServer(config: ServerConfig): ServerInstance {
       return next();
     }
 
-    // JWT auth
+    // JWT auth — check httpOnly cookie first, then Authorization header
+    const { getCookie } = await import('hono/cookie');
+    const cookieToken = getCookie(c, 'em_session');
     const authHeader = c.req.header('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const jwt = cookieToken || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null);
+
+    if (!jwt) {
       return c.json({ error: 'Authentication required' }, 401);
     }
 
     try {
       const { jwtVerify } = await import('jose');
       const secret = new TextEncoder().encode(config.jwtSecret);
-      const { payload } = await jwtVerify(authHeader.slice(7), secret);
+      const { payload } = await jwtVerify(jwt, secret);
       c.set('userId' as any, payload.sub);
       c.set('userRole' as any, payload.role);
-      c.set('authType' as any, 'jwt');
+      c.set('authType' as any, cookieToken ? 'cookie' : 'jwt');
       return next();
     } catch {
       return c.json({ error: 'Invalid or expired token' }, 401);

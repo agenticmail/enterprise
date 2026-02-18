@@ -17,7 +17,7 @@ export const TABLES = {
       dkim_private_key TEXT,
       logo_url TEXT,
       primary_color TEXT DEFAULT '#6366f1',
-      plan TEXT NOT NULL DEFAULT 'free',
+      plan TEXT NOT NULL DEFAULT 'self-hosted',
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,

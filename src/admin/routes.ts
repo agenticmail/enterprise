@@ -295,8 +295,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     validate(body, [
       { field: 'name', type: 'string', minLength: 1, maxLength: 128 },
       { field: 'domain', type: 'string', maxLength: 253 },
+      { field: 'subdomain', type: 'string', maxLength: 64 },
       { field: 'primaryColor', type: 'string', pattern: /^#[0-9a-fA-F]{6}$/ },
       { field: 'logoUrl', type: 'url' },
+      { field: 'smtpHost', type: 'string', maxLength: 253 },
+      { field: 'smtpPort', type: 'number' },
+      { field: 'smtpUser', type: 'string', maxLength: 253 },
+      { field: 'smtpPass', type: 'string', maxLength: 253 },
+      { field: 'dkimPrivateKey', type: 'string' },
+      { field: 'plan', type: 'string', maxLength: 32 },
     ]);
 
     const settings = await db.updateSettings(body);

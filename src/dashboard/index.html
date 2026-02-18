@@ -1,881 +1,1493 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AgenticMail Enterprise</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AgenticMail Enterprise</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📧</text></svg>"/>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   THEME SYSTEM — CSS Custom Properties
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #161822;
+  --bg-tertiary: #1c1f2e;
+  --bg-hover: #232738;
+  --bg-active: #2a2f45;
+  --bg-card: #181b28;
+  --bg-input: #1c1f2e;
+  --bg-modal: rgba(0,0,0,0.7);
+  --border: #2a2f45;
+  --border-light: #353a52;
+  --text-primary: #e8eaf0;
+  --text-secondary: #9ca3b8;
+  --text-muted: #6b7394;
+  --text-inverse: #0f1117;
+  --accent: var(--brand-color, #6366f1);
+  --accent-hover: var(--brand-hover, #4f46e5);
+  --accent-soft: var(--brand-soft, rgba(99,102,241,0.12));
+  --accent-text: var(--brand-text, #818cf8);
+  --success: #22c55e;
+  --success-soft: rgba(34,197,94,0.12);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245,158,11,0.12);
+  --danger: #ef4444;
+  --danger-soft: rgba(239,68,68,0.12);
+  --danger-hover: #dc2626;
+  --info: #06b6d4;
+  --info-soft: rgba(6,182,212,0.12);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-xl: 0 8px 24px rgba(0,0,0,0.5);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', monospace;
+  --sidebar-w: 240px;
+  --header-h: 56px;
+  --transition: 150ms ease;
+}
 
-    /* ── Design Tokens ─────────────────────────────── */
-    :root {
-      --font: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
-      --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-      --radius-sm: 4px; --radius: 6px; --radius-lg: 10px; --radius-xl: 14px;
-      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-      --shadow-lg: 0 4px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
-      --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-      color-scheme: light dark;
-    }
+[data-theme="light"] {
+  --bg-primary: #f8f9fb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f3f8;
+  --bg-hover: #e8ebf0;
+  --bg-active: #dde1ea;
+  --bg-card: #ffffff;
+  --bg-input: #f1f3f8;
+  --bg-modal: rgba(0,0,0,0.4);
+  --border: #e2e5ed;
+  --border-light: #eceef4;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --text-inverse: #ffffff;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-xl: 0 8px 24px rgba(0,0,0,0.12);
+}
 
-    /* ── Light Mode (default) ──────────────────────── */
-    :root, [data-theme="light"] {
-      --bg-0: #f8f9fa; --bg-1: #ffffff; --bg-2: #f1f3f5; --bg-3: #e9ecef;
-      --border: #dee2e6; --border-subtle: #e9ecef; --border-strong: #ced4da;
-      --text-0: #212529; --text-1: #495057; --text-2: #868e96; --text-3: #adb5bd;
-      --accent: #e84393; --accent-hover: #d63384; --accent-subtle: rgba(232,67,147,0.08); --accent-text: #ffffff;
-      --success: #2b8a3e; --success-subtle: rgba(43,138,62,0.08);
-      --warning: #e67700; --warning-subtle: rgba(230,119,0,0.08);
-      --danger: #c92a2a; --danger-subtle: rgba(201,42,42,0.08);
-      --info: #1971c2; --info-subtle: rgba(25,113,194,0.08);
-      --overlay: rgba(0,0,0,0.4);
-    }
+/* ═══════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { font-family: var(--font); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent-text); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-    /* ── Dark Mode ─────────────────────────────────── */
-    [data-theme="dark"] {
-      --bg-0: #0f1114; --bg-1: #16181d; --bg-2: #1c1f26; --bg-3: #252930;
-      --border: #2c3038; --border-subtle: #23272e; --border-strong: #3b414c;
-      --text-0: #e1e4e8; --text-1: #b0b8c4; --text-2: #6b7280; --text-3: #454d5a;
-      --accent: #f06595; --accent-hover: #f783ac; --accent-subtle: rgba(240,101,149,0.1); --accent-text: #0f1114;
-      --success: #37b24d; --success-subtle: rgba(55,178,77,0.1);
-      --warning: #f08c00; --warning-subtle: rgba(240,140,0,0.1);
-      --danger: #f03e3e; --danger-subtle: rgba(240,62,62,0.1);
-      --info: #4dabf7; --info-subtle: rgba(77,171,247,0.1);
-      --overlay: rgba(0,0,0,0.65);
-      --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
-      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
-      --shadow-lg: 0 4px 12px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3);
-    }
+/* ═══════════════════════════════════════════════════════════
+   LOGIN PAGE
+   ═══════════════════════════════════════════════════════════ */
+.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-primary); }
+.login-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 40px; width: 400px; box-shadow: var(--shadow-xl); }
+.login-logo { text-align: center; margin-bottom: 32px; }
+.login-logo h1 { font-size: 22px; font-weight: 700; margin-top: 12px; }
+.login-logo p { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
 
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --bg-0: #0f1114; --bg-1: #16181d; --bg-2: #1c1f26; --bg-3: #252930;
-        --border: #2c3038; --border-subtle: #23272e; --border-strong: #3b414c;
-        --text-0: #e1e4e8; --text-1: #b0b8c4; --text-2: #6b7280; --text-3: #454d5a;
-        --accent: #f06595; --accent-hover: #f783ac; --accent-subtle: rgba(240,101,149,0.1); --accent-text: #0f1114;
-        --success: #37b24d; --success-subtle: rgba(55,178,77,0.1);
-        --warning: #f08c00; --warning-subtle: rgba(240,140,0,0.1);
-        --danger: #f03e3e; --danger-subtle: rgba(240,62,62,0.1);
-        --info: #4dabf7; --info-subtle: rgba(77,171,247,0.1);
-        --overlay: rgba(0,0,0,0.65);
-      }
-    }
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════ */
+.app-layout { display: flex; min-height: 100vh; }
+.sidebar { width: var(--sidebar-w); background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; transition: transform var(--transition); }
+.sidebar-brand { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.sidebar-brand h2 { font-size: 15px; font-weight: 700; }
+.sidebar-brand span { font-size: 11px; color: var(--text-muted); background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; }
+.sidebar-nav { flex: 1; overflow-y: auto; padding: 8px; }
+.sidebar-section { margin-top: 16px; }
+.sidebar-section-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 4px 12px 8px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius); color: var(--text-secondary); cursor: pointer; transition: all var(--transition); font-size: 13px; font-weight: 500; }
+.nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-soft); color: var(--accent-text); }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.nav-item .badge { margin-left: auto; background: var(--danger); color: white; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; }
+.sidebar-footer { padding: 12px; border-top: 1px solid var(--border); }
+.sidebar-user { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--radius); }
+.sidebar-user .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; }
+.sidebar-user .user-info { flex: 1; min-width: 0; }
+.sidebar-user .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user .user-role { font-size: 11px; color: var(--text-muted); }
 
-    /* ── Base ───────────────────────────────────────── */
-    body { font-family: var(--font); background: var(--bg-0); color: var(--text-0); line-height: 1.5; font-size: 14px; -webkit-font-smoothing: antialiased; }
-    #root { display: flex; min-height: 100vh; }
+.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+.topbar { height: var(--header-h); border-bottom: 1px solid var(--border); background: var(--bg-secondary); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 40; }
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+.topbar-title { font-size: 16px; font-weight: 600; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.page-content { flex: 1; padding: 24px; max-width: 1200px; width: 100%; }
 
-    /* ── Sidebar ───────────────────────────────────── */
-    .sidebar { width: 220px; background: var(--bg-1); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 10; }
-    .sidebar-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border-subtle); }
-    .sidebar-header h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 6px; }
-    .sidebar-header p { font-size: 11px; color: var(--text-2); margin-top: 2px; }
-    .sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
-    .nav-group { padding: 12px 12px 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
-    .nav-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; margin: 1px 8px; font-size: 13px; color: var(--text-1); cursor: pointer; border-radius: var(--radius); border: none; background: none; width: calc(100% - 16px); text-align: left; transition: all var(--transition); }
-    .nav-item:hover { background: var(--bg-2); color: var(--text-0); }
-    .nav-item.active { background: var(--accent-subtle); color: var(--accent); font-weight: 500; }
-    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .sidebar-footer { padding: 12px; border-top: 1px solid var(--border-subtle); }
+/* ═══════════════════════════════════════════════════════════
+   COMPONENTS
+   ═══════════════════════════════════════════════════════════ */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; border: 1px solid transparent; cursor: pointer; transition: all var(--transition); font-family: var(--font); line-height: 1.4; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-secondary { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+.btn-secondary:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-light); }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-lg { padding: 10px 20px; font-size: 14px; }
+.btn-icon { padding: 6px; width: 32px; height: 32px; justify-content: center; }
+.btn-icon svg { width: 16px; height: 16px; }
 
-    /* ── Main ───────────────────────────────────────── */
-    .main { flex: 1; margin-left: 220px; min-height: 100vh; }
-    .topbar { height: 48px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--bg-1); position: sticky; top: 0; z-index: 5; }
-    .topbar-left { display: flex; align-items: center; gap: 12px; }
-    .topbar-right { display: flex; align-items: center; gap: 8px; }
-    .content { padding: 24px; max-width: 1280px; }
-    .page-header { margin-bottom: 20px; }
-    .page-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-    .page-desc { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.card-header h3 { font-size: 14px; font-weight: 600; }
+.card-body { padding: 20px; }
+.card-body-flush { padding: 0; }
 
-    /* ── Cards ──────────────────────────────────────── */
-    .card { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
-    .card + .card { margin-top: 16px; }
-    .card-header { padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; }
-    .card-header h3 { font-size: 13px; font-weight: 600; }
-    .card-body { padding: 16px; }
-    .card-body-flush { padding: 0; }
+.input { width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-primary); font-size: 13px; font-family: var(--font); transition: border-color var(--transition); outline: none; }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.input::placeholder { color: var(--text-muted); }
+textarea.input { min-height: 80px; resize: vertical; }
+select.input { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%239ca3b8'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
 
-    /* ── Stats Grid ─────────────────────────────────── */
-    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
-    .stat { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
-    .stat-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); }
-    .stat-value { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px; }
-    .stat-value.accent { color: var(--accent); }
-    .stat-value.success { color: var(--success); }
-    .stat-value.warning { color: var(--warning); }
-    .stat-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.form-help { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
-    /* ── Table ──────────────────────────────────────── */
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 8px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-2); }
-    td { padding: 10px 16px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--bg-2); }
-    .table-empty { text-align: center; padding: 32px 16px; color: var(--text-2); }
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.badge-primary { background: var(--accent-soft); color: var(--accent-text); }
+.badge-success { background: var(--success-soft); color: var(--success); }
+.badge-warning { background: var(--warning-soft); color: var(--warning); }
+.badge-danger { background: var(--danger-soft); color: var(--danger); }
+.badge-info { background: var(--info-soft); color: var(--info); }
+.badge-neutral { background: var(--bg-tertiary); color: var(--text-secondary); }
 
-    /* ── Badge ──────────────────────────────────────── */
-    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-    .badge-success { background: var(--success-subtle); color: var(--success); }
-    .badge-warning { background: var(--warning-subtle); color: var(--warning); }
-    .badge-danger { background: var(--danger-subtle); color: var(--danger); }
-    .badge-info { background: var(--info-subtle); color: var(--info); }
-    .badge-neutral { background: var(--bg-3); color: var(--text-2); }
-    .badge-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; display: inline-block; }
-    .badge-dot.green { background: var(--success); }
-    .badge-dot.yellow { background: var(--warning); }
-    .badge-dot.red { background: var(--danger); }
+table { width: 100%; border-collapse: collapse; }
+thead th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 1px solid var(--border); background: var(--bg-tertiary); }
+tbody td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--bg-hover); }
 
-    /* ── Buttons ────────────────────────────────────── */
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--bg-1); color: var(--text-0); transition: all var(--transition); white-space: nowrap; }
-    .btn:hover { border-color: var(--border-strong); background: var(--bg-2); }
-    .btn:active { transform: scale(0.98); }
-    .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-    .btn-danger { color: var(--danger); }
-    .btn-danger:hover { background: var(--danger-subtle); border-color: var(--danger); }
-    .btn-ghost { border: none; background: none; color: var(--text-1); padding: 6px 8px; }
-    .btn-ghost:hover { background: var(--bg-2); color: var(--text-0); }
-    .btn-sm { padding: 4px 10px; font-size: 12px; }
-    .btn-icon { padding: 6px; width: 32px; height: 32px; }
-    .btn-group { display: flex; gap: 6px; }
+.empty-state { text-align: center; padding: 48px 24px; }
+.empty-state svg { width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 16px; }
+.empty-state h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.empty-state p { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; }
 
-    /* ── Inputs ─────────────────────────────────────── */
-    .input { padding: 7px 10px; background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-0); font-size: 13px; font-family: var(--font); width: 100%; outline: none; transition: border-color var(--transition), box-shadow var(--transition); }
-    .input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-subtle); }
-    .input::placeholder { color: var(--text-3); }
-    select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 28px; }
-    .field { margin-bottom: 12px; }
-    .field-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-1); margin-bottom: 4px; }
-    textarea.input { resize: vertical; min-height: 72px; }
-    .search-input { max-width: 240px; }
+.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+.stat-card .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.stat-card .stat-value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+.stat-card .stat-change { font-size: 12px; margin-top: 4px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
 
-    /* ── Modal ──────────────────────────────────────── */
-    .modal-overlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; z-index: 100; animation: fadeIn 0.15s; }
-    .modal { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 0; width: 480px; max-width: 92vw; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-lg); animation: scaleIn 0.15s; }
-    .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); }
-    .modal-header h2 { font-size: 15px; font-weight: 700; }
-    .modal-body { padding: 16px 20px; }
-    .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; gap: 8px; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+.modal-overlay { position: fixed; inset: 0; background: var(--bg-modal); display: flex; align-items: center; justify-content: center; z-index: 100; animation: fadeIn 150ms ease; }
+.modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-xl); width: 560px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-xl); animation: slideUp 200ms ease; }
+.modal-lg { width: 720px; }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { font-size: 16px; font-weight: 600; }
+.modal-body { padding: 24px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
 
-    /* ── Toast ──────────────────────────────────────── */
-    .toast { position: fixed; bottom: 20px; right: 20px; background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; font-size: 13px; z-index: 200; box-shadow: var(--shadow-lg); animation: slideUp 0.2s; display: flex; align-items: center; gap: 8px; }
-    .toast-success { border-left: 3px solid var(--success); }
-    .toast-error { border-left: 3px solid var(--danger); }
-    .toast-info { border-left: 3px solid var(--accent); }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* ── Tabs ───────────────────────────────────────── */
-    .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-    .tab { padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all var(--transition); }
-    .tab:hover { color: var(--text-0); }
-    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+/* Wizard steps */
+.wizard-steps { display: flex; gap: 4px; margin-bottom: 24px; }
+.wizard-step { flex: 1; height: 4px; border-radius: 2px; background: var(--border); transition: background var(--transition); }
+.wizard-step.active { background: var(--accent); }
+.wizard-step.done { background: var(--success); }
+.wizard-step-labels { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.wizard-step-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+.wizard-step-label.active { color: var(--accent-text); }
+.wizard-step-label.done { color: var(--success); }
 
-    /* ── Activity / Timeline ────────────────────────── */
-    .activity-item { display: flex; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border-subtle); font-size: 13px; }
-    .activity-item:last-child { border-bottom: none; }
-    .activity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 6px; flex-shrink: 0; }
-    .activity-time { font-size: 11px; color: var(--text-3); white-space: nowrap; }
-    .activity-text { flex: 1; color: var(--text-1); }
-    .activity-text strong { color: var(--text-0); font-weight: 600; }
+/* Skill selector grid */
+.skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.skill-card { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: all var(--transition); }
+.skill-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.skill-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+.skill-card .skill-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.skill-card .skill-desc { font-size: 11px; color: var(--text-muted); }
+.skill-card .skill-cat { font-size: 10px; color: var(--accent-text); text-transform: uppercase; letter-spacing: 0.05em; }
 
-    /* ── Code / JSON ───────────────────────────────── */
-    .code-block { background: var(--bg-0); border: 1px solid var(--border-subtle); border-radius: var(--radius); padding: 12px; font-family: var(--mono); font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: var(--text-1); }
-    .inline-code { font-family: var(--mono); font-size: 12px; background: var(--bg-2); padding: 1px 5px; border-radius: 3px; }
+/* Permission preset cards */
+.preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.preset-card { padding: 14px; border: 2px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; transition: all var(--transition); }
+.preset-card:hover { border-color: var(--accent); }
+.preset-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+.preset-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.preset-card p { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
 
-    /* ── Detail Row ─────────────────────────────────── */
-    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .detail-item { }
-    .detail-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); }
-    .detail-value { font-size: 13px; margin-top: 1px; }
+/* Toggle switch */
+.toggle { position: relative; width: 36px; height: 20px; background: var(--border); border-radius: 10px; cursor: pointer; transition: background var(--transition); }
+.toggle.on { background: var(--accent); }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: transform var(--transition); }
+.toggle.on::after { transform: translateX(16px); }
 
-    /* ── Empty State ────────────────────────────────── */
-    .empty { text-align: center; padding: 40px 20px; color: var(--text-2); }
-    .empty-title { font-size: 14px; font-weight: 600; color: var(--text-1); margin-bottom: 4px; }
-    .empty-desc { font-size: 13px; }
+/* Tabs */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all var(--transition); }
+.tab:hover { color: var(--text-primary); }
+.tab.active { color: var(--accent-text); border-bottom-color: var(--accent); }
 
-    /* ── Responsive ─────────────────────────────────── */
-    @media (max-width: 768px) {
-      .sidebar { width: 56px; } .sidebar-header h1 span, .sidebar-header p, .nav-item span, .nav-group { display: none; }
-      .nav-item { justify-content: center; padding: 10px; margin: 1px 4px; }
-      .main { margin-left: 56px; } .content { padding: 16px; }
-      .stats-row { grid-template-columns: 1fr 1fr; }
-      .detail-grid { grid-template-columns: 1fr; }
-    }
+/* Toast notifications */
+.toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg); animation: slideUp 200ms ease; display: flex; align-items: center; gap: 8px; }
+.toast-success { background: var(--success); color: white; }
+.toast-error { background: var(--danger); color: white; }
+.toast-info { background: var(--accent); color: white; }
 
-    /* ── Utility ────────────────────────────────────── */
-    .flex { display: flex; } .flex-col { flex-direction: column; }
-    .items-center { align-items: center; } .justify-between { justify-content: space-between; }
-    .gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; }
-    .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; } .mt-4 { margin-top: 16px; }
-    .mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 12px; }
-    .text-sm { font-size: 12px; } .text-xs { font-size: 11px; }
-    .text-muted { color: var(--text-2); } .text-accent { color: var(--accent); }
-    .font-mono { font-family: var(--mono); } .font-semibold { font-weight: 600; }
-    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .w-full { width: 100%; }
-    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
-  </style>
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main-content { margin-left: 0; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
+<script>
+const h = React.createElement;
+const { useState, useEffect, useCallback, useRef, Fragment, createContext, useContext } = React;
 
-  <!-- API Documentation: All endpoints return JSON. Companies can build their own frontend. -->
-  <!-- See /health for server status, /auth/login for JWT tokens, /api/* for all CRUD operations. -->
-  <!-- Full API reference: https://github.com/agenticmail/agenticmail/tree/main/packages/enterprise -->
+// ════════════════════════════════════════════════════════════
+// CONTEXT & API
+// ════════════════════════════════════════════════════════════
 
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script>
-  const { useState, useEffect, useCallback, useMemo, useRef, createElement: h, Fragment } = React;
+const AppContext = createContext();
 
-  // ════════════════════════════════════════════════════════
-  // API CLIENT
-  // ════════════════════════════════════════════════════════
+function useApp() { return useContext(AppContext); }
 
-  const API = '/api';
-  let token = localStorage.getItem('am_token');
+// Derive accent color variants from a hex color
+function applyBrandColor(hex) {
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+  const root = document.documentElement;
+  root.style.setProperty('--brand-color', hex);
+  // Darken by 15% for hover
+  root.style.setProperty('--brand-hover', `rgb(${Math.round(r*0.85)},${Math.round(g*0.85)},${Math.round(b*0.85)})`);
+  // 12% opacity for soft bg
+  root.style.setProperty('--brand-soft', `rgba(${r},${g},${b},0.15)`);
+  // Lighten for text variant
+  const lr = Math.min(255, r + Math.round((255-r)*0.35)), lg = Math.min(255, g + Math.round((255-g)*0.35)), lb = Math.min(255, b + Math.round((255-b)*0.35));
+  root.style.setProperty('--brand-text', `rgb(${lr},${lg},${lb})`);
+}
 
-  async function api(path, opts = {}) {
-    const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...opts.headers };
-    const res = await fetch(`${API}${path}`, { ...opts, headers });
-    if (res.status === 401) { token = null; localStorage.removeItem('am_token'); location.reload(); }
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    return data;
-  }
+// Get CSRF token from cookie (non-httpOnly, readable by JS)
+function getCsrf() {
+  const m = document.cookie.match(/em_csrf=([^;]+)/);
+  return m ? m[1] : '';
+}
 
-  // ════════════════════════════════════════════════════════
-  // ICONS (inline SVG, no external deps)
-  // ════════════════════════════════════════════════════════
+function apiCall(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf() };
+  // Fallback: API key auth for programmatic access
+  const apiKey = localStorage.getItem('em_api_key');
+  if (apiKey) headers['X-API-Key'] = apiKey;
+  return fetch('/api' + (path.startsWith('/') ? '' : '/') + path, { ...opts, credentials: 'same-origin', headers: { ...headers, ...opts.headers } })
+    .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || r.statusText); return d; });
+}
+function authCall(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf() };
+  return fetch('/auth' + (path.startsWith('/') ? '' : '/') + path, { ...opts, credentials: 'same-origin', headers: { ...headers, ...opts.headers } })
+    .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || r.statusText); return d; });
+}
+function engineCall(path, opts = {}) { return apiCall('/engine' + (path.startsWith('/') ? '' : '/') + path, opts); }
 
-  const Icon = (d, size = 16) => h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, ...d.map(p => h('path', { d: p })));
-  const Icons = {
-    dashboard: () => Icon(['M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z', 'M9 22V12h6v10']),
-    agents: () => Icon(['M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2', 'M23 21v-2a4 4 0 00-3-3.87', 'M16 3.13a4 4 0 010 7.75']),
-    skills: () => Icon(['M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z']),
-    kb: () => Icon(['M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z', 'M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z']),
-    activity: () => Icon(['M22 12h-4l-3 9L9 3l-3 9H2']),
-    approvals: () => Icon(['M9 11l3 3L22 4', 'M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11']),
-    settings: () => Icon(['M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z']),
-    sun: () => Icon(['M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42', 'M12 17a5 5 0 110-10 5 5 0 010 10z']),
-    moon: () => Icon(['M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z']),
-    logout: () => Icon(['M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4', 'M16 17l5-5-5-5', 'M21 12H9']),
-    plus: () => Icon(['M12 5v14M5 12h14']),
-    search: () => Icon(['M11 19a8 8 0 100-16 8 8 0 000 16z', 'M21 21l-4.35-4.35']),
-    refresh: () => Icon(['M1 4v6h6', 'M23 20v-6h-6', 'M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15']),
-    check: () => Icon(['M20 6L9 17l-5-5']),
-    x: () => Icon(['M18 6L6 18', 'M6 6l12 12']),
-    api: () => Icon(['M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71']),
-    db: () => Icon(['M12 2C6.48 2 2 4.02 2 6.5v11C2 19.98 6.48 22 12 22s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2z', 'M2 6.5C2 8.98 6.48 11 12 11s10-2.02 10-4.5', 'M2 12c0 2.48 4.48 4.5 10 4.5s10-2.02 10-4.5']),
-    org: () => Icon(['M3 21h18', 'M3 7v1a3 3 0 006 0V7m0 1a3 3 0 006 0V7m0 1a3 3 0 006 0V7', 'M5 21V10.9', 'M19 21V10.9', 'M12 21V10.9', 'M5 7l7-4 7 4']),
+// ════════════════════════════════════════════════════════════
+// ICONS (inline SVG)
+// ════════════════════════════════════════════════════════════
+
+const I = {
+  dashboard: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('rect', { x: 3, y: 3, width: 7, height: 7 }), h('rect', { x: 14, y: 3, width: 7, height: 7 }), h('rect', { x: 14, y: 14, width: 7, height: 7 }), h('rect', { x: 3, y: 14, width: 7, height: 7 })),
+  agents: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2' }), h('circle', { cx: 9, cy: 7, r: 4 }), h('path', { d: 'M23 21v-2a4 4 0 00-3-3.87' }), h('path', { d: 'M16 3.13a4 4 0 010 7.75' })),
+  skills: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z' })),
+  knowledge: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M4 19.5A2.5 2.5 0 016.5 17H20' }), h('path', { d: 'M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z' })),
+  approvals: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M9 11l3 3L22 4' }), h('path', { d: 'M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11' })),
+  activity: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('polyline', { points: '22 12 18 12 15 21 9 3 6 12 2 12' })),
+  settings: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('circle', { cx: 12, cy: 12, r: 3 }), h('path', { d: 'M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z' })),
+  users: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2' }), h('circle', { cx: 12, cy: 7, r: 4 })),
+  audit: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z' }), h('polyline', { points: '14 2 14 8 20 8' }), h('line', { x1: 16, y1: 13, x2: 8, y2: 13 }), h('line', { x1: 16, y1: 17, x2: 8, y2: 17 })),
+  key: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4' })),
+  plus: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('line', { x1: 12, y1: 5, x2: 12, y2: 19 }), h('line', { x1: 5, y1: 12, x2: 19, y2: 12 })),
+  x: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('line', { x1: 18, y1: 6, x2: 6, y2: 18 }), h('line', { x1: 6, y1: 6, x2: 18, y2: 18 })),
+  check: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('polyline', { points: '20 6 9 17 4 12' })),
+  sun: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('circle', { cx: 12, cy: 12, r: 5 }), h('line', { x1: 12, y1: 1, x2: 12, y2: 3 }), h('line', { x1: 12, y1: 21, x2: 12, y2: 23 }), h('line', { x1: 4.22, y1: 4.22, x2: 5.64, y2: 5.64 }), h('line', { x1: 18.36, y1: 18.36, x2: 19.78, y2: 19.78 }), h('line', { x1: 1, y1: 12, x2: 3, y2: 12 }), h('line', { x1: 21, y1: 12, x2: 23, y2: 12 }), h('line', { x1: 4.22, y1: 19.78, x2: 5.64, y2: 18.36 }), h('line', { x1: 18.36, y1: 5.64, x2: 19.78, y2: 4.22 })),
+  moon: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z' })),
+  logout: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4' }), h('polyline', { points: '16 17 21 12 16 7' }), h('line', { x1: 21, y1: 12, x2: 9, y2: 12 })),
+  search: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('circle', { cx: 11, cy: 11, r: 8 }), h('line', { x1: 21, y1: 21, x2: 16.65, y2: 16.65 })),
+  shield: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' })),
+  copy: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('rect', { x: 9, y: 9, width: 13, height: 13, rx: 2, ry: 2 }), h('path', { d: 'M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1' })),
+  play: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('polygon', { points: '5 3 19 12 5 21 5 3' })),
+  stop: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2, ry: 2 })),
+  refresh: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('polyline', { points: '23 4 23 10 17 10' }), h('polyline', { points: '1 20 1 14 7 14' }), h('path', { d: 'M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15' })),
+  trash: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('polyline', { points: '3 6 5 6 21 6' }), h('path', { d: 'M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2' })),
+  upload: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4' }), h('polyline', { points: '17 8 12 3 7 8' }), h('line', { x1: 12, y1: 3, x2: 12, y2: 15 })),
+  org: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z' }), h('polyline', { points: '9 22 9 12 15 12 15 22' })),
+};
+
+// ════════════════════════════════════════════════════════════
+// TOAST SYSTEM
+// ════════════════════════════════════════════════════════════
+
+let toastId = 0;
+function ToastContainer() {
+  const { toasts } = useApp();
+  return h('div', { className: 'toast-container' }, toasts.map(t => h('div', { key: t.id, className: 'toast toast-' + t.type }, t.message)));
+}
+
+// ════════════════════════════════════════════════════════════
+// LOGIN PAGE
+// ════════════════════════════════════════════════════════════
+
+function LoginPage({ onLogin }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault(); setError(''); setLoading(true);
+    try {
+      const d = await authCall('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      // Server sets httpOnly cookies automatically — no localStorage needed
+      onLogin(d);
+    } catch (err) { setError(err.message); }
+    setLoading(false);
   };
 
-  // ════════════════════════════════════════════════════════
-  // THEME
-  // ════════════════════════════════════════════════════════
+  return h('div', { className: 'login-page' },
+    h('div', { className: 'login-card' },
+      h('div', { className: 'login-logo' },
+        h('div', { style: { fontSize: 36 } }, '📧'),
+        h('h1', null, 'AgenticMail Enterprise'),
+        h('p', null, 'AI Agent Identity & Management Platform')
+      ),
+      h('form', { onSubmit: submit },
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Email'),
+          h('input', { className: 'input', type: 'email', value: email, onChange: e => setEmail(e.target.value), placeholder: 'admin@company.com', required: true, autoFocus: true })
+        ),
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Password'),
+          h('input', { className: 'input', type: 'password', value: password, onChange: e => setPassword(e.target.value), placeholder: 'Enter password', required: true })
+        ),
+        error && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 16 } }, error),
+        h('button', { className: 'btn btn-primary', type: 'submit', disabled: loading, style: { width: '100%', justifyContent: 'center', padding: '10px' } }, loading ? 'Signing in...' : 'Sign In')
+      ),
+      h('div', { style: { textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--text-muted)' } },
+        'Or authenticate with ',
+        h('a', { href: '/auth/oidc/authorize' }, 'SSO'),
+        ' · ',
+        h('a', { href: '#', onClick: () => { const k = prompt('Enter API Key:'); if (k) { localStorage.setItem('em_api_key', k); onLogin({}); } } }, 'API Key')
+      )
+    )
+  );
+}
 
-  function useTheme() {
-    const [theme, setTheme] = useState(() => localStorage.getItem('am_theme') || 'system');
-    useEffect(() => {
-      const effective = theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
-      document.documentElement.setAttribute('data-theme', effective);
-      localStorage.setItem('am_theme', theme);
-    }, [theme]);
-    const toggle = () => setTheme(t => t === 'dark' ? 'light' : t === 'light' ? 'system' : 'dark');
-    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    return { theme, toggle, isDark };
-  }
+// ════════════════════════════════════════════════════════════
+// CONFIRM DIALOG
+// ════════════════════════════════════════════════════════════
 
-  // ════════════════════════════════════════════════════════
-  // SHARED COMPONENTS
-  // ════════════════════════════════════════════════════════
+let confirmResolve = null;
+function ConfirmDialog() {
+  const [state, setState] = useState(null);
+  useEffect(() => { window.__showConfirm = (opts) => new Promise(resolve => { confirmResolve = resolve; setState(opts); }); return () => { window.__showConfirm = null; }; }, []);
+  if (!state) return null;
+  const close = (val) => { setState(null); if (confirmResolve) { confirmResolve(val); confirmResolve = null; } };
+  return h('div', { className: 'modal-overlay', onClick: e => { if (e.target === e.currentTarget) close(false); } },
+    h('div', { className: 'modal', style: { width: 420 } },
+      h('div', { className: 'modal-header' },
+        h('h2', null, state.title || 'Confirm'),
+        h('button', { className: 'btn btn-ghost btn-icon', onClick: () => close(false) }, I.x())
+      ),
+      h('div', { className: 'modal-body' },
+        h('p', { style: { fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 } }, state.message),
+        state.warning && h('div', { style: { marginTop: 12, padding: 12, background: 'var(--danger-soft)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--danger)' } }, state.warning)
+      ),
+      h('div', { className: 'modal-footer' },
+        h('button', { className: 'btn btn-secondary', onClick: () => close(false) }, 'Cancel'),
+        h('button', { className: 'btn ' + (state.danger ? 'btn-danger' : 'btn-primary'), onClick: () => close(true), autoFocus: true }, state.confirmText || 'Confirm')
+      )
+    )
+  );
+}
+async function showConfirm(opts) { return window.__showConfirm ? window.__showConfirm(opts) : confirm(opts.message); }
 
-  function Toast({ message, type = 'info', onDone }) {
-    useEffect(() => { const t = setTimeout(onDone, 3500); return () => clearTimeout(t); }, []);
-    return h('div', { className: `toast toast-${type}` }, message);
-  }
+// ════════════════════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════════════════════
 
-  function Modal({ title, children, onClose, footer }) {
-    return h('div', { className: 'modal-overlay', onClick: e => e.target === e.currentTarget && onClose() },
-      h('div', { className: 'modal' },
-        h('div', { className: 'modal-header' },
-          h('div', { className: 'flex items-center justify-between' },
-            h('h2', null, title),
-            h('button', { className: 'btn-ghost btn-icon', onClick: onClose }, Icons.x())
+function Modal({ title, onClose, children, footer, large }) {
+  return h('div', { className: 'modal-overlay', onClick: e => { if (e.target === e.currentTarget) onClose(); } },
+    h('div', { className: 'modal' + (large ? ' modal-lg' : '') },
+      h('div', { className: 'modal-header' },
+        h('h2', null, title),
+        h('button', { className: 'btn btn-ghost btn-icon', onClick: onClose }, I.x())
+      ),
+      h('div', { className: 'modal-body' }, children),
+      footer && h('div', { className: 'modal-footer' }, footer)
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// AGENT CREATION WIZARD
+// ════════════════════════════════════════════════════════════
+
+function CreateAgentWizard({ onClose, onCreated, toast }) {
+  const [step, setStep] = useState(0);
+  const steps = ['Basics', 'Skills', 'Permissions', 'Deployment', 'Review'];
+  const [form, setForm] = useState({ name: '', email: '', role: 'assistant', description: '', skills: [], preset: null, customTools: { allowed: [], blocked: [] }, deployTarget: 'docker', knowledgeBases: [], model: 'claude-sonnet-4-20250514', approvalRequired: false });
+  const [allSkills, setAllSkills] = useState({});
+  const [presets, setPresets] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    engineCall('/skills/by-category').then(d => setAllSkills(d.categories || {})).catch(() => {});
+    engineCall('/profiles/presets').then(d => setPresets(d.presets || [])).catch(() => {});
+  }, []);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleSkill = (id) => setForm(f => ({ ...f, skills: f.skills.includes(id) ? f.skills.filter(s => s !== id) : [...f.skills, id] }));
+
+  const doCreate = async () => {
+    setLoading(true);
+    try {
+      // 1) Create admin agent record
+      const agent = await apiCall('/agents', { method: 'POST', body: JSON.stringify({ name: form.name, email: form.email || form.name.toLowerCase().replace(/\s/g, '-') + '@agenticmail.local', role: form.role, description: form.description }) });
+      // 2) Create engine agent config
+      await engineCall('/agents', { method: 'POST', body: JSON.stringify({ name: form.name, orgId: 'default', config: { model: form.model, skills: form.skills, description: form.description, deployTarget: form.deployTarget, approvalRequired: form.approvalRequired } }) });
+      // 3) Apply permission preset if selected
+      if (form.preset) {
+        const engineAgent = await engineCall('/agents');
+        const ea = (engineAgent.agents || []).find(a => a.name === form.name);
+        if (ea) await engineCall('/profiles/' + ea.id + '/apply-preset', { method: 'POST', body: JSON.stringify({ preset: form.preset }) });
+      }
+      toast('Agent "' + form.name + '" created successfully', 'success');
+      onCreated();
+      onClose();
+    } catch (err) { toast(err.message, 'error'); }
+    setLoading(false);
+  };
+
+  const canNext = () => {
+    if (step === 0) return form.name.trim().length > 0;
+    return true;
+  };
+
+  return h('div', { className: 'modal-overlay', onClick: e => { if (e.target === e.currentTarget) onClose(); } },
+    h('div', { className: 'modal modal-lg' },
+      h('div', { className: 'modal-header' },
+        h('h2', null, 'Create Agent'),
+        h('button', { className: 'btn btn-ghost btn-icon', onClick: onClose }, I.x())
+      ),
+      h('div', { className: 'modal-body' },
+        // Wizard steps indicator
+        h('div', { className: 'wizard-step-labels' }, steps.map((s, i) =>
+          h('span', { key: i, className: 'wizard-step-label' + (i === step ? ' active' : '') + (i < step ? ' done' : '') }, s)
+        )),
+        h('div', { className: 'wizard-steps' }, steps.map((_, i) =>
+          h('div', { key: i, className: 'wizard-step' + (i === step ? ' active' : '') + (i < step ? ' done' : '') })
+        )),
+
+        // Step 0: Basics
+        step === 0 && h(Fragment, null,
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Agent Name *'),
+            h('input', { className: 'input', value: form.name, onChange: e => set('name', e.target.value), placeholder: 'e.g., Research Assistant, Customer Support' }),
+            h('p', { className: 'form-help' }, 'A descriptive name for this agent')
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Email Address'),
+            h('input', { className: 'input', value: form.email, onChange: e => set('email', e.target.value), placeholder: form.name ? form.name.toLowerCase().replace(/\s/g, '-') + '@yourdomain.com' : 'agent@yourdomain.com' }),
+            h('p', { className: 'form-help' }, 'The agent\'s email identity. Leave blank for auto-generated.')
+          ),
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Role'),
+              h('select', { className: 'input', value: form.role, onChange: e => set('role', e.target.value) },
+                h('option', { value: 'assistant' }, 'Assistant'), h('option', { value: 'researcher' }, 'Researcher'), h('option', { value: 'writer' }, 'Writer'), h('option', { value: 'secretary' }, 'Secretary'), h('option', { value: 'developer' }, 'Developer'), h('option', { value: 'support' }, 'Support'), h('option', { value: 'custom' }, 'Custom')
+              )
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Model'),
+              h('select', { className: 'input', value: form.model, onChange: e => set('model', e.target.value) },
+                h('option', { value: 'claude-sonnet-4-20250514' }, 'Claude Sonnet 4'), h('option', { value: 'claude-opus-4-6' }, 'Claude Opus 4'), h('option', { value: 'gpt-4o' }, 'GPT-4o'), h('option', { value: 'gpt-4o-mini' }, 'GPT-4o Mini'), h('option', { value: 'custom' }, 'Custom')
+              )
+            )
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Description'),
+            h('textarea', { className: 'input', value: form.description, onChange: e => set('description', e.target.value), placeholder: 'What does this agent do? What are its responsibilities?', rows: 3 })
           )
         ),
-        h('div', { className: 'modal-body' }, children),
-        footer && h('div', { className: 'modal-footer' }, footer)
-      )
-    );
-  }
 
-  function Stat({ label, value, color, sub }) {
-    return h('div', { className: 'stat' },
-      h('div', { className: 'stat-label' }, label),
-      h('div', { className: `stat-value ${color || ''}` }, value),
-      sub && h('div', { className: 'stat-sub' }, sub)
-    );
-  }
-
-  function Badge({ type, label, dot }) {
-    if (dot) return h('span', { className: `badge badge-${type}` }, h('span', { className: `badge-dot ${dot}` }), label);
-    return h('span', { className: `badge badge-${type}` }, label);
-  }
-
-  function EmptyState({ title, desc }) {
-    return h('div', { className: 'empty' }, h('div', { className: 'empty-title' }, title), h('div', { className: 'empty-desc' }, desc));
-  }
-
-  // ════════════════════════════════════════════════════════
-  // LOGIN PAGE
-  // ════════════════════════════════════════════════════════
-
-  function LoginPage({ onLogin }) {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    async function submit(e) {
-      e.preventDefault(); setLoading(true); setError('');
-      try {
-        const data = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }).then(r => r.json());
-        if (data.error) throw new Error(data.error);
-        token = data.token; localStorage.setItem('am_token', token); onLogin(data);
-      } catch (err) { setError(err.message); } finally { setLoading(false); }
-    }
-
-    return h('div', { style: { display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-0)' } },
-      h('div', { style: { width: 360, padding: 32 } },
-        h('div', { style: { textAlign: 'center', marginBottom: 28 } },
-          h('h1', { style: { fontSize: 20, fontWeight: 700, marginBottom: 4 } }, '🎀 AgenticMail Enterprise'),
-          h('p', { className: 'text-muted text-sm' }, 'Sign in to manage your AI agents')
-        ),
-        h('form', { onSubmit: submit },
-          h('div', { className: 'field' },
-            h('label', { className: 'field-label' }, 'Email'),
-            h('input', { className: 'input', type: 'email', value: email, onChange: e => setEmail(e.target.value), placeholder: 'admin@company.com', required: true, autoFocus: true })
+        // Step 1: Skills
+        step === 1 && h(Fragment, null,
+          h('p', { style: { color: 'var(--text-secondary)', marginBottom: 16, fontSize: 13 } }, 'Select the skills this agent should have access to. Skills determine what tools and capabilities are available.'),
+          h('div', { style: { marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap' } },
+            h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, form.skills.length + ' selected'),
+            form.skills.length > 0 && h('button', { className: 'btn btn-ghost btn-sm', onClick: () => set('skills', []) }, 'Clear all')
           ),
-          h('div', { className: 'field' },
-            h('label', { className: 'field-label' }, 'Password'),
-            h('input', { className: 'input', type: 'password', value: password, onChange: e => setPassword(e.target.value), placeholder: '••••••••', required: true })
-          ),
-          error && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 12 } }, error),
-          h('button', { className: 'btn btn-primary w-full', type: 'submit', disabled: loading, style: { marginTop: 8, justifyContent: 'center' } }, loading ? 'Signing in...' : 'Sign In')
-        ),
-        h('div', { style: { marginTop: 24, padding: 12, background: 'var(--bg-2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-2)' } },
-          h('strong', null, 'Build your own UI? '),
-          'All data is available via REST API. ',
-          h('span', { className: 'inline-code' }, 'GET /api/agents'), ', ',
-          h('span', { className: 'inline-code' }, 'GET /api/stats'), ', etc. ',
-          'See docs at ', h('a', { href: 'https://github.com/agenticmail/agenticmail', target: '_blank', style: { color: 'var(--accent)' } }, 'GitHub'), '.'
-        )
-      )
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  // DASHBOARD PAGE
-  // ════════════════════════════════════════════════════════
-
-  function DashboardPage() {
-    const [stats, setStats] = useState(null);
-    const [recent, setRecent] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-      Promise.all([
-        api('/stats').catch(() => ({ agents: 0, users: 0, emails: 0, events: 0 })),
-        api('/audit?limit=10').catch(() => ({ events: [] })),
-      ]).then(([s, a]) => { setStats(s); setRecent(a.events || []); setLoading(false); });
-    }, []);
-
-    if (loading) return h('div', { className: 'text-muted', style: { padding: 40 } }, 'Loading...');
-
-    return h(Fragment, null,
-      h('div', { className: 'page-header' }, h('h1', { className: 'page-title' }, 'Dashboard'), h('p', { className: 'page-desc' }, 'System overview and recent activity')),
-      h('div', { className: 'stats-row' },
-        h(Stat, { label: 'Agents', value: stats?.totalAgents ?? stats?.agents ?? 0, color: 'accent', sub: (stats?.activeAgents ?? 0) + ' active' }),
-        h(Stat, { label: 'Users', value: stats?.totalUsers ?? stats?.users ?? 0 }),
-        h(Stat, { label: 'Emails', value: stats?.totalEmails ?? stats?.emails ?? 0, color: 'success' }),
-        h(Stat, { label: 'Events', value: stats?.totalAuditEvents ?? stats?.events ?? 0 }),
-      ),
-      h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Recent Activity')),
-        h('div', { className: 'card-body-flush' },
-          recent.length === 0
-            ? h(EmptyState, { title: 'No recent activity', desc: 'Activity will appear here as agents operate' })
-            : recent.map((e, i) => h('div', { key: i, className: 'activity-item' },
-                h('div', { className: 'activity-dot' }),
-                h('div', { className: 'activity-text' },
-                  h('strong', null, e.action || e.type || 'Event'), ' ',
-                  typeof e.details === 'string' ? e.details : e.description || JSON.stringify(e.details || e).slice(0, 80)
-                ),
-                h('div', { className: 'activity-time' }, e.timestamp ? new Date(e.timestamp).toLocaleString() : '')
-              ))
-        )
-      ),
-      h('div', { className: 'card mt-3' },
-        h('div', { className: 'card-header' }, h('h3', null, 'API Endpoints')),
-        h('div', { className: 'card-body' },
-          h('p', { className: 'text-sm text-muted mb-2' }, 'Build your own dashboard or integrate with your existing tools:'),
-          h('div', { className: 'code-block' },
-            'GET  /health                   # Server health\n' +
-            'POST /auth/login               # Get JWT token\n' +
-            'GET  /api/stats                # Dashboard stats\n' +
-            'GET  /api/agents               # List all agents\n' +
-            'POST /api/agents               # Create agent\n' +
-            'GET  /api/agents/:id           # Agent details\n' +
-            'GET  /api/audit                # Audit log\n' +
-            'GET  /api/api-keys             # API key management\n' +
-            'GET  /api/engine/skills        # Available skills\n' +
-            'GET  /api/engine/profiles/presets  # Permission presets\n' +
-            'POST /api/engine/config/workspace  # Generate agent config\n' +
-            'POST /api/engine/agents        # Deploy managed agent\n' +
-            'GET  /api/engine/stats/:orgId  # Org stats\n'
-          )
-        )
-      )
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  // AGENTS PAGE
-  // ════════════════════════════════════════════════════════
-
-  function AgentsPage({ showToast }) {
-    const [agents, setAgents] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
-    const [showCreate, setShowCreate] = useState(false);
-
-    const load = () => { setLoading(true); api('/agents').then(d => setAgents(d.agents || d || [])).catch(() => setAgents([])).finally(() => setLoading(false)); };
-    useEffect(load, []);
-
-    const filtered = agents.filter(a => !search || a.name?.toLowerCase().includes(search.toLowerCase()) || a.email?.toLowerCase().includes(search.toLowerCase()));
-
-    return h(Fragment, null,
-      h('div', { className: 'page-header flex items-center justify-between' },
-        h('div', null, h('h1', { className: 'page-title' }, 'Agents'), h('p', { className: 'page-desc' }, `${agents.length} agent${agents.length !== 1 ? 's' : ''} registered`)),
-        h('button', { className: 'btn btn-primary', onClick: () => setShowCreate(true) }, Icons.plus(), ' New Agent')
-      ),
-      h('div', { className: 'mb-3' }, h('input', { className: 'input search-input', placeholder: 'Search agents...', value: search, onChange: e => setSearch(e.target.value) })),
-      h('div', { className: 'card' },
-        h('div', { className: 'card-body-flush' },
-          loading ? h('div', { className: 'table-empty' }, 'Loading...') :
-          filtered.length === 0 ? h(EmptyState, { title: 'No agents', desc: search ? 'No agents match your search' : 'Create your first agent to get started' }) :
-          h('div', { style: { overflowX: 'auto' } },
-            h('table', null,
-              h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Email'), h('th', null, 'Role'), h('th', null, 'Status'), h('th', null, 'Created'))),
-              h('tbody', null, filtered.map(a =>
-                h('tr', { key: a.id || a.name },
-                  h('td', null, h('strong', null, a.name || a.displayName)),
-                  h('td', null, h('span', { className: 'font-mono text-sm' }, a.email)),
-                  h('td', null, a.role || '-'),
-                  h('td', null, h(Badge, { type: a.status === 'active' ? 'success' : 'neutral', dot: a.status === 'active' ? 'green' : '', label: a.status || 'active' })),
-                  h('td', { className: 'text-muted text-sm' }, a.createdAt ? new Date(a.createdAt).toLocaleDateString() : '-')
+          Object.entries(allSkills).map(([cat, skills]) =>
+            h('div', { key: cat, style: { marginBottom: 20 } },
+              h('h4', { style: { fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 8 } }, cat.replace(/-/g, ' ')),
+              h('div', { className: 'skill-grid' }, skills.map(s =>
+                h('div', { key: s.id, className: 'skill-card' + (form.skills.includes(s.id) ? ' selected' : ''), onClick: () => toggleSkill(s.id) },
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                    h('span', { className: 'skill-name' }, s.name),
+                    form.skills.includes(s.id) && h('span', { style: { color: 'var(--accent)' } }, I.check())
+                  ),
+                  h('div', { className: 'skill-desc' }, s.description)
                 )
               ))
             )
           )
-        )
-      ),
-      showCreate && h(CreateAgentModal, { onClose: () => setShowCreate(false), onCreated: () => { setShowCreate(false); load(); showToast('Agent created', 'success'); } })
-    );
-  }
+        ),
 
-  function CreateAgentModal({ onClose, onCreated }) {
-    const [name, setName] = useState('');
-    const [role, setRole] = useState('assistant');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+        // Step 2: Permissions
+        step === 2 && h(Fragment, null,
+          h('p', { style: { color: 'var(--text-secondary)', marginBottom: 16, fontSize: 13 } }, 'Choose a permission preset or configure custom permissions. This controls what the agent can and cannot do.'),
+          h('h4', { style: { fontSize: 13, fontWeight: 600, marginBottom: 10 } }, 'Permission Presets'),
+          h('div', { className: 'preset-grid' }, presets.map(p =>
+            h('div', { key: p.name, className: 'preset-card' + (form.preset === p.name ? ' selected' : ''), onClick: () => set('preset', form.preset === p.name ? null : p.name) },
+              h('h4', null, p.name),
+              h('p', null, p.description),
+              p.maxRiskLevel && h('div', { style: { marginTop: 6 } }, h('span', { className: 'badge badge-' + (p.maxRiskLevel === 'low' ? 'success' : p.maxRiskLevel === 'medium' ? 'warning' : 'danger') }, 'Risk: ' + p.maxRiskLevel))
+            )
+          )),
+          h('div', { style: { marginTop: 16, padding: 16, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-muted)' } },
+            'You can further customize tool-level permissions after creating the agent.'
+          ),
+          h('div', { style: { marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 } },
+            h('div', { className: 'toggle' + (form.approvalRequired ? ' on' : ''), onClick: () => set('approvalRequired', !form.approvalRequired) }),
+            h('div', null,
+              h('div', { style: { fontWeight: 600, fontSize: 13 } }, 'Require approval for sensitive actions'),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Agent will pause and request human approval before executing high-risk operations')
+            )
+          )
+        ),
 
-    async function submit(e) {
-      e.preventDefault(); setLoading(true); setError('');
-      try { await api('/agents', { method: 'POST', body: JSON.stringify({ name, role }) }); onCreated(); }
-      catch (err) { setError(err.message); } finally { setLoading(false); }
-    }
-
-    return h(Modal, { title: 'Create Agent', onClose, footer: h(Fragment, null,
-        h('button', { className: 'btn', onClick: onClose }, 'Cancel'),
-        h('button', { className: 'btn btn-primary', onClick: submit, disabled: loading || !name }, loading ? 'Creating...' : 'Create Agent')
-      ) },
-      h('form', { onSubmit: submit },
-        h('div', { className: 'field' }, h('label', { className: 'field-label' }, 'Agent Name'), h('input', { className: 'input', value: name, onChange: e => setName(e.target.value), placeholder: 'researcher', autoFocus: true })),
-        h('div', { className: 'field' }, h('label', { className: 'field-label' }, 'Role'), h('select', { className: 'input', value: role, onChange: e => setRole(e.target.value) },
-          h('option', { value: 'secretary' }, 'Secretary'), h('option', { value: 'assistant' }, 'Assistant'),
-          h('option', { value: 'researcher' }, 'Researcher'), h('option', { value: 'writer' }, 'Writer'), h('option', { value: 'custom' }, 'Custom')
-        )),
-        error && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginTop: 8 } }, error)
-      )
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  // SKILLS PAGE
-  // ════════════════════════════════════════════════════════
-
-  function SkillsPage() {
-    const [skills, setSkills] = useState([]);
-    const [presets, setPresets] = useState([]);
-    const [tab, setTab] = useState('skills');
-    const [search, setSearch] = useState('');
-
-    useEffect(() => {
-      api('/engine/skills').then(d => setSkills(d.skills || Object.values(d) || [])).catch(() => {});
-      api('/engine/profiles/presets').then(d => setPresets(d.presets || Object.values(d) || [])).catch(() => {});
-    }, []);
-
-    const filtered = skills.filter(s => !search || (s.name || s.id || '').toLowerCase().includes(search.toLowerCase()) || (s.category || '').toLowerCase().includes(search.toLowerCase()));
-    const byCategory = {};
-    filtered.forEach(s => { const cat = s.category || 'Other'; (byCategory[cat] = byCategory[cat] || []).push(s); });
-
-    return h(Fragment, null,
-      h('div', { className: 'page-header' }, h('h1', { className: 'page-title' }, 'Skills & Permissions'), h('p', { className: 'page-desc' }, 'Configure what tools each agent can access')),
-      h('div', { className: 'tabs' },
-        h('button', { className: `tab ${tab === 'skills' ? 'active' : ''}`, onClick: () => setTab('skills') }, `Skills (${skills.length})`),
-        h('button', { className: `tab ${tab === 'presets' ? 'active' : ''}`, onClick: () => setTab('presets') }, `Presets (${presets.length})`),
-        h('button', { className: `tab ${tab === 'api' ? 'active' : ''}`, onClick: () => setTab('api') }, 'API Reference'),
-      ),
-      tab === 'skills' && h(Fragment, null,
-        h('div', { className: 'mb-3' }, h('input', { className: 'input search-input', placeholder: 'Search skills...', value: search, onChange: e => setSearch(e.target.value) })),
-        Object.entries(byCategory).map(([cat, items]) =>
-          h('div', { key: cat, className: 'card mb-3' },
-            h('div', { className: 'card-header' }, h('h3', null, cat, h('span', { className: 'text-muted text-sm', style: { marginLeft: 8, fontWeight: 400 } }, `${items.length} skill${items.length !== 1 ? 's' : ''}`))),
-            h('div', { className: 'card-body-flush' },
-              h('table', null,
-                h('thead', null, h('tr', null, h('th', null, 'Skill'), h('th', null, 'Risk'), h('th', null, 'Tools'), h('th', null, 'Status'))),
-                h('tbody', null, items.map(s =>
-                  h('tr', { key: s.id || s.name },
-                    h('td', null, h('strong', null, s.name || s.id), s.description && h('div', { className: 'text-xs text-muted', style: { maxWidth: 300 } }, s.description.slice(0, 80))),
-                    h('td', null, h(Badge, { type: s.risk === 'high' ? 'danger' : s.risk === 'medium' ? 'warning' : 'success', label: s.risk || 'low' })),
-                    h('td', { className: 'text-muted text-sm' }, s.tools?.length || 0),
-                    h('td', null, h(Badge, { type: 'success', dot: 'green', label: 'Available' }))
-                  )
-                ))
+        // Step 3: Deployment
+        step === 3 && h(Fragment, null,
+          h('p', { style: { color: 'var(--text-secondary)', marginBottom: 16, fontSize: 13 } }, 'Choose where and how this agent will run.'),
+          h('div', { style: { display: 'grid', gap: 10 } },
+            ['docker', 'vps', 'cloud', 'local'].map(t =>
+              h('div', { key: t, className: 'preset-card' + (form.deployTarget === t ? ' selected' : ''), onClick: () => set('deployTarget', t) },
+                h('h4', null, { docker: 'Docker Container', vps: 'VPS / Dedicated Server', cloud: 'Cloud (Managed)', local: 'Local Machine' }[t]),
+                h('p', null, { docker: 'Run in an isolated Docker container with resource limits. Recommended for production.', vps: 'Deploy to a VPS or dedicated server via SSH. Full control over the environment.', cloud: 'Managed deployment on AgenticMail Cloud. Zero infrastructure management.', local: 'Run on the current machine. Best for development and testing.' }[t])
               )
             )
           )
-        )
-      ),
-      tab === 'presets' && h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Permission Presets')),
-        h('div', { className: 'card-body-flush' },
-          presets.length === 0 ? h(EmptyState, { title: 'No presets loaded', desc: 'Engine may not be initialized' }) :
-          h('table', null,
-            h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Description'), h('th', null, 'Allowed Skills'))),
-            h('tbody', null, presets.map((p, i) =>
-              h('tr', { key: i },
-                h('td', null, h('strong', null, p.name || p.id)),
-                h('td', { className: 'text-muted text-sm' }, p.description || '-'),
-                h('td', { className: 'text-sm' }, p.allowedSkills?.length || p.skills?.length || '-')
-              )
-            ))
-          )
-        )
-      ),
-      tab === 'api' && h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Skills & Permissions API')),
-        h('div', { className: 'card-body' },
-          h('div', { className: 'code-block' },
-            '# List all available skills\n' +
-            'GET /api/engine/skills\n' +
-            '→ { skills: [{ id, name, category, description, risk, tools: [...] }] }\n\n' +
-            '# List permission presets\n' +
-            'GET /api/engine/profiles/presets\n' +
-            '→ { presets: [{ name, description, allowedSkills, riskThreshold }] }\n\n' +
-            '# Check if agent has permission for a tool\n' +
-            'POST /api/engine/permissions/check\n' +
-            '→ { allowed: boolean, reason: string }\n\n' +
-            '# Get agent\'s effective tool policy\n' +
-            'GET /api/engine/permissions/:agentId/policy\n' +
-            '→ { allowedTools: [...], blockedTools: [...] }'
-          )
-        )
-      )
-    );
-  }
+        ),
 
-  // ════════════════════════════════════════════════════════
-  // KNOWLEDGE BASE PAGE
-  // ════════════════════════════════════════════════════════
-
-  function KnowledgeBasePage() {
-    const [kbs, setKbs] = useState([]);
-    useEffect(() => { api('/engine/knowledge').then(d => setKbs(d.bases || [])).catch(() => {}); }, []);
-
-    return h(Fragment, null,
-      h('div', { className: 'page-header flex items-center justify-between' },
-        h('div', null, h('h1', { className: 'page-title' }, 'Knowledge Bases'), h('p', { className: 'page-desc' }, 'Document ingestion and RAG retrieval for agents')),
-        h('button', { className: 'btn btn-primary' }, Icons.plus(), ' New Knowledge Base')
-      ),
-      kbs.length === 0
-        ? h('div', { className: 'card' }, h('div', { className: 'card-body' }, h(EmptyState, { title: 'No knowledge bases', desc: 'Create a knowledge base to give agents access to your documents' })))
-        : h('div', { className: 'card' },
-            h('div', { className: 'card-body-flush' },
-              h('table', null,
-                h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Documents'), h('th', null, 'Chunks'), h('th', null, 'Agents'), h('th', null, 'Created'))),
-                h('tbody', null, kbs.map(kb =>
-                  h('tr', { key: kb.id },
-                    h('td', null, h('strong', null, kb.name)),
-                    h('td', null, kb.documentCount || 0),
-                    h('td', null, kb.chunkCount || 0),
-                    h('td', null, kb.agentIds?.length || 0),
-                    h('td', { className: 'text-muted text-sm' }, kb.createdAt ? new Date(kb.createdAt).toLocaleDateString() : '-')
-                  )
-                ))
-              )
+        // Step 4: Review
+        step === 4 && h(Fragment, null,
+          h('div', { style: { background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-lg)', padding: 20 } },
+            h('h4', { style: { fontSize: 14, fontWeight: 600, marginBottom: 16 } }, 'Agent Configuration Summary'),
+            h('div', { style: { display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 16px', fontSize: 13 } },
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Name'), h('span', { style: { fontWeight: 600 } }, form.name),
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Email'), h('span', null, form.email || form.name.toLowerCase().replace(/\s/g, '-') + '@agenticmail.local'),
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Role'), h('span', null, form.role),
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Model'), h('span', null, form.model),
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Skills'), h('span', null, form.skills.length + ' selected'),
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Permissions'), h('span', null, form.preset || 'Custom'),
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Deployment'), h('span', null, { docker: 'Docker Container', vps: 'VPS', cloud: 'Cloud (Managed)', local: 'Local' }[form.deployTarget]),
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Approvals'), h('span', null, form.approvalRequired ? 'Required for sensitive actions' : 'Not required')
             )
-          )
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  // ACTIVITY PAGE
-  // ════════════════════════════════════════════════════════
-
-  function ActivityPage() {
-    const [events, setEvents] = useState([]);
-    const [tab, setTab] = useState('events');
-
-    useEffect(() => { api('/audit?limit=50').then(d => setEvents(d.events || [])).catch(() => {}); }, []);
-
-    return h(Fragment, null,
-      h('div', { className: 'page-header' }, h('h1', { className: 'page-title' }, 'Activity & Audit'), h('p', { className: 'page-desc' }, 'Real-time monitoring and audit trail')),
-      h('div', { className: 'tabs' },
-        h('button', { className: `tab ${tab === 'events' ? 'active' : ''}`, onClick: () => setTab('events') }, 'Events'),
-        h('button', { className: `tab ${tab === 'api' ? 'active' : ''}`, onClick: () => setTab('api') }, 'API Reference'),
-      ),
-      tab === 'events' && h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Audit Log'), h('button', { className: 'btn btn-sm btn-ghost', onClick: () => api('/audit?limit=50').then(d => setEvents(d.events || [])) }, Icons.refresh(), ' Refresh')),
-        h('div', { className: 'card-body-flush' },
-          events.length === 0 ? h(EmptyState, { title: 'No events yet', desc: 'Activity will appear here as the system operates' }) :
-          events.map((e, i) => h('div', { key: i, className: 'activity-item' },
-            h('div', { className: 'activity-dot', style: { background: e.action?.includes('delete') ? 'var(--danger)' : e.action?.includes('create') ? 'var(--success)' : 'var(--accent)' } }),
-            h('div', { style: { flex: 1 } },
-              h('div', null, h('strong', null, e.action || e.type), ' ', h('span', { className: 'text-muted' }, e.resource || '')),
-              e.userId && h('div', { className: 'text-xs text-muted' }, 'by ', e.userId)
-            ),
-            h('div', { className: 'activity-time' }, e.timestamp ? new Date(e.timestamp).toLocaleString() : '')
-          ))
+          ),
+          form.description && h('div', { style: { marginTop: 12, fontSize: 13, color: 'var(--text-secondary)' } }, h('strong', null, 'Description: '), form.description)
         )
       ),
-      tab === 'api' && h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Activity & Monitoring API')),
-        h('div', { className: 'card-body' },
-          h('div', { className: 'code-block' },
-            '# Audit log\n' +
-            'GET /api/audit?limit=50\n' +
-            '→ { events: [{ action, resource, userId, timestamp, details }] }\n\n' +
-            '# Engine activity events\n' +
-            'GET /api/engine/activity/:orgId/events?limit=100\n' +
-            '→ { events: [{ agentId, type, data, createdAt }] }\n\n' +
-            '# Tool call records\n' +
-            'GET /api/engine/activity/:orgId/tools?agentId=&limit=50\n' +
-            '→ { calls: [{ toolName, timing, cost, permission }] }\n\n' +
-            '# Real-time SSE stream\n' +
-            'GET /api/engine/activity/:orgId/stream\n' +
-            '→ Server-Sent Events (text/event-stream)\n\n' +
-            '# Agent timeline\n' +
-            'GET /api/engine/activity/:orgId/timeline/:agentId?date=YYYY-MM-DD\n' +
-            '→ { entries: [{ time, type, summary }] }'
-          )
-        )
+      h('div', { className: 'modal-footer' },
+        step > 0 && h('button', { className: 'btn btn-secondary', onClick: () => setStep(step - 1) }, 'Back'),
+        h('div', { style: { flex: 1 } }),
+        step < 4 && h('button', { className: 'btn btn-primary', disabled: !canNext(), onClick: () => setStep(step + 1) }, 'Next'),
+        step === 4 && h('button', { className: 'btn btn-primary', disabled: loading, onClick: doCreate }, loading ? 'Creating...' : 'Create Agent')
       )
-    );
-  }
+    )
+  );
+}
 
-  // ════════════════════════════════════════════════════════
-  // APPROVALS PAGE
-  // ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+// DASHBOARD PAGE
+// ════════════════════════════════════════════════════════════
 
-  function ApprovalsPage({ showToast }) {
-    const [pending, setPending] = useState([]);
-    useEffect(() => { api('/engine/approvals/pending').then(d => setPending(d.requests || [])).catch(() => {}); }, []);
+function DashboardPage() {
+  const [stats, setStats] = useState(null);
+  const [agents, setAgents] = useState([]);
+  const [events, setEvents] = useState([]);
 
-    return h(Fragment, null,
-      h('div', { className: 'page-header' }, h('h1', { className: 'page-title' }, 'Approvals'), h('p', { className: 'page-desc' }, 'Review and approve sensitive agent actions')),
+  useEffect(() => {
+    apiCall('/stats').then(setStats).catch(() => {});
+    apiCall('/agents').then(d => setAgents(d.agents || d || [])).catch(() => {});
+    engineCall('/activity/events?limit=10').then(d => setEvents(d.events || [])).catch(() => {});
+  }, []);
+
+  return h(Fragment, null,
+    h('div', { className: 'stat-grid' },
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'Total Agents'), h('div', { className: 'stat-value' }, stats?.agents ?? agents.length ?? '-')),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'Active Agents'), h('div', { className: 'stat-value', style: { color: 'var(--success)' } }, agents.filter(a => a.status === 'active').length || '-')),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'Users'), h('div', { className: 'stat-value' }, stats?.users ?? '-')),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'API Keys'), h('div', { className: 'stat-value' }, stats?.apiKeys ?? '-'))
+    ),
+
+    h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, `Pending (${pending.length})`)),
+        h('div', { className: 'card-header' }, h('h3', null, 'Agents'), h('button', { className: 'btn btn-sm btn-secondary', onClick: () => {} }, 'View all')),
         h('div', { className: 'card-body-flush' },
-          pending.length === 0 ? h(EmptyState, { title: 'No pending approvals', desc: 'When agents attempt sensitive operations, they\'ll appear here for review' }) :
-          pending.map(r => h('div', { key: r.id, style: { padding: 16, borderBottom: '1px solid var(--border-subtle)' } },
-            h('div', { className: 'flex items-center justify-between' },
-              h('div', null,
-                h('strong', null, r.toolName || r.tool_name), ' — ',
-                h('span', { className: 'text-muted' }, r.agentName || r.agent_name),
-                h('div', { className: 'text-xs text-muted mt-2' }, r.reason)
-              ),
-              h('div', { className: 'btn-group' },
-                h('button', { className: 'btn btn-sm btn-primary', onClick: () => api(`/engine/approvals/${r.id}/decide`, { method: 'POST', body: JSON.stringify({ decision: 'approved' }) }).then(() => { setPending(p => p.filter(x => x.id !== r.id)); showToast('Approved', 'success'); }) }, Icons.check(), ' Approve'),
-                h('button', { className: 'btn btn-sm btn-danger', onClick: () => api(`/engine/approvals/${r.id}/decide`, { method: 'POST', body: JSON.stringify({ decision: 'denied' }) }).then(() => { setPending(p => p.filter(x => x.id !== r.id)); showToast('Denied', 'info'); }) }, Icons.x(), ' Deny')
+          agents.length === 0
+            ? h('div', { className: 'empty-state' }, h('h3', null, 'No agents yet'), h('p', null, 'Create your first agent to get started'))
+            : h('table', null,
+                h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Role'), h('th', null, 'Status'))),
+                h('tbody', null, agents.slice(0, 5).map(a =>
+                  h('tr', { key: a.id },
+                    h('td', null, h('strong', null, a.name)),
+                    h('td', null, a.role || '-'),
+                    h('td', null, h('span', { className: 'badge badge-' + (a.status === 'active' ? 'success' : a.status === 'archived' ? 'neutral' : 'warning') }, a.status || 'active'))
+                  )
+                ))
               )
-            )
-          ))
+        )
+      ),
+
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, h('h3', null, 'Recent Activity')),
+        h('div', { className: 'card-body' },
+          events.length === 0
+            ? h('div', { style: { textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: 13 } }, 'No activity yet')
+            : events.slice(0, 8).map((ev, i) =>
+                h('div', { key: i, style: { display: 'flex', gap: 10, padding: '8px 0', borderBottom: i < events.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13 } },
+                  h('span', { style: { color: 'var(--text-muted)', fontSize: 11, minWidth: 60 } }, new Date(ev.timestamp).toLocaleTimeString()),
+                  h('span', null, ev.type, ' ', h('span', { style: { color: 'var(--text-muted)' } }, ev.agentId || ''))
+                )
+              )
         )
       )
-    );
-  }
+    )
+  );
+}
 
-  // ════════════════════════════════════════════════════════
-  // SETTINGS PAGE
-  // ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+// AGENTS PAGE
+// ════════════════════════════════════════════════════════════
 
-  function SettingsPage() {
-    const [apiKeys, setApiKeys] = useState([]);
-    const [tab, setTab] = useState('general');
-    useEffect(() => { api('/api-keys').then(d => setApiKeys(d.keys || d || [])).catch(() => {}); }, []);
+function AgentsPage() {
+  const { toast } = useApp();
+  const [agents, setAgents] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const [selected, setSelected] = useState(null);
 
-    return h(Fragment, null,
-      h('div', { className: 'page-header' }, h('h1', { className: 'page-title' }, 'Settings')),
-      h('div', { className: 'tabs' },
-        h('button', { className: `tab ${tab === 'general' ? 'active' : ''}`, onClick: () => setTab('general') }, 'General'),
-        h('button', { className: `tab ${tab === 'keys' ? 'active' : ''}`, onClick: () => setTab('keys') }, 'API Keys'),
-        h('button', { className: `tab ${tab === 'api' ? 'active' : ''}`, onClick: () => setTab('api') }, 'Integration Guide'),
-      ),
-      tab === 'general' && h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Server Info')),
-        h('div', { className: 'card-body' },
-          h('div', { className: 'detail-grid' },
-            h('div', { className: 'detail-item' }, h('div', { className: 'detail-label' }, 'Version'), h('div', { className: 'detail-value' }, '0.2.2')),
-            h('div', { className: 'detail-item' }, h('div', { className: 'detail-label' }, 'API Base'), h('div', { className: 'detail-value font-mono' }, window.location.origin + '/api')),
-            h('div', { className: 'detail-item' }, h('div', { className: 'detail-label' }, 'Health'), h('div', { className: 'detail-value font-mono' }, window.location.origin + '/health')),
-            h('div', { className: 'detail-item' }, h('div', { className: 'detail-label' }, 'Engine'), h('div', { className: 'detail-value font-mono' }, window.location.origin + '/api/engine')),
+  const load = () => apiCall('/agents').then(d => setAgents(d.agents || d || [])).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const deleteAgent = async (id) => {
+    const ok = await showConfirm({ title: 'Delete Agent', message: 'Are you sure you want to delete this agent? This will remove all associated data.', warning: 'This action cannot be undone.', danger: true, confirmText: 'Delete Agent' });
+    if (!ok) return;
+    try { await apiCall('/agents/' + id, { method: 'DELETE' }); toast('Agent deleted', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return h(Fragment, null,
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Agents'), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage your AI agents — create, configure, deploy, and monitor')),
+      h('button', { className: 'btn btn-primary', onClick: () => setCreating(true) }, I.plus(), ' Create Agent')
+    ),
+    creating && h(CreateAgentWizard, { onClose: () => setCreating(false), onCreated: load, toast }),
+    agents.length === 0
+      ? h('div', { className: 'card' }, h('div', { className: 'card-body' },
+          h('div', { className: 'empty-state' },
+            I.agents(),
+            h('h3', null, 'No agents yet'),
+            h('p', null, 'Create your first agent to give it an email identity, skills, and deploy it to start working autonomously.'),
+            h('button', { className: 'btn btn-primary', onClick: () => setCreating(true) }, I.plus(), ' Create Your First Agent')
+          )
+        ))
+      : h('div', { className: 'card' },
+          h('div', { className: 'card-body-flush' },
+            h('table', null,
+              h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Email'), h('th', null, 'Role'), h('th', null, 'Status'), h('th', null, 'Created'), h('th', { style: { width: 120 } }, 'Actions'))),
+              h('tbody', null, agents.map(a =>
+                h('tr', { key: a.id },
+                  h('td', null, h('strong', { style: { cursor: 'pointer' }, onClick: () => setSelected(a) }, a.name)),
+                  h('td', null, h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, a.email || '-')),
+                  h('td', null, h('span', { className: 'badge badge-neutral' }, a.role || 'agent')),
+                  h('td', null, h('span', { className: 'badge badge-' + (a.status === 'active' ? 'success' : a.status === 'archived' ? 'neutral' : 'warning') }, a.status || 'active')),
+                  h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, a.createdAt ? new Date(a.createdAt).toLocaleDateString() : '-'),
+                  h('td', null,
+                    h('div', { style: { display: 'flex', gap: 4 } },
+                      h('button', { className: 'btn btn-ghost btn-sm', title: 'Restart', onClick: () => engineCall('/agents/' + a.id + '/restart', { method: 'POST' }).then(() => toast('Restarting...', 'info')).catch(e => toast(e.message, 'error')) }, I.refresh()),
+                      h('button', { className: 'btn btn-ghost btn-sm', title: 'Delete', onClick: () => deleteAgent(a.id) }, I.trash())
+                    )
+                  )
+                )
+              ))
+            )
+          )
+        ),
+    selected && h(AgentDetailModal, { agent: selected, onClose: () => setSelected(null), toast })
+  );
+}
+
+function AgentDetailModal({ agent, onClose, toast }) {
+  const [tab, setTab] = useState('overview');
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => { engineCall('/profiles/' + agent.id).then(setProfile).catch(() => {}); }, [agent.id]);
+
+  return h(Modal, { title: agent.name, onClose, large: true },
+    h('div', { className: 'tabs' },
+      ['overview', 'permissions', 'activity', 'config'].map(t =>
+        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, t.charAt(0).toUpperCase() + t.slice(1))
+      )
+    ),
+    tab === 'overview' && h('div', { style: { display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 16px', fontSize: 13 } },
+      h('span', { style: { color: 'var(--text-muted)' } }, 'Email'), h('span', { style: { fontFamily: 'var(--font-mono)' } }, agent.email || '-'),
+      h('span', { style: { color: 'var(--text-muted)' } }, 'Role'), h('span', null, agent.role || '-'),
+      h('span', { style: { color: 'var(--text-muted)' } }, 'Status'), h('span', { className: 'badge badge-' + (agent.status === 'active' ? 'success' : 'neutral') }, agent.status || 'active'),
+      h('span', { style: { color: 'var(--text-muted)' } }, 'Created'), h('span', null, agent.createdAt ? new Date(agent.createdAt).toLocaleDateString() : '-'),
+      agent.description && h(Fragment, null, h('span', { style: { color: 'var(--text-muted)' } }, 'Description'), h('span', null, agent.description))
+    ),
+    tab === 'permissions' && h('div', null,
+      profile ? h('pre', { style: { fontSize: 12, background: 'var(--bg-tertiary)', padding: 16, borderRadius: 'var(--radius)', overflow: 'auto', maxHeight: 300 } }, JSON.stringify(profile, null, 2))
+        : h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'No permission profile configured')
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// SKILLS PAGE
+// ════════════════════════════════════════════════════════════
+
+function SkillsPage() {
+  const [skills, setSkills] = useState({});
+  const [search, setSearch] = useState('');
+
+  useEffect(() => { engineCall('/skills/by-category').then(d => setSkills(d.categories || {})).catch(() => {}); }, []);
+
+  const allSkills = Object.entries(skills).flatMap(([cat, list]) => list.map(s => ({ ...s, category: cat })));
+  const filtered = search ? allSkills.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.description?.toLowerCase().includes(search.toLowerCase())) : allSkills;
+
+  return h(Fragment, null,
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Skills Catalog'), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, allSkills.length + ' skills available across ' + Object.keys(skills).length + ' categories')),
+      h('div', { style: { position: 'relative' } },
+        h('input', { className: 'input', style: { width: 250, paddingLeft: 32 }, value: search, onChange: e => setSearch(e.target.value), placeholder: 'Search skills...' }),
+        h('span', { style: { position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' } }, I.search())
+      )
+    ),
+    (search ? [['results', filtered]] : Object.entries(skills)).map(([cat, list]) =>
+      h('div', { key: cat, style: { marginBottom: 24 } },
+        h('h3', { style: { fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 10 } }, cat.replace(/-/g, ' ')),
+        h('div', { className: 'skill-grid' }, (search ? list : list).map(s =>
+          h('div', { key: s.id, className: 'skill-card' },
+            h('div', { className: 'skill-cat' }, s.category || cat),
+            h('div', { className: 'skill-name' }, s.name),
+            h('div', { className: 'skill-desc' }, s.description),
+            s.tools && h('div', { style: { marginTop: 6, fontSize: 11, color: 'var(--text-muted)' } }, s.tools.length + ' tools')
+          )
+        ))
+      )
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// KNOWLEDGE BASES PAGE
+// ════════════════════════════════════════════════════════════
+
+function KnowledgeBasePage() {
+  const { toast } = useApp();
+  const [kbs, setKbs] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '' });
+
+  const load = () => engineCall('/knowledge-bases').then(d => setKbs(d.knowledgeBases || [])).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    try {
+      await engineCall('/knowledge-bases', { method: 'POST', body: JSON.stringify({ name: form.name, description: form.description, orgId: 'default' }) });
+      toast('Knowledge base created', 'success');
+      setCreating(false); setForm({ name: '', description: '' }); load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return h(Fragment, null,
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Knowledge Bases'), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Document ingestion and RAG retrieval for agents')),
+      h('button', { className: 'btn btn-primary', onClick: () => setCreating(true) }, I.plus(), ' New Knowledge Base')
+    ),
+    creating && h(Modal, { title: 'Create Knowledge Base', onClose: () => setCreating(false), footer: h(Fragment, null, h('button', { className: 'btn btn-secondary', onClick: () => setCreating(false) }, 'Cancel'), h('button', { className: 'btn btn-primary', onClick: create, disabled: !form.name }, 'Create')) },
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Name'), h('input', { className: 'input', value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })) })),
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Description'), h('textarea', { className: 'input', value: form.description, onChange: e => setForm(f => ({ ...f, description: e.target.value })) }))
+    ),
+    kbs.length === 0
+      ? h('div', { className: 'card' }, h('div', { className: 'card-body' }, h('div', { className: 'empty-state' }, I.knowledge(), h('h3', null, 'No knowledge bases'), h('p', null, 'Create a knowledge base to give agents access to your documents, policies, and data.'))))
+      : h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 } }, kbs.map(kb =>
+          h('div', { key: kb.id, className: 'card' },
+            h('div', { className: 'card-body' },
+              h('h3', { style: { fontSize: 15, fontWeight: 600, marginBottom: 4 } }, kb.name),
+              h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 } }, kb.description || 'No description'),
+              h('div', { style: { display: 'flex', gap: 8 } },
+                h('span', { className: 'badge badge-info' }, (kb.documents?.length || 0) + ' documents'),
+                h('span', { className: 'badge badge-neutral' }, (kb.agentIds?.length || 0) + ' agents')
+              )
+            )
+          )
+        ))
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// APPROVALS PAGE
+// ════════════════════════════════════════════════════════════
+
+function ApprovalsPage() {
+  const { toast } = useApp();
+  const [pending, setPending] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [tab, setTab] = useState('pending');
+
+  const load = () => {
+    engineCall('/approvals/pending').then(d => setPending(d.requests || [])).catch(() => {});
+    engineCall('/approvals/history?limit=50').then(d => setHistory(d.requests || [])).catch(() => {});
+  };
+  useEffect(() => { load(); }, []);
+
+  const decide = async (id, decision, reason) => {
+    try {
+      await engineCall('/approvals/' + id + '/decide', { method: 'POST', body: JSON.stringify({ decision, decidedBy: 'admin', reason }) });
+      toast(decision === 'approved' ? 'Approved' : 'Rejected', 'success');
+      load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return h(Fragment, null,
+    h('div', { style: { marginBottom: 20 } },
+      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Approvals'),
+      h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Review and approve agent actions that require human oversight')
+    ),
+    h('div', { className: 'tabs' },
+      h('div', { className: 'tab' + (tab === 'pending' ? ' active' : ''), onClick: () => setTab('pending') }, 'Pending', pending.length > 0 && h('span', { className: 'badge', style: { marginLeft: 6, background: 'var(--danger)', color: 'white', fontSize: 10, padding: '1px 6px', borderRadius: 10 } }, pending.length)),
+      h('div', { className: 'tab' + (tab === 'history' ? ' active' : ''), onClick: () => setTab('history') }, 'History')
+    ),
+    tab === 'pending' && (pending.length === 0
+      ? h('div', { className: 'card' }, h('div', { className: 'card-body' }, h('div', { className: 'empty-state' }, I.approvals(), h('h3', null, 'No pending approvals'), h('p', null, 'When agents need approval for sensitive actions, they\'ll appear here.'))))
+      : pending.map(r =>
+          h('div', { key: r.id, className: 'card', style: { marginBottom: 12 } },
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+                h('div', null,
+                  h('h4', { style: { fontSize: 14, fontWeight: 600, marginBottom: 4 } }, r.type),
+                  h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 } }, r.description || JSON.stringify(r.context)),
+                  h('div', { style: { display: 'flex', gap: 6 } },
+                    h('span', { className: 'badge badge-primary' }, r.agentId),
+                    h('span', { className: 'badge badge-warning' }, r.riskLevel || 'medium')
+                  )
+                ),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', { className: 'btn btn-primary btn-sm', onClick: () => decide(r.id, 'approved') }, I.check(), ' Approve'),
+                  h('button', { className: 'btn btn-danger btn-sm', onClick: async () => { const ok = await showConfirm({ title: 'Reject Request', message: 'Reject this approval request?', danger: true, confirmText: 'Reject' }); if (ok) decide(r.id, 'rejected', ''); } }, I.x(), ' Reject')
+                )
+              )
+            )
           )
         )
-      ),
-      tab === 'keys' && h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'API Keys'), h('button', { className: 'btn btn-sm btn-primary' }, Icons.plus(), ' Create Key')),
-        h('div', { className: 'card-body-flush' },
-          apiKeys.length === 0 ? h(EmptyState, { title: 'No API keys', desc: 'Create an API key to access the REST API programmatically' }) :
-          h('table', null,
-            h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Key'), h('th', null, 'Scopes'), h('th', null, 'Created'))),
-            h('tbody', null, apiKeys.map(k =>
-              h('tr', { key: k.id },
-                h('td', null, h('strong', null, k.name)),
-                h('td', null, h('span', { className: 'font-mono text-sm' }, k.key?.slice(0, 12) + '...')),
-                h('td', null, (k.scopes || []).join(', ') || 'all'),
-                h('td', { className: 'text-muted text-sm' }, k.createdAt ? new Date(k.createdAt).toLocaleDateString() : '-')
+    ),
+    tab === 'history' && h('div', { className: 'card' },
+      h('div', { className: 'card-body-flush' },
+        history.length === 0
+          ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No approval history')
+          : h('table', null,
+              h('thead', null, h('tr', null, h('th', null, 'Type'), h('th', null, 'Agent'), h('th', null, 'Decision'), h('th', null, 'By'), h('th', null, 'Date'))),
+              h('tbody', null, history.map(r =>
+                h('tr', { key: r.id },
+                  h('td', null, r.type),
+                  h('td', null, r.agentId),
+                  h('td', null, h('span', { className: 'badge badge-' + (r.decision === 'approved' ? 'success' : 'danger') }, r.decision)),
+                  h('td', null, r.decidedBy || '-'),
+                  h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, r.decidedAt ? new Date(r.decidedAt).toLocaleString() : '-')
+                )
+              ))
+            )
+      )
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// ACTIVITY PAGE
+// ════════════════════════════════════════════════════════════
+
+function ActivityPage() {
+  const [events, setEvents] = useState([]);
+  const [toolCalls, setToolCalls] = useState([]);
+  const [tab, setTab] = useState('events');
+
+  useEffect(() => {
+    engineCall('/activity/events?limit=100').then(d => setEvents(d.events || [])).catch(() => {});
+    engineCall('/activity/tool-calls?limit=100').then(d => setToolCalls(d.toolCalls || [])).catch(() => {});
+  }, []);
+
+  return h(Fragment, null,
+    h('div', { style: { marginBottom: 20 } },
+      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Activity'),
+      h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Real-time activity and tool usage across all agents')
+    ),
+    h('div', { className: 'tabs' },
+      h('div', { className: 'tab' + (tab === 'events' ? ' active' : ''), onClick: () => setTab('events') }, 'Events'),
+      h('div', { className: 'tab' + (tab === 'tools' ? ' active' : ''), onClick: () => setTab('tools') }, 'Tool Calls')
+    ),
+    tab === 'events' && h('div', { className: 'card' },
+      h('div', { className: 'card-body-flush' },
+        events.length === 0 ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No events recorded')
+        : h('table', null,
+            h('thead', null, h('tr', null, h('th', null, 'Time'), h('th', null, 'Type'), h('th', null, 'Agent'), h('th', null, 'Details'))),
+            h('tbody', null, events.map((ev, i) =>
+              h('tr', { key: i },
+                h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, new Date(ev.timestamp).toLocaleString()),
+                h('td', null, h('span', { className: 'badge badge-info' }, ev.type)),
+                h('td', null, ev.agentId || '-'),
+                h('td', { style: { fontSize: 12, color: 'var(--text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, typeof ev.data === 'object' ? JSON.stringify(ev.data) : ev.data || '-')
               )
             ))
           )
+      )
+    ),
+    tab === 'tools' && h('div', { className: 'card' },
+      h('div', { className: 'card-body-flush' },
+        toolCalls.length === 0 ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No tool calls recorded')
+        : h('table', null,
+            h('thead', null, h('tr', null, h('th', null, 'Time'), h('th', null, 'Tool'), h('th', null, 'Agent'), h('th', null, 'Duration'), h('th', null, 'Status'))),
+            h('tbody', null, toolCalls.map((tc, i) =>
+              h('tr', { key: i },
+                h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, new Date(tc.timestamp).toLocaleString()),
+                h('td', null, h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, tc.tool)),
+                h('td', null, tc.agentId || '-'),
+                h('td', null, tc.durationMs ? tc.durationMs + 'ms' : '-'),
+                h('td', null, h('span', { className: 'badge badge-' + (tc.success ? 'success' : 'danger') }, tc.success ? 'ok' : 'fail'))
+              )
+            ))
+          )
+      )
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// USERS PAGE
+// ════════════════════════════════════════════════════════════
+
+function UsersPage() {
+  const { toast } = useApp();
+  const [users, setUsers] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ email: '', password: '', name: '', role: 'viewer' });
+
+  const load = () => apiCall('/users').then(d => setUsers(d.users || d || [])).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    try {
+      await apiCall('/users', { method: 'POST', body: JSON.stringify(form) });
+      toast('User created', 'success'); setCreating(false); setForm({ email: '', password: '', name: '', role: 'viewer' }); load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return h(Fragment, null,
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Users'), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage team members and their access')),
+      h('button', { className: 'btn btn-primary', onClick: () => setCreating(true) }, I.plus(), ' Add User')
+    ),
+    creating && h(Modal, { title: 'Add User', onClose: () => setCreating(false), footer: h(Fragment, null, h('button', { className: 'btn btn-secondary', onClick: () => setCreating(false) }, 'Cancel'), h('button', { className: 'btn btn-primary', onClick: create, disabled: !form.email || !form.password }, 'Create')) },
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Name'), h('input', { className: 'input', value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })) })),
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Email *'), h('input', { className: 'input', type: 'email', value: form.email, onChange: e => setForm(f => ({ ...f, email: e.target.value })) })),
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Password *'), h('input', { className: 'input', type: 'password', value: form.password, onChange: e => setForm(f => ({ ...f, password: e.target.value })) })),
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Role'), h('select', { className: 'input', value: form.role, onChange: e => setForm(f => ({ ...f, role: e.target.value })) }, h('option', { value: 'viewer' }, 'Viewer'), h('option', { value: 'admin' }, 'Admin'), h('option', { value: 'owner' }, 'Owner')))
+    ),
+    h('div', { className: 'card' },
+      h('div', { className: 'card-body-flush' },
+        users.length === 0 ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No users')
+        : h('table', null,
+            h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Email'), h('th', null, 'Role'), h('th', null, 'Created'))),
+            h('tbody', null, users.map(u =>
+              h('tr', { key: u.id },
+                h('td', null, h('strong', null, u.name || '-')),
+                h('td', null, u.email),
+                h('td', null, h('span', { className: 'badge badge-' + (u.role === 'owner' ? 'warning' : u.role === 'admin' ? 'primary' : 'neutral') }, u.role)),
+                h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-')
+              )
+            ))
+          )
+      )
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// AUDIT LOG PAGE
+// ════════════════════════════════════════════════════════════
+
+function AuditPage() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiCall('/audit?limit=100').then(d => { setLogs(d.entries || d.logs || d || []); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  return h(Fragment, null,
+    h('div', { style: { marginBottom: 20 } },
+      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Audit Log'),
+      h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Complete record of all administrative actions and changes')
+    ),
+    h('div', { className: 'card' },
+      h('div', { className: 'card-body-flush' },
+        loading ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading...')
+        : logs.length === 0 ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No audit entries')
+        : h('table', null,
+            h('thead', null, h('tr', null, h('th', null, 'Time'), h('th', null, 'Action'), h('th', null, 'User'), h('th', null, 'Target'), h('th', null, 'Details'))),
+            h('tbody', null, logs.map((l, i) =>
+              h('tr', { key: i },
+                h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, l.timestamp ? new Date(l.timestamp).toLocaleString() : '-'),
+                h('td', null, h('span', { className: 'badge badge-info' }, l.action)),
+                h('td', null, l.userId || l.user || '-'),
+                h('td', null, l.targetId || l.target || '-'),
+                h('td', { style: { fontSize: 12, color: 'var(--text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, typeof l.details === 'object' ? JSON.stringify(l.details) : l.details || '-')
+              )
+            ))
+          )
+      )
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// SETTINGS PAGE
+// ════════════════════════════════════════════════════════════
+
+function SettingsPage() {
+  const { toast } = useApp();
+  const [tab, setTab] = useState('general');
+  const [settings, setSettings] = useState({});
+  const [apiKeys, setApiKeys] = useState([]);
+  const [keyName, setKeyName] = useState('');
+
+  useEffect(() => {
+    apiCall('/settings').then(d => { const s = d.settings || d || {}; setSettings(s); if (s.primaryColor) applyBrandColor(s.primaryColor); }).catch(() => {});
+    apiCall('/api-keys').then(d => setApiKeys(d.keys || [])).catch(() => {});
+  }, []);
+
+  const createKey = async () => {
+    try {
+      const d = await apiCall('/api-keys', { method: 'POST', body: JSON.stringify({ name: keyName || 'New Key', scopes: ['read', 'write', 'admin'] }) });
+      toast('API Key created: ' + (d.key || d.keyPrefix || 'ok'), 'success');
+      setKeyName('');
+      apiCall('/api-keys').then(d => setApiKeys(d.keys || [])).catch(() => {});
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const revokeKey = async (id) => {
+    const ok = await showConfirm({ title: 'Revoke API Key', message: 'Are you sure you want to revoke this API key? Any applications using this key will immediately lose access.', warning: 'This action cannot be undone. You will need to create a new key.', danger: true, confirmText: 'Revoke Key' });
+    if (!ok) return;
+    try { await apiCall('/api-keys/' + id, { method: 'DELETE' }); toast('Key revoked', 'success'); apiCall('/api-keys').then(d => setApiKeys(d.keys || [])); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const saveSetting = async (key, value) => {
+    try { await apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ [key]: value }) }); toast('Settings saved', 'success'); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  return h(Fragment, null,
+    h('div', { style: { marginBottom: 20 } },
+      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Settings')
+    ),
+    h('div', { className: 'tabs' },
+      ['general', 'api-keys', 'authentication', 'email', 'integrations'].map(t =>
+        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'api-keys': 'API Keys', authentication: 'Authentication', email: 'Email & Domain', integrations: 'Integrations' }[t])
+      )
+    ),
+
+    tab === 'general' && h('div', null,
+      h('div', { className: 'card', style: { marginBottom: 16 } },
+        h('div', { className: 'card-header' }, h('h3', null, 'Organization')),
+        h('div', { className: 'card-body' },
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Company Name'),
+              h('input', { className: 'input', value: settings.name || '', onChange: e => setSettings(s => ({ ...s, name: e.target.value })) })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Domain'),
+              h('input', { className: 'input', value: settings.domain || '', onChange: e => setSettings(s => ({ ...s, domain: e.target.value })) })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Subdomain'),
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 4 } },
+                h('input', { className: 'input', value: settings.subdomain || '', onChange: e => setSettings(s => ({ ...s, subdomain: e.target.value })), style: { maxWidth: 200 } }),
+                h('span', { style: { color: 'var(--text-muted)', fontSize: 13 } }, '.agenticmail.cloud')
+              )
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Plan'),
+              h('select', { className: 'input', value: settings.plan || 'self-hosted', onChange: e => setSettings(s => ({ ...s, plan: e.target.value })) },
+                h('option', { value: 'self-hosted' }, 'Self-Hosted (Unlimited)'),
+                h('option', { value: 'team' }, 'Team (25 agents)'),
+                h('option', { value: 'enterprise' }, 'Enterprise (Unlimited + Support)'),
+                h('option', { value: 'free' }, 'Free (3 agents)')
+              ),
+              h('p', { className: 'form-help' }, 'Self-hosted installations have no restrictions. Choose a plan tier to enforce agent limits.')
+            )
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Logo URL'),
+            h('input', { className: 'input', value: settings.logoUrl || '', onChange: e => setSettings(s => ({ ...s, logoUrl: e.target.value })), placeholder: 'https://yourcompany.com/logo.png' })
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Primary Brand Color'),
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+              h('input', { type: 'color', value: settings.primaryColor || '#6366f1', onChange: e => { setSettings(s => ({ ...s, primaryColor: e.target.value })); applyBrandColor(e.target.value); }, style: { width: 40, height: 32, padding: 0, border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer' } }),
+              h('input', { className: 'input', value: settings.primaryColor || '', onChange: e => { setSettings(s => ({ ...s, primaryColor: e.target.value })); if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) applyBrandColor(e.target.value); }, style: { maxWidth: 120, fontFamily: 'var(--font-mono)', fontSize: 12 } })
+            )
+          ),
+          h('button', { className: 'btn btn-primary', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ name: settings.name, domain: settings.domain, subdomain: settings.subdomain, logoUrl: settings.logoUrl, primaryColor: settings.primaryColor, plan: settings.plan }) }).then(d => { setSettings(d); toast('Settings saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Changes')
         )
       ),
-      tab === 'api' && h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Build Your Own Frontend')),
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, h('h3', null, 'SMTP Configuration')),
         h('div', { className: 'card-body' },
-          h('p', { className: 'text-sm mb-3' }, 'AgenticMail Enterprise exposes a complete REST API. You can build your own dashboard in any language or framework.'),
-          h('div', { className: 'code-block mb-3' },
-            '// Example: Fetch agents from your React/Vue/Svelte app\n' +
-            'const response = await fetch("' + window.location.origin + '/api/agents", {\n' +
-            '  headers: {\n' +
-            '    "Authorization": "Bearer " + token,\n' +
-            '    "Content-Type": "application/json"\n' +
-            '  }\n' +
-            '});\n' +
-            'const { agents } = await response.json();\n' +
-            '// → [{ id, name, email, role, status, createdAt }]'
+          h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Configure outbound email delivery. Leave blank to use the default AgenticMail relay.'),
+          h('div', { style: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 } },
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'SMTP Host'),
+              h('input', { className: 'input', value: settings.smtpHost || '', onChange: e => setSettings(s => ({ ...s, smtpHost: e.target.value })), placeholder: 'smtp.gmail.com' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'SMTP Port'),
+              h('input', { className: 'input', type: 'number', value: settings.smtpPort || '', onChange: e => setSettings(s => ({ ...s, smtpPort: e.target.value })), placeholder: '587' })
+            )
           ),
-          h('p', { className: 'text-sm mb-2', style: { fontWeight: 600 } }, 'Authentication'),
-          h('div', { className: 'code-block mb-3' },
-            '// Option 1: JWT token (from /auth/login)\n' +
-            'headers: { "Authorization": "Bearer eyJhbGci..." }\n\n' +
-            '// Option 2: API key (from Settings > API Keys)\n' +
-            'headers: { "X-API-Key": "ak_your_key_here" }'
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'SMTP Username'),
+              h('input', { className: 'input', value: settings.smtpUser || '', onChange: e => setSettings(s => ({ ...s, smtpUser: e.target.value })), placeholder: 'you@gmail.com' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'SMTP Password'),
+              h('input', { className: 'input', type: 'password', value: settings.smtpPass || '', onChange: e => setSettings(s => ({ ...s, smtpPass: e.target.value })), placeholder: 'App password' })
+            )
           ),
-          h('p', { className: 'text-sm mb-2', style: { fontWeight: 600 } }, 'Response Format'),
-          h('p', { className: 'text-sm text-muted mb-2' }, 'All endpoints return JSON. Errors include an "error" field with a human-readable message. Successful responses return the data directly.'),
-          h('p', { className: 'text-sm' }, 'Full API reference and example implementations in 8 languages at ', h('a', { href: 'https://github.com/agenticmail/agenticmail/tree/main/packages/enterprise/dashboards', target: '_blank', style: { color: 'var(--accent)' } }, 'GitHub'))
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'DKIM Private Key'),
+            h('textarea', { className: 'input', value: settings.dkimPrivateKey || '', onChange: e => setSettings(s => ({ ...s, dkimPrivateKey: e.target.value })), placeholder: '-----BEGIN RSA PRIVATE KEY-----', rows: 3, style: { fontFamily: 'var(--font-mono)', fontSize: 11 } }),
+            h('p', { className: 'form-help' }, 'Optional. Used for email authentication (DKIM signing).')
+          ),
+          h('button', { className: 'btn btn-primary', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ smtpHost: settings.smtpHost || null, smtpPort: settings.smtpPort ? Number(settings.smtpPort) : null, smtpUser: settings.smtpUser || null, smtpPass: settings.smtpPass || null, dkimPrivateKey: settings.dkimPrivateKey || null }) }).then(d => { setSettings(d); toast('SMTP settings saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save SMTP Settings')
+        )
+      ),
+      h('div', { className: 'card', style: { marginTop: 16 } },
+        h('div', { className: 'card-header' }, h('h3', null, 'Info')),
+        h('div', { className: 'card-body' },
+          h('div', { style: { display: 'grid', gridTemplateColumns: '140px 1fr', gap: '6px 16px', fontSize: 13 } },
+            h('span', { style: { color: 'var(--text-muted)' } }, 'Organization ID'), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, settings.id || '-'),
+            h('span', { style: { color: 'var(--text-muted)' } }, 'Created'), h('span', null, settings.createdAt ? new Date(settings.createdAt).toLocaleString() : '-'),
+            h('span', { style: { color: 'var(--text-muted)' } }, 'Last Updated'), h('span', null, settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : '-')
+          )
         )
       )
-    );
-  }
+    ),
 
-  // ════════════════════════════════════════════════════════
-  // APP SHELL
-  // ════════════════════════════════════════════════════════
+    tab === 'api-keys' && h(Fragment, null,
+      h('div', { className: 'card', style: { marginBottom: 16 } },
+        h('div', { className: 'card-body' },
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+            h('input', { className: 'input', value: keyName, onChange: e => setKeyName(e.target.value), placeholder: 'Key name (e.g., production)', style: { maxWidth: 300 } }),
+            h('button', { className: 'btn btn-primary', onClick: createKey }, I.plus(), ' Create Key')
+          )
+        )
+      ),
+      h('div', { className: 'card' },
+        h('div', { className: 'card-body-flush' },
+          apiKeys.length === 0 ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No API keys')
+          : h('table', null,
+              h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Key Prefix'), h('th', null, 'Scopes'), h('th', null, 'Created'), h('th', null, 'Actions'))),
+              h('tbody', null, apiKeys.map(k =>
+                h('tr', { key: k.id },
+                  h('td', null, h('strong', null, k.name)),
+                  h('td', null, h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, (k.keyPrefix || '???') + '...')),
+                  h('td', null, (k.scopes || []).map(s => h('span', { key: s, className: 'badge badge-neutral', style: { marginRight: 4 } }, s))),
+                  h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, k.createdAt ? new Date(k.createdAt).toLocaleDateString() : '-'),
+                  h('td', null, h('button', { className: 'btn btn-danger btn-sm', onClick: () => revokeKey(k.id) }, 'Revoke'))
+                )
+              ))
+            )
+        )
+      )
+    ),
 
-  function App() {
-    const [authed, setAuthed] = useState(!!token);
-    const [page, setPage] = useState('dashboard');
-    const [toast, setToast] = useState(null);
-    const { theme, toggle, isDark } = useTheme();
+    tab === 'authentication' && h('div', null,
+      h('div', { className: 'card', style: { marginBottom: 16 } },
+        h('div', { className: 'card-header' }, h('h3', null, 'Single Sign-On (SSO)')),
+        h('div', { className: 'card-body' },
+          h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Configure SAML 2.0 or OIDC to let team members sign in with their corporate identity provider.'),
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            h('div', { className: 'preset-card', style: { cursor: 'default' } },
+              h('h4', null, 'SAML 2.0'),
+              h('p', null, 'Works with Okta, OneLogin, Azure AD, and any SAML 2.0 IdP.'),
+              h('div', { className: 'form-group', style: { marginTop: 12 } },
+                h('label', { className: 'form-label' }, 'Entity ID / Issuer'),
+                h('input', { className: 'input', placeholder: 'https://your-idp.com/entity-id' })
+              ),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'SSO URL'),
+                h('input', { className: 'input', placeholder: 'https://your-idp.com/sso' })
+              ),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'Certificate (PEM)'),
+                h('textarea', { className: 'input', rows: 3, placeholder: '-----BEGIN CERTIFICATE-----' })
+              ),
+              h('button', { className: 'btn btn-primary btn-sm' }, 'Save SAML Config')
+            ),
+            h('div', { className: 'preset-card', style: { cursor: 'default' } },
+              h('h4', null, 'OpenID Connect (OIDC)'),
+              h('p', null, 'Works with Google Workspace, Microsoft Entra, Auth0, and any OIDC provider.'),
+              h('div', { className: 'form-group', style: { marginTop: 12 } },
+                h('label', { className: 'form-label' }, 'Client ID'),
+                h('input', { className: 'input', placeholder: 'your-client-id' })
+              ),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'Client Secret'),
+                h('input', { className: 'input', type: 'password', placeholder: 'your-client-secret' })
+              ),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'Discovery URL'),
+                h('input', { className: 'input', placeholder: 'https://accounts.google.com/.well-known/openid-configuration' })
+              ),
+              h('button', { className: 'btn btn-primary btn-sm' }, 'Save OIDC Config')
+            )
+          )
+        )
+      ),
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, h('h3', null, 'OAuth Providers')),
+        h('div', { className: 'card-body' },
+          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 } },
+            [
+              { name: 'Google', desc: 'Google Workspace / Gmail', logo: 'https://www.google.com/favicon.ico', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('path', { d: 'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z', fill: '#4285F4' }), h('path', { d: 'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z', fill: '#34A853' }), h('path', { d: 'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z', fill: '#FBBC05' }), h('path', { d: 'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z', fill: '#EA4335' })) },
+              { name: 'Microsoft', desc: 'Azure AD / Microsoft 365', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('rect', { x: 1, y: 1, width: 10.5, height: 10.5, fill: '#F25022' }), h('rect', { x: 12.5, y: 1, width: 10.5, height: 10.5, fill: '#7FBA00' }), h('rect', { x: 1, y: 12.5, width: 10.5, height: 10.5, fill: '#00A4EF' }), h('rect', { x: 12.5, y: 12.5, width: 10.5, height: 10.5, fill: '#FFB900' })) },
+              { name: 'GitHub', desc: 'GitHub OAuth', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'currentColor' }, h('path', { d: 'M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z' })) },
+              { name: 'Okta', desc: 'Okta / Auth0', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('circle', { cx: 12, cy: 12, r: 10, fill: 'none', stroke: '#007DC1', strokeWidth: 2.5 }), h('circle', { cx: 12, cy: 12, r: 4, fill: '#007DC1' })) },
+              { name: 'Slack', desc: 'Sign in with Slack', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('path', { d: 'M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313z', fill: '#E01E5A' }), h('path', { d: 'M8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312z', fill: '#36C5F0' }), h('path', { d: 'M18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.163 0a2.528 2.528 0 012.523 2.522v6.312z', fill: '#2EB67D' }), h('path', { d: 'M15.163 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.163 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 01-2.52-2.523 2.527 2.527 0 012.52-2.52h6.315A2.528 2.528 0 0124 15.163a2.528 2.528 0 01-2.522 2.523h-6.315z', fill: '#ECB22E' })) },
+              { name: 'LDAP', desc: 'Active Directory / LDAP', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 }, h('path', { d: 'M12 2L3 7v10l9 5 9-5V7l-9-5z' }), h('path', { d: 'M12 22V12' }), h('path', { d: 'M3 7l9 5 9-5' })) }
+            ].map(p =>
+              h('div', { key: p.name, style: { padding: 16, border: '1px solid var(--border)', borderRadius: 'var(--radius)', textAlign: 'center' } },
+                h('div', { style: { marginBottom: 8, display: 'flex', justifyContent: 'center' } }, p.svg),
+                h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 } }, p.name),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 } }, p.desc),
+                h('button', { className: 'btn btn-secondary btn-sm', style: { width: '100%', justifyContent: 'center' } }, 'Configure')
+              )
+            )
+          )
+        )
+      )
+    ),
 
-    const showToast = (message, type = 'info') => setToast({ message, type });
+    tab === 'email' && h('div', { className: 'card' },
+      h('div', { className: 'card-header' }, h('h3', null, 'Email & Domain Configuration')),
+      h('div', { className: 'card-body' },
+        h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 } }, 'Configure how agents send and receive email. Choose between a relay (Gmail/Outlook forwarding) or a custom domain with full DKIM/SPF/DMARC.'),
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+          h('div', { className: 'preset-card', style: { cursor: 'default' } },
+            h('h4', null, 'Gmail / Outlook Relay'),
+            h('p', { style: { marginBottom: 12 } }, 'Easy setup. Agents send from yourname+agent@gmail.com. Best for getting started.'),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Email Address'),
+              h('input', { className: 'input', placeholder: 'you@gmail.com' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'App Password'),
+              h('input', { className: 'input', type: 'password', placeholder: 'xxxx xxxx xxxx xxxx' }),
+              h('p', { className: 'form-help' }, h('a', { href: 'https://myaccount.google.com/apppasswords', target: '_blank' }, 'Get app password from Google'))
+            ),
+            h('button', { className: 'btn btn-primary btn-sm' }, 'Save Relay Config')
+          ),
+          h('div', { className: 'preset-card', style: { cursor: 'default' } },
+            h('h4', null, 'Custom Domain'),
+            h('p', { style: { marginBottom: 12 } }, 'Professional setup. Agents send from agent@yourdomain.com with full email authentication.'),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Domain'),
+              h('input', { className: 'input', placeholder: 'yourdomain.com' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Cloudflare API Token'),
+              h('input', { className: 'input', type: 'password', placeholder: 'Your Cloudflare API token' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Cloudflare Account ID'),
+              h('input', { className: 'input', placeholder: 'Account ID' })
+            ),
+            h('button', { className: 'btn btn-primary btn-sm' }, 'Save Domain Config')
+          )
+        )
+      )
+    ),
 
-    if (!authed) return h(LoginPage, { onLogin: () => setAuthed(true) });
+    tab === 'integrations' && h('div', { className: 'card' },
+      h('div', { className: 'card-header' }, h('h3', null, 'Integrations')),
+      h('div', { className: 'card-body' },
+        h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 } }, 'Connect external services to extend agent capabilities.'),
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 } },
+          [{ name: 'Slack', desc: 'Send/receive messages in Slack workspaces', status: 'available' },
+           { name: 'Discord', desc: 'Bot integration for Discord servers', status: 'available' },
+           { name: 'GitHub', desc: 'PR reviews, issue management, CI/CD', status: 'available' },
+           { name: 'Jira', desc: 'Issue tracking and project management', status: 'coming' },
+           { name: 'Notion', desc: 'Knowledge base and documentation', status: 'coming' },
+           { name: 'Salesforce', desc: 'CRM integration for support agents', status: 'coming' }
+          ].map(int =>
+            h('div', { key: int.name, style: { padding: 16, border: '1px solid var(--border)', borderRadius: 'var(--radius)' } },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+                h('strong', { style: { fontSize: 14 } }, int.name),
+                h('span', { className: 'badge badge-' + (int.status === 'available' ? 'success' : 'neutral') }, int.status === 'available' ? 'Available' : 'Coming Soon')
+              ),
+              h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 } }, int.desc),
+              h('button', { className: 'btn btn-secondary btn-sm', disabled: int.status !== 'available' }, int.status === 'available' ? 'Configure' : 'Notify Me')
+            )
+          )
+        )
+      )
+    )
+  );
+}
 
-    const nav = [
-      { section: 'Overview' },
-      { id: 'dashboard', label: 'Dashboard', icon: Icons.dashboard },
-      { id: 'agents', label: 'Agents', icon: Icons.agents },
-      { section: 'Configuration' },
-      { id: 'skills', label: 'Skills & Permissions', icon: Icons.skills },
-      { id: 'knowledge', label: 'Knowledge Bases', icon: Icons.kb },
-      { section: 'Operations' },
-      { id: 'activity', label: 'Activity & Audit', icon: Icons.activity },
-      { id: 'approvals', label: 'Approvals', icon: Icons.approvals },
-      { section: 'System' },
-      { id: 'settings', label: 'Settings', icon: Icons.settings },
-    ];
+// ════════════════════════════════════════════════════════════
+// MAIN APP
+// ════════════════════════════════════════════════════════════
 
-    const pages = {
-      dashboard: h(DashboardPage),
-      agents: h(AgentsPage, { showToast }),
-      skills: h(SkillsPage),
-      knowledge: h(KnowledgeBasePage),
-      activity: h(ActivityPage),
-      approvals: h(ApprovalsPage, { showToast }),
-      settings: h(SettingsPage),
-    };
+function App() {
+  const [authed, setAuthed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [page, setPage] = useState('dashboard');
+  const [theme, setTheme] = useState(localStorage.getItem('em_theme') || 'dark');
+  const [toasts, setToasts] = useState([]);
+  const [user, setUser] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
-    return h(Fragment, null,
+  // Check if already authenticated via cookie on mount
+  useEffect(() => {
+    authCall('/me').then(d => { setUser(d.user || d); setAuthed(true); setAuthChecked(true); }).catch(() => setAuthChecked(true));
+  }, []);
+
+  const toast = useCallback((message, type = 'info') => {
+    const id = ++toastId;
+    setToasts(t => [...t, { id, message, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3500);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('em_theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (!authed) return;
+    engineCall('/approvals/pending').then(d => setPendingCount((d.requests || []).length)).catch(() => {});
+    apiCall('/settings').then(d => { const s = d.settings || d || {}; if (s.primaryColor) applyBrandColor(s.primaryColor); }).catch(() => {});
+  }, [authed]);
+
+  const logout = () => { authCall('/logout', { method: 'POST' }).finally(() => { setAuthed(false); setUser(null); }); };
+
+  if (!authChecked) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Loading...');
+  if (!authed) return h(LoginPage, { onLogin: (d) => { setAuthed(true); if (d?.user) setUser(d.user); } });
+
+  const nav = [
+    { section: 'Overview', items: [{ id: 'dashboard', icon: I.dashboard, label: 'Dashboard' }] },
+    { section: 'Management', items: [
+      { id: 'agents', icon: I.agents, label: 'Agents' },
+      { id: 'skills', icon: I.skills, label: 'Skills' },
+      { id: 'knowledge', icon: I.knowledge, label: 'Knowledge Bases' },
+      { id: 'approvals', icon: I.approvals, label: 'Approvals', badge: pendingCount || null },
+    ]},
+    { section: 'Administration', items: [
+      { id: 'users', icon: I.users, label: 'Users' },
+      { id: 'audit', icon: I.audit, label: 'Audit Log' },
+      { id: 'settings', icon: I.settings, label: 'Settings' },
+    ]}
+  ];
+
+  const pages = {
+    dashboard: DashboardPage,
+    agents: AgentsPage,
+    skills: SkillsPage,
+    knowledge: KnowledgeBasePage,
+    approvals: ApprovalsPage,
+    activity: ActivityPage,
+    users: UsersPage,
+    audit: AuditPage,
+    settings: SettingsPage,
+  };
+
+  const PageComponent = pages[page] || DashboardPage;
+
+  return h(AppContext.Provider, { value: { toast, toasts, user, theme } },
+    h('div', { className: 'app-layout' },
       // Sidebar
-      h('nav', { className: 'sidebar' },
-        h('div', { className: 'sidebar-header' },
-          h('h1', null, '🎀 AgenticMail ', h('span', { className: 'text-muted', style: { fontWeight: 400 } }, 'Enterprise')),
-          h('p', null, 'AI Agent Management')
+      h('div', { className: 'sidebar' },
+        h('div', { className: 'sidebar-brand' },
+          h('span', { style: { fontSize: 20 } }, '📧'),
+          h('div', null, h('h2', null, 'AgenticMail'), h('span', null, 'Enterprise'))
         ),
         h('div', { className: 'sidebar-nav' },
-          nav.map((item, i) =>
-            item.section ? h('div', { key: i, className: 'nav-group' }, item.section) :
-            h('button', { key: item.id, className: `nav-item ${page === item.id ? 'active' : ''}`, onClick: () => setPage(item.id) },
-              item.icon(), h('span', null, item.label)
+          nav.map(section =>
+            h('div', { key: section.section, className: 'sidebar-section' },
+              h('div', { className: 'sidebar-section-title' }, section.section),
+              section.items.map(item =>
+                h('div', { key: item.id, className: 'nav-item' + (page === item.id ? ' active' : ''), onClick: () => setPage(item.id) },
+                  item.icon(),
+                  h('span', null, item.label),
+                  item.badge && h('span', { className: 'badge' }, item.badge)
+                )
+              )
             )
           )
         ),
         h('div', { className: 'sidebar-footer' },
-          h('button', { className: 'nav-item', onClick: toggle, title: `Theme: ${theme}` }, isDark ? Icons.sun() : Icons.moon(), h('span', null, isDark ? 'Light Mode' : 'Dark Mode')),
-          h('button', { className: 'nav-item', onClick: () => { token = null; localStorage.removeItem('am_token'); setAuthed(false); } }, Icons.logout(), h('span', null, 'Sign Out'))
+          h('div', { className: 'sidebar-user' },
+            h('div', { className: 'avatar' }, (user?.name || user?.email || '?').charAt(0).toUpperCase()),
+            h('div', { className: 'user-info' },
+              h('div', { className: 'user-name' }, user?.name || user?.email || 'Admin'),
+              h('div', { className: 'user-role' }, user?.role || 'admin')
+            )
+          )
         )
       ),
+
       // Main
-      h('div', { className: 'main' },
+      h('div', { className: 'main-content' },
         h('div', { className: 'topbar' },
           h('div', { className: 'topbar-left' },
-            h('span', { className: 'text-sm text-muted' }, nav.find(n => n.id === page)?.label || 'Dashboard')
+            h('span', { className: 'topbar-title' }, (nav.flatMap(s => s.items).find(i => i.id === page)?.label || 'Dashboard'))
           ),
           h('div', { className: 'topbar-right' },
-            h('a', { href: 'https://github.com/agenticmail/agenticmail', target: '_blank', className: 'btn btn-ghost btn-sm', title: 'Documentation' }, Icons.api(), h('span', { className: 'text-sm' }, 'API Docs'))
+            h('button', { className: 'btn btn-ghost btn-icon', onClick: () => setTheme(theme === 'dark' ? 'light' : 'dark'), title: 'Toggle theme' }, theme === 'dark' ? I.sun() : I.moon()),
+            h('button', { className: 'btn btn-ghost btn-icon', onClick: logout, title: 'Sign out' }, I.logout())
           )
         ),
-        h('div', { className: 'content' }, pages[page] || h('div', null, 'Page not found'))
-      ),
-      // Toast
-      toast && h(Toast, { ...toast, onDone: () => setToast(null) })
-    );
-  }
+        h('div', { className: 'page-content' }, h(PageComponent))
+      )
+    ),
+    h(ToastContainer),
+    h(ConfirmDialog)
+  );
+}
 
-  // ════════════════════════════════════════════════════════
-  // MOUNT
-  // ════════════════════════════════════════════════════════
-
-  ReactDOM.createRoot(document.getElementById('root')).render(h(App));
-  </script>
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
 </body>
 </html>

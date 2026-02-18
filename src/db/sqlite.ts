@@ -266,9 +266,9 @@ export class SqliteAdapter extends DatabaseAdapter {
   }
 
   async listApiKeys(opts?: { createdBy?: string }): Promise<ApiKey[]> {
-    let q = 'SELECT * FROM api_keys';
+    let q = 'SELECT * FROM api_keys WHERE revoked = 0';
     const params: any[] = [];
-    if (opts?.createdBy) { q += ' WHERE created_by = ?'; params.push(opts.createdBy); }
+    if (opts?.createdBy) { q += ' AND created_by = ?'; params.push(opts.createdBy); }
     q += ' ORDER BY created_at DESC';
     return this.db.prepare(q).all(...params).map((r: any) => this.mapApiKey(r));
   }
