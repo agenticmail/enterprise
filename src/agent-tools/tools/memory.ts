@@ -10,6 +10,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { readStringParam, readNumberParam, jsonResult, textResult, errorResult } from '../common.js';
+import { MemorySearchIndex } from '../../lib/text-search.js';
 
 const MEMORY_ACTIONS = ['set', 'get', 'search', 'list', 'delete'] as const;
 type MemoryAction = (typeof MEMORY_ACTIONS)[number];
@@ -62,26 +63,42 @@ async function saveMemoryStore(storePath: string, store: MemoryStore): Promise<v
   }
 }
 
+// ── Per-store BM25 search index (rebuilt on load, updated incrementally) ──
+
+var searchIndexCache = new Map<string, MemorySearchIndex>();
+
+function buildSearchIndex(storePath: string, entries: Record<string, MemoryEntry>): MemorySearchIndex {
+  var index = new MemorySearchIndex();
+  for (var entry of Object.values(entries)) {
+    index.addDocument(entry.key, { title: entry.key, content: entry.value, tags: entry.tags });
+  }
+  searchIndexCache.set(storePath, index);
+  return index;
+}
+
+function getSearchIndex(storePath: string, entries: Record<string, MemoryEntry>): MemorySearchIndex {
+  var cached = searchIndexCache.get(storePath);
+  // Rebuild if missing or entry count drifted (another process wrote the file)
+  if (!cached || cached.docCount !== Object.keys(entries).length) {
+    return buildSearchIndex(storePath, entries);
+  }
+  return cached;
+}
+
 function searchEntries(
+  storePath: string,
   entries: Record<string, MemoryEntry>,
   query: string,
   limit: number,
 ): MemoryEntry[] {
-  var queryLower = query.toLowerCase();
-  var scored: Array<{ entry: MemoryEntry; score: number }> = [];
-
-  for (var entry of Object.values(entries)) {
-    var score = 0;
-    if (entry.key.toLowerCase().includes(queryLower)) score += 10;
-    if (entry.value.toLowerCase().includes(queryLower)) score += 5;
-    for (var tag of entry.tags) {
-      if (tag.toLowerCase().includes(queryLower)) score += 3;
-    }
-    if (score > 0) scored.push({ entry, score });
+  var index = getSearchIndex(storePath, entries);
+  var results = index.search(query);
+  var out: MemoryEntry[] = [];
+  for (var i = 0; i < Math.min(results.length, limit); i++) {
+    var entry = entries[results[i].id];
+    if (entry) out.push(entry);
   }
-
-  scored.sort(function(a, b) { return b.score - a.score; });
-  return scored.slice(0, limit).map(function(s) { return s.entry; });
+  return out;
 }
 
 export function createMemoryTool(options?: ToolCreationOptions): AnyAgentTool | null {
@@ -149,6 +166,11 @@ export function createMemoryTool(options?: ToolCreationOptions): AnyAgentTool | 
             updatedAt: now,
           };
           await saveMemoryStore(storePath, store);
+
+          // Keep BM25 index in sync
+          var idx = getSearchIndex(storePath, store.entries);
+          idx.addDocument(key, { title: key, content: value, tags: tags });
+
           return textResult('Stored memory: ' + key);
         }
 
@@ -162,7 +184,7 @@ export function createMemoryTool(options?: ToolCreationOptions): AnyAgentTool | 
         case 'search': {
           var query = readStringParam(params, 'query', { required: true });
           var limit = readNumberParam(params, 'limit', { integer: true }) ?? 10;
-          var results = searchEntries(store.entries, query, limit);
+          var results = searchEntries(storePath, store.entries, query, limit);
           if (results.length === 0) return textResult('No memories matching: ' + query);
           return jsonResult({ count: results.length, results });
         }
@@ -183,6 +205,11 @@ export function createMemoryTool(options?: ToolCreationOptions): AnyAgentTool | 
           if (!store.entries[key]) return textResult('Memory not found: ' + key);
           delete store.entries[key];
           await saveMemoryStore(storePath, store);
+
+          // Keep BM25 index in sync
+          var idx = searchIndexCache.get(storePath);
+          if (idx) idx.removeDocument(key);
+
           return textResult('Deleted memory: ' + key);
         }
 
