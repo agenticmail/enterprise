@@ -1,0 +1,13 @@
+CLAUDE.md
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+.jwt-secret
+test-integration.mjs
+live-test.mjs
+start-live.mjs
+serve.mjs
+enterprise-live-test.db
+.git
