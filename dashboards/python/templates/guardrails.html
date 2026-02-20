@@ -1,0 +1,131 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Guardrails</h1>
+  <p>Manage agent interventions and anomaly detection rules</p>
+</div>
+
+<div class="card">
+  <h3>Agent Controls</h3>
+  <form method="POST" action="{{ url_for('guardrails_bp.pause_agent') }}" style="display: flex; gap: 10px; align-items: end;">
+    <div class="form-group" style="flex: 1; margin: 0;">
+      <label>Agent ID</label>
+      <input type="text" name="agentId" required placeholder="e.g. agent-123">
+    </div>
+    <div class="form-group" style="flex: 1; margin: 0;">
+      <label>Reason</label>
+      <input type="text" name="reason" placeholder="Reason for pausing">
+    </div>
+    <button class="btn btn-primary" type="submit">Pause Agent</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Interventions</h3>
+  {% if interventions %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Agent ID</th>
+          <th>Type</th>
+          <th>Reason</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in interventions %}
+        <tr>
+          <td style="font-size: 12px; color: var(--text-muted);">{{ i.timestamp|time_ago }}</td>
+          <td style="font-weight: 600;">{{ i.agentId }}</td>
+          <td>{{ i.type|badge }}</td>
+          <td style="font-size: 12px;">{{ i.reason or '-' }}</td>
+          <td>{{ i.status|status_badge }}</td>
+          <td style="display: flex; gap: 4px;">
+            <form method="POST" action="{{ url_for('guardrails_bp.resume_agent', id=i.agentId) }}" style="display: inline;">
+              <button class="btn btn-sm btn-primary" type="submit">Resume</button>
+            </form>
+            <form method="POST" action="{{ url_for('guardrails_bp.kill_agent', id=i.agentId) }}" style="display: inline;">
+              <button class="btn btn-sm btn-danger" type="submit">Kill</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No interventions recorded</span>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Create Anomaly Rule</h3>
+  <form method="POST" action="{{ url_for('guardrails_bp.create_anomaly_rule') }}" style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+    <div class="form-group" style="flex: 1; margin: 0;">
+      <label>Name</label>
+      <input type="text" name="name" required placeholder="e.g. High send rate">
+    </div>
+    <div class="form-group" style="flex: 1; margin: 0;">
+      <label>Condition</label>
+      <input type="text" name="condition" required placeholder="e.g. messages_per_minute > 100">
+    </div>
+    <div class="form-group" style="margin: 0;">
+      <label>Action</label>
+      <select name="action">
+        <option>alert</option>
+        <option>pause</option>
+        <option>kill</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin: 0;">
+      <label>Threshold</label>
+      <input type="text" name="threshold" placeholder="e.g. 100" style="width: 80px;">
+    </div>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Anomaly Rules</h3>
+  {% if anomaly_rules %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Condition</th>
+          <th>Action</th>
+          <th>Threshold</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in anomaly_rules %}
+        <tr>
+          <td style="font-weight: 600;">{{ r.name }}</td>
+          <td style="font-size: 12px; font-family: monospace; color: var(--text-muted);">{{ r.condition }}</td>
+          <td>{{ r.action|badge }}</td>
+          <td>{{ r.threshold or '-' }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('guardrails_bp.delete_anomaly_rule', id=r.id) }}" style="display: inline;">
+              <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No anomaly rules yet</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

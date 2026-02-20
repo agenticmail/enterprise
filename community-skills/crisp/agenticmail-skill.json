@@ -1,0 +1,56 @@
+{
+  "id": "crisp",
+  "name": "Crisp Chat",
+  "description": "Integrate with Crisp Chat to list, send, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/crisp",
+  "license": "MIT",
+  "category": "customer-support",
+  "risk": "medium",
+  "tags": [
+    "crisp",
+    "chat",
+    "customer-support"
+  ],
+  "auth": {
+    "type": "credentials",
+    "provider": "crisp"
+  },
+  "tools": [
+    {
+      "id": "crisp_list_conversations",
+      "name": "List Conversations",
+      "description": "List conversations from Crisp. Returns session IDs, visitor info, states, and last messages."
+    },
+    {
+      "id": "crisp_send_message",
+      "name": "Send Message",
+      "description": "Send a message in a Crisp conversation. Can send text or a note (internal message)."
+    },
+    {
+      "id": "crisp_get_conversation",
+      "name": "Get Conversation",
+      "description": "Get details of a specific Crisp conversation by session ID. Returns visitor info, state, and message history."
+    },
+    {
+      "id": "crisp_list_people",
+      "name": "List People",
+      "description": "List people (contacts) from Crisp. Optionally search by name or email."
+    },
+    {
+      "id": "crisp_update_conversation",
+      "name": "Update Conversation",
+      "description": "Update a Crisp conversation state or metadata. Can change state to resolved, pending, or unresolved."
+    }
+  ],
+  "configSchema": {
+    "websiteId": {
+      "type": "string",
+      "label": "Website ID",
+      "description": "Your Crisp website ID (found in your Crisp dashboard settings)",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

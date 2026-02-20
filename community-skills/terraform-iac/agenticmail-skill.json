@@ -1,0 +1,66 @@
+{
+  "id": "terraform-iac",
+  "name": "Terraform IaC",
+  "description": "Plan, apply, and manage Terraform infrastructure. View state and manage workspaces.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/terraform-iac",
+  "license": "Apache-2.0",
+  "category": "cloud",
+  "risk": "critical",
+  "auth": {
+    "type": "token",
+    "name": "Terraform Cloud Token",
+    "envVar": "TF_TOKEN",
+    "description": "Team or user API token from Terraform Cloud"
+  },
+  "tags": ["terraform", "iac", "infrastructure", "devops"],
+  "tools": [
+    {
+      "id": "tf_plan",
+      "name": "Terraform Plan",
+      "description": "Generate and show an execution plan"
+    },
+    {
+      "id": "tf_apply",
+      "name": "Terraform Apply",
+      "description": "Apply the planned changes to infrastructure"
+    },
+    {
+      "id": "tf_list_state",
+      "name": "List State",
+      "description": "List resources in the current state"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultOrganization": {
+        "type": "string",
+        "description": "Default Terraform Cloud organization"
+      },
+      "defaultWorkspace": {
+        "type": "string",
+        "description": "Default Terraform workspace name"
+      },
+      "autoApply": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically apply after successful plan"
+      },
+      "planOnly": {
+        "type": "boolean",
+        "default": true,
+        "description": "Only generate plans, never auto-apply"
+      },
+      "backendType": {
+        "type": "string",
+        "enum": ["remote", "local", "s3"],
+        "default": "remote",
+        "description": "Terraform backend type"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

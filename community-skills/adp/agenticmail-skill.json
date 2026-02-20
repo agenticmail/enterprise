@@ -1,0 +1,65 @@
+{
+  "id": "adp",
+  "name": "ADP Workforce",
+  "description": "Integrate with ADP Workforce to list, get, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/adp",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "adp",
+    "workforce",
+    "hr"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "adp"
+  },
+  "tools": [
+    {
+      "id": "adp_list_workers",
+      "name": "List Workers",
+      "description": "List workers from ADP Workforce. Returns a paginated list of all workers with basic information."
+    },
+    {
+      "id": "adp_get_worker",
+      "name": "Get Worker",
+      "description": "Get detailed information about a specific ADP worker by their associate OID."
+    },
+    {
+      "id": "adp_get_payroll",
+      "name": "Get Payroll",
+      "description": "Get payroll information from ADP. Returns pay statements for a specific worker or a summary of recent payroll runs."
+    },
+    {
+      "id": "adp_list_org_units",
+      "name": "List Org Units",
+      "description": "List organizational units from ADP. Returns departments, divisions, cost centers, and other org structures."
+    },
+    {
+      "id": "adp_get_benefits",
+      "name": "Get Benefits",
+      "description": "Get benefit enrollment information for a specific ADP worker. Returns active benefits, coverage, and plan details."
+    }
+  ],
+  "configSchema": {
+    "environment": {
+      "type": "select",
+      "label": "Environment",
+      "description": "Select the ADP environment to connect to",
+      "options": [
+        {
+          "label": "Production",
+          "value": "prod"
+        },
+        {
+          "label": "Sandbox",
+          "value": "sandbox"
+        }
+      ]
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

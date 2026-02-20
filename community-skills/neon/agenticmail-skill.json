@@ -1,0 +1,50 @@
+{
+  "id": "neon",
+  "name": "Neon Serverless Postgres",
+  "description": "Integrate with Neon Serverless Postgres to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/neon",
+  "license": "MIT",
+  "category": "database",
+  "risk": "medium",
+  "tags": [
+    "neon",
+    "serverless",
+    "postgres",
+    "database"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "neon"
+  },
+  "tools": [
+    {
+      "id": "neon_list_projects",
+      "name": "List Projects",
+      "description": "List all Neon projects accessible to the authenticated user. Returns project names, IDs, regions, and creation dates."
+    },
+    {
+      "id": "neon_get_project",
+      "name": "Get Project",
+      "description": "Get detailed information about a specific Neon project by its ID."
+    },
+    {
+      "id": "neon_list_branches",
+      "name": "List Branches",
+      "description": "List branches in a Neon project. Returns branch names, IDs, parent info, and timestamps."
+    },
+    {
+      "id": "neon_create_branch",
+      "name": "Create Branch",
+      "description": "Create a new branch in a Neon project. Optionally specify a parent branch and endpoint configuration."
+    },
+    {
+      "id": "neon_list_endpoints",
+      "name": "List Endpoints",
+      "description": "List compute endpoints in a Neon project. Returns endpoint IDs, hosts, branch associations, and status."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

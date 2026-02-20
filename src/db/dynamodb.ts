@@ -162,7 +162,7 @@ export class DynamoAdapter extends DatabaseAdapter {
   async getSettings(): Promise<CompanySettings> {
     const r = await this.getItem(pk('SETTINGS'), 'default');
     if (!r) return null!;
-    return { id: 'default', name: r.name, domain: r.domain, subdomain: r.subdomain, smtpHost: r.smtpHost, smtpPort: r.smtpPort, smtpUser: r.smtpUser, smtpPass: r.smtpPass, dkimPrivateKey: r.dkimPrivateKey, logoUrl: r.logoUrl, primaryColor: r.primaryColor, plan: r.plan, createdAt: new Date(r.createdAt), updatedAt: new Date(r.updatedAt) };
+    return { id: 'default', name: r.name, domain: r.domain, subdomain: r.subdomain, smtpHost: r.smtpHost, smtpPort: r.smtpPort, smtpUser: r.smtpUser, smtpPass: r.smtpPass, dkimPrivateKey: r.dkimPrivateKey, logoUrl: r.logoUrl, primaryColor: r.primaryColor, ssoConfig: r.ssoConfig, toolSecurityConfig: r.toolSecurityConfig || {}, firewallConfig: r.firewallConfig || {}, modelPricingConfig: r.modelPricingConfig || {}, plan: r.plan, deploymentKeyHash: r.deploymentKeyHash, domainRegistrationId: r.domainRegistrationId, domainDnsChallenge: r.domainDnsChallenge, domainVerifiedAt: r.domainVerifiedAt || undefined, domainRegisteredAt: r.domainRegisteredAt || undefined, domainStatus: r.domainStatus || 'unregistered', createdAt: new Date(r.createdAt), updatedAt: new Date(r.updatedAt) };
   }
 
   async updateSettings(updates: Partial<CompanySettings>): Promise<CompanySettings> {
@@ -175,7 +175,7 @@ export class DynamoAdapter extends DatabaseAdapter {
   // ─── Agents ──────────────────────────────────────────────
 
   async createAgent(input: AgentInput): Promise<Agent> {
-    const id = randomUUID();
+    const id = input.id || randomUUID();
     const now = new Date().toISOString();
     const email = input.email || `${input.name.toLowerCase().replace(/\s+/g, '-')}@localhost`;
     const item = {

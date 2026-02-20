@@ -27,7 +27,7 @@ AgenticMail Enterprise turns AI agents into managed employees. You define what a
   - [Multi-Tenant Isolation](#7-multi-tenant-isolation)
   - [Activity Tracking](#8-activity-tracking)
   - [Tool Catalog](#9-tool-catalog)
-  - [OpenClaw Hook](#10-openclaw-hook)
+  - [Runtime Hooks](#10-runtime-hooks)
   - [AgenticMail Bridge](#11-agenticmail-bridge)
 - [REST API](#rest-api)
   - [Authentication](#authentication)
@@ -154,14 +154,14 @@ Choose from 10 supported backends. Each asks for its specific connection details
 - **Turso / LibSQL** — database URL + auth token
 
 ### Step 3: Deployment Target
-- **AgenticMail Cloud** — managed hosting, instant URL (`company.agenticmail.cloud`)
+- **AgenticMail Cloud** — managed hosting, instant URL (`company.agenticmail.io`)
 - **Fly.io** — generates `fly.toml`, you deploy to your Fly account
 - **Railway** — generates Railway config
 - **Docker** — generates `docker-compose.yml` for self-hosting
 - **Local** — starts the server immediately on localhost (dev/testing)
 
 ### Step 4: Custom Domain (optional)
-Add a custom domain (e.g., `agents.acme.com`) with CNAME setup instructions.
+Add a custom domain (e.g., `agents.agenticmail.io`) with CNAME setup instructions.
 
 ---
 
@@ -263,7 +263,7 @@ The Engine is the brain of Enterprise — 11 subsystems that handle everything f
 | Custom | Custom Tools (user-defined) |
 
 Each skill defines:
-- **Tools** — which tool IDs are included (mapped to real OpenClaw + AgenticMail tool IDs)
+- **Tools** — which tool IDs are included (mapped to registered AgenticMail tool IDs)
 - **Config fields** — what settings the skill needs (API keys, hostnames, etc.)
 - **Risk level** — low, medium, high, critical
 - **Side effects** — what the skill can affect (network, filesystem, email, etc.)
@@ -300,7 +300,7 @@ Generates all the files an agent needs to run:
 - **AGENTS.md** — workspace conventions
 - **USER.md** — who the agent serves
 - **TOOLS.md** — environment-specific tool notes
-- **Gateway config** — OpenClaw `openclaw.json` with plugins, channels, tool policies
+- **Gateway config** — agent runtime gateway config with plugins, channels, tool policies
 - **Deploy scripts** — Dockerfile, docker-compose, startup scripts
 
 ```typescript
@@ -343,173 +343,263 @@ const result = await deployer.deploy({
 
 ### 4. Approval Workflows
 
-Human-in-the-loop for sensitive operations:
+Human-in-the-loop for sensitive operations. **All data persisted to database.**
 
 - Define **policies** — which actions need approval and from whom
 - Agents **request** approval when they hit a policy boundary
 - Admins **approve or reject** from the dashboard or via API
 - Supports **auto-approve** rules (e.g., "auto-approve emails to internal domains")
 - **Escalation** — unreviewed requests escalate after a configurable timeout
+- **Persistence** — pending requests and policies survive server restarts
 
 ```typescript
-const approvals = new ApprovalEngine(db);
+const approvals = new ApprovalEngine();
+await approvals.setDb(engineDb); // Wire to database, loads pending requests
 
 // Create a policy
-await approvals.createPolicy({
-  action: 'send_external_email',
-  requiredRole: 'admin',
-  autoApproveRules: [{ condition: 'recipient_domain', value: 'acme.com' }],
-});
+approvals.addPolicy({
+  id: crypto.randomUUID(),
+  name: 'External Email Review',
+  triggers: { sideEffects: ['email'] },
+  approvers: { userIds: [], roles: ['admin'], requireMultiple: 1 },
+  timeout: { minutes: 60, defaultAction: 'deny' },
+  notify: { channels: ['webhook'] },
+  enabled: true,
+}, 'org-id');
 
 // Agent requests approval
-const request = await approvals.request({
+const request = await approvals.requestApproval({
   agentId: 'agent-123',
-  action: 'send_external_email',
-  details: { to: 'client@external.com', subject: '...' },
+  agentName: 'Support Bot',
+  toolId: 'agenticmail_send',
+  toolName: 'Send Email',
+  riskLevel: 'medium',
+  sideEffects: ['email'],
+  orgId: 'org-id',
 });
-// → { id: 'req-456', status: 'pending' }
+// → { id: 'req-456', status: 'pending' } — persisted to DB
 
 // Admin approves
-await approvals.decide(request.id, { approved: true, decidedBy: 'admin-1' });
+approvals.decide('req-456', { action: 'approve', by: 'admin-1' });
+// → Updates both in-memory and DB
 ```
 
 ### 5. Agent Lifecycle
 
-State machine for agent lifecycle management:
+State machine for agent lifecycle management. **All state persisted to database.**
 
 ```
-  created → provisioning → running → paused → running
-                                   → stopped → archived
-                                   → error → running (auto-recovery)
+draft → configuring → ready → provisioning → deploying → starting → running
+                                                                      ↕
+                                                                   degraded
+                                                                      ↓
+                                         stopped ← error ← destroying
 ```
 
-- **Health checks** — periodic pings, response time tracking, error rate monitoring
-- **Auto-recovery** — configurable restart attempts on failure
-- **Usage tracking** — token consumption, API calls, cost estimation
-- **Events** — every state transition logged with timestamp and reason
+- **12 states** — draft, configuring, ready, provisioning, deploying, starting, running, degraded, stopped, error, updating, destroying
+- **Health checks** — 30-second polling loop, response time tracking, error rate monitoring
+- **Auto-recovery** — restarts after 5 consecutive health failures
+- **Budget enforcement** — auto-stops when monthly token or cost budget exceeded
+- **State transitions** — every transition persisted to `agent_state_history` table
+- **Persistence** — all agent data written through to `managed_agents` table, loaded from DB on startup
 
 ```typescript
-const lifecycle = new AgentLifecycleManager(db);
+const lifecycle = new AgentLifecycleManager({ permissions: permissionEngine });
+await lifecycle.setDb(engineDb); // Wire to database, loads all agents
+
+// Create an agent
+const agent = await lifecycle.createAgent('org-id', agentConfig, 'admin-1');
+// → Persisted to managed_agents table
+
+// Deploy
+await lifecycle.deploy(agent.id, 'admin-1');
+// → Provisions infrastructure, starts container, begins health check loop
 
 // Get agent status
-const agent = await lifecycle.getAgent('agent-123');
-// → { state: 'running', health: { status: 'healthy', lastCheck: '...', uptime: 86400 }, usage: { tokens: 1500000, cost: 12.50 } }
+const status = lifecycle.getAgent(agent.id);
+// → { state: 'running', health: { status: 'healthy', uptime: 86400 }, usage: { tokensToday: 150000, costToday: 1.25 } }
 
-// Pause an agent
-await lifecycle.transition('agent-123', 'pause', { reason: 'Maintenance window' });
-
-// Resume
-await lifecycle.transition('agent-123', 'resume');
+// Stop
+await lifecycle.stop(agent.id, 'admin-1', 'Maintenance window');
 ```
 
 ### 6. Knowledge Base
 
-Document ingestion and retrieval for agent knowledge:
+Document ingestion and retrieval for agent knowledge. **All data persisted to database.**
 
-- **Upload documents** — PDF, Markdown, plain text, HTML
-- **Chunking** — automatic splitting into retrievable segments
-- **Search** — semantic search across knowledge bases
+- **Upload documents** — PDF, Markdown, plain text, HTML, CSV
+- **Chunking** — automatic splitting with configurable chunk size and overlap
+- **Embeddings** — OpenAI text-embedding-3-small (optional, falls back to keyword matching)
+- **Semantic search** — cosine similarity on embeddings, keyword fallback
+- **RAG context** — generates context string for agent prompts with token budget
 - **Per-agent or shared** — knowledge bases can be private or shared across agents
+- **Persistence** — KBs, documents, and chunks persisted to 3 tables. Embeddings stored as binary blobs.
 
 ```typescript
-const kb = new KnowledgeBaseEngine(db);
+const kb = new KnowledgeBaseEngine();
+await kb.setDb(engineDb); // Wire to database, loads all KBs + embeddings
 
 // Create a knowledge base
-const base = await kb.create({ name: 'Company Policies', agentIds: ['agent-1', 'agent-2'] });
+const base = kb.createKnowledgeBase('org-id', {
+  name: 'Company Policies',
+  agentIds: ['agent-1', 'agent-2'],
+  config: { embeddingProvider: 'openai', chunkSize: 512 },
+});
+// → Persisted to knowledge_bases table
 
-// Add a document
-await kb.addDocument(base.id, { title: 'PTO Policy', content: '...', format: 'markdown' });
+// Ingest a document
+const doc = await kb.ingestDocument(base.id, {
+  name: 'PTO Policy',
+  content: '...',
+  sourceType: 'text',
+  mimeType: 'text/markdown',
+});
+// → Chunked, embedded, persisted to kb_documents + kb_chunks tables
 
 // Search
-const results = await kb.search(base.id, 'how many vacation days');
-// → [{ chunk: '...', score: 0.92, document: 'PTO Policy' }]
+const results = await kb.search('agent-1', 'how many vacation days');
+// → [{ chunk: { content: '...' }, document: { name: 'PTO Policy' }, score: 0.92 }]
+
+// Get RAG context for an agent prompt
+const context = await kb.getContext('agent-1', 'vacation policy', 2000);
+// → "## Relevant Knowledge Base Context\n\n### From: PTO Policy\n..."
 ```
 
 ### 7. Multi-Tenant Isolation
 
-Organizations, plans, and resource limits:
+Organizations, plans, and resource limits. **All data persisted to database.**
+
+For SaaS deployments, companies sharing infrastructure get strict data separation. For self-hosted / open-source, single-tenant mode uses a default org with no limits.
 
 **Plan Tiers:**
 
 | Feature | Free | Team | Enterprise | Self-Hosted |
 |---------|------|------|-----------|-------------|
 | Agents | 3 | 25 | Unlimited | Unlimited |
-| Users | 1 | 10 | Unlimited | Unlimited |
-| Knowledge Bases | 1 | 10 | Unlimited | Unlimited |
-| SSO | No | No | Yes | Yes |
-| Audit Retention | 7 days | 90 days | Unlimited | Unlimited |
-| Custom Domain | No | Yes | Yes | Yes |
-| White-Label | No | No | Yes | Yes |
-| Support | Community | Email | Priority | Self-serve |
+| Users | 5 | 50 | Unlimited | Unlimited |
+| Knowledge Bases | 1 | 10 | 999 | 999 |
+| Storage | 100 MB | 5 GB | 100 GB | Unlimited |
+| Token Budget (monthly) | 1M | 10M | Unlimited | Unlimited |
+| API Calls/min | 30 | 120 | 600 | 999 |
+| SSO | - | Yes | Yes | Yes |
+| Audit Retention | 30 days | 90 days | 365 days | 365 days |
+| Custom Domain | - | - | Yes | Yes |
+| White-Label | - | - | Yes | Yes |
+| Deploy Targets | Docker, Local | Docker, VPS, Fly, Railway, Local | All | All |
+| Custom Skills | - | Yes | Yes | Yes |
+| Data Residency | - | - | Yes | Yes |
 
 ```typescript
-const tenants = new TenantManager(db);
+const tenants = new TenantManager();
+await tenants.setDb(engineDb); // Wire to database, loads all orgs
 
 // Create an organization
-const org = await tenants.createOrg({ name: 'Acme Inc', plan: 'team', adminEmail: 'admin@acme.com' });
+const org = tenants.createOrg({
+  name: 'AgenticMail Inc',
+  slug: 'agenticmail',
+  plan: 'team',
+  adminEmail: 'admin@agenticmail.io',
+});
+// → Persisted to organizations table
 
-// Check limits
-const canCreate = await tenants.checkLimit(org.id, 'agents');
-// → { allowed: true, current: 5, limit: 25 }
+// Check limits before creating an agent
+const check = tenants.checkLimit(org.id, 'maxAgents');
+// → { allowed: true, limit: 25, current: 5, remaining: 20 }
 
-// Get usage
-const usage = await tenants.getUsage(org.id);
-// → { agents: 5, users: 3, knowledgeBases: 2, storageBytes: 10485760 }
+// Check feature gates
+tenants.hasFeature(org.id, 'sso'); // → true (team plan)
+tenants.hasFeature(org.id, 'white-label'); // → false (enterprise only)
+tenants.canDeployTo(org.id, 'aws'); // → false (team plan)
+
+// Record usage
+tenants.recordUsage(org.id, { tokensThisMonth: 50000, costThisMonth: 0.42 });
+// → Persisted to database
+
+// Upgrade plan
+tenants.changePlan(org.id, 'enterprise');
+// → Limits updated, persisted
+
+// Single-tenant mode (self-hosted)
+tenants.createDefaultOrg(); // Creates 'default' org with self-hosted plan
+tenants.isSingleTenant(); // → true
 ```
 
 ### 8. Activity Tracking
 
-Real-time monitoring of everything agents do:
+Real-time monitoring of everything agents do. **All data persisted to database (fire-and-forget).**
 
-- **Tool calls** — which tools, when, duration, success/failure
-- **Conversations** — message count, token usage, cost
-- **Timeline** — chronological view of all agent activity
-- **Aggregations** — daily/weekly/monthly summaries
+- **Events** — lifecycle state changes, errors, custom events per agent/org
+- **Tool calls** — tool ID, arguments, result, duration, success/failure. Start/end tracked separately.
+- **Conversations** — session-based message recording with role, token count, cost
+- **Timeline** — chronological per-agent daily view of all activity
+- **SSE streaming** — real-time event stream with heartbeats, filterable by org/agent
+- **Aggregations** — event/tool call/conversation counts, cost summaries
+- **In-memory buffer** — recent events kept in memory for fast dashboard queries; all writes fire-and-forget to DB
 
 ```typescript
-const activity = new ActivityTracker(db);
+const activity = new ActivityTracker();
+activity.setDb(engineDb); // Wire to database (no loadFromDb — high-volume, uses buffer)
 
-// Record a tool call
-await activity.recordToolCall({
+// Record an event (fire-and-forget to DB)
+activity.record({
   agentId: 'agent-123',
-  tool: 'agenticmail_send',
-  duration: 450,
-  success: true,
-  metadata: { to: 'user@example.com' },
+  orgId: 'org-456',
+  type: 'tool_call',
+  data: { tool: 'agenticmail_send', to: 'user@example.com' },
 });
 
-// Get agent timeline
-const timeline = await activity.getTimeline('agent-123', { limit: 50 });
-// → [{ type: 'tool_call', tool: '...', timestamp: '...', ... }, ...]
+// Track a tool call with start/end
+const callId = activity.startToolCall({
+  agentId: 'agent-123', orgId: 'org-456',
+  toolId: 'agenticmail_send', toolName: 'Send Email',
+  args: { to: 'user@example.com', subject: 'Hello' },
+});
+// ... tool executes ...
+activity.endToolCall(callId, { success: true, result: 'Sent', durationMs: 450 });
 
-// Get stats
-const stats = await activity.getStats('agent-123', { period: 'day' });
-// → { toolCalls: 142, conversations: 8, tokensUsed: 450000, estimatedCost: 3.75 }
+// Record a conversation message
+activity.recordMessage({
+  agentId: 'agent-123', orgId: 'org-456', sessionId: 'sess-789',
+  role: 'assistant', content: 'I sent the email.',
+  tokenCount: 150, costUsd: 0.001,
+});
+
+// Get agent timeline for a specific day
+const timeline = activity.getTimeline('agent-123', '2026-02-18');
+
+// Get aggregate stats
+const stats = activity.getStats('org-456');
+// → { events: 1542, toolCalls: 380, conversations: 45 }
+
+// Subscribe to real-time events (used by SSE endpoint)
+const unsubscribe = activity.subscribe((event) => {
+  console.log('New event:', event.type, event.agentId);
+});
 ```
 
 ### 9. Tool Catalog
 
-Maps real OpenClaw and AgenticMail tool IDs to skills:
+Maps AgenticMail tool IDs to skills:
 
-- **167 total tools** cataloged (63 OpenClaw core + 62 AgenticMail MCP + 42 shell commands)
+- **129 total tools** cataloged (24 core platform + 63 AgenticMail MCP + 42 shell commands)
 - Each tool mapped to one or more skills
 - Used by the Permission Engine to resolve skill → tool access
 
 ```typescript
-import { ALL_TOOLS, getToolsBySkill, generateOpenClawToolPolicy } from '@agenticmail/enterprise';
+import { ALL_TOOLS, getToolsBySkill, generateToolPolicy } from '@agenticmail/enterprise';
 
 // Get all tools for a skill
 const emailTools = getToolsBySkill('email-management');
 // → ['agenticmail_send', 'agenticmail_inbox', 'agenticmail_reply', ...]
 
-// Generate OpenClaw tool policy
-const policy = generateOpenClawToolPolicy(['email-management', 'web-search']);
+// Generate tool policy
+const policy = generateToolPolicy(['email-management', 'web-search']);
 // → { allow: ['agenticmail_send', ...], deny: [...] }
 ```
 
-### 10. OpenClaw Hook
+### 10. Runtime Hooks
 
-Middleware that integrates with OpenClaw's plugin system:
+Lifecycle hooks for intercepting agent tool calls at runtime. See `src/runtime/hooks.ts`.
 
 - **Permission enforcement** — checks every tool call against the agent's permission profile
 - **Activity logging** — records tool calls to the activity tracker
@@ -525,7 +615,6 @@ const hook = createEnterpriseHook({
   agentId: 'agent-123',
 });
 
-// In OpenClaw plugin:
 // hook.beforeToolCall(toolName, args) → { allowed, requiresApproval, reason }
 // hook.afterToolCall(toolName, result, duration) → void (logs activity)
 ```
@@ -561,7 +650,7 @@ Two methods:
 **JWT Token** (for dashboard users):
 ```
 POST /auth/login
-{ "email": "admin@acme.com", "password": "..." }
+{ "email": "admin@agenticmail.io", "password": "..." }
 → { "token": "eyJ...", "user": { ... } }
 
 # Then:
@@ -575,53 +664,147 @@ X-API-Key: ek_abc123...
 
 API keys have scoped permissions and are created through the admin API.
 
+### Auth Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/login` | Email/password login (sets httpOnly cookies + returns JWT) |
+| POST | `/auth/refresh` | Refresh session using refresh token/cookie |
+| GET | `/auth/me` | Get current authenticated user |
+| POST | `/auth/logout` | Clear session cookies |
+| POST | `/auth/saml/callback` | SAML 2.0 assertion callback (stub — 501) |
+| GET | `/auth/saml/metadata` | SAML SP metadata (stub — 501) |
+| GET | `/auth/oidc/authorize` | OIDC authorization redirect (stub — 501) |
+| GET | `/auth/oidc/callback` | OIDC callback (stub — 501) |
+
 ### Admin Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/stats` | Dashboard statistics |
-| GET | `/api/agents` | List agents |
-| POST | `/api/agents` | Create agent |
+| GET | `/api/stats` | Dashboard statistics (agents, users, keys count) |
+| GET | `/api/agents` | List agents (supports `status`, `limit`, `offset`) |
+| POST | `/api/agents` | Create agent (validates name, email, role) |
 | GET | `/api/agents/:id` | Get agent details |
-| PUT | `/api/agents/:id` | Update agent |
-| DELETE | `/api/agents/:id` | Delete agent |
-| GET | `/api/users` | List users |
-| POST | `/api/users` | Create user |
-| GET | `/api/audit` | Query audit log |
-| POST | `/api/keys` | Create API key |
-| DELETE | `/api/keys/:id` | Revoke API key |
-| GET | `/api/settings` | Get company settings |
-| PUT | `/api/settings` | Update settings |
+| PATCH | `/api/agents/:id` | Update agent (name, email, role, status) |
+| POST | `/api/agents/:id/archive` | Archive agent |
+| POST | `/api/agents/:id/restore` | Restore archived agent |
+| DELETE | `/api/agents/:id` | Permanently delete agent (admin only) |
+| GET | `/api/users` | List users (admin only) |
+| POST | `/api/users` | Create user (admin only, validates email/role) |
+| PATCH | `/api/users/:id` | Update user (admin only) |
+| DELETE | `/api/users/:id` | Delete user (owner only, cannot delete self) |
+| GET | `/api/audit` | Query audit log (supports actor, action, resource, date range, pagination) |
+| GET | `/api/api-keys` | List API keys (admin only, hashes redacted) |
+| POST | `/api/api-keys` | Create API key (admin only, returns plaintext once) |
+| DELETE | `/api/api-keys/:id` | Revoke API key (admin only) |
+| GET | `/api/rules` | List email rules (optional `agentId` filter) |
+| POST | `/api/rules` | Create email rule |
+| PATCH | `/api/rules/:id` | Update email rule |
+| DELETE | `/api/rules/:id` | Delete email rule |
+| GET | `/api/settings` | Get company settings (sensitive fields redacted) |
+| PATCH | `/api/settings` | Update company settings (admin only) |
+| GET | `/api/retention` | Get data retention policy (admin only) |
+| PUT | `/api/retention` | Set data retention policy (owner only) |
 
 ### Engine Endpoints
 
+**Skills & Permissions:**
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/engine/skills` | List all 38 skills |
+| GET | `/api/engine/skills` | List all 38 skills with categories |
+| GET | `/api/engine/skills/by-category` | Skills grouped by category |
 | GET | `/api/engine/skills/:id` | Get skill details + tools |
 | GET | `/api/engine/profiles/presets` | List 5 permission presets |
 | GET | `/api/engine/profiles/:agentId` | Get agent's permission profile |
 | PUT | `/api/engine/profiles/:agentId` | Update agent's permission profile |
 | POST | `/api/engine/profiles/:agentId/apply-preset` | Apply a preset to agent |
-| POST | `/api/engine/permissions/check` | Check tool permission |
+| POST | `/api/engine/permissions/check` | Check if agent can use a tool |
 | GET | `/api/engine/permissions/:agentId/tools` | List tools available to agent |
-| GET | `/api/engine/permissions/:agentId/policy` | Generate OpenClaw tool policy |
-| GET | `/api/engine/stats` | Engine statistics |
-| POST | `/api/engine/generate-config` | Generate agent config files |
-| POST | `/api/engine/deploy` | Deploy an agent |
-| GET | `/api/engine/deployments` | List deployments |
-| GET | `/api/engine/deployments/:id` | Deployment status |
-| POST | `/api/engine/approvals` | Create approval request |
-| GET | `/api/engine/approvals` | List pending approvals |
-| PUT | `/api/engine/approvals/:id` | Approve/reject |
-| GET | `/api/engine/agents/:id/lifecycle` | Agent lifecycle state |
-| POST | `/api/engine/agents/:id/transition` | Trigger state transition |
-| GET | `/api/engine/agents/:id/timeline` | Agent activity timeline |
+| GET | `/api/engine/permissions/:agentId/policy` | Generate tool policy |
+
+**Agent Lifecycle:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/engine/agents` | Create engine agent (orgId, config, createdBy) |
+| GET | `/api/engine/agents` | List engine agents (requires `orgId` query) |
+| GET | `/api/engine/agents/:id` | Get engine agent with state, health, usage |
+| PATCH | `/api/engine/agents/:id/config` | Update agent config |
+| POST | `/api/engine/agents/:id/deploy` | Deploy agent to target infrastructure |
+| POST | `/api/engine/agents/:id/stop` | Stop a running agent |
+| POST | `/api/engine/agents/:id/restart` | Restart agent |
+| POST | `/api/engine/agents/:id/hot-update` | Hot-update config without restart |
+| DELETE | `/api/engine/agents/:id` | Destroy agent and clean up resources |
+| GET | `/api/engine/agents/:id/usage` | Agent resource usage, health, state |
+| GET | `/api/engine/usage/:orgId` | Aggregate org usage across all agents |
+
+**Config Generation:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/engine/config/workspace` | Generate workspace files (SOUL.md, TOOLS.md, etc.) |
+| POST | `/api/engine/config/gateway` | Generate gateway config |
+| POST | `/api/engine/config/docker-compose` | Generate docker-compose.yml |
+| POST | `/api/engine/config/systemd` | Generate systemd service unit |
+| POST | `/api/engine/config/deploy-script` | Generate VPS deploy script |
+
+**Knowledge Base:**
+
+| Method | Path | Description |
+|--------|------|-------------|
 | POST | `/api/engine/knowledge-bases` | Create knowledge base |
-| POST | `/api/engine/knowledge-bases/:id/documents` | Add document |
-| GET | `/api/engine/knowledge-bases/:id/search` | Search KB |
-| GET | `/api/engine/tools` | Full tool catalog |
-| POST | `/api/engine/tool-policy` | Generate tool policy for skills |
+| GET | `/api/engine/knowledge-bases` | List KBs (filter by `orgId` or `agentId`) |
+| GET | `/api/engine/knowledge-bases/:id` | Get KB details with documents |
+| POST | `/api/engine/knowledge-bases/:id/documents` | Ingest document (chunked + embedded) |
+| DELETE | `/api/engine/knowledge-bases/:kbId/documents/:docId` | Delete document |
+| POST | `/api/engine/knowledge-bases/search` | Semantic search across KBs |
+| POST | `/api/engine/knowledge-bases/context` | Get RAG context for agent prompt |
+| DELETE | `/api/engine/knowledge-bases/:id` | Delete knowledge base |
+
+**Organizations (Tenants):**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/engine/orgs` | Create organization |
+| GET | `/api/engine/orgs` | List all organizations |
+| GET | `/api/engine/orgs/:id` | Get organization details |
+| GET | `/api/engine/orgs/slug/:slug` | Get organization by slug |
+| POST | `/api/engine/orgs/:id/check-limit` | Check plan resource limits |
+| POST | `/api/engine/orgs/:id/check-feature` | Check feature gate |
+| POST | `/api/engine/orgs/:id/change-plan` | Change organization plan |
+
+**Approvals:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/engine/approvals/pending` | List pending approvals (optional `agentId` filter) |
+| GET | `/api/engine/approvals/history` | Approval history (supports `agentId`, `limit`, `offset`) |
+| GET | `/api/engine/approvals/:id` | Get approval request details |
+| POST | `/api/engine/approvals/:id/decide` | Approve or reject a request |
+| GET | `/api/engine/approvals/policies` | List approval policies |
+| POST | `/api/engine/approvals/policies` | Create approval policy |
+| DELETE | `/api/engine/approvals/policies/:id` | Delete approval policy |
+
+**Activity & Monitoring:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/engine/activity/events` | Activity events (filter by `agentId`, `orgId`, `since`, `limit`) |
+| GET | `/api/engine/activity/tool-calls` | Tool call records (filter by `agentId`, `orgId`, `toolId`) |
+| GET | `/api/engine/activity/conversation/:sessionId` | Conversation entries for a session |
+| GET | `/api/engine/activity/timeline/:agentId/:date` | Daily timeline for an agent |
+| GET | `/api/engine/activity/stats` | Aggregate activity stats (optional `orgId`) |
+| GET | `/api/engine/activity/stream` | SSE real-time event stream (filter by `orgId`, `agentId`) |
+
+**Dashboard Stats & Schema:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/engine/stats/:orgId` | Org dashboard stats (agents, usage, real-time) |
+| POST | `/api/engine/schema/tables` | Create dynamic `ext_*` table |
+| GET | `/api/engine/schema/tables` | List dynamic tables |
+| POST | `/api/engine/schema/query` | Query dynamic tables (SELECT any, mutations ext_* only) |
 
 ---
 
@@ -665,17 +848,17 @@ Errors:
 
 ### AgenticMail Cloud
 
-Managed hosting on Fly.io infrastructure. Instant URL at `company.agenticmail.cloud`.
+Managed hosting on Fly.io infrastructure. Instant URL at `company.agenticmail.io`.
 
 ```bash
 npx @agenticmail/enterprise
 # → Select "AgenticMail Cloud"
-# → Dashboard live at https://acme.agenticmail.cloud
+# → Dashboard live at https://agenticmail-inc.agenticmail.io
 ```
 
 Optional custom domain via CNAME:
 ```
-agents.acme.com → acme.agenticmail.cloud
+agents.agenticmail.io → agenticmail-inc.agenticmail.io
 ```
 
 ### Fly.io
@@ -734,7 +917,7 @@ const server = createServer({
   jwtSecret: 'your-secret-here',
 
   // Optional
-  corsOrigins: ['https://app.acme.com'],
+  corsOrigins: ['https://app.agenticmail.io'],
   rateLimit: 120,            // requests per minute per IP
   trustedProxies: ['10.0.0.0/8'],
   logging: true,
@@ -818,12 +1001,12 @@ import {
   // Tool catalog
   ALL_TOOLS,
   getToolsBySkill,
-  generateOpenClawToolPolicy,
-  
+  generateToolPolicy,
+
   // Engine persistence
   EngineDatabase,
-  
-  // OpenClaw integration
+
+  // Runtime hooks & bridge
   createEnterpriseHook,
   createAgenticMailBridge,
   
@@ -859,67 +1042,65 @@ import {
 ## Project Structure
 
 ```
-packages/enterprise/src/
-├── cli.ts                    # Setup wizard (npx entry point)
-├── server.ts                 # Hono API server
-├── index.ts                  # Public exports
-│
-├── setup/                    # Setup wizard modules
-│   ├── index.ts              # Wizard orchestrator
-│   ├── company.ts            # Step 1: Company info prompts
-│   ├── database.ts           # Step 2: Database selection + config
-│   ├── deployment.ts         # Step 3: Deployment target
-│   ├── domain.ts             # Step 4: Custom domain
-│   └── provision.ts          # Provisioning logic (DB, admin, deploy)
+enterprise/src/
+├── cli.ts                      # CLI entry point (npx @agenticmail/enterprise)
+├── server.ts                   # Hono server: middleware, auth, route mounting
+├── index.ts                    # Public API exports
 │
 ├── auth/
-│   └── routes.ts             # Login, token refresh, password reset
+│   └── routes.ts               # JWT login, cookies, refresh, SAML/OIDC stubs
 │
 ├── admin/
-│   └── routes.ts             # User/agent/key/audit CRUD
+│   └── routes.ts               # Users, Agents, API Keys, Audit, Settings, Rules CRUD
 │
 ├── middleware/
-│   └── index.ts              # All middleware exports
-│
-├── db/                       # Database adapters
-│   ├── adapter.ts            # Abstract DatabaseAdapter
-│   ├── factory.ts            # createAdapter() + getSupportedDatabases()
-│   ├── sql-schema.ts         # Shared SQL DDL
-│   ├── sqlite.ts
-│   ├── postgres.ts
-│   ├── mysql.ts
-│   ├── mongodb.ts
-│   ├── dynamodb.ts
-│   └── turso.ts
-│
-├── engine/                   # Agent deployment platform
-│   ├── index.ts              # Public API (re-exports)
-│   ├── skills.ts             # 38 skills, 5 presets
-│   ├── agent-config.ts       # Config generator
-│   ├── deployer.ts           # Deployment engine
-│   ├── approvals.ts          # Approval workflows
-│   ├── lifecycle.ts          # Agent state machine
-│   ├── knowledge.ts          # Knowledge base
-│   ├── tenant.ts             # Multi-tenant manager
-│   ├── activity.ts           # Activity tracker
-│   ├── tool-catalog.ts       # Tool ID catalog
-│   ├── openclaw-hook.ts      # OpenClaw integration
-│   ├── agenticmail-bridge.ts # AgenticMail integration
-│   ├── db-adapter.ts         # Engine DB persistence
-│   ├── db-schema.ts          # Engine DDL + migrations
-│   └── routes.ts             # Engine REST API
-│
-├── deploy/                   # Deployment configs
-│   ├── managed.ts            # Cloud deploy + Docker/Fly/Railway generators
-│   └── fly.ts                # Fly.io API client
-│
-├── dashboard/
-│   └── index.html            # Admin UI (single HTML, React 18)
+│   └── index.ts                # Rate limiter, security headers, audit logger, RBAC, error handler
 │
 ├── lib/
-│   └── resilience.ts         # CircuitBreaker, HealthMonitor, Retry, RateLimiter
+│   └── resilience.ts           # CircuitBreaker, HealthMonitor, withRetry, RateLimiter
 │
-└── ui/                       # (future) Component library
+├── db/                         # Admin database adapters (6 backends)
+│   ├── adapter.ts              # Abstract DatabaseAdapter interface
+│   ├── factory.ts              # createAdapter() factory
+│   ├── sql-schema.ts           # Shared SQL DDL + migrations
+│   ├── sqlite.ts               # SQLite (better-sqlite3)
+│   ├── postgres.ts             # PostgreSQL (pg)
+│   ├── mysql.ts                # MySQL (mysql2)
+│   ├── mongodb.ts              # MongoDB
+│   ├── dynamodb.ts             # DynamoDB (@aws-sdk)
+│   └── turso.ts                # Turso/LibSQL (@libsql/client)
+│
+├── engine/                     # Agent management platform (11 subsystems)
+│   ├── index.ts                # Public re-exports
+│   ├── routes.ts               # All engine REST endpoints (50+)
+│   ├── skills.ts               # 38 skills, 5 presets, PermissionEngine (DB-persisted)
+│   ├── agent-config.ts         # AgentConfigGenerator: workspace, gateway, docker-compose, systemd
+│   ├── deployer.ts             # DeploymentEngine: Docker, VPS/SSH, Fly.io, Railway
+│   ├── lifecycle.ts            # AgentLifecycleManager: state machine, health checks (DB-persisted)
+│   ├── approvals.ts            # ApprovalEngine: policies, requests, decisions (DB-persisted)
+│   ├── knowledge.ts            # KnowledgeBaseEngine: docs, chunking, embeddings, RAG (DB-persisted)
+│   ├── tenant.ts               # TenantManager: orgs, plans, limits, usage (DB-persisted)
+│   ├── activity.ts             # ActivityTracker: events, tool calls, conversations, SSE (DB-persisted)
+│   ├── tool-catalog.ts         # 167 tool IDs mapped to skills
+│   ├── runtime/                # Runtime hooks (permission enforcement, activity logging)
+│   ├── agenticmail-bridge.ts   # Bridge to AgenticMail API
+│   ├── db-adapter.ts           # EngineDatabase wrapper (all CRUD implemented)
+│   └── db-schema.ts            # Engine DDL: 15 tables, versioned migrations, dialect converters
+│
+├── deploy/                     # Cloud deployment
+│   ├── fly.ts                  # Fly.io Machines API
+│   └── managed.ts              # Managed cloud provisioning
+│
+├── setup/                      # CLI setup wizard
+│   ├── index.ts                # Wizard orchestrator
+│   ├── company.ts              # Company info prompts
+│   ├── database.ts             # Database selection
+│   ├── deployment.ts           # Deployment target
+│   ├── domain.ts               # Custom domain
+│   └── provision.ts            # Provisioning logic
+│
+└── dashboard/
+    └── index.html              # Admin UI (single HTML, React 18 from CDN)
 ```
 
 ---

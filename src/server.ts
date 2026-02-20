@@ -7,12 +7,14 @@
  */
 
 import { Hono } from 'hono';
+import type { AppEnv } from './types/hono-env.js';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import type { DatabaseAdapter } from './db/adapter.js';
+import { createDbProxy, type DbProxy } from './db/proxy.js';
 import { createAdminRoutes } from './admin/routes.js';
 import { createAuthRoutes } from './auth/routes.js';
 import {
@@ -24,6 +26,7 @@ import {
   auditLogger,
   requireRole,
 } from './middleware/index.js';
+import { ipAccessControl } from './middleware/firewall.js';
 import { HealthMonitor, CircuitBreaker } from './lib/resilience.js';
 
 export interface ServerConfig {
@@ -37,16 +40,26 @@ export interface ServerConfig {
   trustedProxies?: string[];
   /** Enable verbose request logging (default: true) */
   logging?: boolean;
+  /** Agent runtime configuration (enables standalone agent execution) */
+  runtime?: {
+    enabled?: boolean;
+    defaultModel?: { provider: 'anthropic' | 'openai'; modelId: string; thinkingLevel?: string };
+    apiKeys?: { anthropic?: string; openai?: string };
+  };
 }
 
 export interface ServerInstance {
-  app: Hono;
+  app: Hono<AppEnv>;
   start: () => Promise<{ close: () => void }>;
   healthMonitor: HealthMonitor;
 }
 
 export function createServer(config: ServerConfig): ServerInstance {
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
+
+  // Wrap DB in a transparent proxy for hot-swap support during onboarding
+  const dbProxy = createDbProxy(config.db) as DbProxy;
+  config.db = dbProxy;
 
   // ─── DB Circuit Breaker ──────────────────────────────
 
@@ -83,6 +96,9 @@ export function createServer(config: ServerConfig): ServerInstance {
   // Security headers
   app.use('*', securityHeaders());
 
+  // IP access control (firewall)
+  app.use('*', ipAccessControl(() => config.db));
+
   // CORS
   app.use('*', cors({
     origin: config.corsOrigins || '*',
@@ -107,7 +123,7 @@ export function createServer(config: ServerConfig): ServerInstance {
 
   app.get('/health', (c) => c.json({
     status: 'ok',
-    version: '0.3.0',
+    version: '0.4.0',
     uptime: process.uptime(),
   }));
 
@@ -123,14 +139,31 @@ export function createServer(config: ServerConfig): ServerInstance {
     }, status);
   });
 
+  // One-way latch: once setup is complete, skip the bootstrap injection.
+  // Checked once at startup; also flipped by the bootstrap callback.
+  let _setupComplete = false;
+  (async () => {
+    try {
+      const stats = await config.db.getStats();
+      if (stats.totalUsers > 0) _setupComplete = true;
+    } catch { /* not ready yet — will be flipped on first bootstrap */ }
+  })();
+
   // ─── Auth Routes (public) ───────────────────────────
 
-  const authRoutes = createAuthRoutes(config.db, config.jwtSecret);
+  const authRoutes = createAuthRoutes(config.db, config.jwtSecret, {
+    onBootstrap: () => { _setupComplete = true; },
+    onDbConfigure: (newAdapter) => {
+      const old = dbProxy.__swap(newAdapter);
+      engineInitialized = false;
+      return old;
+    },
+  });
   app.route('/auth', authRoutes);
 
   // ─── Protected API Routes ───────────────────────────
 
-  const api = new Hono();
+  const api = new Hono<AppEnv>();
 
   // Authentication middleware
   api.use('*', async (c, next) => {
@@ -139,9 +172,9 @@ export function createServer(config: ServerConfig): ServerInstance {
     if (apiKeyHeader) {
       const key = await dbBreaker.execute(() => config.db.validateApiKey(apiKeyHeader));
       if (!key) return c.json({ error: 'Invalid API key' }, 401);
-      c.set('userId' as any, key.createdBy);
-      c.set('authType' as any, 'api-key');
-      c.set('apiKeyScopes' as any, key.scopes);
+      c.set('userId', key.createdBy);
+      c.set('authType', 'api-key');
+      c.set('apiKeyScopes', key.scopes);
       return next();
     }
 
@@ -159,9 +192,10 @@ export function createServer(config: ServerConfig): ServerInstance {
       const { jwtVerify } = await import('jose');
       const secret = new TextEncoder().encode(config.jwtSecret);
       const { payload } = await jwtVerify(jwt, secret);
-      c.set('userId' as any, payload.sub);
-      c.set('userRole' as any, payload.role);
-      c.set('authType' as any, cookieToken ? 'cookie' : 'jwt');
+      c.set('userId', payload.sub as string);
+      c.set('userRole', (payload.role as string) || '');
+      c.set('userEmail', (payload.email as string) || '');
+      c.set('authType', cookieToken ? 'cookie' : 'jwt');
       return next();
     } catch {
       return c.json({ error: 'Invalid or expired token' }, 401);
@@ -186,43 +220,71 @@ export function createServer(config: ServerConfig): ServerInstance {
 
       // Initialize engine DB on first request
       if (!engineInitialized) {
-        // Determine dialect from the adapter
-        const dbType = (config.db as any).type || (config.db as any).config?.type || 'sqlite';
+        // Use the adapter's built-in engine DB interface (SQL adapters expose raw query methods)
+        const engineDbInterface = config.db.getEngineDB();
+        if (!engineDbInterface) {
+          return c.json({
+            error: 'Engine not available',
+            detail: `Engine requires a SQL-compatible database. "${config.db.type}" does not support raw SQL queries. Use postgres, mysql, sqlite, or turso.`,
+          }, 501);
+        }
+
+        // Map adapter dialect to engine dialect
+        const adapterDialect = config.db.getDialect();
         const dialectMap: Record<string, string> = {
-          sqlite: 'sqlite', postgres: 'postgres', postgresql: 'postgres',
-          mysql: 'mysql', mariadb: 'mysql', turso: 'turso', libsql: 'turso',
-          mongodb: 'mongodb', dynamodb: 'dynamodb',
+          sqlite: 'sqlite', postgres: 'postgres', supabase: 'postgres',
+          neon: 'postgres', cockroachdb: 'postgres', mysql: 'mysql',
+          planetscale: 'mysql', turso: 'turso',
         };
-        const dialect = (dialectMap[dbType] || 'sqlite') as any;
+        const engineDialect = (dialectMap[adapterDialect] || adapterDialect) as any;
 
-        // Create an EngineDB wrapper around the existing DatabaseAdapter
-        const engineDbWrapper = {
-          run: async (sql: string, params?: any[]) => {
-            await (config.db as any).run?.(sql, params) ?? (config.db as any).query?.(sql, params);
-          },
-          get: async <T = any>(sql: string, params?: any[]): Promise<T | undefined> => {
-            if ((config.db as any).get) return (config.db as any).get(sql, params);
-            const rows = await (config.db as any).query?.(sql, params) ?? [];
-            return rows[0];
-          },
-          all: async <T = any>(sql: string, params?: any[]): Promise<T[]> => {
-            if ((config.db as any).all) return (config.db as any).all(sql, params);
-            return await (config.db as any).query?.(sql, params) ?? [];
-          },
-        };
-
-        const engineDb = new EngineDatabase(engineDbWrapper, dialect, (config.db as any).rawDriver);
+        const engineDb = new EngineDatabase(engineDbInterface, engineDialect);
         const migrationResult = await engineDb.migrate();
         console.log(`[engine] Migrations: ${migrationResult.applied} applied, ${migrationResult.total} total`);
-        setEngineDb(engineDb);
+        await setEngineDb(engineDb, config.db);
         engineInitialized = true;
+
+        // Start agent runtime if configured
+        if (config.runtime?.enabled) {
+          try {
+            const { createAgentRuntime } = await import('./runtime/index.js');
+            const { mountRuntimeApp } = await import('./engine/routes.js');
+            const runtime = createAgentRuntime({
+              engineDb,
+              adminDb: config.db,
+              defaultModel: config.runtime.defaultModel as any,
+              apiKeys: config.runtime.apiKeys,
+              gatewayEnabled: true,
+            });
+            await runtime.start();
+            const runtimeApp = runtime.getApp();
+            if (runtimeApp) {
+              mountRuntimeApp(runtimeApp);
+            }
+            console.log('[runtime] Agent runtime started and mounted at /api/engine/runtime/*');
+          } catch (runtimeErr: any) {
+            console.warn(`[runtime] Failed to start agent runtime: ${runtimeErr.message}`);
+          }
+        }
       }
 
-      // Forward to engine routes
-      const subPath = c.req.path.replace(/^\/api\/engine/, '') || '/';
+      // Forward to engine routes — inject auth context as headers
+      const originalUrl = new URL(c.req.url);
+      const subPath = (c.req.path.replace(/^\/api\/engine/, '') || '/') + originalUrl.search;
+      const headers = new Headers(c.req.raw.headers);
+      const userId = c.get('userId');
+      const userRole = c.get('userRole');
+      const userEmail = c.get('userEmail');
+      const authType = c.get('authType');
+      const requestId = c.get('requestId');
+      if (userId) headers.set('X-User-Id', String(userId));
+      if (userRole) headers.set('X-User-Role', String(userRole));
+      if (userEmail) headers.set('X-User-Email', String(userEmail));
+      if (authType) headers.set('X-Auth-Type', String(authType));
+      if (requestId) headers.set('X-Request-Id', String(requestId));
       const subReq = new Request(new URL(subPath, 'http://localhost'), {
         method: c.req.method,
-        headers: c.req.raw.headers,
+        headers,
         body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
       });
       return engineRoutes.fetch(subReq);
@@ -254,9 +316,55 @@ export function createServer(config: ServerConfig): ServerInstance {
     return dashboardHtml;
   }
 
+  async function serveDashboard(c: any) {
+    let html = getDashboardHtml();
+    if (!_setupComplete) {
+      const injection = `<script>window.__EM_SETUP_STATE__=${JSON.stringify({ needsBootstrap: true })};</script>`;
+      html = html.replace('</head>', injection + '</head>');
+    }
+
+    // Inject domain verification status (informational, does not block)
+    try {
+      const settings = await config.db.getSettings();
+      if (settings.domain && settings.domainStatus) {
+        const domainState = {
+          domain: settings.domain,
+          status: settings.domainStatus,
+          verifiedAt: settings.domainVerifiedAt,
+          dnsChallenge: settings.domainDnsChallenge,
+        };
+        const domainScript = `<script>window.__EM_DOMAIN_STATE__=${JSON.stringify(domainState)};</script>`;
+        html = html.replace('</head>', domainScript + '</head>');
+      }
+    } catch { /* non-blocking */ }
+
+    return c.html(html);
+  }
+
   app.get('/', (c) => c.redirect('/dashboard'));
-  app.get('/dashboard', (c) => c.html(getDashboardHtml()));
-  app.get('/dashboard/*', (c) => c.html(getDashboardHtml()));
+  app.get('/dashboard', serveDashboard);
+
+  // Serve dashboard JS modules and static assets (components/*.js, pages/*.js, app.js, assets/*)
+  const STATIC_MIME: Record<string, string> = { '.js': 'application/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.gif': 'image/gif', '.webp': 'image/webp', '.css': 'text/css; charset=utf-8' };
+  app.get('/dashboard/*', (c) => {
+    const reqPath = c.req.path.replace('/dashboard/', '');
+    const ext = reqPath.substring(reqPath.lastIndexOf('.'));
+    const mime = STATIC_MIME[ext];
+    if (mime) {
+      const dir = dirname(fileURLToPath(import.meta.url));
+      const filePath = join(dir, 'dashboard', reqPath);
+      // Prevent path traversal
+      if (!filePath.startsWith(join(dir, 'dashboard'))) {
+        return c.json({ error: 'Forbidden' }, 403);
+      }
+      if (existsSync(filePath)) {
+        const content = readFileSync(filePath);
+        return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': ext === '.js' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400' } });
+      }
+    }
+    // Fall through to SPA handler for non-asset requests
+    return serveDashboard(c);
+  });
 
   // ─── 404 Handler ─────────────────────────────────────
 

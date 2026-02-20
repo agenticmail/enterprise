@@ -1,0 +1,72 @@
+{
+  "id": "kubernetes-cluster",
+  "name": "Kubernetes Cluster",
+  "description": "Manage Kubernetes pods, deployments, and services. Scale workloads and view cluster status.",
+  "version": "1.1.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/kubernetes-cluster",
+  "license": "Apache-2.0",
+  "category": "cloud",
+  "risk": "critical",
+  "auth": {
+    "type": "credentials",
+    "fields": ["clusterUrl", "token"],
+    "envVars": {
+      "token": "KUBE_TOKEN"
+    },
+    "description": "Cluster API endpoint and service account token. Supports kubeconfig via vault."
+  },
+  "tags": ["kubernetes", "k8s", "orchestration", "containers"],
+  "tools": [
+    {
+      "id": "k8s_list_pods",
+      "name": "List Pods",
+      "description": "List pods in a namespace"
+    },
+    {
+      "id": "k8s_scale_deployment",
+      "name": "Scale Deployment",
+      "description": "Scale a deployment up or down"
+    },
+    {
+      "id": "k8s_get_logs",
+      "name": "Get Pod Logs",
+      "description": "Retrieve logs from a pod"
+    },
+    {
+      "id": "k8s_list_services",
+      "name": "List Services",
+      "description": "List services in a namespace"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultNamespace": {
+        "type": "string",
+        "default": "default",
+        "description": "Default Kubernetes namespace"
+      },
+      "defaultContext": {
+        "type": "string",
+        "description": "Default kubeconfig context"
+      },
+      "autoScale": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable automatic scaling suggestions"
+      },
+      "dryRun": {
+        "type": "boolean",
+        "default": true,
+        "description": "Preview changes without applying"
+      },
+      "labelSelector": {
+        "type": "string",
+        "description": "Default label selector for filtering resources"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

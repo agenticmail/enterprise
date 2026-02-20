@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">Data Loss Prevention</h2>
+<p class="desc">Manage DLP rules, review violations, and test content</p>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Create Rule</div>
+<form method="POST" style="display:flex;gap:10px;align-items:end">
+<input type="hidden" name="_action" value="create_rule">
+<div class="fg" style="flex:1;margin:0"><label class="fl">Name</label><input class="input" name="name" required placeholder="e.g. credit-card-filter"></div>
+<div class="fg" style="flex:1;margin:0"><label class="fl">Pattern</label><input class="input" name="pattern" required placeholder="e.g. \d{4}-\d{4}-\d{4}-\d{4}"></div>
+<div class="fg" style="margin:0"><label class="fl">Severity</label><select class="input" name="severity"><option>low</option><option selected>medium</option><option>high</option><option>critical</option></select></div>
+<button class="btn btn-p" type="submit">Create</button>
+</form>
+</div>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Rules</div>
+{% if rules %}
+<table>
+<thead><tr><th>Name</th><th>Pattern</th><th>Severity</th><th></th></tr></thead>
+<tbody>
+{% for r in rules %}
+<tr>
+<td style="font-weight:600">{{ r.name }}</td>
+<td style="font-size:12px;font-family:monospace">{{ r.pattern }}</td>
+<td>{{ r.severity_badge|safe }}</td>
+<td>
+<form method="POST" style="display:inline">
+<input type="hidden" name="_action" value="delete_rule">
+<input type="hidden" name="rule_id" value="{{ r.id }}">
+<button class="btn btn-sm btn-d" type="submit">Delete</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">&#x1f6e1; No DLP rules configured</div>
+{% endif %}
+</div>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Violations</div>
+{% if violations %}
+<table>
+<thead><tr><th>Time</th><th>Rule</th><th>Agent</th><th>Severity</th><th>Details</th></tr></thead>
+<tbody>
+{% for v in violations %}
+<tr>
+<td style="font-size:12px;color:var(--muted)">{{ v.timestamp }}</td>
+<td style="font-weight:600">{{ v.ruleName|default:v.rule_name }}</td>
+<td>{{ v.agent|default:"-" }}</td>
+<td>{{ v.severity|default:"medium" }}</td>
+<td style="font-size:12px">{{ v.details|default:"-" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">&#x2705; No violations detected</div>
+{% endif %}
+</div>
+<div class="card">
+<div class="ct">Test Content</div>
+<form method="POST">
+<input type="hidden" name="_action" value="scan">
+<div class="fg"><label class="fl">Content to Scan</label><textarea class="input" name="content" rows="4" placeholder="Paste content to test against DLP rules..."></textarea></div>
+<button class="btn btn-p" type="submit">Run Scan</button>
+</form>
+</div>
+{% endblock %}

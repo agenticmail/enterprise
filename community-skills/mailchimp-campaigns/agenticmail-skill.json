@@ -1,0 +1,69 @@
+{
+  "id": "mailchimp-campaigns",
+  "name": "Mailchimp Campaigns",
+  "description": "Create and send Mailchimp email campaigns. Manage audiences, segments, and templates.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/mailchimp-campaigns",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "mailchimp",
+    "scopes": []
+  },
+  "tags": ["mailchimp", "email-marketing", "campaigns", "newsletters"],
+  "tools": [
+    {
+      "id": "mailchimp_create_campaign",
+      "name": "Create Campaign",
+      "description": "Create a new email campaign"
+    },
+    {
+      "id": "mailchimp_send_campaign",
+      "name": "Send Campaign",
+      "description": "Send a campaign to an audience"
+    },
+    {
+      "id": "mailchimp_add_subscriber",
+      "name": "Add Subscriber",
+      "description": "Add a subscriber to an audience"
+    },
+    {
+      "id": "mailchimp_get_report",
+      "name": "Get Report",
+      "description": "Get campaign performance report"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultAudience": {
+        "type": "string",
+        "description": "Default audience/list ID"
+      },
+      "defaultFromName": {
+        "type": "string",
+        "description": "Default sender name for campaigns"
+      },
+      "defaultReplyTo": {
+        "type": "string",
+        "description": "Default reply-to email address",
+        "format": "email"
+      },
+      "trackOpens": {
+        "type": "boolean",
+        "description": "Track email opens for campaigns",
+        "default": true
+      },
+      "trackClicks": {
+        "type": "boolean",
+        "description": "Track link clicks for campaigns",
+        "default": true
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,73 @@
+{
+  "id": "datadog-monitoring",
+  "name": "Datadog Monitoring",
+  "description": "Query metrics, create monitors, and manage alerts in Datadog. Search logs and APM traces.",
+  "version": "1.2.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/datadog-monitoring",
+  "license": "MIT",
+  "category": "analytics",
+  "risk": "medium",
+  "auth": {
+    "type": "credentials",
+    "fields": ["apiKey", "appKey"],
+    "envVars": {
+      "apiKey": "DATADOG_API_KEY",
+      "appKey": "DATADOG_APP_KEY"
+    },
+    "description": "API and Application keys from Datadog Organization Settings"
+  },
+  "tags": ["datadog", "monitoring", "observability", "alerts"],
+  "tools": [
+    {
+      "id": "datadog_get_metrics",
+      "name": "Get Metrics",
+      "description": "Query time-series metrics data"
+    },
+    {
+      "id": "datadog_create_monitor",
+      "name": "Create Monitor",
+      "description": "Create a new alerting monitor"
+    },
+    {
+      "id": "datadog_list_alerts",
+      "name": "List Alerts",
+      "description": "List currently triggered alerts"
+    },
+    {
+      "id": "datadog_search_logs",
+      "name": "Search Logs",
+      "description": "Search logs with query filters"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "site": {
+        "type": "string",
+        "enum": ["datadoghq.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com"],
+        "default": "datadoghq.com",
+        "description": "Datadog site region"
+      },
+      "defaultTimeRange": {
+        "type": "string",
+        "enum": ["1h", "4h", "1d", "1w"],
+        "default": "1d",
+        "description": "Default time range for metric queries"
+      },
+      "defaultPriority": {
+        "type": "string",
+        "enum": ["P1", "P2", "P3", "P4", "P5"],
+        "default": "P3",
+        "description": "Default priority for new monitors"
+      },
+      "includeDowntimes": {
+        "type": "boolean",
+        "default": true,
+        "description": "Include scheduled downtimes in alert listings"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

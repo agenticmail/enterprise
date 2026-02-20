@@ -1,0 +1,52 @@
+{
+  "id": "telegram-bot",
+  "name": "Telegram Bot",
+  "description": "Integrate with Telegram Bot to send, send, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/telegram-bot",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "telegrambot",
+    "telegram",
+    "bot",
+    "communication"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "telegram"
+  },
+  "tools": [
+    {
+      "id": "telegram_send_message",
+      "name": "Send Message",
+      "description": "Send a text message via Telegram Bot API. Supports Markdown and HTML formatting."
+    },
+    {
+      "id": "telegram_send_photo",
+      "name": "Send Photo",
+      "description": "Send a photo to a Telegram chat. Provide the chat ID and a URL to the photo."
+    },
+    {
+      "id": "telegram_get_updates",
+      "name": "Get Updates",
+      "description": "Get incoming updates (messages, callbacks, etc.) for the Telegram bot. Use offset to acknowledge previous updates."
+    },
+    {
+      "id": "telegram_get_chat",
+      "name": "Get Chat",
+      "description": "Get information about a Telegram chat (private, group, supergroup, or channel)."
+    }
+  ],
+  "configSchema": {
+    "botToken": {
+      "type": "secret",
+      "label": "Bot Token",
+      "description": "Telegram Bot API token from @BotFather",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

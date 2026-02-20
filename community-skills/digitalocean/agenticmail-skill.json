@@ -1,0 +1,48 @@
+{
+  "id": "digitalocean",
+  "name": "DigitalOcean",
+  "description": "Integrate with DigitalOcean to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/digitalocean",
+  "license": "MIT",
+  "category": "cloud-infrastructure",
+  "risk": "high",
+  "tags": [
+    "digitalocean",
+    "cloud-infrastructure"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "digitalocean"
+  },
+  "tools": [
+    {
+      "id": "do_list_droplets",
+      "name": "List Droplets",
+      "description": "List all droplets (virtual machines) in the DigitalOcean account. Returns names, IDs, regions, sizes, and statuses."
+    },
+    {
+      "id": "do_create_droplet",
+      "name": "Create Droplet",
+      "description": "Create a new DigitalOcean droplet. Specify the name, region, size, and image."
+    },
+    {
+      "id": "do_list_databases",
+      "name": "List Databases",
+      "description": "List all managed database clusters in the DigitalOcean account. Returns engines, versions, regions, and statuses."
+    },
+    {
+      "id": "do_list_domains",
+      "name": "List Domains",
+      "description": "List all domains registered in the DigitalOcean account. Returns domain names and TTL values."
+    },
+    {
+      "id": "do_get_account",
+      "name": "Get Account",
+      "description": "Get DigitalOcean account information including email, droplet limit, team membership, and verification status."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

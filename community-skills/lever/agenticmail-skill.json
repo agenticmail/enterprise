@@ -1,0 +1,49 @@
+{
+  "id": "lever",
+  "name": "Lever Recruiting",
+  "description": "Integrate with Lever Recruiting to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/lever",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "lever",
+    "recruiting",
+    "hr"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "lever"
+  },
+  "tools": [
+    {
+      "id": "lever_list_opportunities",
+      "name": "List Opportunities",
+      "description": "List opportunities (candidates in pipeline) from Lever. Filter by stage, posting, or archive status."
+    },
+    {
+      "id": "lever_create_opportunity",
+      "name": "Create Opportunity",
+      "description": "Create a new opportunity (candidate) in Lever. Provide candidate name, contact info, and optionally associate with a posting."
+    },
+    {
+      "id": "lever_list_postings",
+      "name": "List Postings",
+      "description": "List job postings from Lever. Returns posting titles, teams, locations, and states."
+    },
+    {
+      "id": "lever_get_candidate",
+      "name": "Get Candidate",
+      "description": "Get detailed information about a candidate (opportunity) in Lever by their opportunity ID."
+    },
+    {
+      "id": "lever_add_note",
+      "name": "Add Note",
+      "description": "Add a note to a candidate opportunity in Lever. Notes are visible to the hiring team."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,74 @@
+{
+  "id": "zoho-crm",
+  "name": "Zoho CRM",
+  "description": "Integrate with Zoho CRM to list, get, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/zoho-crm",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "zohocrm",
+    "zoho",
+    "crm"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "zoho"
+  },
+  "tools": [
+    {
+      "id": "zoho_list_records",
+      "name": "List Records",
+      "description": "List records from a Zoho CRM module (Leads, Contacts, Accounts, Deals, etc.)."
+    },
+    {
+      "id": "zoho_get_record",
+      "name": "Get Record",
+      "description": "Get a single record from a Zoho CRM module by its ID."
+    },
+    {
+      "id": "zoho_create_record",
+      "name": "Create Record",
+      "description": "Create a new record in a Zoho CRM module. Provide the module name and field values."
+    },
+    {
+      "id": "zoho_update_record",
+      "name": "Update Record",
+      "description": "Update an existing record in a Zoho CRM module. Provide the module, record ID, and fields to update."
+    },
+    {
+      "id": "zoho_search_records",
+      "name": "Search Records",
+      "description": "Search records in a Zoho CRM module using criteria, email, phone, or word search."
+    }
+  ],
+  "configSchema": {
+    "datacenter": {
+      "type": "select",
+      "label": "Data Center",
+      "description": "Zoho data center region for API requests",
+      "options": [
+        {
+          "label": "US",
+          "value": "com"
+        },
+        {
+          "label": "EU",
+          "value": "eu"
+        },
+        {
+          "label": "IN",
+          "value": "in"
+        },
+        {
+          "label": "AU",
+          "value": "com.au"
+        }
+      ],
+      "default": "com"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

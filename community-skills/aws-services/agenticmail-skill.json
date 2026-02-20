@@ -1,0 +1,70 @@
+{
+  "id": "aws-services",
+  "name": "AWS Services",
+  "description": "Manage AWS resources including S3 buckets, Lambda functions, and EC2 instances.",
+  "version": "1.3.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/aws-services",
+  "license": "Apache-2.0",
+  "category": "cloud",
+  "risk": "critical",
+  "auth": {
+    "type": "credentials",
+    "fields": ["accessKeyId", "secretAccessKey"],
+    "envVars": {
+      "accessKeyId": "AWS_ACCESS_KEY_ID",
+      "secretAccessKey": "AWS_SECRET_ACCESS_KEY"
+    },
+    "description": "AWS IAM credentials. Prefer IAM roles for EC2/ECS deployments."
+  },
+  "tags": ["aws", "cloud", "s3", "lambda"],
+  "tools": [
+    {
+      "id": "aws_list_s3_buckets",
+      "name": "List S3 Buckets",
+      "description": "List all S3 buckets in the account"
+    },
+    {
+      "id": "aws_invoke_lambda",
+      "name": "Invoke Lambda",
+      "description": "Invoke a Lambda function"
+    },
+    {
+      "id": "aws_list_ec2",
+      "name": "List EC2 Instances",
+      "description": "List running EC2 instances"
+    },
+    {
+      "id": "aws_get_cloudwatch_metrics",
+      "name": "CloudWatch Metrics",
+      "description": "Retrieve CloudWatch metrics"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultRegion": {
+        "type": "string",
+        "default": "us-east-1",
+        "description": "Default AWS region"
+      },
+      "assumeRoleArn": {
+        "type": "string",
+        "description": "IAM role ARN to assume for cross-account access"
+      },
+      "sessionDuration": {
+        "type": "number",
+        "default": 3600,
+        "description": "Session duration in seconds for assumed roles"
+      },
+      "outputFormat": {
+        "type": "string",
+        "enum": ["json", "text", "table"],
+        "default": "json",
+        "description": "Default output format for results"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

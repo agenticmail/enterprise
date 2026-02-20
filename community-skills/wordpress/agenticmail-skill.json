@@ -1,0 +1,56 @@
+{
+  "id": "wordpress",
+  "name": "WordPress",
+  "description": "Integrate with WordPress to list, create, update and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/wordpress",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "medium",
+  "tags": [
+    "wordpress",
+    "marketing"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "wordpress"
+  },
+  "tools": [
+    {
+      "id": "wp_list_posts",
+      "name": "List Posts",
+      "description": "List posts from a WordPress site. Optionally filter by status, category, search, or author."
+    },
+    {
+      "id": "wp_create_post",
+      "name": "Create Post",
+      "description": "Create a new post on a WordPress site. Provide a title, content, and optional status and categories."
+    },
+    {
+      "id": "wp_update_post",
+      "name": "Update Post",
+      "description": "Update an existing post on a WordPress site. Can change title, content, status, and other fields."
+    },
+    {
+      "id": "wp_list_pages",
+      "name": "List Pages",
+      "description": "List pages from a WordPress site. Returns page titles, statuses, and slugs."
+    },
+    {
+      "id": "wp_list_comments",
+      "name": "List Comments",
+      "description": "List comments from a WordPress site. Optionally filter by post, status, or author."
+    }
+  ],
+  "configSchema": {
+    "siteUrl": {
+      "type": "string",
+      "label": "WordPress Site URL",
+      "description": "The full URL of your WordPress site",
+      "required": true,
+      "placeholder": "https://mysite.com"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">Skills</h2>
+<p class="desc">Browse builtin skills and manage installed community skills</p>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Builtin Skills</div>
+{% if categories %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+{% for category, skill_list in categories.items %}
+<div style="border:1px solid var(--border);border-radius:8px;padding:14px">
+<div style="font-weight:600;margin-bottom:8px;text-transform:capitalize">{{ category }}</div>
+{% for skill in skill_list %}
+<div style="font-size:13px;padding:4px 0;color:var(--muted)">
+<span style="font-weight:500;color:var(--text)">{{ skill.name }}</span>
+{% if skill.description %}
+<span style="font-size:11px"> &mdash; {{ skill.description }}</span>
+{% endif %}
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+</div>
+{% else %}
+<div class="empty">&#x1f9e9; No builtin skills available</div>
+{% endif %}
+</div>
+<div class="card">
+<div class="ct">Installed Community Skills</div>
+{% if installed %}
+<table>
+<thead><tr><th>Name</th><th>Version</th><th>Status</th><th></th></tr></thead>
+<tbody>
+{% for s in installed %}
+<tr>
+<td style="font-weight:600">{{ s.name }}</td>
+<td style="font-size:12px;color:var(--muted)">{{ s.version|default:"-" }}</td>
+<td>{{ s.status_badge|safe }}</td>
+<td>
+{% if s.enabled %}
+<form method="POST" style="display:inline">
+<input type="hidden" name="_action" value="disable">
+<input type="hidden" name="skill_id" value="{{ s.id }}">
+<button class="btn btn-sm" type="submit">Disable</button>
+</form>
+{% else %}
+<form method="POST" style="display:inline">
+<input type="hidden" name="_action" value="enable">
+<input type="hidden" name="skill_id" value="{{ s.id }}">
+<button class="btn btn-sm btn-p" type="submit">Enable</button>
+</form>
+{% endif %}
+<form method="POST" style="display:inline">
+<input type="hidden" name="_action" value="uninstall">
+<input type="hidden" name="skill_id" value="{{ s.id }}">
+<button class="btn btn-sm btn-d" type="submit">Uninstall</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">&#x1f9e9; No community skills installed</div>
+{% endif %}
+</div>
+{% endblock %}

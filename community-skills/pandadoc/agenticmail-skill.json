@@ -1,0 +1,48 @@
+{
+  "id": "pandadoc",
+  "name": "PandaDoc",
+  "description": "Integrate with PandaDoc to list, create, send and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/pandadoc",
+  "license": "MIT",
+  "category": "legal",
+  "risk": "medium",
+  "tags": [
+    "pandadoc",
+    "legal"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "pandadoc"
+  },
+  "tools": [
+    {
+      "id": "pandadoc_list_documents",
+      "name": "List Documents",
+      "description": "List documents in PandaDoc. Filter by status, search query, or date range. Returns document names, statuses, and IDs."
+    },
+    {
+      "id": "pandadoc_create_document",
+      "name": "Create Document",
+      "description": "Create a new document in PandaDoc from a template. Specify recipients, tokens, and metadata."
+    },
+    {
+      "id": "pandadoc_send_document",
+      "name": "Send Document",
+      "description": "Send a PandaDoc document to its recipients for viewing or signing. The document must be in draft status."
+    },
+    {
+      "id": "pandadoc_get_document",
+      "name": "Get Document",
+      "description": "Get detailed information about a PandaDoc document by its ID. Returns name, status, recipients, and field values."
+    },
+    {
+      "id": "pandadoc_list_templates",
+      "name": "List Templates",
+      "description": "List available PandaDoc templates. Returns template names, IDs, and creation dates."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

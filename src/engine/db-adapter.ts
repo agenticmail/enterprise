@@ -76,7 +76,14 @@ export class EngineDatabase {
         const sql = this.getSqlForDialect(migration);
         if (sql) {
           for (const stmt of this.splitStatements(sql)) {
-            await this.db.run(stmt);
+            try {
+              await this.db.run(stmt);
+            } catch (e: any) {
+              // Ignore "duplicate column" errors from ALTER TABLE on fresh DBs
+              // where the column already exists in the CREATE TABLE schema.
+              if (e?.message?.includes('duplicate column')) continue;
+              throw e;
+            }
           }
         }
       }
@@ -225,6 +232,11 @@ export class EngineDatabase {
 
   async getManagedAgentsByState(state: AgentState): Promise<ManagedAgent[]> {
     const rows = await this.db.all<any>('SELECT * FROM managed_agents WHERE state = ?', [state]);
+    return rows.map(r => this.rowToManagedAgent(r));
+  }
+
+  async getAllManagedAgents(): Promise<ManagedAgent[]> {
+    const rows = await this.db.all<any>('SELECT * FROM managed_agents ORDER BY created_at DESC');
     return rows.map(r => this.rowToManagedAgent(r));
   }
 
@@ -588,8 +600,148 @@ export class EngineDatabase {
     }));
   }
 
+  async getAllApprovalPolicies(): Promise<ApprovalPolicy[]> {
+    const rows = await this.db.all<any>('SELECT * FROM approval_policies WHERE enabled = 1 ORDER BY name');
+    return rows.map(r => ({
+      id: r.id, name: r.name, description: r.description,
+      triggers: JSON.parse(r.triggers), approvers: JSON.parse(r.approvers),
+      timeout: JSON.parse(r.timeout), notify: JSON.parse(r.notify),
+      enabled: !!r.enabled,
+    }));
+  }
+
   async deleteApprovalPolicy(id: string): Promise<void> {
     await this.db.run('DELETE FROM approval_policies WHERE id = ?', [id]);
+  }
+
+  // ─── SSO Integrations ─────────────────────────────
+
+  async upsertSsoIntegration(integration: {
+    id: string; orgId: string; providerType: string; name: string;
+    enabled: boolean; config: Record<string, any>; metadataUrl?: string;
+  }): Promise<void> {
+    await this.db.run(`
+      INSERT INTO sso_integrations (id, org_id, provider_type, name, enabled, config, metadata_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name, enabled = excluded.enabled,
+        config = excluded.config, metadata_url = excluded.metadata_url,
+        updated_at = excluded.updated_at
+    `, [
+      integration.id, integration.orgId, integration.providerType,
+      integration.name, integration.enabled ? 1 : 0,
+      JSON.stringify(integration.config), integration.metadataUrl || null,
+      new Date().toISOString(), new Date().toISOString(),
+    ]);
+  }
+
+  async getSsoIntegration(id: string): Promise<any | null> {
+    const row = await this.db.get<any>('SELECT * FROM sso_integrations WHERE id = ?', [id]);
+    return row ? this.rowToSso(row) : null;
+  }
+
+  async getSsoIntegrationsByOrg(orgId: string): Promise<any[]> {
+    const rows = await this.db.all<any>('SELECT * FROM sso_integrations WHERE org_id = ? ORDER BY name', [orgId]);
+    return rows.map(r => this.rowToSso(r));
+  }
+
+  async getSsoIntegrationByType(orgId: string, providerType: string): Promise<any | null> {
+    const row = await this.db.get<any>('SELECT * FROM sso_integrations WHERE org_id = ? AND provider_type = ? AND enabled = 1', [orgId, providerType]);
+    return row ? this.rowToSso(row) : null;
+  }
+
+  async deleteSsoIntegration(id: string): Promise<void> {
+    await this.db.run('DELETE FROM sso_integrations WHERE id = ?', [id]);
+  }
+
+  private rowToSso(row: any) {
+    return {
+      id: row.id, orgId: row.org_id, providerType: row.provider_type,
+      name: row.name, enabled: !!row.enabled, config: JSON.parse(row.config),
+      metadataUrl: row.metadata_url, createdAt: row.created_at, updatedAt: row.updated_at,
+    };
+  }
+
+  // ─── OIDC State Tracking ─────────────────────────
+
+  async saveOidcState(state: string, providerId: string, opts: {
+    redirectUri?: string; nonce?: string; codeVerifier?: string; ttlSeconds?: number;
+  }): Promise<void> {
+    const expiresAt = new Date(Date.now() + (opts.ttlSeconds || 600) * 1000).toISOString();
+    await this.db.run(`
+      INSERT INTO oidc_states (state, provider_id, redirect_uri, nonce, code_verifier, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [state, providerId, opts.redirectUri || null, opts.nonce || null, opts.codeVerifier || null, new Date().toISOString(), expiresAt]);
+  }
+
+  async getOidcState(state: string): Promise<{
+    state: string; providerId: string; redirectUri?: string; nonce?: string; codeVerifier?: string; expiresAt: string;
+  } | null> {
+    const row = await this.db.get<any>('SELECT * FROM oidc_states WHERE state = ?', [state]);
+    if (!row) return null;
+    // Check expiry
+    if (new Date(row.expires_at) < new Date()) {
+      await this.db.run('DELETE FROM oidc_states WHERE state = ?', [state]);
+      return null;
+    }
+    return {
+      state: row.state, providerId: row.provider_id, redirectUri: row.redirect_uri,
+      nonce: row.nonce, codeVerifier: row.code_verifier, expiresAt: row.expires_at,
+    };
+  }
+
+  async deleteOidcState(state: string): Promise<void> {
+    await this.db.run('DELETE FROM oidc_states WHERE state = ?', [state]);
+  }
+
+  async cleanupExpiredOidcStates(): Promise<void> {
+    await this.db.run('DELETE FROM oidc_states WHERE expires_at < ?', [new Date().toISOString()]);
+  }
+
+  // ─── Deploy Credentials ─────────────────────────
+
+  async upsertDeployCredential(cred: {
+    id: string; orgId: string; name: string; targetType: string;
+    config: Record<string, any>; createdBy: string;
+  }): Promise<void> {
+    await this.db.run(`
+      INSERT INTO deploy_credentials (id, org_id, name, target_type, config, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name, target_type = excluded.target_type,
+        config = excluded.config, updated_at = excluded.updated_at
+    `, [
+      cred.id, cred.orgId, cred.name, cred.targetType,
+      JSON.stringify(cred.config), cred.createdBy,
+      new Date().toISOString(), new Date().toISOString(),
+    ]);
+  }
+
+  async getDeployCredential(id: string): Promise<any | null> {
+    const row = await this.db.get<any>('SELECT * FROM deploy_credentials WHERE id = ?', [id]);
+    return row ? this.rowToDeployCred(row) : null;
+  }
+
+  async getDeployCredentialsByOrg(orgId: string): Promise<any[]> {
+    const rows = await this.db.all<any>('SELECT * FROM deploy_credentials WHERE org_id = ? ORDER BY name', [orgId]);
+    return rows.map(r => this.rowToDeployCred(r));
+  }
+
+  async getDeployCredentialsByType(orgId: string, targetType: string): Promise<any[]> {
+    const rows = await this.db.all<any>('SELECT * FROM deploy_credentials WHERE org_id = ? AND target_type = ?', [orgId, targetType]);
+    return rows.map(r => this.rowToDeployCred(r));
+  }
+
+  async deleteDeployCredential(id: string): Promise<void> {
+    await this.db.run('DELETE FROM deploy_credentials WHERE id = ?', [id]);
+  }
+
+  private rowToDeployCred(row: any) {
+    return {
+      id: row.id, orgId: row.org_id, name: row.name, targetType: row.target_type,
+      config: JSON.parse(row.config), createdBy: row.created_by,
+      createdAt: row.created_at, updatedAt: row.updated_at,
+    };
   }
 
   // ─── Aggregate Stats ───────────────────────────────
@@ -644,7 +796,203 @@ export class EngineDatabase {
     };
   }
 
+  // ─── Community Skill Index ──────────────────────────
+
+  async upsertCommunitySkill(skill: {
+    id: string; name: string; description: string; version: string;
+    author: string; repository: string; license: string;
+    category?: string; risk?: string; icon?: string;
+    tags?: string[]; tools?: any[]; configSchema?: Record<string, any>;
+    minEngineVersion?: string; homepage?: string;
+    downloads?: number; rating?: number; ratingCount?: number;
+    verified?: boolean; featured?: boolean;
+  }): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.run(`
+      INSERT INTO community_skill_index (id, name, description, version, author, repository, license, category, risk, icon, tags, tools, config_schema, min_engine_version, homepage, downloads, rating, rating_count, verified, featured, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name, description = excluded.description, version = excluded.version,
+        author = excluded.author, repository = excluded.repository, license = excluded.license,
+        category = excluded.category, risk = excluded.risk, icon = excluded.icon,
+        tags = excluded.tags, tools = excluded.tools, config_schema = excluded.config_schema,
+        min_engine_version = excluded.min_engine_version, homepage = excluded.homepage,
+        downloads = excluded.downloads, rating = excluded.rating, rating_count = excluded.rating_count,
+        verified = excluded.verified, featured = excluded.featured,
+        updated_at = excluded.updated_at
+    `, [
+      skill.id, skill.name, skill.description, skill.version,
+      skill.author, skill.repository, skill.license,
+      skill.category || null, skill.risk || 'medium', skill.icon || null,
+      JSON.stringify(skill.tags || []), JSON.stringify(skill.tools || []),
+      JSON.stringify(skill.configSchema || {}), skill.minEngineVersion || null,
+      skill.homepage || null, skill.downloads || 0, skill.rating || 0,
+      skill.ratingCount || 0, skill.verified ? 1 : 0, skill.featured ? 1 : 0,
+      now, now,
+    ]);
+  }
+
+  async getCommunitySkill(id: string): Promise<any | null> {
+    const row = await this.db.get<any>('SELECT * FROM community_skill_index WHERE id = ?', [id]);
+    return row ? this.rowToCommunitySkill(row) : null;
+  }
+
+  async getAllCommunitySkills(opts?: {
+    category?: string; risk?: string; tag?: string; author?: string;
+    verified?: boolean; featured?: boolean;
+    search?: string; sortBy?: string; order?: string;
+    limit?: number; offset?: number;
+  }): Promise<{ skills: any[]; total: number }> {
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (opts?.category) { conditions.push('category = ?'); params.push(opts.category); }
+    if (opts?.risk) { conditions.push('risk = ?'); params.push(opts.risk); }
+    if (opts?.author) { conditions.push('author = ?'); params.push(opts.author); }
+    if (opts?.verified !== undefined) { conditions.push('verified = ?'); params.push(opts.verified ? 1 : 0); }
+    if (opts?.featured !== undefined) { conditions.push('featured = ?'); params.push(opts.featured ? 1 : 0); }
+    if (opts?.tag) { conditions.push("tags LIKE ?"); params.push(`%"${opts.tag}"%`); }
+    if (opts?.search) {
+      conditions.push('(name LIKE ? OR description LIKE ? OR author LIKE ?)');
+      const q = `%${opts.search}%`;
+      params.push(q, q, q);
+    }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    const sortCol = opts?.sortBy === 'popular' ? 'downloads' : opts?.sortBy === 'rating' ? 'rating' : opts?.sortBy === 'name' ? 'name' : 'created_at';
+    const sortOrder = opts?.order === 'asc' ? 'ASC' : 'DESC';
+    const limit = opts?.limit || 50;
+    const offset = opts?.offset || 0;
+
+    const countRow = await this.db.get<any>(`SELECT COUNT(*) as c FROM community_skill_index ${where}`, params);
+    const rows = await this.db.all<any>(
+      `SELECT * FROM community_skill_index ${where} ORDER BY ${sortCol} ${sortOrder} LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
+    );
+
+    return { skills: rows.map((r: any) => this.rowToCommunitySkill(r)), total: countRow?.c || 0 };
+  }
+
+  async deleteCommunitySkill(id: string): Promise<void> {
+    await this.db.run('DELETE FROM community_skill_index WHERE id = ?', [id]);
+  }
+
+  async incrementDownloads(skillId: string): Promise<void> {
+    await this.db.run('UPDATE community_skill_index SET downloads = downloads + 1 WHERE id = ?', [skillId]);
+  }
+
+  // ─── Community Skill Installed ──────────────────────
+
+  async upsertInstalledSkill(install: {
+    id: string; orgId: string; skillId: string; version: string;
+    enabled: boolean; config: Record<string, any>; installedBy: string;
+  }): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.run(`
+      INSERT INTO community_skill_installed (id, org_id, skill_id, version, enabled, config, installed_by, installed_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        version = excluded.version, enabled = excluded.enabled,
+        config = excluded.config, updated_at = excluded.updated_at
+    `, [
+      install.id, install.orgId, install.skillId, install.version,
+      install.enabled ? 1 : 0, JSON.stringify(install.config),
+      install.installedBy, now, now,
+    ]);
+  }
+
+  async getInstalledSkill(orgId: string, skillId: string): Promise<any | null> {
+    const row = await this.db.get<any>(
+      'SELECT * FROM community_skill_installed WHERE org_id = ? AND skill_id = ?',
+      [orgId, skillId],
+    );
+    return row ? this.rowToInstalledSkill(row) : null;
+  }
+
+  async getInstalledSkillsByOrg(orgId: string): Promise<any[]> {
+    const rows = await this.db.all<any>(
+      'SELECT * FROM community_skill_installed WHERE org_id = ? ORDER BY installed_at DESC',
+      [orgId],
+    );
+    return rows.map((r: any) => this.rowToInstalledSkill(r));
+  }
+
+  async deleteInstalledSkill(orgId: string, skillId: string): Promise<void> {
+    await this.db.run(
+      'DELETE FROM community_skill_installed WHERE org_id = ? AND skill_id = ?',
+      [orgId, skillId],
+    );
+  }
+
+  // ─── Community Skill Reviews ────────────────────────
+
+  async insertReview(review: {
+    id: string; skillId: string; userId: string; userName?: string;
+    rating: number; reviewText?: string;
+  }): Promise<void> {
+    // Check if user already reviewed this skill — update instead of duplicate
+    const existing = await this.db.get<any>(
+      'SELECT id FROM community_skill_reviews WHERE skill_id = ? AND user_id = ?',
+      [review.skillId, review.userId],
+    );
+    if (existing) {
+      await this.db.run(`
+        UPDATE community_skill_reviews SET rating = ?, review_text = ?, user_name = ?, created_at = ? WHERE id = ?
+      `, [review.rating, review.reviewText || null, review.userName || null, new Date().toISOString(), existing.id]);
+    } else {
+      await this.db.run(`
+        INSERT INTO community_skill_reviews (id, skill_id, org_id, user_id, user_name, rating, review_text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        review.id, review.skillId, 'global', review.userId, review.userName || null,
+        review.rating, review.reviewText || null, new Date().toISOString(),
+      ]);
+    }
+  }
+
+  async getReviews(skillId: string, limit: number = 50): Promise<any[]> {
+    const rows = await this.db.all<any>(
+      'SELECT * FROM community_skill_reviews WHERE skill_id = ? ORDER BY created_at DESC LIMIT ?',
+      [skillId, limit],
+    );
+    return rows.map((r: any) => ({
+      id: r.id, skillId: r.skill_id, userId: r.user_id,
+      userName: r.user_name || undefined, rating: r.rating,
+      reviewText: r.review_text, createdAt: r.created_at,
+    }));
+  }
+
+  async getAverageRating(skillId: string): Promise<{ avg: number; count: number }> {
+    const row = await this.db.get<any>(
+      'SELECT AVG(rating) as avg, COUNT(*) as count FROM community_skill_reviews WHERE skill_id = ?',
+      [skillId],
+    );
+    return { avg: row?.avg || 0, count: row?.count || 0 };
+  }
+
   // ─── Row Mappers ────────────────────────────────────
+
+  private rowToCommunitySkill(row: any) {
+    return {
+      id: row.id, name: row.name, description: row.description, version: row.version,
+      author: row.author, repository: row.repository, license: row.license,
+      category: row.category, risk: row.risk, icon: row.icon,
+      tags: JSON.parse(row.tags || '[]'), tools: JSON.parse(row.tools || '[]'),
+      configSchema: JSON.parse(row.config_schema || '{}'),
+      minEngineVersion: row.min_engine_version, homepage: row.homepage,
+      downloads: row.downloads, rating: row.rating, ratingCount: row.rating_count,
+      verified: !!row.verified, featured: !!row.featured,
+      createdAt: row.created_at, updatedAt: row.updated_at,
+    };
+  }
+
+  private rowToInstalledSkill(row: any) {
+    return {
+      id: row.id, orgId: row.org_id, skillId: row.skill_id, version: row.version,
+      enabled: !!row.enabled, config: JSON.parse(row.config || '{}'),
+      installedBy: row.installed_by, installedAt: row.installed_at, updatedAt: row.updated_at,
+    };
+  }
 
   private rowToManagedAgent(row: any): ManagedAgent {
     return {

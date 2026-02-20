@@ -1,0 +1,71 @@
+{
+  "id": "mailgun",
+  "name": "Mailgun",
+  "description": "Integrate with Mailgun to send, list, validate and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/mailgun",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "mailgun",
+    "communication"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "mailgun"
+  },
+  "tools": [
+    {
+      "id": "mailgun_send_email",
+      "name": "Send Email",
+      "description": "Send an email via Mailgun. Supports plain text and HTML content, plus CC and BCC recipients."
+    },
+    {
+      "id": "mailgun_list_events",
+      "name": "List Events",
+      "description": "List email events from Mailgun (deliveries, opens, clicks, bounces, etc.) for the configured domain."
+    },
+    {
+      "id": "mailgun_validate_email",
+      "name": "Validate Email",
+      "description": "Validate an email address using Mailgun's email validation service. Checks deliverability, risk, and suggests corrections."
+    },
+    {
+      "id": "mailgun_list_domains",
+      "name": "List Domains",
+      "description": "List sending domains configured in Mailgun. Returns domain names, states, and types."
+    },
+    {
+      "id": "mailgun_get_stats",
+      "name": "Get Stats",
+      "description": "Get email sending statistics from Mailgun for the configured domain. Returns delivery, open, click, bounce, and complaint counts."
+    }
+  ],
+  "configSchema": {
+    "domain": {
+      "type": "string",
+      "label": "Mail Domain",
+      "description": "Your Mailgun sending domain (e.g. \"mg.example.com\")",
+      "required": true
+    },
+    "region": {
+      "type": "select",
+      "label": "Region",
+      "description": "Mailgun API region",
+      "options": [
+        {
+          "label": "US",
+          "value": "us"
+        },
+        {
+          "label": "EU",
+          "value": "eu"
+        }
+      ],
+      "default": "us"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

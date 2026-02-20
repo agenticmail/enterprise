@@ -1,0 +1,48 @@
+{
+  "id": "render",
+  "name": "Render",
+  "description": "Integrate with Render to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/render",
+  "license": "MIT",
+  "category": "cloud-infrastructure",
+  "risk": "medium",
+  "tags": [
+    "render",
+    "cloud-infrastructure"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "render"
+  },
+  "tools": [
+    {
+      "id": "render_list_services",
+      "name": "List Services",
+      "description": "List all services in the Render account. Returns service names, types, regions, and statuses."
+    },
+    {
+      "id": "render_get_service",
+      "name": "Get Service",
+      "description": "Get detailed information about a specific Render service by its ID."
+    },
+    {
+      "id": "render_list_deploys",
+      "name": "List Deploys",
+      "description": "List recent deploys for a Render service. Returns deploy IDs, statuses, commit info, and timestamps."
+    },
+    {
+      "id": "render_trigger_deploy",
+      "name": "Trigger Deploy",
+      "description": "Trigger a new deploy for a Render service. Optionally clear the build cache."
+    },
+    {
+      "id": "render_list_envs",
+      "name": "List Envs",
+      "description": "List environment variables for a Render service. Sensitive values are masked."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

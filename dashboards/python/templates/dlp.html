@@ -1,0 +1,159 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Data Loss Prevention</h1>
+  <p>Manage DLP rules, review violations, and test content scanning</p>
+</div>
+
+<!-- Tabs -->
+<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+  <button class="btn btn-primary" onclick="showTab('rules')">Rules</button>
+  <button class="btn" onclick="showTab('violations')">Violations</button>
+  <button class="btn" onclick="showTab('test')">Test Scan</button>
+</div>
+
+<!-- Rules Tab -->
+<div id="tab-rules">
+  <div class="card">
+    <h3>Create DLP Rule</h3>
+    <form method="POST" action="{{ url_for('dlp_bp.create_rule') }}" style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+      <div class="form-group" style="flex: 1; margin: 0;">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="e.g. Credit Card Detection">
+      </div>
+      <div class="form-group" style="margin: 0;">
+        <label>Type</label>
+        <select name="type">
+          <option>regex</option>
+          <option>keyword</option>
+          <option>pattern</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1; margin: 0;">
+        <label>Pattern</label>
+        <input type="text" name="pattern" required placeholder="e.g. \d{4}-\d{4}-\d{4}-\d{4}">
+      </div>
+      <div class="form-group" style="margin: 0;">
+        <label>Action</label>
+        <select name="action">
+          <option>block</option>
+          <option>redact</option>
+          <option>alert</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin: 0;">
+        <label>Severity</label>
+        <select name="severity">
+          <option>critical</option>
+          <option>high</option>
+          <option>medium</option>
+          <option>low</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">Create</button>
+    </form>
+  </div>
+
+  <div class="card">
+    {% if rules %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Pattern</th>
+            <th>Action</th>
+            <th>Severity</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rules %}
+          <tr>
+            <td style="font-weight: 600;">{{ r.name }}</td>
+            <td>{{ r.type }}</td>
+            <td style="font-size: 12px; font-family: monospace; color: var(--text-muted);">{{ r.pattern }}</td>
+            <td>{{ r.action|badge }}</td>
+            <td>{{ r.severity|badge }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('dlp_bp.delete_rule', id=r.id) }}" style="display: inline;">
+                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <span class="icon">No DLP rules yet</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Violations Tab -->
+<div id="tab-violations" style="display: none;">
+  <div class="card">
+    {% if violations %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Rule</th>
+            <th>Agent</th>
+            <th>Action Taken</th>
+            <th>Severity</th>
+            <th>Content</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in violations %}
+          <tr>
+            <td style="font-size: 12px; color: var(--text-muted);">{{ v.timestamp|time_ago }}</td>
+            <td style="font-weight: 600;">{{ v.ruleName or v.ruleId }}</td>
+            <td>{{ v.agentId or '-' }}</td>
+            <td>{{ v.action|badge }}</td>
+            <td>{{ v.severity|badge }}</td>
+            <td style="font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ v.content or '-' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <span class="icon">No violations recorded</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Test Scan Tab -->
+<div id="tab-test" style="display: none;">
+  <div class="card">
+    <h3>Test Content Scan</h3>
+    <form method="POST" action="{{ url_for('dlp_bp.scan') }}">
+      <div class="form-group">
+        <label>Content to Scan</label>
+        <textarea name="content" rows="6" required placeholder="Paste content here to test against DLP rules..." style="width: 100%; font-family: monospace;"></textarea>
+      </div>
+      <button class="btn btn-primary" type="submit">Run Scan</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(name) {
+  document.getElementById('tab-rules').style.display = name === 'rules' ? '' : 'none';
+  document.getElementById('tab-violations').style.display = name === 'violations' ? '' : 'none';
+  document.getElementById('tab-test').style.display = name === 'test' ? '' : 'none';
+}
+</script>
+{% endblock %}

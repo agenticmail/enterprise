@@ -1,20 +1,21 @@
 /**
- * Tool Catalog — Exact mapping of real OpenClaw + AgenticMail tools
+ * Tool Catalog — Exact mapping of all AgenticMail Enterprise tools
  *
- * Every tool ID here matches the ACTUAL registered tool name in OpenClaw.
+ * Every tool ID here matches the ACTUAL registered tool name in the runtime.
  * Sourced from:
- * - OpenClaw core tools (read, write, edit, exec, web_search, etc.)
- * - AgenticMail plugin tools (agenticmail_send, agenticmail_reply, etc.)
- * - OpenClaw plugin system (browser, canvas, nodes, cron, etc.)
+ * - Core tools (read, write, edit, exec, web_search, etc.)
+ * - AgenticMail tools (agenticmail_send, agenticmail_reply, etc.)
+ * - Platform tools (browser, canvas, nodes, cron, etc.)
  *
  * This is the single source of truth for the permission engine.
  */
 
 import type { ToolDefinition, SkillCategory, RiskLevel, SideEffect } from './skills.js';
+import { M365_TOOLS as M365_SKILL_TOOLS, GWS_TOOLS as GWS_SKILL_TOOLS, ENTERPRISE_UTILITY_TOOLS } from './skills/index.js';
 
-// ─── Core OpenClaw Tools ────────────────────────────────
+// ─── Core Platform Tools ────────────────────────────────
 
-export const OPENCLAW_CORE_TOOLS: ToolDefinition[] = [
+export const CORE_TOOLS: ToolDefinition[] = [
   // File system
   { id: 'read', name: 'Read File', description: 'Read file contents (text and images)', category: 'read', risk: 'low', skillId: 'files', sideEffects: [] },
   { id: 'write', name: 'Write File', description: 'Create or overwrite files', category: 'write', risk: 'medium', skillId: 'files', sideEffects: ['modifies-files'] },
@@ -44,7 +45,7 @@ export const OPENCLAW_CORE_TOOLS: ToolDefinition[] = [
   { id: 'message', name: 'Send Message', description: 'Send messages via channels', category: 'communicate', risk: 'high', skillId: 'messaging', sideEffects: ['sends-message'] },
 
   // Gateway
-  { id: 'gateway', name: 'Gateway Control', description: 'Restart, configure, update OpenClaw', category: 'execute', risk: 'critical', skillId: 'gateway', sideEffects: ['runs-code'] },
+  { id: 'gateway', name: 'Gateway Control', description: 'Restart, configure, and update the agent runtime', category: 'execute', risk: 'critical', skillId: 'gateway', sideEffects: ['runs-code'] },
 
   // Sessions / Sub-agents
   { id: 'agents_list', name: 'List Agents', description: 'List agent IDs for spawning', category: 'read', risk: 'low', skillId: 'sessions', sideEffects: [] },
@@ -146,10 +147,173 @@ export const AGENTICMAIL_TOOLS: ToolDefinition[] = [
   { id: 'agenticmail_sms_config', name: 'SMS Config', description: 'Get SMS configuration', category: 'read', risk: 'low', skillId: 'agenticmail-sms', sideEffects: [] },
 ];
 
+// ─── Microsoft 365 Tools (from individual skill files) ──
+
+export const MICROSOFT_365_TOOLS: ToolDefinition[] = M365_SKILL_TOOLS;
+
+// ─── Google Workspace Tools (from individual skill files) ─
+
+export const GOOGLE_WORKSPACE_TOOLS: ToolDefinition[] = GWS_SKILL_TOOLS;
+
+// ─── Enterprise Integration Tools ───────────────────────
+
+export const ENTERPRISE_TOOLS: ToolDefinition[] = [
+  // Slack
+  { id: 'slack_send', name: 'Send Message', description: 'Send Slack message', category: 'communicate', risk: 'medium', skillId: 'slack', sideEffects: ['sends-message'] },
+  { id: 'slack_channels', name: 'List Channels', description: 'List Slack channels', category: 'read', risk: 'low', skillId: 'slack', sideEffects: [] },
+  { id: 'slack_create_channel', name: 'Create Channel', description: 'Create Slack channel', category: 'write', risk: 'medium', skillId: 'slack', sideEffects: [] },
+  { id: 'slack_search', name: 'Search Messages', description: 'Search Slack messages', category: 'read', risk: 'low', skillId: 'slack', sideEffects: [] },
+  { id: 'slack_react', name: 'Add Reaction', description: 'Add emoji reaction', category: 'write', risk: 'low', skillId: 'slack', sideEffects: [] },
+  { id: 'slack_upload', name: 'Upload File', description: 'Upload file to Slack', category: 'write', risk: 'medium', skillId: 'slack', sideEffects: ['modifies-files'] },
+
+  // Zoom
+  { id: 'zoom_create', name: 'Create Meeting', description: 'Schedule Zoom meeting', category: 'write', risk: 'medium', skillId: 'zoom', sideEffects: ['sends-email'] },
+  { id: 'zoom_list', name: 'List Meetings', description: 'List scheduled meetings', category: 'read', risk: 'low', skillId: 'zoom', sideEffects: [] },
+  { id: 'zoom_recordings', name: 'List Recordings', description: 'List meeting recordings', category: 'read', risk: 'low', skillId: 'zoom', sideEffects: [] },
+
+  // Salesforce
+  { id: 'sf_query', name: 'SOQL Query', description: 'Run Salesforce SOQL query', category: 'read', risk: 'low', skillId: 'salesforce', sideEffects: [] },
+  { id: 'sf_create', name: 'Create Record', description: 'Create Salesforce record', category: 'write', risk: 'medium', skillId: 'salesforce', sideEffects: [] },
+  { id: 'sf_update', name: 'Update Record', description: 'Update Salesforce record', category: 'write', risk: 'medium', skillId: 'salesforce', sideEffects: [] },
+  { id: 'sf_delete', name: 'Delete Record', description: 'Delete Salesforce record', category: 'destroy', risk: 'high', skillId: 'salesforce', sideEffects: ['deletes-data'] },
+  { id: 'sf_report', name: 'Run Report', description: 'Run Salesforce report', category: 'read', risk: 'low', skillId: 'salesforce', sideEffects: [] },
+
+  // HubSpot
+  { id: 'hs_contacts', name: 'Manage Contacts', description: 'CRUD HubSpot contacts', category: 'write', risk: 'medium', skillId: 'hubspot-crm', sideEffects: [] },
+  { id: 'hs_deals', name: 'Manage Deals', description: 'CRUD HubSpot deals', category: 'write', risk: 'medium', skillId: 'hubspot-crm', sideEffects: [] },
+  { id: 'hs_tickets', name: 'Manage Tickets', description: 'CRUD HubSpot tickets', category: 'write', risk: 'medium', skillId: 'hubspot-service', sideEffects: [] },
+  { id: 'hs_email', name: 'Send Campaign', description: 'Send HubSpot email campaign', category: 'communicate', risk: 'high', skillId: 'hubspot-marketing', sideEffects: ['sends-email'] },
+
+  // Jira
+  { id: 'jira_issues', name: 'List Issues', description: 'Search Jira issues with JQL', category: 'read', risk: 'low', skillId: 'jira', sideEffects: [] },
+  { id: 'jira_create', name: 'Create Issue', description: 'Create Jira issue', category: 'write', risk: 'medium', skillId: 'jira', sideEffects: [] },
+  { id: 'jira_update', name: 'Update Issue', description: 'Update Jira issue', category: 'write', risk: 'medium', skillId: 'jira', sideEffects: [] },
+  { id: 'jira_transition', name: 'Transition Issue', description: 'Move issue through workflow', category: 'write', risk: 'medium', skillId: 'jira', sideEffects: [] },
+  { id: 'jira_comment', name: 'Add Comment', description: 'Comment on Jira issue', category: 'write', risk: 'low', skillId: 'jira', sideEffects: [] },
+
+  // Notion
+  { id: 'notion_pages', name: 'Manage Pages', description: 'CRUD Notion pages', category: 'write', risk: 'medium', skillId: 'notion', sideEffects: [] },
+  { id: 'notion_databases', name: 'Query Database', description: 'Query Notion database', category: 'read', risk: 'low', skillId: 'notion', sideEffects: [] },
+  { id: 'notion_search', name: 'Search Notion', description: 'Search across Notion workspace', category: 'read', risk: 'low', skillId: 'notion', sideEffects: [] },
+
+  // Linear
+  { id: 'linear_issues', name: 'List Issues', description: 'List Linear issues', category: 'read', risk: 'low', skillId: 'linear', sideEffects: [] },
+  { id: 'linear_create', name: 'Create Issue', description: 'Create Linear issue', category: 'write', risk: 'medium', skillId: 'linear', sideEffects: [] },
+  { id: 'linear_update', name: 'Update Issue', description: 'Update Linear issue', category: 'write', risk: 'medium', skillId: 'linear', sideEffects: [] },
+
+  // Asana
+  { id: 'asana_tasks', name: 'List Tasks', description: 'List Asana tasks', category: 'read', risk: 'low', skillId: 'asana', sideEffects: [] },
+  { id: 'asana_create', name: 'Create Task', description: 'Create Asana task', category: 'write', risk: 'medium', skillId: 'asana', sideEffects: [] },
+  { id: 'asana_update', name: 'Update Task', description: 'Update Asana task', category: 'write', risk: 'medium', skillId: 'asana', sideEffects: [] },
+
+  // Zendesk
+  { id: 'zd_tickets', name: 'List Tickets', description: 'List Zendesk tickets', category: 'read', risk: 'low', skillId: 'zendesk', sideEffects: [] },
+  { id: 'zd_create', name: 'Create Ticket', description: 'Create Zendesk ticket', category: 'write', risk: 'medium', skillId: 'zendesk', sideEffects: [] },
+  { id: 'zd_update', name: 'Update Ticket', description: 'Update Zendesk ticket', category: 'write', risk: 'medium', skillId: 'zendesk', sideEffects: [] },
+  { id: 'zd_reply', name: 'Reply to Ticket', description: 'Reply to Zendesk ticket', category: 'communicate', risk: 'medium', skillId: 'zendesk', sideEffects: ['sends-email'] },
+
+  // Stripe
+  { id: 'stripe_customers', name: 'Manage Customers', description: 'CRUD Stripe customers', category: 'write', risk: 'medium', skillId: 'stripe', sideEffects: [] },
+  { id: 'stripe_charges', name: 'List Charges', description: 'List Stripe charges', category: 'read', risk: 'low', skillId: 'stripe', sideEffects: [] },
+  { id: 'stripe_invoices', name: 'Manage Invoices', description: 'Create/send Stripe invoices', category: 'write', risk: 'high', skillId: 'stripe', sideEffects: ['financial', 'sends-email'] },
+  { id: 'stripe_subscriptions', name: 'Manage Subscriptions', description: 'CRUD subscriptions', category: 'write', risk: 'high', skillId: 'stripe', sideEffects: ['financial'] },
+  { id: 'stripe_refund', name: 'Issue Refund', description: 'Refund a charge', category: 'write', risk: 'high', skillId: 'stripe', sideEffects: ['financial'] },
+
+  // Docker
+  { id: 'docker_ps', name: 'List Containers', description: 'List Docker containers', category: 'read', risk: 'low', skillId: 'docker', sideEffects: [] },
+  { id: 'docker_run', name: 'Run Container', description: 'Start Docker container', category: 'execute', risk: 'high', skillId: 'docker', sideEffects: ['runs-code'] },
+  { id: 'docker_build', name: 'Build Image', description: 'Build Docker image', category: 'execute', risk: 'high', skillId: 'docker', sideEffects: ['runs-code', 'modifies-files'] },
+  { id: 'docker_logs', name: 'Container Logs', description: 'View container logs', category: 'read', risk: 'low', skillId: 'docker', sideEffects: [] },
+
+  // Kubernetes
+  { id: 'k8s_get', name: 'Get Resources', description: 'List Kubernetes resources', category: 'read', risk: 'low', skillId: 'kubernetes', sideEffects: [] },
+  { id: 'k8s_apply', name: 'Apply Manifest', description: 'Apply Kubernetes manifest', category: 'execute', risk: 'high', skillId: 'kubernetes', sideEffects: ['runs-code'] },
+  { id: 'k8s_delete', name: 'Delete Resource', description: 'Delete Kubernetes resource', category: 'destroy', risk: 'high', skillId: 'kubernetes', sideEffects: ['deletes-data'] },
+  { id: 'k8s_logs', name: 'Pod Logs', description: 'View pod logs', category: 'read', risk: 'low', skillId: 'kubernetes', sideEffects: [] },
+  { id: 'k8s_exec', name: 'Exec in Pod', description: 'Execute command in pod', category: 'execute', risk: 'high', skillId: 'kubernetes', sideEffects: ['runs-code'] },
+
+  // Terraform
+  { id: 'tf_plan', name: 'Terraform Plan', description: 'Run terraform plan', category: 'read', risk: 'medium', skillId: 'terraform', sideEffects: [] },
+  { id: 'tf_apply', name: 'Terraform Apply', description: 'Run terraform apply', category: 'execute', risk: 'high', skillId: 'terraform', sideEffects: ['runs-code', 'network-request'] },
+  { id: 'tf_state', name: 'Terraform State', description: 'Read terraform state', category: 'read', risk: 'low', skillId: 'terraform', sideEffects: [] },
+
+  // Shopify
+  { id: 'shopify_products', name: 'Manage Products', description: 'CRUD Shopify products', category: 'write', risk: 'medium', skillId: 'shopify', sideEffects: [] },
+  { id: 'shopify_orders', name: 'List Orders', description: 'List Shopify orders', category: 'read', risk: 'low', skillId: 'shopify', sideEffects: [] },
+  { id: 'shopify_customers', name: 'Manage Customers', description: 'CRUD Shopify customers', category: 'write', risk: 'medium', skillId: 'shopify', sideEffects: [] },
+  { id: 'shopify_inventory', name: 'Manage Inventory', description: 'Update inventory levels', category: 'write', risk: 'medium', skillId: 'shopify', sideEffects: [] },
+
+  // Dropbox
+  { id: 'dropbox_list', name: 'List Files', description: 'List Dropbox files', category: 'read', risk: 'low', skillId: 'dropbox', sideEffects: [] },
+  { id: 'dropbox_upload', name: 'Upload File', description: 'Upload to Dropbox', category: 'write', risk: 'medium', skillId: 'dropbox', sideEffects: ['modifies-files'] },
+  { id: 'dropbox_download', name: 'Download File', description: 'Download from Dropbox', category: 'read', risk: 'low', skillId: 'dropbox', sideEffects: [] },
+  { id: 'dropbox_share', name: 'Share Link', description: 'Create sharing link', category: 'write', risk: 'medium', skillId: 'dropbox', sideEffects: [] },
+
+  // Datadog
+  { id: 'dd_metrics', name: 'Query Metrics', description: 'Query Datadog metrics', category: 'read', risk: 'low', skillId: 'datadog', sideEffects: [] },
+  { id: 'dd_events', name: 'List Events', description: 'List Datadog events', category: 'read', risk: 'low', skillId: 'datadog', sideEffects: [] },
+  { id: 'dd_monitors', name: 'Manage Monitors', description: 'CRUD Datadog monitors', category: 'write', risk: 'medium', skillId: 'datadog', sideEffects: [] },
+  { id: 'dd_dashboards', name: 'Manage Dashboards', description: 'CRUD Datadog dashboards', category: 'write', risk: 'low', skillId: 'datadog', sideEffects: [] },
+
+  // PagerDuty
+  { id: 'pd_incidents', name: 'List Incidents', description: 'List PagerDuty incidents', category: 'read', risk: 'low', skillId: 'pagerduty', sideEffects: [] },
+  { id: 'pd_create', name: 'Create Incident', description: 'Create PagerDuty incident', category: 'write', risk: 'high', skillId: 'pagerduty', sideEffects: ['sends-message'] },
+  { id: 'pd_acknowledge', name: 'Acknowledge Incident', description: 'Acknowledge incident', category: 'write', risk: 'medium', skillId: 'pagerduty', sideEffects: [] },
+  { id: 'pd_resolve', name: 'Resolve Incident', description: 'Resolve incident', category: 'write', risk: 'medium', skillId: 'pagerduty', sideEffects: [] },
+
+  // Sentry
+  { id: 'sentry_issues', name: 'List Issues', description: 'List Sentry issues', category: 'read', risk: 'low', skillId: 'sentry', sideEffects: [] },
+  { id: 'sentry_resolve', name: 'Resolve Issue', description: 'Resolve Sentry issue', category: 'write', risk: 'low', skillId: 'sentry', sideEffects: [] },
+  { id: 'sentry_assign', name: 'Assign Issue', description: 'Assign Sentry issue', category: 'write', risk: 'low', skillId: 'sentry', sideEffects: [] },
+
+  // DocuSign
+  { id: 'ds_send', name: 'Send Envelope', description: 'Send DocuSign envelope', category: 'communicate', risk: 'high', skillId: 'docusign', sideEffects: ['sends-email'] },
+  { id: 'ds_status', name: 'Envelope Status', description: 'Check envelope status', category: 'read', risk: 'low', skillId: 'docusign', sideEffects: [] },
+  { id: 'ds_templates', name: 'List Templates', description: 'List DocuSign templates', category: 'read', risk: 'low', skillId: 'docusign', sideEffects: [] },
+
+  // Mailchimp
+  { id: 'mc_campaigns', name: 'List Campaigns', description: 'List Mailchimp campaigns', category: 'read', risk: 'low', skillId: 'mailchimp', sideEffects: [] },
+  { id: 'mc_send', name: 'Send Campaign', description: 'Send Mailchimp campaign', category: 'communicate', risk: 'high', skillId: 'mailchimp', sideEffects: ['sends-email'] },
+  { id: 'mc_audiences', name: 'Manage Audiences', description: 'CRUD Mailchimp audiences', category: 'write', risk: 'medium', skillId: 'mailchimp', sideEffects: [] },
+
+  // Confluence
+  { id: 'conf_pages', name: 'List Pages', description: 'List Confluence pages', category: 'read', risk: 'low', skillId: 'confluence', sideEffects: [] },
+  { id: 'conf_create', name: 'Create Page', description: 'Create Confluence page', category: 'write', risk: 'medium', skillId: 'confluence', sideEffects: [] },
+  { id: 'conf_update', name: 'Update Page', description: 'Update Confluence page', category: 'write', risk: 'medium', skillId: 'confluence', sideEffects: [] },
+  { id: 'conf_search', name: 'Search Confluence', description: 'Search across spaces', category: 'read', risk: 'low', skillId: 'confluence', sideEffects: [] },
+
+  // GitHub Actions
+  { id: 'gha_workflows', name: 'List Workflows', description: 'List GitHub Actions workflows', category: 'read', risk: 'low', skillId: 'github-actions', sideEffects: [] },
+  { id: 'gha_trigger', name: 'Trigger Workflow', description: 'Trigger workflow dispatch', category: 'execute', risk: 'medium', skillId: 'github-actions', sideEffects: ['runs-code'] },
+  { id: 'gha_runs', name: 'List Runs', description: 'List workflow runs', category: 'read', risk: 'low', skillId: 'github-actions', sideEffects: [] },
+  { id: 'gha_logs', name: 'Get Run Logs', description: 'Download workflow run logs', category: 'read', risk: 'low', skillId: 'github-actions', sideEffects: [] },
+
+  // Figma
+  { id: 'figma_files', name: 'List Files', description: 'List Figma files', category: 'read', risk: 'low', skillId: 'figma', sideEffects: [] },
+  { id: 'figma_export', name: 'Export Assets', description: 'Export Figma assets', category: 'read', risk: 'low', skillId: 'figma', sideEffects: [] },
+  { id: 'figma_comments', name: 'Manage Comments', description: 'CRUD Figma comments', category: 'write', risk: 'low', skillId: 'figma', sideEffects: [] },
+
+  // Twilio
+  { id: 'twilio_sms', name: 'Send SMS', description: 'Send SMS via Twilio', category: 'communicate', risk: 'high', skillId: 'twilio', sideEffects: ['sends-sms'] },
+  { id: 'twilio_call', name: 'Make Call', description: 'Initiate phone call', category: 'communicate', risk: 'high', skillId: 'twilio', sideEffects: ['sends-message'] },
+  { id: 'twilio_messages', name: 'List Messages', description: 'List Twilio messages', category: 'read', risk: 'low', skillId: 'twilio', sideEffects: [] },
+
+  // Zapier
+  { id: 'zapier_trigger', name: 'Trigger Zap', description: 'Trigger a Zapier webhook', category: 'execute', risk: 'medium', skillId: 'zapier', sideEffects: ['network-request'] },
+  { id: 'zapier_list', name: 'List Zaps', description: 'List configured Zaps', category: 'read', risk: 'low', skillId: 'zapier', sideEffects: [] },
+];
+
 /**
- * Complete tool catalog — all tools from OpenClaw + AgenticMail
+ * Complete tool catalog — all tools from Core + AgenticMail + M365 + Google Workspace + Enterprise + Enterprise Utility
  */
-export const ALL_TOOLS: ToolDefinition[] = [...OPENCLAW_CORE_TOOLS, ...AGENTICMAIL_TOOLS];
+export const ALL_TOOLS: ToolDefinition[] = [
+  ...CORE_TOOLS,
+  ...AGENTICMAIL_TOOLS,
+  ...MICROSOFT_365_TOOLS,
+  ...GOOGLE_WORKSPACE_TOOLS,
+  ...ENTERPRISE_TOOLS,
+  ...ENTERPRISE_UTILITY_TOOLS,
+];
 
 /**
  * Tool ID → ToolDefinition lookup
@@ -170,14 +334,14 @@ export function getToolsBySkill(): Map<string, string[]> {
 }
 
 /**
- * Generate OpenClaw-compatible tools.allow / tools.deny config
+ * Generate tools.allow / tools.deny policy config
  */
-export function generateOpenClawToolPolicy(allowedToolIds: string[], blockedToolIds: string[]): {
+export function generateToolPolicy(allowedToolIds: string[], blockedToolIds: string[]): {
   'tools.allow'?: string[];
   'tools.deny'?: string[];
 } {
   const config: any = {};
-  // OpenClaw uses tools.allow as allowlist and tools.deny as denylist
+  // tools.allow is the allowlist; tools.deny is the denylist
   // If allowlist is set, only those tools are available
   // If denylist is set, all tools except those are available
   if (blockedToolIds.length > 0 && allowedToolIds.length === 0) {

@@ -1,0 +1,62 @@
+<div class="page-header">
+  <h1>Messages</h1>
+  <p>View and send messages through the engine</p>
+</div>
+
+<div class="card">
+  <h3>Send Message</h3>
+  <form method="post" action="/messages">
+    <div class="form-row">
+      <div class="form-group">
+        <label>To</label>
+        <input type="text" name="to" required placeholder="recipient@example.com">
+      </div>
+      <div class="form-group">
+        <label>Subject</label>
+        <input type="text" name="subject" required placeholder="Message subject">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Body</label>
+      <textarea name="body_text" rows="4" required placeholder="Message body..."></textarea>
+    </div>
+    <button class="btn btn-primary" type="submit">Send Message</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>All Messages (<%= @total %>)</h3>
+  <% if @messages.empty? %>
+    <div class="empty"><span class="icon">&#128231;</span>No messages found</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Subject</th><th>From</th><th>To</th><th>Direction</th><th>Channel</th><th>Status</th><th>Time</th></tr></thead>
+        <tbody>
+          <% @messages.each do |m| %>
+            <tr>
+              <td><strong><%= escape_html(m['subject'] || '-') %></strong></td>
+              <td><%= escape_html(m['from'] || m['sender'] || '-') %></td>
+              <td><%= escape_html(m['to'] || m['recipient'] || '-') %></td>
+              <td><%= direction_badge(m['direction'] || '-') %></td>
+              <td><%= channel_badge(m['channel'] || '-') %></td>
+              <td><%= status_badge(m['status'] || 'sent') %></td>
+              <td style="color:var(--muted)"><%= time_ago(m['created_at'] || m['timestamp']) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <% if @page > 1 %>
+        <a href="/messages?page=<%= @page - 1 %>">&laquo; Previous</a>
+      <% end %>
+      <span class="current">Page <%= @page %></span>
+      <% if @messages.size >= @limit %>
+        <a href="/messages?page=<%= @page + 1 %>">Next &raquo;</a>
+      <% end %>
+      <span style="color:var(--muted);font-size:12px;margin-left:auto"><%= @total %> total messages</span>
+    </div>
+  <% end %>
+</div>

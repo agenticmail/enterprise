@@ -1,0 +1,48 @@
+{
+  "id": "hibob",
+  "name": "HiBob",
+  "description": "Integrate with HiBob to list, get, search and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/hibob",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "hibob",
+    "hr"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "hibob"
+  },
+  "tools": [
+    {
+      "id": "hibob_list_employees",
+      "name": "List Employees",
+      "description": "List employees from HiBob. Returns names, emails, departments, and work information."
+    },
+    {
+      "id": "hibob_get_employee",
+      "name": "Get Employee",
+      "description": "Get detailed information about a specific HiBob employee by their ID or email."
+    },
+    {
+      "id": "hibob_search_employees",
+      "name": "Search Employees",
+      "description": "Search for employees in HiBob using field filters. Supports searching by name, department, title, and custom fields."
+    },
+    {
+      "id": "hibob_list_time_off",
+      "name": "List Time Off",
+      "description": "List time-off requests from HiBob. Filter by employee, date range, or status."
+    },
+    {
+      "id": "hibob_get_company_info",
+      "name": "Get Company Info",
+      "description": "Get company information from HiBob. Returns company name, sites, departments, and other organizational data."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

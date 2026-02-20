@@ -1,0 +1,50 @@
+{
+  "id": "buffer",
+  "name": "Buffer Social Media",
+  "description": "Integrate with Buffer Social Media to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/buffer",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "medium",
+  "tags": [
+    "buffer",
+    "social",
+    "media",
+    "marketing"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "buffer"
+  },
+  "tools": [
+    {
+      "id": "buffer_list_profiles",
+      "name": "List Profiles",
+      "description": "List social media profiles connected to your Buffer account. Returns service names, usernames, and profile IDs."
+    },
+    {
+      "id": "buffer_create_update",
+      "name": "Create Update",
+      "description": "Create a new social media update (post) via Buffer. Can be scheduled or added to the queue."
+    },
+    {
+      "id": "buffer_list_updates",
+      "name": "List Updates",
+      "description": "List pending or sent updates for a specific Buffer profile. Returns update text, status, and scheduled times."
+    },
+    {
+      "id": "buffer_get_analytics",
+      "name": "Get Analytics",
+      "description": "Get interaction analytics for a specific Buffer update. Returns clicks, likes, shares, comments, and reach."
+    },
+    {
+      "id": "buffer_shuffle_queue",
+      "name": "Shuffle Queue",
+      "description": "Shuffle the order of pending updates in a Buffer profile queue. Randomizes the scheduled order."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

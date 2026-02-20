@@ -1,0 +1,50 @@
+{
+  "id": "gong",
+  "name": "Gong Revenue Intelligence",
+  "description": "Integrate with Gong Revenue Intelligence to list, get, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/gong",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "gong",
+    "revenue",
+    "intelligence",
+    "crm"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "gong"
+  },
+  "tools": [
+    {
+      "id": "gong_list_calls",
+      "name": "List Calls",
+      "description": "List calls from Gong. Filter by date range, user, or workspace. Returns call titles, durations, and participants."
+    },
+    {
+      "id": "gong_get_call",
+      "name": "Get Call",
+      "description": "Get detailed information about a specific Gong call, including participants, duration, and media."
+    },
+    {
+      "id": "gong_get_call_transcript",
+      "name": "Get Call Transcript",
+      "description": "Get the transcript of a specific Gong call. Returns speaker-attributed text with timestamps."
+    },
+    {
+      "id": "gong_list_users",
+      "name": "List Users",
+      "description": "List users in your Gong workspace. Returns user names, emails, and statuses."
+    },
+    {
+      "id": "gong_search_calls",
+      "name": "Search Calls",
+      "description": "Search Gong calls by keywords, speaker, or content. Returns matching calls with relevance."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

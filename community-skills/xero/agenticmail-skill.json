@@ -1,0 +1,56 @@
+{
+  "id": "xero",
+  "name": "Xero Accounting",
+  "description": "Integrate with Xero Accounting to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/xero",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "xero",
+    "accounting",
+    "finance"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "xero"
+  },
+  "tools": [
+    {
+      "id": "xero_list_invoices",
+      "name": "List Invoices",
+      "description": "List Xero invoices with optional filters by status, contact, or date range. Returns invoice numbers, amounts, and statuses."
+    },
+    {
+      "id": "xero_create_invoice",
+      "name": "Create Invoice",
+      "description": "Create a new sales invoice in Xero for a given contact. Provide at least one line item with description and amount."
+    },
+    {
+      "id": "xero_list_contacts",
+      "name": "List Contacts",
+      "description": "List contacts in Xero. Optionally search by name or filter by active status. Returns contact names, emails, and IDs."
+    },
+    {
+      "id": "xero_get_balance_sheet",
+      "name": "Get Balance Sheet",
+      "description": "Retrieve the balance sheet report from Xero. Optionally specify a date for a point-in-time snapshot."
+    },
+    {
+      "id": "xero_list_payments",
+      "name": "List Payments",
+      "description": "List payments in Xero. Optionally filter by status or invoice. Returns payment amounts, dates, and references."
+    }
+  ],
+  "configSchema": {
+    "tenantId": {
+      "type": "string",
+      "label": "Xero Tenant ID",
+      "description": "Your Xero organization tenant ID",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

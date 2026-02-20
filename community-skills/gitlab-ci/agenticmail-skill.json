@@ -1,0 +1,66 @@
+{
+  "id": "gitlab-ci",
+  "name": "GitLab CI/CD",
+  "description": "Manage GitLab merge requests, pipelines, and issues. Trigger CI/CD jobs and view logs.",
+  "version": "1.3.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/gitlab-ci",
+  "license": "MIT",
+  "category": "development",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "gitlab",
+    "scopes": ["api", "read_user", "read_repository"]
+  },
+  "tags": ["gitlab", "ci-cd", "merge-requests", "pipelines"],
+  "tools": [
+    {
+      "id": "gitlab_create_mr",
+      "name": "Create Merge Request",
+      "description": "Create a new merge request"
+    },
+    {
+      "id": "gitlab_trigger_pipeline",
+      "name": "Trigger Pipeline",
+      "description": "Trigger a CI/CD pipeline"
+    },
+    {
+      "id": "gitlab_list_issues",
+      "name": "List Issues",
+      "description": "List project issues with filters"
+    },
+    {
+      "id": "gitlab_get_pipeline_status",
+      "name": "Pipeline Status",
+      "description": "Get status of a pipeline run"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultBranch": {
+        "type": "string",
+        "default": "main",
+        "description": "Default branch for merge requests and pipelines"
+      },
+      "autoMergeOnSuccess": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically merge when pipeline succeeds"
+      },
+      "ciConfigPath": {
+        "type": "string",
+        "default": ".gitlab-ci.yml",
+        "description": "Path to the CI/CD configuration file"
+      },
+      "selfHostedUrl": {
+        "type": "string",
+        "format": "uri",
+        "description": "URL for self-hosted GitLab instances"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

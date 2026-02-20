@@ -1,0 +1,49 @@
+{
+  "id": "lattice",
+  "name": "Lattice Performance",
+  "description": "Integrate with Lattice Performance to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/lattice",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "lattice",
+    "performance",
+    "hr"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "lattice"
+  },
+  "tools": [
+    {
+      "id": "lattice_list_users",
+      "name": "List Users",
+      "description": "List users from Lattice. Returns names, emails, titles, and department information."
+    },
+    {
+      "id": "lattice_get_user",
+      "name": "Get User",
+      "description": "Get detailed information about a specific Lattice user by their ID."
+    },
+    {
+      "id": "lattice_list_goals",
+      "name": "List Goals",
+      "description": "List goals from Lattice. Optionally filter by owner, status, or time period."
+    },
+    {
+      "id": "lattice_list_reviews",
+      "name": "List Reviews",
+      "description": "List performance review cycles from Lattice. Returns review cycle names, statuses, and date ranges."
+    },
+    {
+      "id": "lattice_get_feedback",
+      "name": "Get Feedback",
+      "description": "Get feedback entries from Lattice. Optionally filter by recipient or giver."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

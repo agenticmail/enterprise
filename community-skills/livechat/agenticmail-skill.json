@@ -1,0 +1,43 @@
+{
+  "id": "livechat",
+  "name": "LiveChat",
+  "description": "Integrate with LiveChat to list, send, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/livechat",
+  "license": "MIT",
+  "category": "customer-support",
+  "risk": "medium",
+  "tags": [
+    "livechat",
+    "customer-support"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "livechat"
+  },
+  "tools": [
+    {
+      "id": "livechat_list_chats",
+      "name": "List Chats",
+      "description": "List active and recent chats from LiveChat. Returns chat summaries with visitor names and last messages."
+    },
+    {
+      "id": "livechat_send_event",
+      "name": "Send Event",
+      "description": "Send a message event to an active LiveChat conversation. The agent must be assigned to the chat."
+    },
+    {
+      "id": "livechat_list_agents",
+      "name": "List Agents",
+      "description": "List agents in the LiveChat account. Returns agent names, emails, and current availability status."
+    },
+    {
+      "id": "livechat_get_chat",
+      "name": "Get Chat",
+      "description": "Get full details of a specific LiveChat conversation including all messages and participants."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

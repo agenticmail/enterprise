@@ -1,0 +1,72 @@
+{
+  "id": "todoist-tasks",
+  "name": "Todoist Tasks",
+  "description": "Create, complete, and organize tasks in Todoist. Manage projects, labels, and due dates.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/todoist-tasks",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "todoist",
+    "scopes": [
+      "data:read_write"
+    ]
+  },
+  "tags": [
+    "todoist",
+    "tasks",
+    "to-do",
+    "personal-productivity"
+  ],
+  "tools": [
+    {
+      "id": "todoist_create_task",
+      "name": "Create Task",
+      "description": "Create a new task in Todoist"
+    },
+    {
+      "id": "todoist_complete_task",
+      "name": "Complete Task",
+      "description": "Mark a task as completed"
+    },
+    {
+      "id": "todoist_list_tasks",
+      "name": "List Tasks",
+      "description": "List tasks with filters"
+    },
+    {
+      "id": "todoist_list_projects",
+      "name": "List Projects",
+      "description": "List all projects"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultProject": {
+        "type": "string",
+        "description": "Default Todoist project to use when none is specified"
+      },
+      "defaultPriority": {
+        "type": "number",
+        "default": 1,
+        "description": "1=normal, 4=urgent"
+      },
+      "autoSchedule": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically schedule tasks based on priority and workload"
+      },
+      "language": {
+        "type": "string",
+        "default": "en",
+        "description": "Language for task content and date parsing"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

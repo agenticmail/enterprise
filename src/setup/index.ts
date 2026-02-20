@@ -1,33 +1,37 @@
 /**
  * Setup Wizard — Orchestrator
  *
- * Runs the 4-step interactive setup wizard by composing
+ * Runs the 5-step interactive setup wizard by composing
  * the individual step modules. Each step is in its own file
  * so the wizard logic stays manageable.
  *
  * Steps:
- *   1. Company Info   (setup/company.ts)
- *   2. Database       (setup/database.ts)
- *   3. Deployment     (setup/deployment.ts)
- *   4. Custom Domain  (setup/domain.ts)
- *   → Provision       (setup/provision.ts)
+ *   1. Company Info       (setup/company.ts)
+ *   2. Database           (setup/database.ts)
+ *   3. Deployment         (setup/deployment.ts)
+ *   4. Custom Domain      (setup/domain.ts)
+ *   5. Domain Registration (setup/registration.ts)
+ *   → Provision           (setup/provision.ts)
  */
 
 import { promptCompanyInfo } from './company.js';
 import { promptDatabase } from './database.js';
 import { promptDeployment } from './deployment.js';
 import { promptDomain } from './domain.js';
+import { promptRegistration } from './registration.js';
 import { provision } from './provision.js';
 
 export { promptCompanyInfo } from './company.js';
 export { promptDatabase } from './database.js';
 export { promptDeployment } from './deployment.js';
 export { promptDomain } from './domain.js';
+export { promptRegistration } from './registration.js';
 export { provision } from './provision.js';
 export type { CompanyInfo } from './company.js';
 export type { DatabaseSelection } from './database.js';
 export type { DeployTarget, DeploymentSelection } from './deployment.js';
 export type { DomainSelection } from './domain.js';
+export type { RegistrationSelection } from './registration.js';
 export type { ProvisionConfig, ProvisionResult } from './provision.js';
 
 /**
@@ -60,13 +64,21 @@ export async function runSetupWizard(): Promise<void> {
   // ─── Step 4: Custom Domain ───────────────────────
   const domain = await promptDomain(inquirer, chalk, deployTarget);
 
+  // ─── Step 5: Domain Registration ─────────────────
+  const registration = await promptRegistration(
+    inquirer, chalk, ora,
+    domain.customDomain,
+    company.companyName,
+    company.adminEmail,
+  );
+
   // ─── Provision ───────────────────────────────────
   console.log('');
   console.log(chalk.dim('  ─────────────────────────────────────────'));
   console.log('');
 
   const result = await provision(
-    { company, database, deployTarget, domain },
+    { company, database, deployTarget, domain, registration },
     ora,
     chalk,
   );

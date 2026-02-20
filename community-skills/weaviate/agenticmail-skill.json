@@ -1,0 +1,56 @@
+{
+  "id": "weaviate",
+  "name": "Weaviate",
+  "description": "Integrate with Weaviate to query, create, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/weaviate",
+  "license": "MIT",
+  "category": "database",
+  "risk": "medium",
+  "tags": [
+    "weaviate",
+    "database"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "weaviate"
+  },
+  "tools": [
+    {
+      "id": "weaviate_query",
+      "name": "Query",
+      "description": "Query objects from a Weaviate class using GraphQL. Supports nearVector, nearText, and BM25 search strategies."
+    },
+    {
+      "id": "weaviate_create_object",
+      "name": "Create Object",
+      "description": "Create a new object in a Weaviate class. Provide the class name and property values."
+    },
+    {
+      "id": "weaviate_get_schema",
+      "name": "Get Schema",
+      "description": "Retrieve the full Weaviate schema including all classes, their properties, vectorizer config, and module settings."
+    },
+    {
+      "id": "weaviate_list_classes",
+      "name": "List Classes",
+      "description": "List all classes in the Weaviate schema with summary info (name, property count, vectorizer)."
+    },
+    {
+      "id": "weaviate_search",
+      "name": "Search",
+      "description": "Perform a hybrid (BM25 + vector) search across a Weaviate class. Combines keyword and semantic matching."
+    }
+  ],
+  "configSchema": {
+    "clusterUrl": {
+      "type": "string",
+      "label": "Cluster URL",
+      "description": "Your Weaviate cluster URL (e.g. https://my-cluster.weaviate.network)",
+      "required": true,
+      "placeholder": "https://my-cluster.weaviate.network"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

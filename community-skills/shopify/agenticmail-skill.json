@@ -1,0 +1,56 @@
+{
+  "id": "shopify",
+  "name": "Shopify",
+  "description": "Integrate with Shopify to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/shopify",
+  "license": "MIT",
+  "category": "ecommerce",
+  "risk": "medium",
+  "tags": [
+    "shopify",
+    "ecommerce"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "shopify"
+  },
+  "tools": [
+    {
+      "id": "shopify_list_products",
+      "name": "List Products",
+      "description": "List products in the Shopify store. Returns product titles, statuses, vendors, and variant counts."
+    },
+    {
+      "id": "shopify_create_product",
+      "name": "Create Product",
+      "description": "Create a new product in the Shopify store. Provide a title and optional body HTML, vendor, product type, and tags."
+    },
+    {
+      "id": "shopify_list_orders",
+      "name": "List Orders",
+      "description": "List orders from the Shopify store. Optionally filter by status, fulfillment status, or financial status."
+    },
+    {
+      "id": "shopify_get_order",
+      "name": "Get Order",
+      "description": "Get details of a single Shopify order by its ID. Returns full order information including line items."
+    },
+    {
+      "id": "shopify_list_customers",
+      "name": "List Customers",
+      "description": "List customers in the Shopify store. Optionally search by query string."
+    }
+  ],
+  "configSchema": {
+    "store": {
+      "type": "string",
+      "label": "Store Name",
+      "description": "Your Shopify store name (e.g. \"mystore\" for mystore.myshopify.com)",
+      "required": true,
+      "placeholder": "mystore"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

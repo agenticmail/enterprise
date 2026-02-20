@@ -1,0 +1,66 @@
+{
+  "id": "circleci-pipelines",
+  "name": "CircleCI Pipelines",
+  "description": "Trigger builds, view pipeline status, and manage CircleCI workflows.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/circleci-pipelines",
+  "license": "MIT",
+  "category": "development",
+  "risk": "medium",
+  "auth": {
+    "type": "token",
+    "name": "CircleCI Personal API Token",
+    "envVar": "CIRCLECI_TOKEN",
+    "description": "Personal API token from CircleCI User Settings"
+  },
+  "tags": [
+    "circleci",
+    "ci-cd",
+    "builds",
+    "automation"
+  ],
+  "tools": [
+    {
+      "id": "circleci_trigger_pipeline",
+      "name": "Trigger Pipeline",
+      "description": "Trigger a new pipeline run"
+    },
+    {
+      "id": "circleci_get_status",
+      "name": "Get Pipeline Status",
+      "description": "Check status of a pipeline"
+    },
+    {
+      "id": "circleci_list_artifacts",
+      "name": "List Artifacts",
+      "description": "List build artifacts"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultOrg": {
+        "type": "string",
+        "description": "Default CircleCI organization slug"
+      },
+      "defaultBranch": {
+        "type": "string",
+        "default": "main",
+        "description": "Default branch to use when triggering pipelines"
+      },
+      "notifyOnFailure": {
+        "type": "boolean",
+        "default": true,
+        "description": "Send notifications when a pipeline fails"
+      },
+      "autoRetryFlaky": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically retry pipelines that fail due to flaky tests"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

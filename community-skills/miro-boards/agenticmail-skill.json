@@ -1,0 +1,44 @@
+{
+  "id": "miro-boards",
+  "name": "Miro",
+  "description": "Integrate with Miro to list, create, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/miro-boards",
+  "license": "MIT",
+  "category": "collaboration",
+  "risk": "medium",
+  "tags": [
+    "miroboards",
+    "miro",
+    "collaboration"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "miro"
+  },
+  "tools": [
+    {
+      "id": "miro_list_boards",
+      "name": "List Boards",
+      "description": "List Miro boards accessible to the authenticated user. Returns board names, IDs, and last modification dates."
+    },
+    {
+      "id": "miro_create_board",
+      "name": "Create Board",
+      "description": "Create a new Miro board. Provide a name and optional description."
+    },
+    {
+      "id": "miro_create_sticky_note",
+      "name": "Create Sticky Note",
+      "description": "Create a sticky note on a Miro board. Specify the board ID, note content, and optional position and color."
+    },
+    {
+      "id": "miro_list_items",
+      "name": "List Items",
+      "description": "List items on a Miro board. Returns sticky notes, shapes, text, and other board items."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,50 @@
+{
+  "id": "apollo-io",
+  "name": "Apollo.io Sales Intelligence",
+  "description": "Integrate with Apollo.io Sales Intelligence to search, enrich, search and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/apollo-io",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "apolloio",
+    "sales",
+    "intelligence",
+    "crm"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "apollo"
+  },
+  "tools": [
+    {
+      "id": "apollo_search_people",
+      "name": "Search People",
+      "description": "Search for people in Apollo.io database. Filter by job title, company, location, and more."
+    },
+    {
+      "id": "apollo_enrich_person",
+      "name": "Enrich Person",
+      "description": "Enrich a person record in Apollo.io. Provide an email, LinkedIn URL, or name + company to get detailed information."
+    },
+    {
+      "id": "apollo_search_organizations",
+      "name": "Search Organizations",
+      "description": "Search for organizations (companies) in Apollo.io database. Filter by industry, size, location, and more."
+    },
+    {
+      "id": "apollo_create_contact",
+      "name": "Create Contact",
+      "description": "Create a new contact in your Apollo.io account. Provide at least an email address."
+    },
+    {
+      "id": "apollo_list_sequences",
+      "name": "List Sequences",
+      "description": "List email sequences in your Apollo.io account."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

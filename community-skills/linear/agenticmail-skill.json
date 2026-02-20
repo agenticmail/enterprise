@@ -1,0 +1,81 @@
+{
+  "id": "linear",
+  "name": "Linear Issue Tracker",
+  "description": "Create and manage Linear issues, projects, and cycles. Streamline engineering workflows.",
+  "version": "1.1.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/linear",
+  "license": "MIT",
+  "category": "development",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "linear",
+    "scopes": [
+      "read",
+      "write",
+      "issues:create",
+      "comments:create"
+    ]
+  },
+  "tags": [
+    "linear",
+    "issues",
+    "project-management",
+    "engineering"
+  ],
+  "tools": [
+    {
+      "id": "linear_create_issue",
+      "name": "Create Issue",
+      "description": "Create a new Linear issue"
+    },
+    {
+      "id": "linear_update_issue",
+      "name": "Update Issue",
+      "description": "Update issue status, assignee, or priority"
+    },
+    {
+      "id": "linear_list_projects",
+      "name": "List Projects",
+      "description": "List all projects in a team"
+    },
+    {
+      "id": "linear_search_issues",
+      "name": "Search Issues",
+      "description": "Search issues with filters"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultTeam": {
+        "type": "string",
+        "description": "Default Linear team to use when none is specified"
+      },
+      "defaultProject": {
+        "type": "string",
+        "description": "Default Linear project to use when none is specified"
+      },
+      "autoAssignCreator": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically assign the creator to new issues"
+      },
+      "defaultPriority": {
+        "type": "string",
+        "enum": [
+          "none",
+          "urgent",
+          "high",
+          "medium",
+          "low"
+        ],
+        "default": "none",
+        "description": "Default priority for new issues"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

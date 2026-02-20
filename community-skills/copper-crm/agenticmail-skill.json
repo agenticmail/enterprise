@@ -1,0 +1,56 @@
+{
+  "id": "copper-crm",
+  "name": "Copper CRM",
+  "description": "Integrate with Copper CRM to list, create, search and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/copper-crm",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "coppercrm",
+    "copper",
+    "crm"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "copper"
+  },
+  "tools": [
+    {
+      "id": "copper_list_people",
+      "name": "List People",
+      "description": "List people (contacts) from Copper CRM. Copper uses POST for list/search endpoints."
+    },
+    {
+      "id": "copper_create_person",
+      "name": "Create Person",
+      "description": "Create a new person (contact) in Copper CRM. Provide at least a name."
+    },
+    {
+      "id": "copper_search_leads",
+      "name": "Search Leads",
+      "description": "Search leads in Copper CRM. Copper uses POST for search endpoints."
+    },
+    {
+      "id": "copper_list_opportunities",
+      "name": "List Opportunities",
+      "description": "List opportunities from Copper CRM. Copper uses POST for list/search endpoints."
+    },
+    {
+      "id": "copper_create_task",
+      "name": "Create Task",
+      "description": "Create a new task in Copper CRM. Tasks can be associated with people, leads, or opportunities."
+    }
+  ],
+  "configSchema": {
+    "userEmail": {
+      "type": "string",
+      "label": "User Email",
+      "description": "Your Copper account email (required for X-PW-UserEmail header)",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

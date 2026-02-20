@@ -5,10 +5,11 @@
  * collects the connection details specific to each one.
  */
 
+import type { DatabaseType } from '../db/adapter.js';
 import { getSupportedDatabases } from '../db/factory.js';
 
 export interface DatabaseSelection {
-  type: string;
+  type: DatabaseType;
   connectionString?: string;
   region?: string;
   accessKeyId?: string;

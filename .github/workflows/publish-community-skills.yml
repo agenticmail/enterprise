@@ -1,0 +1,121 @@
+name: Publish Community Skills
+
+# IMPORTANT: This workflow only runs AFTER code is merged into main.
+# It does NOT auto-approve or auto-merge PRs.
+# All community skill PRs must be reviewed and approved by a maintainer
+# (enforced by CODEOWNERS + branch protection rules) before this runs.
+#
+# After a maintainer-approved merge:
+# 1. Rebuilds community-skills/index.json (the registry index deployed instances fetch)
+# 2. Optionally pushes each skill to a live registry API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'community-skills/**'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── Generate index.json ─────────────────────────
+      # This is the file that deployed instances fetch to discover new skills.
+      # Every community-skills/<id>/agenticmail-skill.json gets listed here.
+
+      - name: Generate community-skills/index.json
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const dir = 'community-skills';
+            const skills = [];
+
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              if (!entry.isDirectory() || entry.name.startsWith('_') || entry.name.startsWith('.')) continue;
+              const manifestPath = path.join(dir, entry.name, 'agenticmail-skill.json');
+              try {
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+                skills.push({
+                  id: manifest.id,
+                  name: manifest.name,
+                  version: manifest.version,
+                  author: manifest.author,
+                  category: manifest.category,
+                  risk: manifest.risk,
+                  description: manifest.description,
+                });
+              } catch (err) {
+                console.error('Skipping ' + entry.name + ': ' + err.message);
+              }
+            }
+
+            const index = {
+              generatedAt: new Date().toISOString(),
+              count: skills.length,
+              skills,
+            };
+
+            fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index, null, 2) + '\n');
+            console.log('Generated index.json with ' + skills.length + ' skills');
+          "
+
+      - name: Commit index.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add community-skills/index.json
+          git diff --cached --quiet && echo "No changes to index.json" && exit 0
+          git commit -m "chore: update community-skills index [skip ci]"
+          git push
+
+      # ── Publish to live registry (optional) ─────────
+      # If ENTERPRISE_REGISTRY_URL is configured, also push directly to a live server.
+
+      - name: Find changed skill directories
+        id: changed
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- community-skills/ || true)
+          DIRS=$(echo "$CHANGED" | grep -oP 'community-skills/[^/]+' | sort -u | grep -v '_template' || true)
+          echo "dirs<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIRS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          COUNT=$(echo "$DIRS" | grep -c '.' || echo "0")
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Publish to live registry
+        if: steps.changed.outputs.count != '0' && env.REGISTRY_URL != ''
+        env:
+          REGISTRY_URL: ${{ secrets.ENTERPRISE_REGISTRY_URL }}
+          REGISTRY_TOKEN: ${{ secrets.ENTERPRISE_API_KEY }}
+        run: |
+          while IFS= read -r dir; do
+            [ -z "$dir" ] && continue
+            SKILL_ID=$(basename "$dir")
+            MANIFEST="$dir/agenticmail-skill.json"
+            [ ! -f "$MANIFEST" ] && continue
+
+            echo "Publishing $SKILL_ID..."
+            HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+              -X POST "${REGISTRY_URL}/api/engine/community/skills/publish" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${REGISTRY_TOKEN}" \
+              -d @"$MANIFEST")
+
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              echo "Published $SKILL_ID (HTTP $HTTP_CODE)"
+            else
+              echo "::warning::Failed to publish $SKILL_ID (HTTP $HTTP_CODE)"
+            fi
+          done <<< "${{ steps.changed.outputs.dirs }}"

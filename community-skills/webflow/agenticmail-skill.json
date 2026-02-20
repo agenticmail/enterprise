@@ -1,0 +1,48 @@
+{
+  "id": "webflow",
+  "name": "Webflow",
+  "description": "Integrate with Webflow to list, list, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/webflow",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "medium",
+  "tags": [
+    "webflow",
+    "marketing"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "webflow"
+  },
+  "tools": [
+    {
+      "id": "webflow_list_sites",
+      "name": "List Sites",
+      "description": "List all Webflow sites accessible with the current authorization. Returns site names, IDs, and custom domains."
+    },
+    {
+      "id": "webflow_list_collections",
+      "name": "List Collections",
+      "description": "List CMS collections for a Webflow site. Returns collection names, slugs, and item counts."
+    },
+    {
+      "id": "webflow_list_items",
+      "name": "List Items",
+      "description": "List items in a Webflow CMS collection. Returns item names, slugs, and field data."
+    },
+    {
+      "id": "webflow_create_item",
+      "name": "Create Item",
+      "description": "Create a new item in a Webflow CMS collection. Provide field data matching the collection schema."
+    },
+    {
+      "id": "webflow_publish_site",
+      "name": "Publish Site",
+      "description": "Publish a Webflow site to make all staged changes live. Optionally publish to specific custom domains."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

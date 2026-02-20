@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Audit Log</h1>
+  <p>{{ total }} total events</p>
+</div>
+
+<div class="card">
+  {% if events %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Actor</th>
+          <th>Action</th>
+          <th>Resource</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in events %}
+        <tr>
+          <td style="font-size: 12px; color: var(--text-muted);">{{ e.timestamp|time_ago }}</td>
+          <td>{{ e.actor }}</td>
+          <td style="color: var(--primary); font-weight: 500;">{{ e.action }}</td>
+          <td style="font-size: 12px;">{{ e.resource }}</td>
+          <td style="font-size: 12px; color: var(--text-muted);">{{ e.ip or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination" style="justify-content: center;">
+    {% if page > 0 %}
+    <a href="{{ url_for('audit_bp.audit', p=page - 1) }}">Prev</a>
+    {% endif %}
+    <span class="current">Page {{ page + 1 }}</span>
+    {% if (page + 1) * 25 < total %}
+    <a href="{{ url_for('audit_bp.audit', p=page + 1) }}">Next</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No audit events yet</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

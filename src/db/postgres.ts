@@ -60,6 +60,28 @@ export class PostgresAdapter extends DatabaseAdapter {
     return this.pool !== null;
   }
 
+  // ─── Engine Integration ──────────────────────────────────
+
+  getEngineDB() {
+    if (!this.pool) return null;
+    const pool = this.pool;
+    return {
+      run: async (sql: string, params?: any[]) => { await pool.query(sql, params); },
+      get: async <T = any>(sql: string, params?: any[]): Promise<T | undefined> => {
+        const result = await pool.query(sql, params);
+        return result.rows[0] as T | undefined;
+      },
+      all: async <T = any>(sql: string, params?: any[]): Promise<T[]> => {
+        const result = await pool.query(sql, params);
+        return result.rows as T[];
+      },
+    };
+  }
+
+  getDialect(): string {
+    return 'postgres';
+  }
+
   async migrate(): Promise<void> {
     const stmts = getAllCreateStatements();
     const client = await this.pool.connect();
@@ -100,6 +122,12 @@ export class PostgresAdapter extends DatabaseAdapter {
       smtpHost: 'smtp_host', smtpPort: 'smtp_port', smtpUser: 'smtp_user',
       smtpPass: 'smtp_pass', dkimPrivateKey: 'dkim_private_key',
       logoUrl: 'logo_url', primaryColor: 'primary_color', plan: 'plan',
+      deploymentKeyHash: 'deployment_key_hash',
+      domainRegistrationId: 'domain_registration_id',
+      domainDnsChallenge: 'domain_dns_challenge',
+      domainVerifiedAt: 'domain_verified_at',
+      domainRegisteredAt: 'domain_registered_at',
+      domainStatus: 'domain_status',
     };
     for (const [key, col] of Object.entries(map)) {
       if ((updates as any)[key] !== undefined) {
@@ -107,6 +135,26 @@ export class PostgresAdapter extends DatabaseAdapter {
         values.push((updates as any)[key]);
         i++;
       }
+    }
+    if (updates.ssoConfig !== undefined) {
+      fields.push(`sso_config = $${i}`);
+      values.push(JSON.stringify(updates.ssoConfig));
+      i++;
+    }
+    if (updates.toolSecurityConfig !== undefined) {
+      fields.push(`tool_security_config = $${i}`);
+      values.push(JSON.stringify(updates.toolSecurityConfig));
+      i++;
+    }
+    if (updates.firewallConfig !== undefined) {
+      fields.push(`firewall_config = $${i}`);
+      values.push(JSON.stringify(updates.firewallConfig));
+      i++;
+    }
+    if (updates.modelPricingConfig !== undefined) {
+      fields.push(`model_pricing_config = $${i}`);
+      values.push(JSON.stringify(updates.modelPricingConfig));
+      i++;
     }
     fields.push(`updated_at = NOW()`);
     values.push('default');
@@ -120,7 +168,7 @@ export class PostgresAdapter extends DatabaseAdapter {
   // ─── Agents ──────────────────────────────────────────────
 
   async createAgent(input: AgentInput): Promise<Agent> {
-    const id = randomUUID();
+    const id = input.id || randomUUID();
     const email = input.email || `${input.name.toLowerCase().replace(/\s+/g, '-')}@localhost`;
     const { rows } = await this.pool.query(
       `INSERT INTO agents (id, name, email, role, metadata, created_by)
@@ -473,7 +521,17 @@ export class PostgresAdapter extends DatabaseAdapter {
       id: r.id, name: r.name, domain: r.domain, subdomain: r.subdomain,
       smtpHost: r.smtp_host, smtpPort: r.smtp_port, smtpUser: r.smtp_user, smtpPass: r.smtp_pass,
       dkimPrivateKey: r.dkim_private_key, logoUrl: r.logo_url, primaryColor: r.primary_color,
+      ssoConfig: r.sso_config ? (typeof r.sso_config === 'string' ? JSON.parse(r.sso_config) : r.sso_config) : undefined,
+      toolSecurityConfig: r.tool_security_config ? (typeof r.tool_security_config === 'string' ? JSON.parse(r.tool_security_config) : r.tool_security_config) : {},
+      firewallConfig: r.firewall_config ? (typeof r.firewall_config === 'string' ? JSON.parse(r.firewall_config) : r.firewall_config) : {},
+      modelPricingConfig: r.model_pricing_config ? (typeof r.model_pricing_config === 'string' ? JSON.parse(r.model_pricing_config) : r.model_pricing_config) : {},
       plan: r.plan, createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
+      deploymentKeyHash: r.deployment_key_hash,
+      domainRegistrationId: r.domain_registration_id,
+      domainDnsChallenge: r.domain_dns_challenge,
+      domainVerifiedAt: r.domain_verified_at || undefined,
+      domainRegisteredAt: r.domain_registered_at || undefined,
+      domainStatus: r.domain_status || 'unregistered',
     };
   }
 }

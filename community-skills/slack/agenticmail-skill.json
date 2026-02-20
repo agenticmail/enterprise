@@ -1,0 +1,73 @@
+{
+  "id": "slack",
+  "name": "Slack Notifications",
+  "description": "Send messages, create channels, and manage notifications in Slack workspaces.",
+  "version": "2.0.1",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/slack",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "slack",
+    "scopes": [
+      "chat:write",
+      "channels:read",
+      "channels:manage",
+      "users:read"
+    ]
+  },
+  "tags": [
+    "slack",
+    "notifications",
+    "messaging"
+  ],
+  "tools": [
+    {
+      "id": "slack_send_message",
+      "name": "Send Message",
+      "description": "Send a message to a Slack channel"
+    },
+    {
+      "id": "slack_create_channel",
+      "name": "Create Channel",
+      "description": "Create a new Slack channel"
+    },
+    {
+      "id": "slack_list_channels",
+      "name": "List Channels",
+      "description": "List available channels"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultChannel": {
+        "type": "string",
+        "description": "Default Slack channel to send messages to"
+      },
+      "notifyOnError": {
+        "type": "boolean",
+        "default": true,
+        "description": "Send a notification when an error occurs"
+      },
+      "messageFormat": {
+        "type": "string",
+        "enum": [
+          "plain",
+          "rich"
+        ],
+        "default": "rich",
+        "description": "Format for Slack messages"
+      },
+      "unfurlLinks": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to unfurl links in messages"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

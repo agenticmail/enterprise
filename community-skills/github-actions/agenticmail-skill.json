@@ -1,0 +1,72 @@
+{
+  "id": "github-actions",
+  "name": "GitHub Actions",
+  "description": "Trigger workflows, view run status, and manage GitHub Actions across repositories.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/github-actions",
+  "license": "MIT",
+  "category": "development",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "github",
+    "scopes": [
+      "repo",
+      "workflow"
+    ]
+  },
+  "tags": [
+    "github",
+    "actions",
+    "ci-cd",
+    "workflows"
+  ],
+  "tools": [
+    {
+      "id": "gha_trigger_workflow",
+      "name": "Trigger Workflow",
+      "description": "Trigger a GitHub Actions workflow"
+    },
+    {
+      "id": "gha_list_runs",
+      "name": "List Runs",
+      "description": "List recent workflow runs"
+    },
+    {
+      "id": "gha_get_run_status",
+      "name": "Get Run Status",
+      "description": "Get status of a specific run"
+    },
+    {
+      "id": "gha_download_artifacts",
+      "name": "Download Artifacts",
+      "description": "Download artifacts from a run"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultRepo": {
+        "type": "string",
+        "description": "Default repository in owner/repo format"
+      },
+      "defaultBranch": {
+        "type": "string",
+        "default": "main",
+        "description": "Default branch for workflow triggers"
+      },
+      "concurrencyGroup": {
+        "type": "string",
+        "description": "Concurrency group name to prevent duplicate runs"
+      },
+      "autoCancel": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically cancel in-progress runs when a new run is triggered"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

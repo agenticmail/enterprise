@@ -1,0 +1,66 @@
+{
+  "id": "zoom-meetings",
+  "name": "Zoom Meetings",
+  "description": "Create, update, and manage Zoom meetings and webinars. Retrieve recordings and participant lists.",
+  "version": "1.2.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/zoom-meetings",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "zoom",
+    "scopes": ["meeting:write", "meeting:read", "user:read", "recording:read"]
+  },
+  "tags": ["zoom", "meetings", "video", "webinar"],
+  "tools": [
+    {
+      "id": "zoom_create_meeting",
+      "name": "Create Meeting",
+      "description": "Create a new Zoom meeting"
+    },
+    {
+      "id": "zoom_list_meetings",
+      "name": "List Meetings",
+      "description": "List upcoming meetings"
+    },
+    {
+      "id": "zoom_get_recording",
+      "name": "Get Recording",
+      "description": "Retrieve a meeting recording"
+    },
+    {
+      "id": "zoom_list_participants",
+      "name": "List Participants",
+      "description": "List participants of a meeting"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultDuration": {
+        "type": "number",
+        "default": 30,
+        "description": "Default meeting duration in minutes"
+      },
+      "autoRecording": {
+        "type": "string",
+        "enum": ["none", "cloud", "local"],
+        "default": "none",
+        "description": "Automatic recording setting for meetings"
+      },
+      "waitingRoom": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable waiting room for meetings"
+      },
+      "defaultTimezone": {
+        "type": "string",
+        "description": "Default timezone for scheduling meetings (e.g., America/New_York)"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

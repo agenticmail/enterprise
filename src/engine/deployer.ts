@@ -203,7 +203,7 @@ export class DeploymentEngine {
           await this.execCommand(`docker exec agenticmail-${config.name} sh -c 'echo "${Buffer.from(content).toString('base64')}" | base64 -d > /workspace/${file}'`);
         }
         // Restart gateway inside container
-        await this.execCommand(`docker exec agenticmail-${config.name} openclaw gateway restart`);
+        await this.execCommand(`docker exec agenticmail-${config.name} agenticmail-enterprise restart`);
         return { success: true, message: 'Configuration updated and gateway restarted' };
       }
       case 'vps': {
@@ -270,7 +270,7 @@ export class DeploymentEngine {
     let healthy = false;
     for (let i = 0; i < 10; i++) {
       await new Promise(r => setTimeout(r, 3000));
-      const check = await this.execCommand(`docker exec agenticmail-${config.name} openclaw status 2>/dev/null || echo "not ready"`);
+      const check = await this.execCommand(`docker exec agenticmail-${config.name} agenticmail-enterprise status 2>/dev/null || echo "not ready"`);
       if (check.success && !check.message.includes('not ready')) {
         healthy = true;
         break;
@@ -540,17 +540,17 @@ primary_region = "${cloud.region || 'iad'}"
 
 WORKDIR /app
 
-RUN npm install -g openclaw agenticmail @agenticmail/core @agenticmail/openclaw
+RUN npm install -g @agenticmail/enterprise @agenticmail/core agenticmail
 
 COPY workspace/ /workspace/
 
 ENV NODE_ENV=production
-ENV OPENCLAW_MODEL=${config.model.provider}/${config.model.modelId}
-ENV OPENCLAW_THINKING=${config.model.thinkingLevel}
+ENV AGENTICMAIL_MODEL=${config.model.provider}/${config.model.modelId}
+ENV AGENTICMAIL_THINKING=${config.model.thinkingLevel}
 
 EXPOSE 3000
 
-CMD ["openclaw", "gateway", "start"]
+CMD ["agenticmail-enterprise", "start"]
 `;
   }
 

@@ -1,0 +1,65 @@
+{
+  "id": "google-drive",
+  "name": "Google Drive",
+  "description": "Upload, download, and organize files in Google Drive. Manage sharing permissions and folders.",
+  "version": "1.2.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/google-drive",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "google",
+    "scopes": ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file"]
+  },
+  "tags": ["google-drive", "storage", "files", "collaboration"],
+  "tools": [
+    {
+      "id": "gdrive_upload_file",
+      "name": "Upload File",
+      "description": "Upload a file to Google Drive"
+    },
+    {
+      "id": "gdrive_list_files",
+      "name": "List Files",
+      "description": "List files and folders"
+    },
+    {
+      "id": "gdrive_share_file",
+      "name": "Share File",
+      "description": "Share a file or folder with users"
+    },
+    {
+      "id": "gdrive_search_files",
+      "name": "Search Files",
+      "description": "Search files by name or content"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultFolder": {
+        "type": "string",
+        "description": "Default folder ID for uploads"
+      },
+      "sharedDriveId": {
+        "type": "string",
+        "description": "Shared drive ID for team drives"
+      },
+      "autoConvert": {
+        "type": "boolean",
+        "description": "Auto-convert uploads to Google Docs format",
+        "default": true
+      },
+      "exportFormat": {
+        "type": "string",
+        "description": "Default export format for Google Docs files",
+        "enum": ["pdf", "docx", "xlsx", "pptx"],
+        "default": "pdf"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

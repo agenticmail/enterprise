@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">Dashboard</h2>
+<p class="desc">Overview of your AgenticMail instance</p>
+<div class="stats">
+  <div class="stat"><div class="l">Total Agents</div><div class="v" style="color:var(--primary)">{{ stats.totalAgents|default:"0" }}</div></div>
+  <div class="stat"><div class="l">Active Agents</div><div class="v" style="color:var(--success)">{{ stats.activeAgents|default:"0" }}</div></div>
+  <div class="stat"><div class="l">Users</div><div class="v">{{ stats.totalUsers|default:"0" }}</div></div>
+  <div class="stat"><div class="l">Audit Events</div><div class="v">{{ stats.totalAuditEvents|default:"0" }}</div></div>
+</div>
+<div class="card">
+<div class="ct">Recent Activity</div>
+{% if events %}
+{% for e in events %}
+<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+<span style="color:var(--primary);font-weight:500">{{ e.action }}</span> on {{ e.resource }}
+<div style="font-size:11px;color:var(--muted)">{{ e.timestamp }}{% if e.ip %} &middot; {{ e.ip }}{% endif %}</div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty">&#x1f4cb; No activity yet</div>
+{% endif %}
+</div>
+{% endblock %}

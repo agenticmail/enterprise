@@ -1,0 +1,73 @@
+{
+  "id": "github",
+  "name": "GitHub Issues Manager",
+  "description": "Create, update, close, and triage GitHub issues. Supports labels, milestones, and assignees.",
+  "version": "1.2.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/github",
+  "license": "MIT",
+  "category": "development",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "github",
+    "scopes": [
+      "repo",
+      "issues:write"
+    ]
+  },
+  "tags": [
+    "github",
+    "issues",
+    "project-management"
+  ],
+  "tools": [
+    {
+      "id": "github_create_issue",
+      "name": "Create Issue",
+      "description": "Create a new GitHub issue"
+    },
+    {
+      "id": "github_update_issue",
+      "name": "Update Issue",
+      "description": "Update an existing issue"
+    },
+    {
+      "id": "github_close_issue",
+      "name": "Close Issue",
+      "description": "Close a GitHub issue"
+    },
+    {
+      "id": "github_list_issues",
+      "name": "List Issues",
+      "description": "List issues with filters"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultLabels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Default labels to apply to new issues"
+      },
+      "autoAssign": {
+        "type": "boolean",
+        "description": "Automatically assign issues to the creator"
+      },
+      "defaultMilestone": {
+        "type": "string",
+        "description": "Default milestone to associate with new issues"
+      },
+      "staleIssueDays": {
+        "type": "number",
+        "default": 30,
+        "description": "Number of days before an issue is considered stale"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

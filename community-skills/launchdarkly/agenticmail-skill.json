@@ -1,0 +1,48 @@
+{
+  "id": "launchdarkly",
+  "name": "LaunchDarkly",
+  "description": "Integrate with LaunchDarkly to list, get, toggle and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/launchdarkly",
+  "license": "MIT",
+  "category": "devops",
+  "risk": "medium",
+  "tags": [
+    "launchdarkly",
+    "devops"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "launchdarkly"
+  },
+  "tools": [
+    {
+      "id": "ld_list_flags",
+      "name": "List Flags",
+      "description": "List feature flags in a LaunchDarkly project. Returns flag names, keys, statuses, and variation counts."
+    },
+    {
+      "id": "ld_get_flag",
+      "name": "Get Flag",
+      "description": "Retrieve details of a specific feature flag by key. Returns the flag configuration, variations, targets, and environment states."
+    },
+    {
+      "id": "ld_toggle_flag",
+      "name": "Toggle Flag",
+      "description": "Toggle a feature flag on or off in a specific environment. Uses a JSON Patch operation to update the flag state."
+    },
+    {
+      "id": "ld_list_projects",
+      "name": "List Projects",
+      "description": "List LaunchDarkly projects. Returns project names, keys, and environment counts."
+    },
+    {
+      "id": "ld_list_environments",
+      "name": "List Environments",
+      "description": "List environments within a LaunchDarkly project. Returns environment names, keys, colors, and SDK keys."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,48 @@
+{
+  "id": "smartsheet",
+  "name": "Smartsheet",
+  "description": "Integrate with Smartsheet to list, get, add and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/smartsheet",
+  "license": "MIT",
+  "category": "project-management",
+  "risk": "medium",
+  "tags": [
+    "smartsheet",
+    "project-management"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "smartsheet"
+  },
+  "tools": [
+    {
+      "id": "smartsheet_list_sheets",
+      "name": "List Sheets",
+      "description": "List all sheets accessible to the authenticated Smartsheet user. Returns sheet names, IDs, and modification dates."
+    },
+    {
+      "id": "smartsheet_get_sheet",
+      "name": "Get Sheet",
+      "description": "Retrieve a Smartsheet sheet with its columns and rows. Returns structured data for analysis."
+    },
+    {
+      "id": "smartsheet_add_rows",
+      "name": "Add Rows",
+      "description": "Add one or more rows to a Smartsheet sheet. Each row specifies cell values mapped to column IDs."
+    },
+    {
+      "id": "smartsheet_update_rows",
+      "name": "Update Rows",
+      "description": "Update existing rows in a Smartsheet sheet. Each row specifies the row ID and new cell values."
+    },
+    {
+      "id": "smartsheet_search",
+      "name": "Search",
+      "description": "Search across all Smartsheet sheets for a query string. Returns matching sheets, rows, and cell values."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

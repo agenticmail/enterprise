@@ -1,0 +1,104 @@
+<div class="page-header">
+  <h1>Data Loss Prevention</h1>
+  <p>Manage DLP rules, review violations, and test content scanning</p>
+</div>
+
+<div class="card">
+  <h3>Create DLP Rule</h3>
+  <form method="post" action="/dlp/rules">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="e.g. Credit Card Detection">
+      </div>
+      <div class="form-group">
+        <label>Pattern</label>
+        <input type="text" name="pattern" required placeholder="e.g. \b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Action</label>
+        <select name="action">
+          <option value="block">Block</option>
+          <option value="redact">Redact</option>
+          <option value="flag">Flag</option>
+          <option value="log">Log Only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Severity</label>
+        <select name="severity">
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Create Rule</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Test Content Scan</h3>
+  <form method="post" action="/dlp/scan">
+    <div class="form-group">
+      <label>Content</label>
+      <textarea name="content" rows="3" required placeholder="Paste content to scan for DLP violations..."></textarea>
+    </div>
+    <button class="btn btn-primary" type="submit">Run Scan</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>DLP Rules (<%= @rules.size %>)</h3>
+  <% if @rules.empty? %>
+    <div class="empty"><span class="icon">&#128274;</span>No DLP rules configured. Create one above.</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Pattern</th><th>Action</th><th>Severity</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @rules.each do |r| %>
+            <tr>
+              <td><strong><%= escape_html(r['name'] || '-') %></strong></td>
+              <td><code><%= escape_html(r['pattern'] || '-') %></code></td>
+              <td><%= badge(r['action'] || 'block') %></td>
+              <td><%= status_badge(r['severity'] || 'medium') %></td>
+              <td style="color:var(--muted)"><%= time_ago(r['created_at']) %></td>
+              <td>
+                <form method="post" action="/dlp/rules/<%= r['id'] %>/delete" style="display:inline" onsubmit="return confirm('Delete this rule?')">
+                  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div class="card">
+  <h3>Recent Violations (<%= @violations.size %>)</h3>
+  <% if @violations.empty? %>
+    <div class="empty"><span class="icon">&#9989;</span>No DLP violations detected</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rule</th><th>Action Taken</th><th>Source</th><th>Severity</th><th>Time</th></tr></thead>
+        <tbody>
+          <% @violations.each do |v| %>
+            <tr>
+              <td><strong><%= escape_html(v['rule_name'] || v['rule'] || '-') %></strong></td>
+              <td><%= badge(v['action'] || '-') %></td>
+              <td><%= escape_html(v['source'] || v['message_id'] || '-') %></td>
+              <td><%= status_badge(v['severity'] || 'medium') %></td>
+              <td style="color:var(--muted)"><%= time_ago(v['created_at'] || v['timestamp']) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

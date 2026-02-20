@@ -1,0 +1,64 @@
+{
+  "id": "intercom-support",
+  "name": "Intercom Messenger",
+  "description": "Manage Intercom conversations, contacts, and articles. Automate customer communication.",
+  "version": "1.1.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/intercom-support",
+  "license": "MIT",
+  "category": "customer-support",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "intercom",
+    "scopes": ["read_users", "write_users", "read_conversations", "write_conversations"]
+  },
+  "tags": ["intercom", "support", "messaging", "customer-success"],
+  "tools": [
+    {
+      "id": "intercom_reply_conversation",
+      "name": "Reply to Conversation",
+      "description": "Send a reply in an Intercom conversation"
+    },
+    {
+      "id": "intercom_create_contact",
+      "name": "Create Contact",
+      "description": "Create a new lead or user contact"
+    },
+    {
+      "id": "intercom_search_articles",
+      "name": "Search Articles",
+      "description": "Search help center articles"
+    },
+    {
+      "id": "intercom_list_conversations",
+      "name": "List Conversations",
+      "description": "List open conversations"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "autoAssign": {
+        "type": "boolean",
+        "description": "Automatically assign conversations to available agents",
+        "default": false
+      },
+      "defaultInbox": {
+        "type": "string",
+        "description": "Default inbox for new conversations"
+      },
+      "autoResolveHours": {
+        "type": "number",
+        "description": "Auto-resolve conversations after N hours (0=disabled)",
+        "default": 0
+      },
+      "botGreeting": {
+        "type": "string",
+        "description": "Default greeting message for bot conversations"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,57 @@
+{
+  "id": "freshdesk",
+  "name": "Freshdesk Support",
+  "description": "Integrate with Freshdesk Support to list, create, update and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/freshdesk",
+  "license": "MIT",
+  "category": "customer-support",
+  "risk": "medium",
+  "tags": [
+    "freshdesk",
+    "support",
+    "customer-support"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "freshdesk"
+  },
+  "tools": [
+    {
+      "id": "freshdesk_list_tickets",
+      "name": "List Tickets",
+      "description": "List support tickets from Freshdesk. Optionally filter by status, priority, or requester email."
+    },
+    {
+      "id": "freshdesk_create_ticket",
+      "name": "Create Ticket",
+      "description": "Create a new support ticket in Freshdesk. Provide a subject, description, and requester email."
+    },
+    {
+      "id": "freshdesk_update_ticket",
+      "name": "Update Ticket",
+      "description": "Update an existing Freshdesk ticket. Can change status, priority, assignee, or add tags."
+    },
+    {
+      "id": "freshdesk_list_contacts",
+      "name": "List Contacts",
+      "description": "List contacts from Freshdesk. Optionally filter by email, phone, or company."
+    },
+    {
+      "id": "freshdesk_add_reply",
+      "name": "Add Reply",
+      "description": "Add a reply to an existing Freshdesk ticket. Can send a public reply or an internal note."
+    }
+  ],
+  "configSchema": {
+    "domain": {
+      "type": "string",
+      "label": "Freshdesk Domain",
+      "description": "Your Freshdesk subdomain (e.g. \"mycompany\" for mycompany.freshdesk.com)",
+      "required": true,
+      "placeholder": "mycompany"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

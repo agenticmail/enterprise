@@ -1,0 +1,48 @@
+{
+  "id": "opsgenie",
+  "name": "OpsGenie",
+  "description": "Integrate with OpsGenie to list, create, acknowledge and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/opsgenie",
+  "license": "MIT",
+  "category": "monitoring",
+  "risk": "medium",
+  "tags": [
+    "opsgenie",
+    "monitoring"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "opsgenie"
+  },
+  "tools": [
+    {
+      "id": "opsgenie_list_alerts",
+      "name": "List Alerts",
+      "description": "List alerts from OpsGenie. Optionally filter by query, status, or priority."
+    },
+    {
+      "id": "opsgenie_create_alert",
+      "name": "Create Alert",
+      "description": "Create a new alert in OpsGenie. Provide a message and optional priority, tags, and description."
+    },
+    {
+      "id": "opsgenie_acknowledge_alert",
+      "name": "Acknowledge Alert",
+      "description": "Acknowledge an OpsGenie alert. Accepts the alert by ID or alias."
+    },
+    {
+      "id": "opsgenie_close_alert",
+      "name": "Close Alert",
+      "description": "Close an OpsGenie alert. Accepts the alert by ID or alias."
+    },
+    {
+      "id": "opsgenie_list_schedules",
+      "name": "List Schedules",
+      "description": "List on-call schedules from OpsGenie. Returns schedule names, timezones, and teams."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

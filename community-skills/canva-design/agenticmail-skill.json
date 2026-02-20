@@ -1,0 +1,60 @@
+{
+  "id": "canva-design",
+  "name": "Canva Design",
+  "description": "Create designs, manage templates, and export assets from Canva. Automate social media graphics.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/canva-design",
+  "license": "MIT",
+  "category": "design",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "canva",
+    "scopes": ["design:read", "design:write", "asset:read"]
+  },
+  "tags": ["canva", "design", "graphics", "templates"],
+  "tools": [
+    {
+      "id": "canva_create_design",
+      "name": "Create Design",
+      "description": "Create a new design from a template"
+    },
+    {
+      "id": "canva_export_design",
+      "name": "Export Design",
+      "description": "Export a design as PNG, PDF, or SVG"
+    },
+    {
+      "id": "canva_list_templates",
+      "name": "List Templates",
+      "description": "List available design templates"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultBrand": {
+        "type": "string",
+        "description": "Default brand kit to use"
+      },
+      "exportFormat": {
+        "type": "string",
+        "description": "Default export format for designs",
+        "enum": ["png", "jpg", "pdf", "mp4"],
+        "default": "png"
+      },
+      "templateFolder": {
+        "type": "string",
+        "description": "Default folder for design templates"
+      },
+      "autoResize": {
+        "type": "boolean",
+        "description": "Automatically resize designs for different platforms",
+        "default": true
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,10 +1,11 @@
 {
   "name": "@agenticmail/enterprise",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "AgenticMail Enterprise — cloud-hosted AI agent identity, email, auth & compliance for organizations",
   "type": "module",
   "bin": {
-    "agenticmail-enterprise": "dist/cli.js"
+    "agenticmail-enterprise": "dist/cli.js",
+    "agenticmail-registry": "dist/registry/cli.js"
   },
   "exports": {
     ".": {
@@ -14,8 +15,9 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/cli.ts --format esm --external better-sqlite3 --external mongodb --external mysql2 --external @libsql/client --external @aws-sdk/client-dynamodb --external @aws-sdk/lib-dynamodb && mkdir -p dist/dashboard && cp src/dashboard/index.html dist/dashboard/",
-    "dev": "tsx src/cli.ts"
+    "build": "tsup src/index.ts src/cli.ts src/registry/cli.ts --format esm --external better-sqlite3 --external mongodb --external mysql2 --external @libsql/client --external @aws-sdk/client-dynamodb --external @aws-sdk/lib-dynamodb --external @aws-sdk/client-s3 --external @aws-sdk/s3-request-presigner --external @google-cloud/storage --external @azure/storage-blob --external @mozilla/readability --external linkedom --external postgres && mkdir -p dist/dashboard/components dist/dashboard/pages dist/dashboard/vendor dist/dashboard/assets dist/registry && cp src/dashboard/index.html dist/dashboard/ && cp src/dashboard/app.js dist/dashboard/ && cp src/dashboard/components/*.js dist/dashboard/components/ && cp src/dashboard/pages/*.js dist/dashboard/pages/ && cp src/dashboard/vendor/*.js dist/dashboard/vendor/ && cp -r src/dashboard/assets/* dist/dashboard/assets/ && cp src/engine/soul-templates.json dist/",
+    "dev": "npm run build && node --watch start-live.mjs",
+    "rebuild": "npm run build && pm2 restart enterprise"
   },
   "keywords": [
     "ai",
@@ -38,15 +40,11 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "openclaw": ">=0.1.0",
-    "agenticmail": ">=0.5.0",
+    "@agenticmail/api": ">=0.5.0",
     "@agenticmail/core": ">=0.5.0",
-    "@agenticmail/api": ">=0.5.0"
+    "agenticmail": ">=0.5.0"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
-      "optional": true
-    },
     "agenticmail": {
       "optional": true
     },
@@ -55,13 +53,16 @@
     }
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.73.0",
     "@hono/node-server": "^1.19.9",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "bcryptjs": "^2.4.3",
     "chalk": "^5.0.0",
     "hono": "^4.0.0",
     "inquirer": "^9.0.0",
     "jose": "^5.0.0",
     "nanoid": "^5.0.0",
+    "openai": "^4.77.0",
     "ora": "^8.0.0"
   },
   "devDependencies": {

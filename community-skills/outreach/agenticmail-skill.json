@@ -1,0 +1,50 @@
+{
+  "id": "outreach",
+  "name": "Outreach Sales Engagement",
+  "description": "Integrate with Outreach Sales Engagement to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/outreach",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "outreach",
+    "sales",
+    "engagement",
+    "crm"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "outreach"
+  },
+  "tools": [
+    {
+      "id": "outreach_list_prospects",
+      "name": "List Prospects",
+      "description": "List prospects from Outreach. Returns prospect names, emails, titles, and companies."
+    },
+    {
+      "id": "outreach_create_prospect",
+      "name": "Create Prospect",
+      "description": "Create a new prospect in Outreach. Provide at least an email address."
+    },
+    {
+      "id": "outreach_list_sequences",
+      "name": "List Sequences",
+      "description": "List email sequences from Outreach. Returns sequence names, states, and step counts."
+    },
+    {
+      "id": "outreach_add_to_sequence",
+      "name": "Add To Sequence",
+      "description": "Add a prospect to an Outreach sequence. Creates a sequence state linking the prospect to the sequence."
+    },
+    {
+      "id": "outreach_list_mailings",
+      "name": "List Mailings",
+      "description": "List mailings (sent emails) from Outreach. Returns email subjects, states, and engagement metrics."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

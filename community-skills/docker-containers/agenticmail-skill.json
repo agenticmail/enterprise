@@ -1,0 +1,70 @@
+{
+  "id": "docker-containers",
+  "name": "Docker Containers",
+  "description": "Manage Docker containers, images, and volumes. Start, stop, and inspect running containers.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/docker-containers",
+  "license": "Apache-2.0",
+  "category": "cloud",
+  "risk": "high",
+  "auth": {
+    "type": "credentials",
+    "fields": ["host"],
+    "envVars": {
+      "host": "DOCKER_HOST"
+    },
+    "description": "Docker daemon socket or TCP endpoint. TLS certs stored in vault."
+  },
+  "tags": ["docker", "containers", "devops", "images"],
+  "tools": [
+    {
+      "id": "docker_list_containers",
+      "name": "List Containers",
+      "description": "List running and stopped containers"
+    },
+    {
+      "id": "docker_start_container",
+      "name": "Start Container",
+      "description": "Start a stopped container"
+    },
+    {
+      "id": "docker_stop_container",
+      "name": "Stop Container",
+      "description": "Stop a running container"
+    },
+    {
+      "id": "docker_inspect",
+      "name": "Inspect Container",
+      "description": "Get detailed container information"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultRegistry": {
+        "type": "string",
+        "default": "docker.io",
+        "description": "Default container registry"
+      },
+      "autoCleanup": {
+        "type": "boolean",
+        "default": false,
+        "description": "Remove stopped containers automatically"
+      },
+      "logDriver": {
+        "type": "string",
+        "enum": ["json-file", "syslog", "none"],
+        "default": "json-file",
+        "description": "Default log driver for containers"
+      },
+      "memoryLimit": {
+        "type": "string",
+        "default": "512m",
+        "description": "Default memory limit for containers"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

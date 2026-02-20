@@ -1,0 +1,161 @@
+import type { SkillDefinition, ToolDefinition } from '../skills.js';
+
+export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
+  id: 'enterprise-documents',
+  name: 'Document Processing',
+  description: 'Generate, parse, and convert documents. Create PDFs and Word docs from templates, extract text via OCR from images and scanned PDFs, parse invoices and receipts, and convert between formats (PDF, DOCX, HTML, Markdown).',
+  category: 'productivity',
+  risk: 'medium',
+  icon: '📄',
+  source: 'builtin',
+  version: '1.0.0',
+  author: 'AgenticMail',
+};
+
+export const TOOLS: ToolDefinition[] = [
+  {
+    id: 'ent_doc_generate_pdf',
+    name: 'Generate PDF',
+    description: 'Create a PDF document from a template with data substitution. Supports headers, footers, tables, images, page numbers, and custom fonts. Templates use Mustache/Handlebars syntax.',
+    category: 'write',
+    risk: 'medium',
+    skillId: 'enterprise-documents',
+    sideEffects: ['modifies-files'],
+    parameters: {
+      type: 'object',
+      properties: {
+        template: { type: 'string', description: 'HTML template string or path to template file' },
+        data: { type: 'object', description: 'Data object for template substitution' },
+        outputPath: { type: 'string', description: 'Output PDF file path' },
+        options: { type: 'object', properties: { pageSize: { type: 'string', enum: ['A4', 'Letter', 'Legal'], default: 'A4' }, landscape: { type: 'boolean', default: false }, margin: { type: 'string', description: 'CSS margin (e.g., "20mm")' }, headerTemplate: { type: 'string' }, footerTemplate: { type: 'string' } } },
+      },
+      required: ['template', 'data', 'outputPath'],
+    },
+  },
+  {
+    id: 'ent_doc_generate_docx',
+    name: 'Generate Word Document',
+    description: 'Create a .docx Word document from a template with data substitution. Supports paragraphs, tables, images, headers, footers, and styles.',
+    category: 'write',
+    risk: 'medium',
+    skillId: 'enterprise-documents',
+    sideEffects: ['modifies-files'],
+    parameters: {
+      type: 'object',
+      properties: {
+        template: { type: 'string', description: 'Path to .docx template file with {{placeholders}}' },
+        data: { type: 'object', description: 'Data object for placeholder substitution' },
+        outputPath: { type: 'string', description: 'Output .docx file path' },
+      },
+      required: ['template', 'data', 'outputPath'],
+    },
+  },
+  {
+    id: 'ent_doc_ocr',
+    name: 'OCR — Extract Text',
+    description: 'Extract text from images (PNG, JPG, TIFF) and scanned PDFs using optical character recognition. Returns structured text with confidence scores and bounding box coordinates.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-documents',
+    sideEffects: [],
+    parameters: {
+      type: 'object',
+      properties: {
+        filePath: { type: 'string', description: 'Path to image or PDF file' },
+        language: { type: 'string', description: 'OCR language hint (e.g., "eng", "fra", "deu")', default: 'eng' },
+        pages: { type: 'string', description: 'Page range for PDFs (e.g., "1-3", "all")', default: 'all' },
+        outputFormat: { type: 'string', enum: ['text', 'json', 'hocr'], description: 'Output format', default: 'text' },
+      },
+      required: ['filePath'],
+    },
+  },
+  {
+    id: 'ent_doc_parse_invoice',
+    name: 'Parse Invoice / Receipt',
+    description: 'Extract structured data from invoices and receipts: vendor name, date, line items, subtotal, tax, total, payment terms, and invoice number. Works on PDFs and images.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-documents',
+    sideEffects: [],
+    parameters: {
+      type: 'object',
+      properties: {
+        filePath: { type: 'string', description: 'Path to invoice/receipt file (PDF or image)' },
+        currency: { type: 'string', description: 'Expected currency code (e.g., "USD", "EUR")', default: 'USD' },
+      },
+      required: ['filePath'],
+    },
+  },
+  {
+    id: 'ent_doc_convert',
+    name: 'Convert Document Format',
+    description: 'Convert between document formats: PDF to text, DOCX to PDF, HTML to PDF, Markdown to PDF, PDF to images, DOCX to HTML.',
+    category: 'write',
+    risk: 'low',
+    skillId: 'enterprise-documents',
+    sideEffects: ['modifies-files'],
+    parameters: {
+      type: 'object',
+      properties: {
+        inputPath: { type: 'string', description: 'Input file path' },
+        outputPath: { type: 'string', description: 'Output file path (format inferred from extension)' },
+        options: { type: 'object', properties: { quality: { type: 'number', description: 'Image quality 1-100 (for PDF-to-image)', default: 90 }, dpi: { type: 'number', description: 'DPI for image output', default: 150 } } },
+      },
+      required: ['inputPath', 'outputPath'],
+    },
+  },
+  {
+    id: 'ent_doc_extract_tables',
+    name: 'Extract Tables from Document',
+    description: 'Detect and extract tables from PDFs and Word documents. Returns structured table data as arrays of rows, preserving cell merges and formatting.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-documents',
+    sideEffects: [],
+    parameters: {
+      type: 'object',
+      properties: {
+        filePath: { type: 'string', description: 'Path to PDF or DOCX file' },
+        pages: { type: 'string', description: 'Page range (PDFs only)', default: 'all' },
+        format: { type: 'string', enum: ['json', 'csv', 'markdown'], default: 'json' },
+      },
+      required: ['filePath'],
+    },
+  },
+  {
+    id: 'ent_doc_merge_pdfs',
+    name: 'Merge PDFs',
+    description: 'Combine multiple PDF files into a single document. Supports page range selection from each input file.',
+    category: 'write',
+    risk: 'low',
+    skillId: 'enterprise-documents',
+    sideEffects: ['modifies-files'],
+    parameters: {
+      type: 'object',
+      properties: {
+        inputFiles: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, pages: { type: 'string', description: 'Page range (e.g., "1-3,5")' } } }, description: 'PDF files to merge in order' },
+        outputPath: { type: 'string', description: 'Output PDF path' },
+      },
+      required: ['inputFiles', 'outputPath'],
+    },
+  },
+  {
+    id: 'ent_doc_fill_form',
+    name: 'Fill PDF Form',
+    description: 'Fill interactive PDF form fields with data. Returns list of available fields when called without data.',
+    category: 'write',
+    risk: 'low',
+    skillId: 'enterprise-documents',
+    sideEffects: ['modifies-files'],
+    parameters: {
+      type: 'object',
+      properties: {
+        filePath: { type: 'string', description: 'Path to PDF form' },
+        fields: { type: 'object', description: 'Key-value pairs of field names and values to fill' },
+        outputPath: { type: 'string', description: 'Output PDF path' },
+        flatten: { type: 'boolean', description: 'Flatten form fields after filling (non-editable)', default: false },
+      },
+      required: ['filePath'],
+    },
+  },
+];

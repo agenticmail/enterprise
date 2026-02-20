@@ -1,0 +1,72 @@
+{
+  "id": "adobe-sign",
+  "name": "Adobe Acrobat Sign",
+  "description": "Integrate with Adobe Acrobat Sign to list, create, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/adobe-sign",
+  "license": "MIT",
+  "category": "legal",
+  "risk": "medium",
+  "tags": [
+    "adobesign",
+    "adobe",
+    "acrobat",
+    "sign",
+    "legal"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "adobe"
+  },
+  "tools": [
+    {
+      "id": "adobesign_list_agreements",
+      "name": "List Agreements",
+      "description": "List agreements in Adobe Acrobat Sign. Filter by status and pagination. Returns agreement names, statuses, and IDs."
+    },
+    {
+      "id": "adobesign_create_agreement",
+      "name": "Create Agreement",
+      "description": "Create and send a new agreement in Adobe Acrobat Sign. Specify recipients, document (template or transient), and signing options."
+    },
+    {
+      "id": "adobesign_get_agreement",
+      "name": "Get Agreement",
+      "description": "Get detailed information about a specific Adobe Sign agreement. Returns name, status, participants, and event history."
+    },
+    {
+      "id": "adobesign_send_reminder",
+      "name": "Send Reminder",
+      "description": "Send a reminder to participants of an Adobe Sign agreement. Specify which participant to remind and an optional message."
+    },
+    {
+      "id": "adobesign_list_templates",
+      "name": "List Templates",
+      "description": "List library document templates in Adobe Acrobat Sign. Returns template names, IDs, and sharing modes."
+    }
+  ],
+  "configSchema": {
+    "region": {
+      "type": "select",
+      "label": "Region",
+      "description": "Adobe Sign data center region",
+      "default": "na1",
+      "options": [
+        {
+          "label": "North America",
+          "value": "na1"
+        },
+        {
+          "label": "Europe",
+          "value": "eu1"
+        },
+        {
+          "label": "Japan",
+          "value": "jp1"
+        }
+      ]
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

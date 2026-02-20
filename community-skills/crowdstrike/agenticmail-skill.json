@@ -1,0 +1,69 @@
+{
+  "id": "crowdstrike",
+  "name": "CrowdStrike",
+  "description": "Integrate with CrowdStrike to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/crowdstrike",
+  "license": "MIT",
+  "category": "security",
+  "risk": "high",
+  "tags": [
+    "crowdstrike",
+    "security"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "crowdstrike"
+  },
+  "tools": [
+    {
+      "id": "cs_list_detections",
+      "name": "List Detections",
+      "description": "List CrowdStrike Falcon detections. Returns detection IDs for further detail retrieval. Optionally filter by query."
+    },
+    {
+      "id": "cs_get_detection",
+      "name": "Get Detection",
+      "description": "Retrieve detailed information about specific CrowdStrike detections by their IDs. Returns behaviors, severity, device info, and status."
+    },
+    {
+      "id": "cs_list_hosts",
+      "name": "List Hosts",
+      "description": "List CrowdStrike Falcon hosts (endpoints). Returns host IDs, hostnames, platforms, and last seen times."
+    },
+    {
+      "id": "cs_contain_host",
+      "name": "Contain Host",
+      "description": "Contain or lift containment on a CrowdStrike host. Containment isolates the host from the network while maintaining sensor connectivity."
+    },
+    {
+      "id": "cs_search_iocs",
+      "name": "Search Iocs",
+      "description": "Search for Indicators of Compromise (IOCs) in CrowdStrike. Query by type (ip, domain, sha256, etc.) and value."
+    }
+  ],
+  "configSchema": {
+    "cloud": {
+      "type": "select",
+      "label": "Cloud Region",
+      "description": "CrowdStrike cloud region for API access",
+      "options": [
+        {
+          "label": "US-1",
+          "value": "us-1"
+        },
+        {
+          "label": "US-2",
+          "value": "us-2"
+        },
+        {
+          "label": "EU-1",
+          "value": "eu-1"
+        }
+      ],
+      "default": "us-1"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

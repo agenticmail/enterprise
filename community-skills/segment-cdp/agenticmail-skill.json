@@ -1,0 +1,66 @@
+{
+  "id": "segment-cdp",
+  "name": "Segment CDP",
+  "description": "Manage Segment sources, destinations, and tracking plans. Send events and manage user profiles.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/segment-cdp",
+  "license": "MIT",
+  "category": "data",
+  "risk": "medium",
+  "auth": {
+    "type": "token",
+    "name": "Segment Access Token",
+    "envVar": "SEGMENT_TOKEN",
+    "description": "Workspace-level access token from Segment Settings"
+  },
+  "tags": ["segment", "cdp", "data-pipeline", "tracking"],
+  "tools": [
+    {
+      "id": "segment_track_event",
+      "name": "Track Event",
+      "description": "Send a track event to Segment"
+    },
+    {
+      "id": "segment_identify_user",
+      "name": "Identify User",
+      "description": "Identify a user with traits"
+    },
+    {
+      "id": "segment_list_sources",
+      "name": "List Sources",
+      "description": "List all configured sources"
+    },
+    {
+      "id": "segment_list_destinations",
+      "name": "List Destinations",
+      "description": "List all configured destinations"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultSource": {
+        "type": "string",
+        "description": "Default Segment source to use"
+      },
+      "trackAnonymous": {
+        "type": "boolean",
+        "default": false,
+        "description": "Track anonymous users"
+      },
+      "batchSize": {
+        "type": "number",
+        "default": 100,
+        "description": "Number of events per batch"
+      },
+      "debugMode": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable debug logging for events"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,63 @@
+{
+  "id": "sap",
+  "name": "SAP S/4HANA",
+  "description": "Integrate with SAP S/4HANA to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/sap",
+  "license": "MIT",
+  "category": "platform",
+  "risk": "high",
+  "tags": [
+    "sap",
+    "4hana",
+    "platform"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "sap"
+  },
+  "tools": [
+    {
+      "id": "sap_list_business_partners",
+      "name": "List Business Partners",
+      "description": "List business partners from SAP S/4HANA. Returns partner names, IDs, categories, and addresses."
+    },
+    {
+      "id": "sap_get_sales_order",
+      "name": "Get Sales Order",
+      "description": "Get details of a specific SAP sales order by its ID. Returns order header, items, pricing, and status."
+    },
+    {
+      "id": "sap_list_materials",
+      "name": "List Materials",
+      "description": "List materials (products) from SAP S/4HANA. Returns material numbers, descriptions, types, and groups."
+    },
+    {
+      "id": "sap_create_purchase_order",
+      "name": "Create Purchase Order",
+      "description": "Create a new purchase order in SAP S/4HANA. Specify vendor, items, and delivery details."
+    },
+    {
+      "id": "sap_get_financials",
+      "name": "Get Financials",
+      "description": "Get financial journal entries from SAP S/4HANA. Filter by company code, fiscal year, and posting date range."
+    }
+  ],
+  "configSchema": {
+    "host": {
+      "type": "string",
+      "label": "SAP Host",
+      "description": "Your SAP S/4HANA Cloud host (e.g. \"mycompany.s4hana.ondemand.com\")",
+      "required": true,
+      "placeholder": "mycompany.s4hana.ondemand.com"
+    },
+    "client": {
+      "type": "string",
+      "label": "SAP Client",
+      "description": "SAP client number",
+      "default": "100"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

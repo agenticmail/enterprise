@@ -1,0 +1,58 @@
+{
+  "id": "sentry",
+  "name": "Sentry Error Tracking",
+  "description": "Integrate with Sentry Error Tracking to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/sentry",
+  "license": "MIT",
+  "category": "monitoring",
+  "risk": "medium",
+  "tags": [
+    "sentry",
+    "error",
+    "tracking",
+    "monitoring"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "sentry"
+  },
+  "tools": [
+    {
+      "id": "sentry_list_issues",
+      "name": "List Issues",
+      "description": "List Sentry issues for a project. Filter by query string, sort order, or status."
+    },
+    {
+      "id": "sentry_get_issue",
+      "name": "Get Issue",
+      "description": "Retrieve details of a specific Sentry issue by its ID. Returns title, culprit, status, event count, and metadata."
+    },
+    {
+      "id": "sentry_list_events",
+      "name": "List Events",
+      "description": "List events for a specific Sentry issue. Returns event IDs, timestamps, and tags."
+    },
+    {
+      "id": "sentry_list_projects",
+      "name": "List Projects",
+      "description": "List all Sentry projects in the organization. Returns project slugs, platforms, and statuses."
+    },
+    {
+      "id": "sentry_resolve_issue",
+      "name": "Resolve Issue",
+      "description": "Resolve a Sentry issue by setting its status to \"resolved\". Can also set status to \"ignored\" or \"unresolved\"."
+    }
+  ],
+  "configSchema": {
+    "organization": {
+      "type": "string",
+      "label": "Organization Slug",
+      "description": "Your Sentry organization slug (found in dashboard URL)",
+      "required": true,
+      "placeholder": "my-org"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

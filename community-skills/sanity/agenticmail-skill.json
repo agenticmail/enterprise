@@ -1,0 +1,62 @@
+{
+  "id": "sanity",
+  "name": "Sanity CMS",
+  "description": "Integrate with Sanity CMS to query, create, patch and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/sanity",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "medium",
+  "tags": [
+    "sanity",
+    "cms",
+    "marketing"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "sanity"
+  },
+  "tools": [
+    {
+      "id": "sanity_query",
+      "name": "Query",
+      "description": "Execute a GROQ query against a Sanity dataset. Returns matching documents. GROQ is Sanity's query language (e.g. *[_type == \"post\"]{title, slug})."
+    },
+    {
+      "id": "sanity_create_document",
+      "name": "Create Document",
+      "description": "Create a new document in a Sanity dataset. Provide the document type and fields."
+    },
+    {
+      "id": "sanity_patch_document",
+      "name": "Patch Document",
+      "description": "Patch (update) an existing document in a Sanity dataset. Supports set, unset, and inc operations."
+    },
+    {
+      "id": "sanity_delete_document",
+      "name": "Delete Document",
+      "description": "Delete a document from a Sanity dataset by ID."
+    },
+    {
+      "id": "sanity_list_datasets",
+      "name": "List Datasets",
+      "description": "List all datasets in the Sanity project. Returns dataset names and visibility settings."
+    }
+  ],
+  "configSchema": {
+    "projectId": {
+      "type": "string",
+      "label": "Project ID",
+      "description": "Your Sanity project ID",
+      "required": true
+    },
+    "dataset": {
+      "type": "string",
+      "label": "Dataset",
+      "description": "Sanity dataset name (defaults to \"production\")",
+      "default": "production"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

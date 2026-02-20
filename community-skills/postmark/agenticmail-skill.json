@@ -1,0 +1,48 @@
+{
+  "id": "postmark",
+  "name": "Postmark",
+  "description": "Integrate with Postmark to send, list, send and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/postmark",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "postmark",
+    "communication"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "postmark"
+  },
+  "tools": [
+    {
+      "id": "postmark_send_email",
+      "name": "Send Email",
+      "description": "Send a transactional email via Postmark. Supports plain text and HTML content, plus CC and BCC recipients."
+    },
+    {
+      "id": "postmark_list_templates",
+      "name": "List Templates",
+      "description": "List email templates from Postmark. Returns template names, IDs, and types."
+    },
+    {
+      "id": "postmark_send_template",
+      "name": "Send Template",
+      "description": "Send a templated email via Postmark. Provide the template ID or alias and the template model (variables)."
+    },
+    {
+      "id": "postmark_get_delivery_stats",
+      "name": "Get Delivery Stats",
+      "description": "Get delivery statistics from Postmark. Returns counts for bounces by type (hard, soft, spam complaints, etc.)."
+    },
+    {
+      "id": "postmark_search_messages",
+      "name": "Search Messages",
+      "description": "Search outbound messages sent via Postmark. Filter by recipient, tag, subject, or status."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

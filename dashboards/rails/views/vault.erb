@@ -1,0 +1,66 @@
+<div class="page-header">
+  <h1>Vault</h1>
+  <p>Encrypted secrets management</p>
+</div>
+
+<div class="card">
+  <h3>Add Secret</h3>
+  <form method="post" action="/vault">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Secret Name</label>
+        <input type="text" name="name" required placeholder="e.g. OPENAI_API_KEY">
+      </div>
+      <div class="form-group">
+        <label>Secret Value</label>
+        <input type="password" name="value" required placeholder="Enter secret value">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Category</label>
+        <select name="category">
+          <option value="deploy">deploy</option>
+          <option value="cloud_storage">cloud storage</option>
+          <option value="api_key">api key</option>
+          <option value="skill_credential">skill credential</option>
+          <option value="custom">custom</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end">
+        <button class="btn btn-primary" type="submit">Add Secret</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Stored Secrets (<%= @secrets.size %>)</h3>
+  <% if @secrets.empty? %>
+    <div class="empty"><span class="icon">&#128274;</span>No secrets stored yet. Add one above.</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Category</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @secrets.each do |s| %>
+            <tr>
+              <td><strong><%= escape_html(s['name'] || '-') %></strong></td>
+              <td><%= category_badge(s['category']) %></td>
+              <td style="color:var(--muted)"><%= escape_html(s['createdBy'] || s['created_by'] || '-') %></td>
+              <td style="color:var(--muted)"><%= time_ago(s['created_at'] || s['createdAt']) %></td>
+              <td>
+                <form method="post" action="/vault/<%= s['id'] %>/rotate" style="display:inline" onsubmit="return confirm('Rotate encryption for this secret?')">
+                  <button class="btn btn-sm" type="submit">Rotate</button>
+                </form>
+                <form method="post" action="/vault/<%= s['id'] %>/delete" style="display:inline" onsubmit="return confirm('Delete this secret?')">
+                  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

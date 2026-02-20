@@ -1,0 +1,48 @@
+{
+  "id": "shortcut",
+  "name": "Shortcut",
+  "description": "Integrate with Shortcut to list, create, search and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/shortcut",
+  "license": "MIT",
+  "category": "project-management",
+  "risk": "low",
+  "tags": [
+    "shortcut",
+    "project-management"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "shortcut"
+  },
+  "tools": [
+    {
+      "id": "shortcut_list_stories",
+      "name": "List Stories",
+      "description": "List stories in a Shortcut project. Returns story names, types, states, and assignees."
+    },
+    {
+      "id": "shortcut_create_story",
+      "name": "Create Story",
+      "description": "Create a new story in Shortcut. Specify name, project, story type, description, and optional fields."
+    },
+    {
+      "id": "shortcut_search_stories",
+      "name": "Search Stories",
+      "description": "Search for stories across Shortcut using a text query. Returns matching stories with IDs, names, and types."
+    },
+    {
+      "id": "shortcut_list_projects",
+      "name": "List Projects",
+      "description": "List all projects in Shortcut. Returns project names, IDs, and story counts."
+    },
+    {
+      "id": "shortcut_list_epics",
+      "name": "List Epics",
+      "description": "List all epics in Shortcut. Returns epic names, states, and story counts."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

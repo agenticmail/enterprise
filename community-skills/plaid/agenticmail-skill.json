@@ -1,0 +1,65 @@
+{
+  "id": "plaid",
+  "name": "Plaid",
+  "description": "Integrate with Plaid to get, get, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/plaid",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "plaid",
+    "finance"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "plaid"
+  },
+  "tools": [
+    {
+      "id": "plaid_get_accounts",
+      "name": "Get Accounts",
+      "description": "Get linked bank accounts via Plaid. Requires an access token. Returns account names, types, balances, and IDs."
+    },
+    {
+      "id": "plaid_get_transactions",
+      "name": "Get Transactions",
+      "description": "Get transactions for linked accounts via Plaid. Specify a date range and optional account filter."
+    },
+    {
+      "id": "plaid_get_balance",
+      "name": "Get Balance",
+      "description": "Get real-time account balances via Plaid. Returns current and available balances for all linked accounts."
+    },
+    {
+      "id": "plaid_get_identity",
+      "name": "Get Identity",
+      "description": "Get identity information for account holders via Plaid. Returns names, addresses, emails, and phone numbers."
+    },
+    {
+      "id": "plaid_get_institutions",
+      "name": "Get Institutions",
+      "description": "Search for financial institutions supported by Plaid. Returns institution names, IDs, and supported products."
+    }
+  ],
+  "configSchema": {
+    "environment": {
+      "type": "select",
+      "label": "Environment",
+      "description": "Plaid API environment",
+      "options": [
+        {
+          "label": "Production",
+          "value": "production"
+        },
+        {
+          "label": "Sandbox",
+          "value": "sandbox"
+        }
+      ],
+      "default": "sandbox"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

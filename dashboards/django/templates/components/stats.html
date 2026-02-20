@@ -1,0 +1,8 @@
+<div class="stats">
+{% for stat in stats %}
+  <div class="stat">
+    <div class="l">{{ stat.label }}</div>
+    <div class="v"{% if stat.color %} style="color:var(--{{ stat.color }})"{% endif %}>{{ stat.value }}</div>
+  </div>
+{% endfor %}
+</div>

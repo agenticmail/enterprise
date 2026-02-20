@@ -1,0 +1,55 @@
+{
+  "id": "square",
+  "name": "Square",
+  "description": "Integrate with Square to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/square",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "square",
+    "finance"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "square"
+  },
+  "tools": [
+    {
+      "id": "square_list_payments",
+      "name": "List Payments",
+      "description": "List Square payments with optional filters by date range, status, or location. Returns payment IDs, amounts, and statuses."
+    },
+    {
+      "id": "square_create_payment",
+      "name": "Create Payment",
+      "description": "Create a payment in Square. Requires a source ID (e.g. nonce from a card) and an amount."
+    },
+    {
+      "id": "square_list_customers",
+      "name": "List Customers",
+      "description": "List customers in Square. Optionally sort or paginate. Returns customer names, emails, and IDs."
+    },
+    {
+      "id": "square_list_catalog",
+      "name": "List Catalog",
+      "description": "List catalog objects in Square (items, categories, discounts, taxes). Returns object names, types, and IDs."
+    },
+    {
+      "id": "square_create_invoice",
+      "name": "Create Invoice",
+      "description": "Create an invoice in Square for a customer and order. Specify the location, payment request, and delivery method."
+    }
+  ],
+  "configSchema": {
+    "sandbox": {
+      "type": "boolean",
+      "label": "Sandbox Mode",
+      "description": "Use Square sandbox environment for testing",
+      "default": false
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

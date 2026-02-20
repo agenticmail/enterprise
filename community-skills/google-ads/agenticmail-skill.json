@@ -1,0 +1,58 @@
+{
+  "id": "google-ads",
+  "name": "Google Ads",
+  "description": "Manage Google Ads campaigns, ad groups, and keywords. Retrieve performance reports and metrics.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/google-ads",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "high",
+  "auth": {
+    "type": "oauth2",
+    "provider": "google",
+    "scopes": ["https://www.googleapis.com/auth/adwords"]
+  },
+  "tags": ["google-ads", "advertising", "ppc", "sem"],
+  "tools": [
+    {
+      "id": "gads_list_campaigns",
+      "name": "List Campaigns",
+      "description": "List all campaigns in the account"
+    },
+    {
+      "id": "gads_get_performance",
+      "name": "Get Performance",
+      "description": "Get campaign performance metrics"
+    },
+    {
+      "id": "gads_update_budget",
+      "name": "Update Budget",
+      "description": "Update a campaign budget"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "customerId": {
+        "type": "string",
+        "description": "Google Ads customer ID (xxx-xxx-xxxx)"
+      },
+      "managerAccountId": {
+        "type": "string",
+        "description": "Manager account ID for MCC access"
+      },
+      "defaultCampaignBudget": {
+        "type": "number",
+        "description": "Default daily budget for new campaigns"
+      },
+      "reportTimezone": {
+        "type": "string",
+        "description": "Timezone for performance reports",
+        "default": "America/New_York"
+      }
+    },
+    "required": ["customerId"]
+  },
+  "minEngineVersion": "0.3.0"
+}

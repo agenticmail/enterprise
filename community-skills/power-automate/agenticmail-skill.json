@@ -1,0 +1,59 @@
+{
+  "id": "power-automate",
+  "name": "Microsoft Power Automate",
+  "description": "Integrate with Microsoft Power Automate to list, run, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/power-automate",
+  "license": "MIT",
+  "category": "automation",
+  "risk": "high",
+  "tags": [
+    "powerautomate",
+    "microsoft",
+    "power",
+    "automate",
+    "automation"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "microsoft"
+  },
+  "tools": [
+    {
+      "id": "pa_list_flows",
+      "name": "List Flows",
+      "description": "List flows (automations) in the Power Automate environment. Returns flow names, states, and trigger types."
+    },
+    {
+      "id": "pa_run_flow",
+      "name": "Run Flow",
+      "description": "Trigger a Power Automate flow (must have an HTTP request or manual trigger). Optionally pass input data as the request body."
+    },
+    {
+      "id": "pa_get_flow",
+      "name": "Get Flow",
+      "description": "Get detailed information about a specific Power Automate flow. Returns name, state, trigger details, action count, and connection references."
+    },
+    {
+      "id": "pa_list_runs",
+      "name": "List Runs",
+      "description": "List recent runs (execution history) for a Power Automate flow. Returns run IDs, statuses, and durations."
+    },
+    {
+      "id": "pa_get_run",
+      "name": "Get Run",
+      "description": "Get detailed information about a specific Power Automate flow run. Returns status, duration, trigger details, and action results."
+    }
+  ],
+  "configSchema": {
+    "environment": {
+      "type": "string",
+      "label": "Environment ID",
+      "description": "Your Power Automate environment ID (e.g. \"Default-xxxx-xxxx-xxxx-xxxxxxxxxxxx\")",
+      "required": true,
+      "placeholder": "Default-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

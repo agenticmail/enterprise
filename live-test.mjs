@@ -35,7 +35,7 @@ console.log('\n🏢 Live E2E Test — Enterprise Server on :' + PORT + '\n');
 console.log('─── Health & Ready ───');
 const health = await req('/health');
 ok(health.status === 200 && health.data?.status === 'ok', `GET /health → ${health.data?.status}`);
-ok(health.data?.version === '0.3.0', `Version: ${health.data?.version}`);
+ok(health.data?.version === '0.3.2', `Version: ${health.data?.version}`);
 
 const ready = await req('/ready');
 ok(ready.status === 200, `GET /ready → ${ready.status}`);

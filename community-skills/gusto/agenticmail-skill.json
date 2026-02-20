@@ -1,0 +1,49 @@
+{
+  "id": "gusto",
+  "name": "Gusto Payroll",
+  "description": "Integrate with Gusto Payroll to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/gusto",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "gusto",
+    "payroll",
+    "hr"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "gusto"
+  },
+  "tools": [
+    {
+      "id": "gusto_list_employees",
+      "name": "List Employees",
+      "description": "List employees from a Gusto company. Returns names, emails, departments, and employment status."
+    },
+    {
+      "id": "gusto_get_employee",
+      "name": "Get Employee",
+      "description": "Get detailed information about a specific Gusto employee by their UUID. Returns personal info, compensation, and employment details."
+    },
+    {
+      "id": "gusto_list_payrolls",
+      "name": "List Payrolls",
+      "description": "List payroll runs for a Gusto company. Returns payroll dates, status, and totals."
+    },
+    {
+      "id": "gusto_get_company",
+      "name": "Get Company",
+      "description": "Get company information from Gusto. Returns company name, EIN, addresses, and configuration details."
+    },
+    {
+      "id": "gusto_list_benefits",
+      "name": "List Benefits",
+      "description": "List company-level benefits from Gusto. Returns benefit types, descriptions, and whether they are active."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

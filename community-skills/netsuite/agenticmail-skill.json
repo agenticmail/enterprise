@@ -1,0 +1,57 @@
+{
+  "id": "netsuite",
+  "name": "NetSuite ERP",
+  "description": "Integrate with NetSuite ERP to search, get, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/netsuite",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "netsuite",
+    "erp",
+    "finance"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "netsuite"
+  },
+  "tools": [
+    {
+      "id": "netsuite_search",
+      "name": "Search",
+      "description": "Search for records in NetSuite by record type. Supports filtering and field selection. Returns a list of matching records."
+    },
+    {
+      "id": "netsuite_get_record",
+      "name": "Get Record",
+      "description": "Get a specific NetSuite record by its type and internal ID. Returns all accessible fields for the record."
+    },
+    {
+      "id": "netsuite_create_record",
+      "name": "Create Record",
+      "description": "Create a new record in NetSuite. Specify the record type and field values."
+    },
+    {
+      "id": "netsuite_list_saved_searches",
+      "name": "List Saved Searches",
+      "description": "List saved searches in NetSuite. Returns search names, types, and IDs. Useful for discovering available reports."
+    },
+    {
+      "id": "netsuite_run_suiteql",
+      "name": "Run Suiteql",
+      "description": "Execute a SuiteQL query against NetSuite. SuiteQL is a SQL-like query language for NetSuite data. Returns a formatted result set."
+    }
+  ],
+  "configSchema": {
+    "accountId": {
+      "type": "string",
+      "label": "Account ID",
+      "description": "Your NetSuite account ID (e.g. \"TSTDRV1234567\" or \"1234567-sb1\")",
+      "required": true,
+      "placeholder": "TSTDRV1234567"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

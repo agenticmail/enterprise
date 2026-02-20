@@ -1,0 +1,11 @@
+{
+  "name": "agenticmail-dashboard",
+  "private": true,
+  "scripts": {
+    "dev": "esbuild src/main.js --bundle --outfile=dist/bundle.js --servedir=. --serve=8080",
+    "build": "esbuild src/main.js --bundle --outfile=dist/bundle.js --minify"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  }
+}

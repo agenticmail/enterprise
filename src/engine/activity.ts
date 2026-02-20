@@ -114,17 +114,46 @@ export interface TimelineEntry {
 
 // ─── Activity Tracker ───────────────────────────────────
 
+import type { EngineDatabase } from './db-adapter.js';
+
 export class ActivityTracker {
   private events: ActivityEvent[] = [];
   private toolCalls = new Map<string, ToolCallRecord>();
   private conversations: ConversationEntry[] = [];
   private listeners: ((event: ActivityEvent) => void)[] = [];
   private sseClients = new Set<(event: ActivityEvent) => void>();
+  private engineDb?: EngineDatabase;
 
   // Buffer settings
   private maxEvents = 10_000;        // Keep last N events in memory
   private maxToolCalls = 5_000;
   private maxConversations = 5_000;
+
+  /**
+   * Set the database adapter for persistent activity storage
+   */
+  async setDb(db: EngineDatabase): Promise<void> {
+    this.engineDb = db;
+    await this.loadFromDb();
+  }
+
+  private async loadFromDb(): Promise<void> {
+    if (!this.engineDb) return;
+    try {
+      // Load recent events (last 24h) to warm the cache
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const events = await this.engineDb.getActivityEvents({ since, limit: this.maxEvents });
+      this.events = events.reverse(); // DB returns DESC, we want ASC for our buffer
+
+      // Load recent tool calls (last 24h)
+      const toolCalls = await this.engineDb.getToolCalls({ since, limit: this.maxToolCalls });
+      for (const tc of toolCalls) {
+        this.toolCalls.set(tc.id, tc);
+      }
+    } catch {
+      // Table may not exist yet if migrations haven't run
+    }
+  }
 
   // ─── Record Events ───────────────────────────────────
 
@@ -142,6 +171,11 @@ export class ActivityTracker {
     if (this.events.length > this.maxEvents) {
       this.events = this.events.slice(-this.maxEvents);
     }
+
+    // Persist to DB (fire-and-forget — high-volume telemetry)
+    this.engineDb?.insertActivityEvent(full).catch((err) => {
+      console.error('[activity] Failed to persist event:', err);
+    });
 
     // Notify listeners
     for (const listener of this.listeners) {
@@ -184,6 +218,11 @@ export class ActivityTracker {
       const keys = Array.from(this.toolCalls.keys());
       for (let i = 0; i < 1000; i++) this.toolCalls.delete(keys[i]);
     }
+
+    // Persist to DB (fire-and-forget — high-volume telemetry)
+    this.engineDb?.insertToolCall(record).catch((err) => {
+      console.error('[activity] Failed to persist tool call:', err);
+    });
 
     this.record({
       agentId: opts.agentId,
@@ -228,6 +267,11 @@ export class ActivityTracker {
       };
     }
 
+    // Persist to DB (fire-and-forget — high-volume telemetry)
+    this.engineDb?.updateToolCallResult(record.id, record.result, record.timing, record.cost).catch((err) => {
+      console.error('[activity] Failed to update tool call result:', err);
+    });
+
     this.record({
       agentId: record.agentId,
       orgId: record.orgId,
@@ -257,6 +301,11 @@ export class ActivityTracker {
     if (this.conversations.length > this.maxConversations) {
       this.conversations = this.conversations.slice(-this.maxConversations);
     }
+
+    // Persist to DB (fire-and-forget — high-volume telemetry)
+    this.engineDb?.insertConversation(full).catch((err) => {
+      console.error('[activity] Failed to persist conversation:', err);
+    });
 
     this.record({
       agentId: entry.agentId,
@@ -315,11 +364,22 @@ export class ActivityTracker {
   /**
    * Get conversation history for a session
    */
-  getConversation(sessionId: string, limit: number = 50): ConversationEntry[] {
-    return this.conversations
+  async getConversation(sessionId: string, limit: number = 50): Promise<ConversationEntry[]> {
+    // Check memory first
+    const memResults = this.conversations
       .filter(c => c.sessionId === sessionId)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       .slice(-limit);
+
+    if (memResults.length > 0) return memResults;
+
+    // Fall back to DB for sessions not in memory buffer
+    if (this.engineDb) {
+      try {
+        return await this.engineDb.getConversation(sessionId, limit);
+      } catch { /* fall through */ }
+    }
+    return [];
   }
 
   /**

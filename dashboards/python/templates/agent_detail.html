@@ -1,0 +1,552 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 24px;">
+  <a href="{{ url_for('agents_bp.agents') }}" style="font-size: 13px; color: var(--text-muted); text-decoration: none;">&larr; Back to Agents</a>
+</div>
+
+<!-- Agent Header -->
+<div class="card" style="display: flex; align-items: center; gap: 20px;">
+  <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--primary-bg); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; flex-shrink: 0;">
+    {{ avatar_initial }}
+  </div>
+  <div style="flex: 1;">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <h1 style="font-size: 22px; font-weight: 700; margin: 0;">{{ display_name }}</h1>
+      {{ (agent.state or agent.status or 'unknown')|status_badge }}
+      {{ (agent.role or config.role or '')|badge }}
+    </div>
+    <div style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">{{ email }}</div>
+  </div>
+</div>
+
+<!-- Summary Card -->
+<div class="card">
+  <h3>Summary</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px;">
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Status</div>
+      <div style="font-size: 14px; font-weight: 600; margin-top: 4px;">{{ agent.state or agent.status or 'unknown' }}</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Role</div>
+      <div style="font-size: 14px; font-weight: 600; margin-top: 4px;">{{ agent.role or config.role or '-' }}</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Model</div>
+      <div style="font-size: 14px; font-weight: 600; margin-top: 4px;">{{ model or '-' }}</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Created</div>
+      <div style="font-size: 14px; font-weight: 600; margin-top: 4px;">{{ (agent.createdAt or agent.created_at or '')|time_ago }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Description -->
+{% set description = config.description or agent.description or persona.description or '' %}
+{% if description %}
+<div class="card">
+  <h3>Description</h3>
+  <p style="font-size: 14px; color: var(--text-dim); line-height: 1.6;">{{ description }}</p>
+</div>
+{% endif %}
+
+<!-- Personality Traits -->
+{% if traits %}
+<div class="card">
+  <h3>Personality Traits</h3>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+    {% if traits is mapping %}
+      {% for key, value in traits.items() %}
+      <span class="badge badge-default" style="font-size: 12px; text-transform: none; padding: 5px 12px;">{{ key }}: {{ value }}</span>
+      {% endfor %}
+    {% else %}
+      {% for trait in traits %}
+      <span class="badge badge-default" style="font-size: 12px; text-transform: none; padding: 5px 12px;">{{ trait }}</span>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Actions -->
+<div class="card">
+  <h3>Actions</h3>
+  <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+    <form method="POST" action="{{ url_for('agents_bp.deploy_agent', id=agent.id or agent.agentId) }}" style="display: inline;">
+      <button class="btn btn-primary" type="submit">Deploy</button>
+    </form>
+    <form method="POST" action="{{ url_for('agents_bp.stop_agent', id=agent.id or agent.agentId) }}" style="display: inline;">
+      <button class="btn btn-danger" type="submit">Stop</button>
+    </form>
+    <form method="POST" action="{{ url_for('agents_bp.restart_agent', id=agent.id or agent.agentId) }}" style="display: inline;">
+      <button class="btn" type="submit">Restart</button>
+    </form>
+  </div>
+</div>
+
+<!-- Personal Details -->
+{% if persona.gender or persona.dateOfBirth or persona.maritalStatus or persona.culturalBackground or persona.language %}
+<div class="card">
+  <h3>Personal Details</h3>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        {% if persona.gender %}
+        <tr><td style="font-weight: 600; width: 200px;">Gender</td><td>{{ persona.gender }}</td></tr>
+        {% endif %}
+        {% if persona.dateOfBirth %}
+        <tr><td style="font-weight: 600; width: 200px;">Date of Birth</td><td>{{ persona.dateOfBirth }}</td></tr>
+        {% endif %}
+        {% if persona.maritalStatus %}
+        <tr><td style="font-weight: 600; width: 200px;">Marital Status</td><td>{{ persona.maritalStatus }}</td></tr>
+        {% endif %}
+        {% if persona.culturalBackground %}
+        <tr><td style="font-weight: 600; width: 200px;">Cultural Background</td><td>{{ persona.culturalBackground }}</td></tr>
+        {% endif %}
+        {% if persona.language %}
+        <tr><td style="font-weight: 600; width: 200px;">Language</td><td>{{ persona.language }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Permission Profile -->
+{% if profile %}
+<div class="card">
+  <h3>Permission Profile</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px;">
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Profile Name</div>
+      <div style="font-size: 14px; font-weight: 600; margin-top: 4px;">{{ profile.name or profile.preset or 'Custom' }}</div>
+    </div>
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Max Risk Level</div>
+      <div style="margin-top: 4px;">
+        {% set risk = profile.maxRiskLevel or profile.max_risk_level or 'medium' %}
+        {% if risk == 'low' %}
+        <span class="badge badge-success" style="text-transform: capitalize;">{{ risk }}</span>
+        {% elif risk == 'medium' %}
+        <span class="badge badge-warning" style="text-transform: capitalize;">{{ risk }}</span>
+        {% else %}
+        <span class="badge badge-danger" style="text-transform: capitalize;">{{ risk }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Sandbox Mode</div>
+      <div style="margin-top: 4px;">
+        {% set sandbox = profile.sandboxMode or profile.sandbox_mode %}
+        {% if sandbox %}
+        <span class="badge badge-warning">Enabled</span>
+        {% else %}
+        <span class="badge badge-neutral">Disabled</span>
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Rate Limits</div>
+      <div style="font-size: 14px; font-weight: 600; margin-top: 4px;">
+        {% set rl = profile.rateLimits or profile.rate_limits %}
+        {% if rl %}
+        {{ rl.toolCallsPerMinute or rl.calls_per_minute or 0 }}/min &middot; {{ rl.toolCallsPerHour or rl.calls_per_hour or 0 }}/hr
+        {% else %}
+        None set
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% set blocked = profile.blockedSideEffects or profile.blocked_side_effects %}
+  {% if blocked %}
+  <div style="margin-top: 16px;">
+    <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;">Blocked Side Effects</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      {% for effect in blocked %}
+      <span class="badge badge-danger" style="font-size: 11px;">{{ effect }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Tool Security -->
+{% set ts_sec = (tool_security.security or {}) %}
+{% set ts_mw = (tool_security.middleware or {}) %}
+{% set ts_ps = ts_sec.pathSandbox or {} %}
+{% set ts_ssrf = ts_sec.ssrf or {} %}
+{% set ts_cs = ts_sec.commandSanitizer or {} %}
+{% set ts_audit = ts_mw.audit or {} %}
+{% set ts_rl = ts_mw.rateLimit or {} %}
+{% set ts_cb = ts_mw.circuitBreaker or {} %}
+{% set ts_tel = ts_mw.telemetry or {} %}
+
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+    <h3 style="margin: 0;">Tool Security</h3>
+    {% if agent_overrides and (agent_overrides.security or agent_overrides.middleware) %}
+    <span class="badge badge-warning" style="font-size: 11px;">Agent Overrides Active</span>
+    {% else %}
+    <span class="badge badge-neutral" style="font-size: 11px;">Using Org Defaults</span>
+    {% endif %}
+  </div>
+  <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 16px;">
+    Configure tool security overrides for this agent. Unmodified settings inherit from organization defaults.
+  </p>
+
+  <form method="POST" action="{{ url_for('agents_bp.save_agent_tool_security', id=agent.id or agent.agentId) }}">
+    <!-- Security Section -->
+    <div style="margin-bottom: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+      <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Security</h4>
+
+      <!-- Path Sandbox -->
+      <div style="margin-bottom: 12px; padding: 12px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <input type="checkbox" name="ps_enabled" id="agent_ps_enabled" {{ 'checked' if ts_ps.enabled }}>
+          <label for="agent_ps_enabled" style="font-weight: 600; font-size: 13px;">Path Sandbox</label>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-size: 12px;">Allowed Directories <span style="color: var(--text-muted);">(comma-separated)</span></label>
+            <input type="text" name="ps_allowedDirs" value="{{ (ts_ps.allowedDirs or [])|join(', ') }}" placeholder="/tmp, /data">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 12px;">Blocked Patterns <span style="color: var(--text-muted);">(comma-separated)</span></label>
+            <input type="text" name="ps_blockedPatterns" value="{{ (ts_ps.blockedPatterns or [])|join(', ') }}" placeholder="*.env, *.key">
+          </div>
+        </div>
+      </div>
+
+      <!-- SSRF Protection -->
+      <div style="margin-bottom: 12px; padding: 12px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <input type="checkbox" name="ssrf_enabled" id="agent_ssrf_enabled" {{ 'checked' if ts_ssrf.enabled }}>
+          <label for="agent_ssrf_enabled" style="font-weight: 600; font-size: 13px;">SSRF Protection</label>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-size: 12px;">Allowed Hosts <span style="color: var(--text-muted);">(comma-separated)</span></label>
+            <input type="text" name="ssrf_allowedHosts" value="{{ (ts_ssrf.allowedHosts or [])|join(', ') }}" placeholder="api.example.com">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 12px;">Blocked CIDRs <span style="color: var(--text-muted);">(comma-separated)</span></label>
+            <input type="text" name="ssrf_blockedCidrs" value="{{ (ts_ssrf.blockedCidrs or [])|join(', ') }}" placeholder="10.0.0.0/8, 192.168.0.0/16">
+          </div>
+        </div>
+      </div>
+
+      <!-- Command Sanitizer -->
+      <div style="padding: 12px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <input type="checkbox" name="cs_enabled" id="agent_cs_enabled" {{ 'checked' if ts_cs.enabled }}>
+          <label for="agent_cs_enabled" style="font-weight: 600; font-size: 13px;">Command Sanitizer</label>
+        </div>
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label style="font-size: 12px;">Mode</label>
+          <select name="cs_mode" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+            <option value="blocklist" {{ 'selected' if (ts_cs.mode or 'blocklist') == 'blocklist' }}>Blocklist</option>
+            <option value="allowlist" {{ 'selected' if ts_cs.mode == 'allowlist' }}>Allowlist</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-size: 12px;">Allowed Commands <span style="color: var(--text-muted);">(comma-separated)</span></label>
+            <input type="text" name="cs_allowedCommands" value="{{ (ts_cs.allowedCommands or [])|join(', ') }}" placeholder="ls, cat, grep">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 12px;">Blocked Patterns <span style="color: var(--text-muted);">(comma-separated)</span></label>
+            <input type="text" name="cs_blockedPatterns" value="{{ (ts_cs.blockedPatterns or [])|join(', ') }}" placeholder="rm -rf, sudo, chmod">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middleware Section -->
+    <div style="margin-bottom: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+      <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Middleware</h4>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <!-- Audit -->
+        <div style="padding: 12px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <input type="checkbox" name="audit_enabled" id="agent_audit_enabled" {{ 'checked' if ts_audit.enabled }}>
+            <label for="agent_audit_enabled" style="font-weight: 600; font-size: 13px;">Audit Logging</label>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 12px;">Redact Keys <span style="color: var(--text-muted);">(comma-separated)</span></label>
+            <input type="text" name="audit_redactKeys" value="{{ (ts_audit.redactKeys or [])|join(', ') }}" placeholder="password, secret">
+          </div>
+        </div>
+
+        <!-- Rate Limit -->
+        <div style="padding: 12px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" name="rl_enabled" id="agent_rl_enabled" {{ 'checked' if ts_rl.enabled }}>
+            <label for="agent_rl_enabled" style="font-weight: 600; font-size: 13px;">Rate Limiting</label>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;">Throttle tool call frequency.</p>
+        </div>
+
+        <!-- Circuit Breaker -->
+        <div style="padding: 12px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" name="cb_enabled" id="agent_cb_enabled" {{ 'checked' if ts_cb.enabled }}>
+            <label for="agent_cb_enabled" style="font-weight: 600; font-size: 13px;">Circuit Breaker</label>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;">Auto-disable failing tools.</p>
+        </div>
+
+        <!-- Telemetry -->
+        <div style="padding: 12px; background: var(--bg-secondary, rgba(0,0,0,0.02)); border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" name="tel_enabled" id="agent_tel_enabled" {{ 'checked' if ts_tel.enabled }}>
+            <label for="agent_tel_enabled" style="font-weight: 600; font-size: 13px;">Telemetry</label>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;">Collect tool execution metrics.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button class="btn btn-primary" type="submit">Save Tool Security</button>
+    </div>
+  </form>
+  <form method="POST" action="{{ url_for('agents_bp.reset_agent_tool_security', id=agent.id or agent.agentId) }}" style="margin-top: 10px;" onsubmit="return confirm('Reset all tool security overrides for this agent to organization defaults?')">
+    <button class="btn" type="submit">Reset to Org Defaults</button>
+  </form>
+</div>
+
+<!-- Activity Section -->
+<div class="card" style="padding: 0;">
+  <div class="card-header" style="padding: 20px 20px 0 20px;">
+    <h3 style="margin: 0;">Activity</h3>
+  </div>
+  <div style="border-bottom: 1px solid var(--border);">
+    <div style="display: flex; padding: 0 20px; gap: 0;">
+      <div class="activity-tab active" id="tab-events" onclick="switchActivityTab('events')" style="padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid var(--primary); color: var(--primary);">Events</div>
+      <div class="activity-tab" id="tab-tools" onclick="switchActivityTab('tools')" style="padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-muted);">Tool Calls</div>
+      <div class="activity-tab" id="tab-journal" onclick="switchActivityTab('journal')" style="padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-muted);">Journal</div>
+    </div>
+  </div>
+
+  <!-- Events Panel -->
+  <div class="activity-panel" id="panel-events" style="display: block;">
+    {% if events %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ev in events %}
+          <tr style="cursor: pointer;" onclick="showActivityDetail({{ ev|tojson|e }}, 'Event Detail')">
+            <td style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">{{ (ev.timestamp or ev.createdAt or '')|time_ago }}</td>
+            <td><span class="badge badge-info">{{ ev.type or ev.eventType or '-' }}</span></td>
+            <td style="font-family: monospace; font-size: 12px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim);">
+              {% if ev.data is mapping %}{{ ev.data|tojson }}{% else %}{{ ev.details or ev.data or '-' }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding: 40px; text-align: center; color: var(--text-muted);">No events recorded for this agent</div>
+    {% endif %}
+  </div>
+
+  <!-- Tool Calls Panel -->
+  <div class="activity-panel" id="panel-tools" style="display: none;">
+    {% if tool_calls %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Tool</th>
+            <th>Duration</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tc in tool_calls %}
+          <tr style="cursor: pointer;" onclick="showActivityDetail({{ tc|tojson|e }}, 'Tool Call Detail')">
+            <td style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">{{ (tc.timestamp or tc.createdAt or '')|time_ago }}</td>
+            <td><code style="font-size: 12px;">{{ tc.tool or tc.toolName or '-' }}</code></td>
+            <td>{{ (tc.durationMs|string ~ 'ms') if tc.durationMs else '-' }}</td>
+            <td>
+              {% if tc.success == true %}
+              <span class="badge badge-success">OK</span>
+              {% elif tc.success == false %}
+              <span class="badge badge-danger">Failed</span>
+              {% else %}
+              <span class="badge badge-neutral">{{ tc.status or 'Pending' }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding: 40px; text-align: center; color: var(--text-muted);">No tool calls recorded for this agent</div>
+    {% endif %}
+  </div>
+
+  <!-- Journal Panel -->
+  <div class="activity-panel" id="panel-journal" style="display: none;">
+    {% if journal_entries %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Tool</th>
+            <th>Action Type</th>
+            <th>Reversible</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in journal_entries %}
+          <tr style="cursor: pointer;" onclick="if(event.target.tagName!=='BUTTON'&&!event.target.closest('button')&&event.target.tagName!=='A'&&!event.target.closest('a'))showActivityDetail({{ entry|tojson|e }}, 'Journal Entry Detail')">
+            <td style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">{{ (entry.createdAt or '')|time_ago }}</td>
+            <td>{{ entry.toolName or entry.toolId or '-' }}</td>
+            <td><span class="badge badge-default">{{ entry.actionType or '-' }}</span></td>
+            <td>{% if entry.reversible %}&#x2705;{% else %}&#x274C;{% endif %}</td>
+            <td>
+              {% if entry.reversed %}
+              <span class="badge badge-warning">Rolled Back</span>
+              {% else %}
+              <span class="badge badge-success">Active</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.reversible and not entry.reversed %}
+              <form method="POST" action="{{ url_for('agents_bp.rollback_journal', id=agent.id or agent.agentId, entry_id=entry.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to rollback this journal entry? This will attempt to reverse the original action.')">
+                <button class="btn btn-sm" type="submit">Rollback</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding: 40px; text-align: center; color: var(--text-muted);">No journal entries for this agent</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Activity Detail Modal -->
+<div id="activity-detail-modal" class="modal-overlay" onclick="if(event.target===this)closeActivityModal()">
+  <div class="modal" style="width: 560px; max-height: 80vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 id="activity-modal-title" style="margin: 0; font-size: 16px; font-weight: 700;">Detail</h3>
+      <button onclick="closeActivityModal()" style="background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text-muted); padding: 4px 8px;">&times;</button>
+    </div>
+    <div id="activity-modal-badge" style="margin-bottom: 16px;"></div>
+    <div id="activity-modal-body" style="display: grid; grid-template-columns: 140px 1fr; gap: 12px 16px; align-items: start;"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchActivityTab(tab) {
+  document.querySelectorAll('.activity-panel').forEach(function(p) { p.style.display = 'none'; });
+  document.querySelectorAll('.activity-tab').forEach(function(t) {
+    t.style.borderBottomColor = 'transparent';
+    t.style.color = 'var(--text-muted)';
+    t.classList.remove('active');
+  });
+  var panel = document.getElementById('panel-' + tab);
+  var tabEl = document.getElementById('tab-' + tab);
+  if (panel) panel.style.display = 'block';
+  if (tabEl) {
+    tabEl.style.borderBottomColor = 'var(--primary)';
+    tabEl.style.color = 'var(--primary)';
+    tabEl.classList.add('active');
+  }
+}
+
+function humanizeKey(key) {
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+}
+
+function formatValue(key, val) {
+  if (val === null || val === undefined) return '<span style="color:var(--text-muted)">-</span>';
+  if (val === true) return '<span class="badge badge-success">true</span>';
+  if (val === false) return '<span class="badge badge-danger">false</span>';
+  if (typeof val === 'object') {
+    try {
+      var json = JSON.stringify(val, null, 2);
+      return '<pre style="margin:0;font-size:11px;background:var(--bg);padding:8px;border-radius:var(--radius);overflow-x:auto;max-width:340px;white-space:pre-wrap;word-break:break-all;">' + escapeHtml(json) + '</pre>';
+    } catch(e) { return escapeHtml(String(val)); }
+  }
+  var s = String(val);
+  // Detect ISO timestamps
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    try { return new Date(s).toLocaleString(); } catch(e) {}
+  }
+  return escapeHtml(s);
+}
+
+function escapeHtml(s) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(s));
+  return div.innerHTML;
+}
+
+function showActivityDetail(data, title) {
+  var modal = document.getElementById('activity-detail-modal');
+  document.getElementById('activity-modal-title').textContent = title || 'Detail';
+
+  // Badge
+  var badgeEl = document.getElementById('activity-modal-badge');
+  var typeLabel = data.type || data.eventType || data.tool || data.toolName || data.actionType || '';
+  if (typeLabel) {
+    var color = typeLabel === 'error' ? 'var(--danger)' : (typeLabel === 'deployed' || typeLabel === 'started') ? 'var(--success)' : typeLabel === 'stopped' ? 'var(--warning)' : 'var(--primary)';
+    badgeEl.innerHTML = '<span class="badge" style="background:' + color + ';color:#fff;font-size:11px;">' + escapeHtml(typeLabel) + '</span>';
+  } else {
+    badgeEl.innerHTML = '';
+  }
+
+  // Body grid
+  var body = document.getElementById('activity-modal-body');
+  var html = '';
+  var exclude = ['agentId'];
+  var keys = Object.keys(data);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (exclude.indexOf(key) !== -1) continue;
+    html += '<div style="font-size:12px;font-weight:600;color:var(--text-muted);padding-top:2px;">' + escapeHtml(humanizeKey(key)) + '</div>';
+    html += '<div style="font-size:13px;word-break:break-word;">' + formatValue(key, data[key]) + '</div>';
+  }
+  body.innerHTML = html || '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;">No data</div>';
+
+  modal.classList.add('open');
+}
+
+function closeActivityModal() {
+  document.getElementById('activity-detail-modal').classList.remove('open');
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeActivityModal();
+});
+</script>
+{% endblock %}

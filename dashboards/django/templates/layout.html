@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AgenticMail Enterprise — Django</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}:root,[data-theme=light]{--bg:#f8f9fa;--surface:#fff;--border:#dee2e6;--text:#212529;--dim:#495057;--muted:#868e96;--primary:#e84393;--success:#2b8a3e;--danger:#c92a2a;--warning:#e67700;--r:6px;color-scheme:light dark}[data-theme=dark]{--bg:#0f1114;--surface:#16181d;--border:#2c3038;--text:#e1e4e8;--dim:#b0b8c4;--muted:#6b7280;--primary:#f06595;--success:#37b24d;--danger:#f03e3e;--warning:#f08c00}@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1114;--surface:#16181d;--border:#2c3038;--text:#e1e4e8;--dim:#b0b8c4;--muted:#6b7280;--primary:#f06595;--success:#37b24d;--danger:#f03e3e;--warning:#f08c00}}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;font-size:14px}.layout{display:flex;min-height:100vh}.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);position:fixed;top:0;left:0;bottom:0;display:flex;flex-direction:column}.sh{padding:20px;border-bottom:1px solid var(--border)}.sh h2{font-size:16px}.sh h2 em{font-style:normal;color:var(--primary)}.sh small{font-size:11px;color:var(--muted);display:block;margin-top:2px}.nav{flex:1;padding:8px 0}.ns{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 20px 4px}.nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--dim);text-decoration:none;font-size:13px}.nav a:hover{color:var(--text);background:rgba(255,255,255,.03)}.nav a.on{color:var(--primary);background:rgba(232,67,147,.12);border-right:2px solid var(--primary)}.sf{padding:16px 20px;border-top:1px solid var(--border);font-size:12px}.content{flex:1;margin-left:240px;padding:32px;max-width:1100px}h2.t{font-size:22px;font-weight:700;margin-bottom:4px}.desc{font-size:13px;color:var(--dim);margin-bottom:24px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px}.stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.stat .v{font-size:30px;font-weight:700;margin-top:4px}.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}.ct{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:12px}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;padding:10px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}td{padding:12px;border-bottom:1px solid var(--border)}.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600}.b-a{background:rgba(34,197,94,.12);color:var(--success)}.b-r{background:rgba(136,136,160,.1);color:var(--dim)}.b-w{background:rgba(245,158,11,.12);color:var(--warning)}.b-p{background:rgba(232,67,147,.12);color:var(--primary)}.b-blue{background:rgba(59,130,246,.12);color:#3b82f6}.b-info{background:rgba(6,182,212,.12);color:#06b6d4}.b-neutral{background:rgba(136,136,160,.08);color:var(--muted)}.empty{text-align:center;padding:48px 20px;color:var(--muted)}.btn{display:inline-flex;align-items:center;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);text-decoration:none}.btn-p{background:var(--primary);border-color:var(--primary);color:#fff}.btn-d{color:var(--danger);border-color:var(--danger)}.btn-sm{padding:4px 10px;font-size:12px}.input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none}.input:focus{border-color:var(--primary)}.fg{margin-bottom:14px}.fl{display:block;font-size:12px;color:var(--dim);margin-bottom:4px;font-weight:500}.flash{padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;background:rgba(34,197,94,.1);border:1px solid var(--success);color:var(--success)}.flash-err{background:rgba(239,68,68,.1);border-color:var(--danger);color:var(--danger)}
+</style>
+</head>
+<body>
+<div class="layout">
+<div class="sidebar">
+  <div class="sh"><h2>&#x1f3e2; <em>Agentic</em>Mail</h2><small>Enterprise &middot; Django</small></div>
+  <div class="nav">
+    <div class="ns">Overview</div>
+    <a href="/" class="{% if page_name == 'dashboard' %}on{% endif %}">&#x1f4ca; <span>Dashboard</span></a>
+    <div class="ns">Manage</div>
+    <a href="/agents" class="{% if page_name == 'agents' %}on{% endif %}">&#x1f916; <span>Agents</span></a>
+    <a href="/users" class="{% if page_name == 'users' %}on{% endif %}">&#x1f465; <span>Users</span></a>
+    <a href="/api-keys" class="{% if page_name == 'keys' %}on{% endif %}">&#x1f511; <span>API Keys</span></a>
+    <a href="/vault" class="{% if page_name == 'vault' %}on{% endif %}">&#x1f510; <span>Vault</span></a>
+    <a href="/skills" class="{% if page_name == 'skills' %}on{% endif %}">&#x1f9e9; <span>Skills</span></a>
+    <div class="ns">Management</div>
+    <a href="/messages" class="{% if page_name == 'messages' %}on{% endif %}">&#x1f4e8; <span>Messages</span></a>
+    <a href="/guardrails" class="{% if page_name == 'guardrails' %}on{% endif %}">&#x1f6e1; <span>Guardrails</span></a>
+    <a href="/journal" class="{% if page_name == 'journal' %}on{% endif %}">&#x1f4d3; <span>Journal</span></a>
+    <div class="ns">System</div>
+    <a href="/audit" class="{% if page_name == 'audit' %}on{% endif %}">&#x1f4cb; <span>Audit Log</span></a>
+    <a href="/dlp" class="{% if page_name == 'dlp' %}on{% endif %}">&#x1f512; <span>DLP</span></a>
+    <a href="/compliance" class="{% if page_name == 'compliance' %}on{% endif %}">&#x1f4c4; <span>Compliance</span></a>
+    <a href="/settings" class="{% if page_name == 'settings' %}on{% endif %}">&#x2699;&#xfe0f; <span>Settings</span></a>
+  </div>
+  <div class="sf">
+    <div style="color:var(--dim)">{{ user.name }}</div>
+    <div style="color:var(--muted);font-size:11px">{{ user.email }}</div>
+    <a href="/logout" style="color:var(--muted);font-size:11px;margin-top:6px;display:inline-block">Sign out</a>
+  </div>
+</div>
+<div class="content">
+{% if flash_msg %}
+{% if 'error' in flash_msg|lower or 'failed' in flash_msg|lower %}
+<div class="flash flash-err">{{ flash_msg }}</div>
+{% else %}
+<div class="flash">{{ flash_msg }}</div>
+{% endif %}
+{% endif %}
+{% block content %}{% endblock %}
+</div>
+</div>
+</body>
+</html>

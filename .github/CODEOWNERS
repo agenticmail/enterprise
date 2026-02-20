@@ -1,0 +1,23 @@
+# ─── AgenticMail Enterprise Code Owners ───────────────
+#
+# These owners are automatically requested for review
+# when a PR touches matching paths.
+#
+# IMPORTANT: Enable "Require review from Code Owners" in
+# GitHub repo Settings → Branches → Branch protection rules
+# for the `main` branch to enforce this.
+
+# Core engine — requires core team review
+src/engine/     @agenticmail/core-team
+src/server.ts   @agenticmail/core-team
+src/auth/       @agenticmail/core-team
+src/admin/      @agenticmail/core-team
+
+# Community skills — ALL submissions require maintainer review
+# No community skill can be merged without explicit approval
+community-skills/   @agenticmail/skill-reviewers
+
+# CI/CD and repo config — requires admin review
+.github/        @agenticmail/core-team
+CLAUDE.md       @agenticmail/core-team
+package.json    @agenticmail/core-team

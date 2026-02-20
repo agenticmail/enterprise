@@ -1,0 +1,66 @@
+{
+  "id": "figma-design",
+  "name": "Figma Design",
+  "description": "Export assets, list files, and retrieve comments from Figma projects. Manage design components.",
+  "version": "1.1.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/figma-design",
+  "license": "MIT",
+  "category": "design",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "figma",
+    "scopes": ["file_read", "file_dev_resources:read", "file_dev_resources:write"]
+  },
+  "tags": ["figma", "design", "assets", "components"],
+  "tools": [
+    {
+      "id": "figma_export_assets",
+      "name": "Export Assets",
+      "description": "Export images and assets from a Figma file"
+    },
+    {
+      "id": "figma_list_files",
+      "name": "List Files",
+      "description": "List files in a Figma project"
+    },
+    {
+      "id": "figma_get_comments",
+      "name": "Get Comments",
+      "description": "Retrieve comments on a Figma file"
+    },
+    {
+      "id": "figma_create_component",
+      "name": "Create Component",
+      "description": "Create a reusable design component"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultTeam": {
+        "type": "string",
+        "description": "Default Figma team to scope file listings"
+      },
+      "exportFormat": {
+        "type": "string",
+        "description": "Default export format for assets",
+        "enum": ["png", "svg", "pdf", "jpg"],
+        "default": "png"
+      },
+      "exportScale": {
+        "type": "number",
+        "description": "Default export scale multiplier",
+        "default": 2
+      },
+      "includeComments": {
+        "type": "boolean",
+        "description": "Include comments when retrieving file data",
+        "default": true
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

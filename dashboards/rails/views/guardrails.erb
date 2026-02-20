@@ -1,0 +1,107 @@
+<div class="page-header">
+  <h1>Guardrails</h1>
+  <p>Control agent execution guardrails and anomaly detection rules</p>
+</div>
+
+<div class="card">
+  <h3>Guardrail Controls</h3>
+  <p style="color:var(--muted);margin-bottom:12px">
+    Status: <%= status_badge(@guardrail_status['state'] || @guardrail_status['status'] || 'unknown') %>
+  </p>
+  <div class="form-row">
+    <form method="post" action="/guardrails/pause" style="display:inline">
+      <button class="btn btn-primary" type="submit" onclick="return confirm('Pause all guardrails?')">&#9208;&#65039; Pause</button>
+    </form>
+    <form method="post" action="/guardrails/resume" style="display:inline">
+      <button class="btn btn-primary" type="submit">&#9654;&#65039; Resume</button>
+    </form>
+    <form method="post" action="/guardrails/kill" style="display:inline">
+      <button class="btn btn-danger" type="submit" onclick="return confirm('Kill all running guardrails? This cannot be undone.')">&#9724;&#65039; Kill</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Create Anomaly Rule</h3>
+  <form method="post" action="/anomaly-rules">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="e.g. High Volume Alert">
+      </div>
+      <div class="form-group">
+        <label>Condition</label>
+        <input type="text" name="condition" required placeholder="e.g. messages_per_minute > threshold">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Threshold</label>
+        <input type="text" name="threshold" required placeholder="e.g. 100">
+      </div>
+      <div class="form-group">
+        <label>Action</label>
+        <select name="action">
+          <option value="alert">Alert</option>
+          <option value="pause">Pause Agent</option>
+          <option value="kill">Kill Agent</option>
+          <option value="log">Log Only</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Create Rule</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Anomaly Rules (<%= @anomaly_rules.size %>)</h3>
+  <% if @anomaly_rules.empty? %>
+    <div class="empty"><span class="icon">&#128737;</span>No anomaly rules configured. Create one above.</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Condition</th><th>Threshold</th><th>Action</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @anomaly_rules.each do |r| %>
+            <tr>
+              <td><strong><%= escape_html(r['name'] || '-') %></strong></td>
+              <td><code><%= escape_html(r['condition'] || '-') %></code></td>
+              <td><%= escape_html(r['threshold'] || '-') %></td>
+              <td><%= badge(r['action'] || '-') %></td>
+              <td><%= status_badge(r['status'] || 'active') %></td>
+              <td>
+                <form method="post" action="/anomaly-rules/<%= r['id'] %>/delete" style="display:inline" onsubmit="return confirm('Delete this rule?')">
+                  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div class="card">
+  <h3>Recent Interventions (<%= @interventions.size %>)</h3>
+  <% if @interventions.empty? %>
+    <div class="empty"><span class="icon">&#9989;</span>No guardrail interventions recorded</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rule</th><th>Agent</th><th>Action Taken</th><th>Reason</th><th>Time</th></tr></thead>
+        <tbody>
+          <% @interventions.each do |i| %>
+            <tr>
+              <td><strong><%= escape_html(i['rule_name'] || i['rule'] || '-') %></strong></td>
+              <td><%= escape_html(i['agent_name'] || i['agent'] || '-') %></td>
+              <td><%= badge(i['action'] || '-') %></td>
+              <td><%= escape_html(i['reason'] || '-') %></td>
+              <td style="color:var(--muted)"><%= time_ago(i['created_at'] || i['timestamp']) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

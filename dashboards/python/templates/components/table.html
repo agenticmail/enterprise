@@ -1,0 +1,43 @@
+{#
+  Reusable data table component.
+
+  Usage:
+    {% from "components/table.html" import data_table %}
+    {{ data_table(headers, rows, empty_msg="No data yet", empty_icon="📋") }}
+
+  headers: list of column header strings, e.g. ["Name", "Email", "Role"]
+  rows: list of lists, where each inner list contains the HTML for each cell.
+        Use Markup or |safe in the caller to include badges/buttons.
+  empty_msg: message shown when rows is empty.
+  empty_icon: emoji shown above the empty message.
+#}
+
+{% macro data_table(headers, rows, empty_msg="No data yet", empty_icon="📋") %}
+{% if rows %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        {% for h in headers %}
+        <th>{{ h }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        {% for cell in row %}
+        <td>{{ cell }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty">
+  <span class="icon">{{ empty_icon }}</span>
+  {{ empty_msg }}
+</div>
+{% endif %}
+{% endmacro %}

@@ -1,0 +1,48 @@
+{
+  "id": "twitter",
+  "name": "Twitter/X",
+  "description": "Integrate with Twitter/X to post, search, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/twitter",
+  "license": "MIT",
+  "category": "social",
+  "risk": "medium",
+  "tags": [
+    "twitter",
+    "social"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "twitter"
+  },
+  "tools": [
+    {
+      "id": "twitter_post_tweet",
+      "name": "Post Tweet",
+      "description": "Post a new tweet to Twitter/X. Supports text content, reply threading, and quote tweets."
+    },
+    {
+      "id": "twitter_search_tweets",
+      "name": "Search Tweets",
+      "description": "Search for recent tweets on Twitter/X using the v2 search endpoint. Supports advanced query syntax including hashtags, mentions, and boolean operators."
+    },
+    {
+      "id": "twitter_get_user",
+      "name": "Get User",
+      "description": "Get a Twitter/X user profile by username. Returns name, bio, follower/following counts, and verification status."
+    },
+    {
+      "id": "twitter_list_followers",
+      "name": "List Followers",
+      "description": "List followers of a Twitter/X user by their user ID. Returns usernames, names, and bios."
+    },
+    {
+      "id": "twitter_get_timeline",
+      "name": "Get Timeline",
+      "description": "Get the recent tweets timeline for a Twitter/X user by their user ID. Returns their most recent tweets with engagement metrics."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

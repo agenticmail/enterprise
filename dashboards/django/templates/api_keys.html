@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">API Keys</h2>
+<p class="desc">Manage programmatic access</p>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Create Key</div>
+<form method="POST" style="display:flex;gap:10px;align-items:end">
+<input type="hidden" name="_action" value="create">
+<div class="fg" style="flex:1;margin:0"><label class="fl">Key Name</label><input class="input" name="name" required placeholder="e.g. CI/CD pipeline"></div>
+<button class="btn btn-p" type="submit">Create</button>
+</form>
+</div>
+<div class="card">
+{% if keys %}
+<table>
+<thead><tr><th>Name</th><th>Key</th><th>Last Used</th><th>Status</th><th></th></tr></thead>
+<tbody>
+{% for k in keys %}
+<tr>
+<td style="font-weight:600">{{ k.name }}</td>
+<td><code style="font-size:12px">{{ k.keyPrefix }}...</code></td>
+<td style="color:var(--muted);font-size:12px">{{ k.lastUsedAt|default:"Never" }}</td>
+<td>{{ k.status_badge|safe }}</td>
+<td>
+{% if not k.revoked %}
+<form method="POST" style="display:inline">
+<input type="hidden" name="_action" value="revoke">
+<input type="hidden" name="key_id" value="{{ k.id }}">
+<button class="btn btn-sm btn-d" type="submit">Revoke</button>
+</form>
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">&#x1f511; No API keys</div>
+{% endif %}
+</div>
+{% endblock %}

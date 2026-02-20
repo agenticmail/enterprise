@@ -1,0 +1,48 @@
+{
+  "id": "linkedin",
+  "name": "LinkedIn",
+  "description": "Integrate with LinkedIn to get, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/linkedin",
+  "license": "MIT",
+  "category": "social",
+  "risk": "medium",
+  "tags": [
+    "linkedin",
+    "social"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "linkedin"
+  },
+  "tools": [
+    {
+      "id": "linkedin_get_profile",
+      "name": "Get Profile",
+      "description": "Get the authenticated LinkedIn user's profile or another user's profile by URN. Returns name, headline, industry, and location."
+    },
+    {
+      "id": "linkedin_create_post",
+      "name": "Create Post",
+      "description": "Create a new post on LinkedIn on behalf of the authenticated user. Supports text content and visibility settings."
+    },
+    {
+      "id": "linkedin_list_connections",
+      "name": "List Connections",
+      "description": "List the authenticated LinkedIn user's connections. Returns names and profile information."
+    },
+    {
+      "id": "linkedin_search_people",
+      "name": "Search People",
+      "description": "Search for people on LinkedIn by keyword. Returns matching profiles with names, headlines, and locations."
+    },
+    {
+      "id": "linkedin_get_company",
+      "name": "Get Company",
+      "description": "Get a LinkedIn company page by its organization ID. Returns company name, description, industry, employee count, and website."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

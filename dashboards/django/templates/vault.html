@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">Vault</h2>
+<p class="desc">Manage secrets and credentials</p>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Add Secret</div>
+<form method="POST" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+<input type="hidden" name="_action" value="add">
+<div class="fg" style="flex:1;margin:0"><label class="fl">Name</label><input class="input" name="name" required placeholder="e.g. OPENAI_API_KEY"></div>
+<div class="fg" style="flex:1;margin:0"><label class="fl">Value</label><input class="input" type="password" name="value" required placeholder="Secret value"></div>
+<div class="fg" style="margin:0"><label class="fl">Category</label><select class="input" name="category"><option value="api_key">API Key</option><option value="deploy">Deploy</option><option value="cloud_storage">Cloud Storage</option><option value="skill_credential">Skill Credential</option><option value="custom" selected>Custom</option></select></div>
+<button class="btn btn-p" type="submit">Add</button>
+</form>
+</div>
+<div class="card">
+{% if secrets %}
+<table>
+<thead><tr><th>Name</th><th>Category</th><th>Created By</th><th>Created</th><th></th></tr></thead>
+<tbody>
+{% for s in secrets %}
+<tr>
+<td style="font-weight:600;font-family:monospace">{{ s.name }}</td>
+<td>{{ s.category_badge|safe }}</td>
+<td style="color:var(--muted);font-size:12px">{{ s.createdBy|default:s.created_by|default:"-" }}</td>
+<td style="color:var(--muted);font-size:12px">{{ s.createdAt|default:s.created_at|default:"-" }}</td>
+<td>
+<form method="POST" style="display:inline">
+<input type="hidden" name="_action" value="rotate">
+<input type="hidden" name="secret_id" value="{{ s.id }}">
+<button class="btn btn-sm btn-p" type="submit">Rotate</button>
+</form>
+<form method="POST" style="display:inline">
+<input type="hidden" name="_action" value="delete">
+<input type="hidden" name="secret_id" value="{{ s.id }}">
+<button class="btn btn-sm btn-d" type="submit">Delete</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">&#x1f512; No secrets stored</div>
+{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{
+  "id": "drift",
+  "name": "Drift Conversational Marketing",
+  "description": "Integrate with Drift Conversational Marketing to list, send, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/drift",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "drift",
+    "conversational",
+    "marketing",
+    "crm"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "drift"
+  },
+  "tools": [
+    {
+      "id": "drift_list_conversations",
+      "name": "List Conversations",
+      "description": "List conversations from Drift. Returns conversation IDs, statuses, and contact information."
+    },
+    {
+      "id": "drift_send_message",
+      "name": "Send Message",
+      "description": "Send a message in a Drift conversation. Can send as a user (agent) or post a chat message."
+    },
+    {
+      "id": "drift_list_contacts",
+      "name": "List Contacts",
+      "description": "List contacts from Drift. Returns contact names, emails, and companies."
+    },
+    {
+      "id": "drift_get_conversation",
+      "name": "Get Conversation",
+      "description": "Get detailed information about a specific Drift conversation, including its messages."
+    },
+    {
+      "id": "drift_create_contact",
+      "name": "Create Contact",
+      "description": "Create a new contact in Drift. Provide at least an email address."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

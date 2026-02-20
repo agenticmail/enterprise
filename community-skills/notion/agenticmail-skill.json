@@ -1,0 +1,72 @@
+{
+  "id": "notion",
+  "name": "Notion Sync",
+  "description": "Read, create, and update Notion pages and databases. Supports rich content blocks.",
+  "version": "1.1.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/notion",
+  "license": "Apache-2.0",
+  "category": "productivity",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "notion",
+    "scopes": [
+      "read_content",
+      "update_content",
+      "insert_content"
+    ]
+  },
+  "tags": [
+    "notion",
+    "wiki",
+    "documentation"
+  ],
+  "tools": [
+    {
+      "id": "notion_read_page",
+      "name": "Read Page",
+      "description": "Read a Notion page"
+    },
+    {
+      "id": "notion_create_page",
+      "name": "Create Page",
+      "description": "Create a new page"
+    },
+    {
+      "id": "notion_update_page",
+      "name": "Update Page",
+      "description": "Update page content"
+    },
+    {
+      "id": "notion_query_database",
+      "name": "Query Database",
+      "description": "Query a Notion database"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultDatabase": {
+        "type": "string",
+        "description": "Default Notion database ID to query"
+      },
+      "syncDirection": {
+        "type": "string",
+        "enum": [
+          "one-way",
+          "two-way"
+        ],
+        "default": "one-way",
+        "description": "Direction of data synchronization"
+      },
+      "autoFormatBlocks": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically format content blocks on sync"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

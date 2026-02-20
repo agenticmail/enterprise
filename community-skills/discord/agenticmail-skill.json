@@ -1,0 +1,65 @@
+{
+  "id": "discord",
+  "name": "Discord Bot",
+  "description": "Send messages, manage servers, and moderate channels in Discord.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/discord",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "auth": {
+    "type": "token",
+    "name": "Discord Bot Token",
+    "envVar": "DISCORD_BOT_TOKEN",
+    "description": "Bot token from Discord Developer Portal"
+  },
+  "tags": [
+    "discord",
+    "chat",
+    "community",
+    "moderation"
+  ],
+  "tools": [
+    {
+      "id": "discord_send_message",
+      "name": "Send Message",
+      "description": "Send a message to a Discord channel"
+    },
+    {
+      "id": "discord_create_channel",
+      "name": "Create Channel",
+      "description": "Create a new channel in a server"
+    },
+    {
+      "id": "discord_manage_roles",
+      "name": "Manage Roles",
+      "description": "Assign or remove roles from members"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultGuild": {
+        "type": "string",
+        "description": "Default Discord server (guild) ID"
+      },
+      "defaultChannel": {
+        "type": "string",
+        "description": "Default Discord channel to send messages to"
+      },
+      "commandPrefix": {
+        "type": "string",
+        "default": "!",
+        "description": "Prefix for bot commands"
+      },
+      "embedColor": {
+        "type": "string",
+        "default": "#5865F2",
+        "description": "Default color for embed messages"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

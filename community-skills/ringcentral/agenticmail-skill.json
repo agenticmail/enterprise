@@ -1,0 +1,43 @@
+{
+  "id": "ringcentral",
+  "name": "RingCentral",
+  "description": "Integrate with RingCentral to send, list, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/ringcentral",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "ringcentral",
+    "communication"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "ringcentral"
+  },
+  "tools": [
+    {
+      "id": "ringcentral_send_sms",
+      "name": "Send Sms",
+      "description": "Send an SMS message via RingCentral. Requires the sender extension phone number and recipient number."
+    },
+    {
+      "id": "ringcentral_list_extensions",
+      "name": "List Extensions",
+      "description": "List extensions (users, departments, IVR menus) on the RingCentral account."
+    },
+    {
+      "id": "ringcentral_get_call_log",
+      "name": "Get Call Log",
+      "description": "Retrieve the call log for the authenticated user or account. Filter by type, direction, and date range."
+    },
+    {
+      "id": "ringcentral_send_fax",
+      "name": "Send Fax",
+      "description": "Send a fax via RingCentral. Provide the recipient fax number and text content to fax."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

@@ -22,8 +22,17 @@ if (!user) {
 await db.updateSettings({ name: 'AgenticMail', subdomain: 'agenticmail', domain: 'agenticmail.io' });
 console.log('✅ Company: AgenticMail / agenticmail.io');
 
-const key = await db.createApiKey({ name: 'live-key', createdBy: user.id, scopes: ['read', 'write', 'admin'] });
-console.log('✅ API Key:', key.plaintext);
+// Check if API key already exists before creating a new one
+const existingKeys = await db.listApiKeys({ createdBy: user.id });
+let keyPlaintext;
+if (existingKeys.length > 0) {
+  console.log('✅ API Key exists:', existingKeys[0].name, '(prefix:', existingKeys[0].keyPrefix + '...)');
+  keyPlaintext = '(existing key — plaintext only shown on creation)';
+} else {
+  const key = await db.createApiKey({ name: 'live-key', createdBy: user.id, scopes: ['read', 'write', 'admin'] });
+  keyPlaintext = key.plaintext;
+  console.log('✅ API Key:', keyPlaintext);
+}
 
 const jwtSecret = randomUUID() + randomUUID();
 const server = createServer({ port: 3200, db, jwtSecret, corsOrigins: ['*'], rateLimit: 200 });
@@ -31,7 +40,7 @@ await server.start();
 
 console.log('');
 console.log('Login: ope@agenticmail.io / Enterprise2026!');
-console.log('Key:  ', key.plaintext);
+console.log('Key:  ', keyPlaintext);
 
 // Keep process alive
 process.on('SIGINT', () => { console.log('\nShutting down...'); process.exit(0); });

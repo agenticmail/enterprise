@@ -1,0 +1,48 @@
+{
+  "id": "wrike",
+  "name": "Wrike",
+  "description": "Integrate with Wrike to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/wrike",
+  "license": "MIT",
+  "category": "project-management",
+  "risk": "medium",
+  "tags": [
+    "wrike",
+    "project-management"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "wrike"
+  },
+  "tools": [
+    {
+      "id": "wrike_list_tasks",
+      "name": "List Tasks",
+      "description": "List tasks in Wrike. Optionally filter by folder, status, or custom fields."
+    },
+    {
+      "id": "wrike_create_task",
+      "name": "Create Task",
+      "description": "Create a new task in a Wrike folder or project. Specify title, description, assignees, and dates."
+    },
+    {
+      "id": "wrike_list_folders",
+      "name": "List Folders",
+      "description": "List folders and projects in Wrike. Optionally filter within a specific parent folder."
+    },
+    {
+      "id": "wrike_list_projects",
+      "name": "List Projects",
+      "description": "List all projects in Wrike. Returns project names, statuses, and owner info."
+    },
+    {
+      "id": "wrike_update_task",
+      "name": "Update Task",
+      "description": "Update an existing Wrike task. Change title, description, status, assignees, or dates."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

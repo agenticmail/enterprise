@@ -42,6 +42,26 @@ export function requestLogger(): MiddlewareHandler {
   };
 }
 
+// ─── HTTPS Enforcement ──────────────────────────────────
+
+/**
+ * Require HTTPS for sensitive routes (vault, credentials).
+ * Skipped in development mode (NODE_ENV !== 'production').
+ */
+export function requireHttps(): MiddlewareHandler {
+  return async (c: Context, next: Next) => {
+    if (process.env.NODE_ENV !== 'production') return next();
+    const isSecure =
+      c.req.url.startsWith('https://') ||
+      c.req.header('x-forwarded-proto') === 'https' ||
+      c.req.header('x-forwarded-ssl') === 'on';
+    if (!isSecure) {
+      return c.json({ error: 'HTTPS required for credential operations', code: 'HTTPS_REQUIRED' }, 403);
+    }
+    await next();
+  };
+}
+
 // ─── Rate Limiting ───────────────────────────────────────
 
 interface RateLimitConfig {
@@ -240,11 +260,19 @@ export function auditLogger(db: DatabaseAdapter): MiddlewareHandler {
       };
       const action = `${resource}.${actionMap[method] || method.toLowerCase()}`;
 
+      const userEmail = c.get('userEmail' as any) || undefined;
+      const userRole = c.get('userRole' as any) || undefined;
+
       await db.logEvent({
         actor: userId,
         actorType: 'user',
         action,
         resource: path,
+        details: {
+          ...(userEmail ? { email: userEmail } : {}),
+          ...(userRole ? { role: userRole } : {}),
+          method,
+        },
         ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip'),
       });
     } catch {
@@ -284,3 +312,8 @@ export function requireRole(minRole: Role): MiddlewareHandler {
     return next();
   };
 }
+
+// ─── Re-exports ──────────────────────────────────────────
+
+export { ipAccessControl, invalidateFirewallCache } from './firewall.js';
+export { createEgressFilter } from './egress-filter.js';

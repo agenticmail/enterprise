@@ -1,0 +1,60 @@
+{
+  "id": "pipedrive-deals",
+  "name": "Pipedrive Deals",
+  "description": "Manage Pipedrive deals, contacts, and organizations. Track sales pipeline and activities.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/pipedrive-deals",
+  "license": "MIT",
+  "category": "sales",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "pipedrive",
+    "scopes": ["deals:full", "contacts:full", "activities:full"]
+  },
+  "tags": ["pipedrive", "crm", "sales", "pipeline"],
+  "tools": [
+    {
+      "id": "pipedrive_create_deal",
+      "name": "Create Deal",
+      "description": "Create a new deal in Pipedrive"
+    },
+    {
+      "id": "pipedrive_update_deal",
+      "name": "Update Deal",
+      "description": "Update deal stage or value"
+    },
+    {
+      "id": "pipedrive_list_activities",
+      "name": "List Activities",
+      "description": "List scheduled and completed activities"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultPipeline": {
+        "type": "string",
+        "description": "Default pipeline to use when creating deals"
+      },
+      "defaultCurrency": {
+        "type": "string",
+        "description": "Default currency for deal values",
+        "default": "USD"
+      },
+      "autoCreateActivities": {
+        "type": "boolean",
+        "description": "Automatically create follow-up activities for new deals",
+        "default": true
+      },
+      "lostReasonRequired": {
+        "type": "boolean",
+        "description": "Require a reason when marking deals as lost",
+        "default": false
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

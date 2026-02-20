@@ -1,0 +1,73 @@
+{
+  "id": "salesforce",
+  "name": "Salesforce CRM",
+  "description": "Manage Salesforce records, opportunities, contacts, and run SOQL queries.",
+  "version": "1.3.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/salesforce",
+  "license": "MIT",
+  "category": "sales",
+  "risk": "high",
+  "auth": {
+    "type": "oauth2",
+    "provider": "salesforce",
+    "scopes": [
+      "api",
+      "refresh_token",
+      "full"
+    ]
+  },
+  "tags": [
+    "salesforce",
+    "crm",
+    "sales"
+  ],
+  "tools": [
+    {
+      "id": "sf_create_record",
+      "name": "Create Record",
+      "description": "Create a Salesforce record"
+    },
+    {
+      "id": "sf_update_record",
+      "name": "Update Record",
+      "description": "Update a Salesforce record"
+    },
+    {
+      "id": "sf_query",
+      "name": "SOQL Query",
+      "description": "Run a SOQL query"
+    },
+    {
+      "id": "sf_list_opportunities",
+      "name": "List Opportunities",
+      "description": "List open opportunities"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultRecordType": {
+        "type": "string",
+        "description": "Default record type for new records"
+      },
+      "sandboxMode": {
+        "type": "boolean",
+        "default": false,
+        "description": "Connect to a Salesforce sandbox instead of production"
+      },
+      "autoLogActivities": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically log activities on records"
+      },
+      "apiVersion": {
+        "type": "string",
+        "default": "v59.0",
+        "description": "Salesforce API version to use"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

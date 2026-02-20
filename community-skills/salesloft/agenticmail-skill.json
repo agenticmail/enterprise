@@ -1,0 +1,48 @@
+{
+  "id": "salesloft",
+  "name": "SalesLoft",
+  "description": "Integrate with SalesLoft to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/salesloft",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "salesloft",
+    "crm"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "salesloft"
+  },
+  "tools": [
+    {
+      "id": "salesloft_list_people",
+      "name": "List People",
+      "description": "List people (contacts) from SalesLoft with optional filtering by email, updated date, or cadence membership."
+    },
+    {
+      "id": "salesloft_create_person",
+      "name": "Create Person",
+      "description": "Create a new person in SalesLoft. Provide at least an email address."
+    },
+    {
+      "id": "salesloft_list_cadences",
+      "name": "List Cadences",
+      "description": "List cadences from SalesLoft. Returns cadence names, types, and people counts."
+    },
+    {
+      "id": "salesloft_add_to_cadence",
+      "name": "Add To Cadence",
+      "description": "Add a person to a SalesLoft cadence. Creates a cadence membership linking the person to the cadence."
+    },
+    {
+      "id": "salesloft_list_activities",
+      "name": "List Activities",
+      "description": "List activities (emails, calls, etc.) from SalesLoft. Filter by type, person, or date range."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

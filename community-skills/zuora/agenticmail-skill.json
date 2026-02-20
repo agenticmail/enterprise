@@ -1,0 +1,55 @@
+{
+  "id": "zuora",
+  "name": "Zuora",
+  "description": "Integrate with Zuora to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/zuora",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "zuora",
+    "finance"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "zuora"
+  },
+  "tools": [
+    {
+      "id": "zuora_list_subscriptions",
+      "name": "List Subscriptions",
+      "description": "List subscriptions in Zuora. Optionally filter by account or status. Returns subscription numbers, statuses, and terms."
+    },
+    {
+      "id": "zuora_create_subscription",
+      "name": "Create Subscription",
+      "description": "Create a new subscription in Zuora. Specify an account and rate plan."
+    },
+    {
+      "id": "zuora_list_accounts",
+      "name": "List Accounts",
+      "description": "List billing accounts in Zuora. Returns account names, numbers, statuses, and balances."
+    },
+    {
+      "id": "zuora_list_invoices",
+      "name": "List Invoices",
+      "description": "List invoices in Zuora. Optionally filter by account. Returns invoice numbers, amounts, statuses, and dates."
+    },
+    {
+      "id": "zuora_query",
+      "name": "Query",
+      "description": "Execute a ZOQL (Zuora Object Query Language) query against Zuora. Returns matching records. Example: \"SELECT Id, Name, Status FROM Account WHERE Status = 'Active'\"."
+    }
+  ],
+  "configSchema": {
+    "sandbox": {
+      "type": "boolean",
+      "label": "Sandbox Mode",
+      "description": "Use Zuora sandbox environment for testing",
+      "default": false
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

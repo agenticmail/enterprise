@@ -1,0 +1,70 @@
+{
+  "id": "asana-tasks",
+  "name": "Asana Tasks",
+  "description": "Create, assign, and track tasks in Asana. Manage projects, sections, and due dates.",
+  "version": "1.4.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/asana-tasks",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "asana",
+    "scopes": [
+      "default"
+    ]
+  },
+  "tags": [
+    "asana",
+    "tasks",
+    "project-management",
+    "collaboration"
+  ],
+  "tools": [
+    {
+      "id": "asana_create_task",
+      "name": "Create Task",
+      "description": "Create a new task in a project"
+    },
+    {
+      "id": "asana_update_task",
+      "name": "Update Task",
+      "description": "Update task details, assignee, or due date"
+    },
+    {
+      "id": "asana_list_tasks",
+      "name": "List Tasks",
+      "description": "List tasks in a project or section"
+    },
+    {
+      "id": "asana_complete_task",
+      "name": "Complete Task",
+      "description": "Mark a task as completed"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultWorkspace": {
+        "type": "string",
+        "description": "Default Asana workspace to use when none is specified"
+      },
+      "defaultProject": {
+        "type": "string",
+        "description": "Default Asana project to use when none is specified"
+      },
+      "autoFollowTasks": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically follow tasks that are created or updated"
+      },
+      "defaultAssignee": {
+        "type": "string",
+        "description": "Email of default assignee"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

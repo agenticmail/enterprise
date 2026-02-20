@@ -1,183 +1,200 @@
 # AgenticMail Enterprise Architecture
 
 ## Vision
-Company installs `npx agenticmail-enterprise` → runs setup wizard → gets a cloud-hosted admin dashboard URL → manages AI agent identities, email, auth, compliance from that dashboard.
+Deploy and manage AI agents as employees within organizations. Companies configure agent skills, permissions, and deployment targets from a web dashboard. Agents run in Docker containers, VPS servers, or cloud platforms (Fly.io, Railway) — fully provisioned, monitored, and governed.
 
 ## Core Principles
-1. **Cloud-first**: No local servers. Deploys to user's cloud or our managed infra.
-2. **Bring your own database**: Support Postgres, MySQL, SQLite, MongoDB, DynamoDB, CockroachDB, PlanetScale, Turso, Supabase, Neon — anything.
-3. **Bring your own cloud**: Deploy to Fly.io, Railway, Render, AWS, GCP, Azure, Vercel, or managed by us.
-4. **Auto-provisioned URL**: Instant `<company>.agenticmail.cloud` subdomain, with custom domain support.
-5. **Admin UI**: Web dashboard for agent CRUD, audit logs, rules, compliance.
+1. **Bring your own database**: SQLite, Postgres, MySQL, MongoDB, DynamoDB, Turso — any SQL or NoSQL backend
+2. **Bring your own cloud**: Docker, VPS (SSH), Fly.io, Railway, or local development
+3. **Write-through persistence**: All engine state lives in memory for fast reads, with every mutation persisted to the database. On startup, state is hydrated from DB.
+4. **Single-file dashboard**: React 18 admin UI served as a single HTML file — no build step, no node_modules on the frontend
+5. **Hono API server**: Lightweight, fast HTTP framework with full middleware stack
 
-## User Journey
-
-```
-$ npx agenticmail-enterprise
-
-🏢 AgenticMail Enterprise Setup
-
-? Company name: Acme Corp
-? Admin email: admin@acme.com
-? Database: (choose one)
-  ▸ PostgreSQL (connection string)
-    MySQL (connection string)
-    MongoDB (connection string)
-    SQLite (embedded)
-    Turso (LibSQL)
-    PlanetScale (MySQL-compatible)
-    Supabase (Postgres)
-    Neon (Postgres)
-    DynamoDB (AWS)
-    CockroachDB
-    
-? Database connection: postgresql://...
-? Deploy to: (choose one)
-  ▸ AgenticMail Cloud (managed, free tier)
-    Fly.io
-    Railway
-    Render
-    Docker (self-hosted)
-    
-? Custom domain (optional): mail.acme.com
-
-⏳ Provisioning...
-  ✓ Database schema created
-  ✓ Admin account created  
-  ✓ DKIM/SPF/DMARC configured
-  ✓ Deployed to agenticmail.cloud
-  
-🎉 Your dashboard is live!
-   URL: https://acme.agenticmail.cloud
-   Admin: admin@acme.com (check email for password)
-   
-   Add custom domain later:
-   CNAME mail.acme.com → acme.agenticmail.cloud
-```
-
-## Package Structure
+## System Architecture
 
 ```
-@agenticmail/enterprise
-├── src/
-│   ├── index.ts              # CLI entry point
-│   ├── setup/
-│   │   ├── wizard.ts         # Interactive setup flow
-│   │   ├── database.ts       # DB adapter factory
-│   │   └── deploy.ts         # Cloud deployment orchestrator
-│   ├── db/
-│   │   ├── adapter.ts        # Abstract DB interface
-│   │   ├── postgres.ts       # PostgreSQL adapter
-│   │   ├── mysql.ts          # MySQL adapter
-│   │   ├── mongodb.ts        # MongoDB adapter
-│   │   ├── sqlite.ts         # SQLite adapter (dev/small teams)
-│   │   ├── turso.ts          # Turso/LibSQL adapter
-│   │   ├── dynamodb.ts       # DynamoDB adapter
-│   │   └── migrations/       # Schema migrations (per adapter)
-│   ├── auth/
-│   │   ├── saml.ts           # SAML 2.0 SP
-│   │   ├── oidc.ts           # OAuth 2.0 / OpenID Connect
-│   │   ├── scim.ts           # SCIM provisioning
-│   │   ├── api-keys.ts       # API key management
-│   │   └── sessions.ts       # Session management
-│   ├── admin/
-│   │   ├── dashboard.ts      # Admin API routes
-│   │   ├── agents.ts         # Agent CRUD
-│   │   ├── audit.ts          # Audit log viewer
-│   │   ├── rules.ts          # Email rules management
-│   │   ├── compliance.ts     # DLP, retention policies
-│   │   └── billing.ts        # Usage tracking, plans
-│   ├── deploy/
-│   │   ├── fly.ts            # Fly.io deployment
-│   │   ├── railway.ts        # Railway deployment
-│   │   ├── render.ts         # Render deployment
-│   │   ├── docker.ts         # Docker/self-hosted
-│   │   └── managed.ts        # AgenticMail Cloud (our infra)
-│   ├── ui/                   # Admin dashboard (React/Next.js)
-│   │   ├── app/
-│   │   │   ├── layout.tsx
-│   │   │   ├── page.tsx          # Dashboard home
-│   │   │   ├── agents/           # Agent management
-│   │   │   ├── audit/            # Audit logs
-│   │   │   ├── settings/         # Company settings
-│   │   │   ├── auth/             # SSO config
-│   │   │   └── compliance/       # DLP, retention
-│   │   └── components/
-│   └── server.ts             # Express/Hono server (API + UI)
-└── package.json
+┌──────────────────────────────────────────────────────────────┐
+│                    Dashboard (Web UI)                         │
+│              Single HTML · React 18 · CDN-loaded             │
+└─────────────────────────┬────────────────────────────────────┘
+                          │ HTTP/SSE
+┌─────────────────────────▼────────────────────────────────────┐
+│                   Hono API Server (server.ts)                 │
+│                                                               │
+│  ┌──────────┐  ┌───────────┐  ┌────────────────────────────┐ │
+│  │  Auth     │  │  Admin    │  │         Engine              │ │
+│  │  /auth/*  │  │  /api/*   │  │  /api/engine/*              │ │
+│  │          │  │           │  │                              │ │
+│  │  JWT     │  │  Users    │  │  Skills · PermissionEngine   │ │
+│  │  Login   │  │  Agents   │  │  AgentConfigGenerator        │ │
+│  │  Cookies │  │  Audit    │  │  DeploymentEngine            │ │
+│  │  API Keys│  │  Keys     │  │  ApprovalEngine (DB)         │ │
+│  │  SAML*   │  │  Settings │  │  AgentLifecycleManager (DB)  │ │
+│  │  OIDC*   │  │  Rules    │  │  KnowledgeBaseEngine (DB)    │ │
+│  └──────────┘  └───────────┘  │  TenantManager (DB)          │ │
+│                               │  ActivityTracker (DB)         │ │
+│                               │  Runtime Hooks               │ │
+│                               │  AgenticMail Bridge          │ │
+│                               └────────────────────────────┘ │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │               Middleware Stack                           │ │
+│  │  Request ID · CORS · Rate Limit · Security Headers      │ │
+│  │  Error Handler · Audit Logger · RBAC (requireRole)      │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │               Resilience Layer                           │ │
+│  │  CircuitBreaker · HealthMonitor · withRetry             │ │
+│  │  RateLimiter · KeyedRateLimiter                         │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────┬────────────────────────────────────┘
+                          │
+          ┌───────────────┼───────────────┐
+          ▼               ▼               ▼
+┌─────────────┐  ┌──────────────┐  ┌──────────────┐
+│ Admin DB    │  │  Engine DB   │  │  Deployer    │
+│ (adapter.ts)│  │  (db-adapter) │  │              │
+│             │  │              │  │  Docker      │
+│ Users       │  │ 15 tables:   │  │  SSH/VPS     │
+│ Agents      │  │ managed_agents│  │  Fly.io      │
+│ API Keys    │  │ state_history │  │  Railway     │
+│ Audit Log   │  │ permission_   │  │              │
+│ Settings    │  │  profiles    │  │  execCommand  │
+│ Rules       │  │ organizations│  │  execSSH     │
+│             │  │ knowledge_   │  │              │
+│ 6 backends: │  │  bases       │  └──────────────┘
+│ SQLite      │  │ kb_documents │
+│ Postgres    │  │ kb_chunks    │
+│ MySQL       │  │ tool_calls   │
+│ MongoDB     │  │ activity_    │
+│ DynamoDB    │  │  events      │
+│ Turso       │  │ conversations│
+│             │  │ approval_    │
+└─────────────┘  │  requests    │
+                 │ approval_    │
+                 │  policies    │
+                 └──────────────┘
+
+* SAML/OIDC = stubs returning 501 (planned)
 ```
 
-## Database Adapter Interface
+## Engine Persistence Model
 
-```typescript
-interface DatabaseAdapter {
-  // Connection
-  connect(config: DatabaseConfig): Promise<void>;
-  disconnect(): Promise<void>;
-  migrate(): Promise<void>;
-  
-  // Agents
-  createAgent(agent: AgentInput): Promise<Agent>;
-  getAgent(id: string): Promise<Agent | null>;
-  listAgents(filters?: AgentFilters): Promise<Agent[]>;
-  updateAgent(id: string, updates: Partial<Agent>): Promise<Agent>;
-  deleteAgent(id: string): Promise<void>;
-  archiveAgent(id: string): Promise<DeletionReport>;
-  
-  // Email
-  storeEmail(email: StoredEmail): Promise<void>;
-  getEmail(uid: number): Promise<StoredEmail | null>;
-  searchEmails(query: SearchQuery): Promise<StoredEmail[]>;
-  
-  // Audit
-  logEvent(event: AuditEvent): Promise<void>;
-  queryAuditLog(filters: AuditFilters): Promise<AuditEvent[]>;
-  
-  // Auth
-  createUser(user: UserInput): Promise<User>;
-  getUser(id: string): Promise<User | null>;
-  getUserByEmail(email: string): Promise<User | null>;
-  
-  // API Keys
-  createApiKey(key: ApiKeyInput): Promise<ApiKey>;
-  validateApiKey(key: string): Promise<ApiKey | null>;
-  revokeApiKey(id: string): Promise<void>;
-  
-  // Rules & Compliance
-  createRule(rule: RuleInput): Promise<Rule>;
-  getRules(): Promise<Rule[]>;
-  getRetentionPolicy(): Promise<RetentionPolicy>;
-  setRetentionPolicy(policy: RetentionPolicy): Promise<void>;
-}
+All engine modules use a **write-through cache** pattern:
+
+1. **In-memory Maps** for fast reads (sub-millisecond)
+2. **Every write** also persists to the database via `EngineDatabase`
+3. **On startup**, `loadFromDb()` hydrates all Maps from the database
+4. **DB writes are fire-and-forget** for activity/events (non-blocking via `.catch(() => {})`)
+5. **DB writes are awaited** for agents/orgs/knowledge bases (data integrity)
+
+### Wiring Flow
+```
+server.ts
+  └─ setEngineDb(engineDb)        // Called on first /api/engine/* request
+       ├─ lifecycle.setDb(db)      // Loads managed_agents into memory
+       ├─ approvals.setDb(db)      // Loads pending approval_requests
+       ├─ knowledgeBase.setDb(db)  // Loads knowledge_bases + documents + chunks
+       ├─ activity.setDb(db)       // Stores reference for fire-and-forget writes
+       ├─ tenants.setDb(db)        // Loads organizations into memory
+       └─ permissionEngine.setDb(db) // Stores reference for profile persistence
 ```
 
-## Deployment Architecture
+### Migration System
+- 15 engine tables defined in `db-schema.ts`
+- Versioned migrations with tracking table `engine_migrations`
+- Auto-converts SQLite DDL to Postgres/MySQL dialect
+- NoSQL support via optional `nosql()` migration callbacks for MongoDB/DynamoDB
 
-### AgenticMail Cloud (Managed)
-- Fly.io multi-region (us-east, eu-west, ap-southeast)
-- Customer gets `<company>.agenticmail.cloud` subdomain
-- Wildcard TLS via Fly.io
-- Shared Fly.io org, isolated apps per customer
-- Customer can add custom domain (CNAME → our subdomain)
+## Agent Lifecycle State Machine
 
-### Self-Hosted
-- Single Docker image: `docker run -p 3000:3000 agenticmail/enterprise`
-- Or via CLI: `npx agenticmail-enterprise start`
-- Env vars for DB connection, SMTP, domain
+```
+draft → configuring → ready → provisioning → deploying → starting → running
+                                                                      ↕
+                                                                   degraded
+                                                                      ↓
+                                         stopped ← error ← destroying
+```
 
-## Admin Dashboard Pages
+- **12 states**: draft, configuring, ready, provisioning, deploying, starting, running, degraded, stopped, error, updating, destroying
+- **Health check loop**: 30-second interval when running/degraded
+- **Auto-recovery**: Restarts after 5 consecutive health failures
+- **Budget enforcement**: Auto-stop when monthly token/cost budget exceeded
+- **State transitions persisted** to `agent_state_history` table
 
-1. **Dashboard** — Overview: active agents, emails sent/received, health
-2. **Agents** — Create, edit, archive, delete. Role assignment. Email config per agent.
-3. **Audit Log** — Who did what, when. Filterable, exportable.
-4. **Authentication** — SAML/OIDC setup, user management, API keys
-5. **Compliance** — DLP rules, retention policies, outbound guards
-6. **Email Rules** — Server-side rules (auto-tag, auto-move, auto-reply)
-7. **Settings** — Company info, domain, SMTP config, billing
-8. **Integrations** — Slack, Teams, Discord notifications
+## File Structure
 
-## Pricing Tiers (Future)
-- **Free**: 3 agents, 1K emails/mo, community support
-- **Team**: 25 agents, 50K emails/mo, SSO, audit logs — $49/mo
-- **Enterprise**: Unlimited, SCIM, DLP, retention, SLA, dedicated support — $299/mo
-- **Self-Hosted**: Unlimited, your infra — $99/mo license
+```
+enterprise/src/
+├── cli.ts                      # CLI entry point (npx @agenticmail/enterprise)
+├── server.ts                   # Hono server: middleware, auth, route mounting
+├── index.ts                    # Public API exports
+│
+├── auth/
+│   └── routes.ts               # JWT login, cookies, refresh, SAML/OIDC stubs
+│
+├── admin/
+│   └── routes.ts               # Users, Agents, API Keys, Audit, Settings, Rules CRUD
+│
+├── middleware/
+│   └── index.ts                # Rate limiter, security headers, audit logger, RBAC, error handler
+│
+├── lib/
+│   └── resilience.ts           # CircuitBreaker, HealthMonitor, withRetry, RateLimiter
+│
+├── db/                         # Admin database adapters (6 backends)
+│   ├── adapter.ts              # Abstract DatabaseAdapter interface
+│   ├── factory.ts              # createAdapter() factory
+│   ├── sql-schema.ts           # Shared DDL + migrations
+│   ├── sqlite.ts               # SQLite (better-sqlite3)
+│   ├── postgres.ts             # PostgreSQL (pg)
+│   ├── mysql.ts                # MySQL (mysql2)
+│   ├── mongodb.ts              # MongoDB
+│   ├── dynamodb.ts             # DynamoDB (@aws-sdk)
+│   └── turso.ts                # Turso/LibSQL (@libsql/client)
+│
+├── engine/                     # Agent management platform (11 subsystems)
+│   ├── index.ts                # Public re-exports
+│   ├── routes.ts               # All engine REST endpoints (50+)
+│   ├── skills.ts               # 38 skills, 5 presets, PermissionEngine (DB-persisted)
+│   ├── agent-config.ts         # AgentConfigGenerator: workspace files, gateway, docker-compose, systemd
+│   ├── deployer.ts             # DeploymentEngine: Docker, VPS/SSH, Fly.io, Railway
+│   ├── lifecycle.ts            # AgentLifecycleManager: state machine, health checks (DB-persisted)
+│   ├── approvals.ts            # ApprovalEngine: policies, requests, decisions (DB-persisted)
+│   ├── knowledge.ts            # KnowledgeBaseEngine: docs, chunking, embeddings, RAG (DB-persisted)
+│   ├── tenant.ts               # TenantManager: orgs, plans, limits, usage (DB-persisted)
+│   ├── activity.ts             # ActivityTracker: events, tool calls, conversations, SSE (DB-persisted)
+│   ├── tool-catalog.ts         # 167 tool IDs mapped to skills
+│   ├── runtime/                # Runtime hooks and plugin integration
+│   ├── agenticmail-bridge.ts   # Bridge to AgenticMail API
+│   ├── db-adapter.ts           # EngineDatabase wrapper (682 lines, all CRUD implemented)
+│   └── db-schema.ts            # Engine DDL: 15 tables, versioned migrations, dialect converters
+│
+├── deploy/                     # Cloud deployment
+│   ├── fly.ts                  # Fly.io Machines API
+│   └── managed.ts              # Managed cloud provisioning
+│
+├── setup/                      # CLI setup wizard
+│   ├── index.ts                # Wizard orchestrator
+│   ├── company.ts              # Company info prompts
+│   ├── database.ts             # Database selection
+│   ├── deployment.ts           # Deployment target
+│   ├── domain.ts               # Custom domain
+│   └── provision.ts            # Provisioning logic
+│
+└── dashboard/
+    └── index.html              # Admin UI (single HTML, React 18 from CDN)
+```
+
+## Key Design Decisions
+
+1. **Single HTML dashboard**: No build step. React 18 + ReactDOM loaded from CDN. All components defined inline. Served at `/dashboard`. This keeps the package small and eliminates frontend toolchain complexity.
+
+2. **Lazy engine initialization**: Engine routes and EngineDatabase are initialized on first `/api/engine/*` request (not at server startup). This avoids blocking startup and allows the admin DB to be ready first.
+
+3. **Two database layers**: Admin DB (DatabaseAdapter) handles users/agents/audit/settings. Engine DB (EngineDatabase) handles lifecycle/approvals/knowledge/activity/tenants. Both can use the same underlying database connection, but the Engine DB has its own tables and migration system.
+
+4. **Write-through + fire-and-forget**: Critical data (agents, orgs, knowledge bases) uses `await db.upsert()`. High-volume data (activity events, tool calls) uses `db.insert().catch(() => {})` to avoid blocking the request path.
+
+5. **Module-level singletons with late binding**: Engine modules are instantiated at module load time (top of routes.ts) as singletons. Database is injected later via `setDb()` when `setEngineDb()` is called. This allows routes to be defined before the DB is ready.

@@ -1,0 +1,43 @@
+{
+  "id": "webex",
+  "name": "Webex",
+  "description": "Integrate with Webex to send, list, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/webex",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "webex",
+    "communication"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "webex"
+  },
+  "tools": [
+    {
+      "id": "webex_send_message",
+      "name": "Send Message",
+      "description": "Send a message to a Webex room (space). Provide the room ID and message text. Supports Markdown formatting."
+    },
+    {
+      "id": "webex_list_rooms",
+      "name": "List Rooms",
+      "description": "List Webex rooms (spaces) the authenticated user belongs to. Returns room names, IDs, and types."
+    },
+    {
+      "id": "webex_create_room",
+      "name": "Create Room",
+      "description": "Create a new Webex room (space). Provide a title for the room."
+    },
+    {
+      "id": "webex_list_people",
+      "name": "List People",
+      "description": "Search for people in the Webex organization. Filter by email, display name, or organization ID."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

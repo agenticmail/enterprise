@@ -1,0 +1,172 @@
+name: Validate Community Skills
+
+on:
+  pull_request:
+    paths:
+      - 'community-skills/**'
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Find changed skill directories
+        id: changed
+        run: |
+          CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- community-skills/ || true)
+          DIRS=$(echo "$CHANGED" | grep -oP 'community-skills/[^/]+' | sort -u | grep -v '_template' || true)
+          echo "dirs<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIRS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          COUNT=$(echo "$DIRS" | grep -c '.' || echo "0")
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Validate each skill
+        id: validate
+        if: steps.changed.outputs.count != '0'
+        run: |
+          FAILED=0
+          RESULTS=""
+          while IFS= read -r dir; do
+            [ -z "$dir" ] && continue
+            SKILL_ID=$(basename "$dir")
+            echo "::group::Validating $SKILL_ID"
+            if [ -f "$dir/agenticmail-skill.json" ]; then
+              OUTPUT=$(node dist/cli.js validate "$dir" --json 2>&1)
+              echo "$OUTPUT"
+              VALID=$(echo "$OUTPUT" | node -e "const d=require('fs').readFileSync('/dev/stdin','utf-8'); try{const j=JSON.parse(d); console.log(j.results?.[0]?.valid ? 'true':'false')}catch{console.log('false')}")
+              if [ "$VALID" = "true" ]; then
+                RESULTS="${RESULTS}| \`${SKILL_ID}\` | ✅ Passed | — |\n"
+              else
+                ERRORS=$(echo "$OUTPUT" | node -e "const d=require('fs').readFileSync('/dev/stdin','utf-8'); try{const j=JSON.parse(d); console.log((j.results?.[0]?.errors||[]).join(', '))}catch{console.log('parse error')}")
+                RESULTS="${RESULTS}| \`${SKILL_ID}\` | ❌ Failed | ${ERRORS} |\n"
+                FAILED=1
+              fi
+            else
+              echo "::error::Missing agenticmail-skill.json in $dir"
+              RESULTS="${RESULTS}| \`${SKILL_ID}\` | ❌ Failed | Missing agenticmail-skill.json |\n"
+              FAILED=1
+            fi
+            echo "::endgroup::"
+          done <<< "${{ steps.changed.outputs.dirs }}"
+          echo "results<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          exit $FAILED
+
+      - name: Check for README
+        if: steps.changed.outputs.count != '0'
+        id: readme
+        run: |
+          MISSING=""
+          while IFS= read -r dir; do
+            [ -z "$dir" ] && continue
+            if [ ! -f "$dir/README.md" ]; then
+              MISSING="${MISSING}$(basename $dir), "
+            fi
+          done <<< "${{ steps.changed.outputs.dirs }}"
+          echo "missing=$MISSING" >> $GITHUB_OUTPUT
+
+      - name: Label PR
+        if: always() && steps.changed.outputs.count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = ['community-skill', 'needs-maintainer-review'];
+            if ('${{ steps.validate.outputs.failed }}' === '0') {
+              labels.push('validated');
+            } else {
+              labels.push('validation-failed');
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels,
+            });
+
+      - name: Post review checklist
+        if: always() && steps.changed.outputs.count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.validate.outputs.failed }}' === '0';
+            const validationStatus = passed ? '✅ All checks passed' : '❌ Validation failed — see errors below';
+            const missingReadme = '${{ steps.readme.outputs.missing }}'.trim();
+
+            const body = `### Community Skill Review
+
+            **Automated Validation:** ${validationStatus}
+            **Skills checked:** ${{ steps.changed.outputs.count }}
+
+            #### Validation Results
+
+            | Skill | Status | Errors |
+            |-------|--------|--------|
+            ${{ steps.validate.outputs.results }}
+
+            ${missingReadme ? `⚠️ **Missing README.md:** ${missingReadme}\n` : ''}
+
+            ---
+
+            #### Maintainer Review Checklist
+
+            > **This PR requires manual review from a maintainer before merging.**
+            > Automated validation only checks the manifest format — a human must
+            > review the actual skill design, tool definitions, and risk assessment.
+
+            - [ ] **Tool IDs are sensibly named** and follow the \`prefix_action\` convention
+            - [ ] **Descriptions are accurate** and clearly explain what each tool does
+            - [ ] **Risk levels are appropriate** — destructive tools should be \`high\`/\`critical\`
+            - [ ] **Side effects are correctly declared** (sends-email, deletes-data, etc.)
+            - [ ] **Category is correct** for the application type
+            - [ ] **No malicious or deceptive tool definitions** hiding behind legitimate names
+            - [ ] **Config schema is reasonable** — no unnecessary secrets or permissions
+            - [ ] **README documents** all tools, configuration, and usage
+            - [ ] **License is appropriate** for community contribution
+
+            ---
+            *Automated by [AgenticMail Enterprise CI](https://github.com/agenticmail/enterprise) — maintainer approval required to merge*`;
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.data.find(c =>
+              c.body?.includes('Community Skill Review') && c.user?.type === 'Bot'
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

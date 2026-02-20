@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign In - AgenticMail Enterprise</title>
+<style>
+:root{--bg:#f8f9fa;--surface:#fff;--border:#dee2e6;--text:#212529;--dim:#495057;--muted:#868e96;--primary:#e84393;--danger:#c92a2a}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1114;--surface:#16181d;--border:#2c3038;--text:#e1e4e8;--dim:#b0b8c4;--muted:#6b7280;--primary:#f06595;--danger:#f03e3e}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{width:100%;max-width:380px;padding:20px}
+.login-box h1{text-align:center;font-size:16px;color:var(--primary);margin-bottom:6px}
+.login-box .sub{text-align:center;color:var(--muted);font-size:12px;margin-bottom:28px}
+.login-box .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--dim);margin-bottom:5px}
+.form-group input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:14px;outline:none}
+.form-group input:focus{border-color:var(--primary)}
+.btn{width:100%;padding:10px;border-radius:6px;font-size:14px;font-weight:600;border:none;cursor:pointer;background:var(--primary);color:#fff}
+.btn:hover{opacity:.9}
+.error{color:var(--danger);font-size:13px;text-align:center;margin-bottom:16px;padding:10px;background:color-mix(in srgb,var(--danger) 10%,var(--surface));border-radius:6px}
+</style>
+</head>
+<body>
+<div class="login-box">
+  <h1>&#127970; AgenticMail Enterprise</h1>
+  <p class="sub">Admin Dashboard &middot; Rails</p>
+  <div class="card">
+    <% if @error %>
+      <div class="error"><%= escape_html(@error) %></div>
+    <% end %>
+    <form method="post" action="/login">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" required autofocus placeholder="admin@company.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" required placeholder="Enter password">
+      </div>
+      <button class="btn" type="submit">Sign In</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

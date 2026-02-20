@@ -1,0 +1,48 @@
+{
+  "id": "pagerduty",
+  "name": "PagerDuty",
+  "description": "Integrate with PagerDuty to list, create, acknowledge and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/pagerduty",
+  "license": "MIT",
+  "category": "monitoring",
+  "risk": "medium",
+  "tags": [
+    "pagerduty",
+    "monitoring"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "pagerduty"
+  },
+  "tools": [
+    {
+      "id": "pd_list_incidents",
+      "name": "List Incidents",
+      "description": "List incidents from PagerDuty. Optionally filter by status, urgency, or service."
+    },
+    {
+      "id": "pd_create_incident",
+      "name": "Create Incident",
+      "description": "Create a new incident in PagerDuty. Requires a title and service ID."
+    },
+    {
+      "id": "pd_acknowledge_incident",
+      "name": "Acknowledge Incident",
+      "description": "Acknowledge one or more PagerDuty incidents. Changes the status from \"triggered\" to \"acknowledged\"."
+    },
+    {
+      "id": "pd_resolve_incident",
+      "name": "Resolve Incident",
+      "description": "Resolve one or more PagerDuty incidents. Changes the status to \"resolved\"."
+    },
+    {
+      "id": "pd_list_services",
+      "name": "List Services",
+      "description": "List services from PagerDuty. Returns service names, statuses, and escalation policies."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

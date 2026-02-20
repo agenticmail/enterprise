@@ -1,0 +1,48 @@
+{
+  "id": "netlify",
+  "name": "Netlify",
+  "description": "Integrate with Netlify to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/netlify",
+  "license": "MIT",
+  "category": "cloud-infrastructure",
+  "risk": "medium",
+  "tags": [
+    "netlify",
+    "cloud-infrastructure"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "netlify"
+  },
+  "tools": [
+    {
+      "id": "netlify_list_sites",
+      "name": "List Sites",
+      "description": "List all Netlify sites accessible to the authenticated user. Returns site names, URLs, and deploy statuses."
+    },
+    {
+      "id": "netlify_get_site",
+      "name": "Get Site",
+      "description": "Get detailed information about a specific Netlify site by ID or custom domain."
+    },
+    {
+      "id": "netlify_list_deploys",
+      "name": "List Deploys",
+      "description": "List recent deploys for a Netlify site. Returns deploy IDs, states, commit messages, and timestamps."
+    },
+    {
+      "id": "netlify_create_deploy",
+      "name": "Create Deploy",
+      "description": "Trigger a new deploy for a Netlify site. Can clear cache and set a custom title for the deploy."
+    },
+    {
+      "id": "netlify_list_forms",
+      "name": "List Forms",
+      "description": "List forms and their submission counts for a Netlify site."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

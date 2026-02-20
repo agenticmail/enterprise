@@ -1,0 +1,62 @@
+{
+  "id": "contentful",
+  "name": "Contentful CMS",
+  "description": "Integrate with Contentful CMS to list, get, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/contentful",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "medium",
+  "tags": [
+    "contentful",
+    "cms",
+    "marketing"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "contentful"
+  },
+  "tools": [
+    {
+      "id": "contentful_list_entries",
+      "name": "List Entries",
+      "description": "List content entries from Contentful. Optionally filter by content type, search query, or field values."
+    },
+    {
+      "id": "contentful_get_entry",
+      "name": "Get Entry",
+      "description": "Get a single content entry from Contentful by ID. Returns all fields and metadata."
+    },
+    {
+      "id": "contentful_create_entry",
+      "name": "Create Entry",
+      "description": "Create a new content entry in Contentful. Provide the content type and field values."
+    },
+    {
+      "id": "contentful_list_content_types",
+      "name": "List Content Types",
+      "description": "List content types defined in the Contentful space. Returns type names, IDs, and field definitions."
+    },
+    {
+      "id": "contentful_publish_entry",
+      "name": "Publish Entry",
+      "description": "Publish a content entry in Contentful. The entry must have been saved first. Requires the current version number for optimistic locking."
+    }
+  ],
+  "configSchema": {
+    "spaceId": {
+      "type": "string",
+      "label": "Space ID",
+      "description": "Your Contentful space ID",
+      "required": true
+    },
+    "environmentId": {
+      "type": "string",
+      "label": "Environment",
+      "description": "Contentful environment (defaults to \"master\")",
+      "default": "master"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

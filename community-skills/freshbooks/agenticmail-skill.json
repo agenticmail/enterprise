@@ -1,0 +1,55 @@
+{
+  "id": "freshbooks",
+  "name": "FreshBooks",
+  "description": "Integrate with FreshBooks to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/freshbooks",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "freshbooks",
+    "finance"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "freshbooks"
+  },
+  "tools": [
+    {
+      "id": "freshbooks_list_clients",
+      "name": "List Clients",
+      "description": "List clients in FreshBooks. Optionally search by organization name or email. Returns client names, emails, and IDs."
+    },
+    {
+      "id": "freshbooks_create_invoice",
+      "name": "Create Invoice",
+      "description": "Create a new invoice in FreshBooks for a client. Provide at least one line item with name and amount."
+    },
+    {
+      "id": "freshbooks_list_invoices",
+      "name": "List Invoices",
+      "description": "List invoices in FreshBooks. Optionally filter by status or customer. Returns invoice numbers, amounts, and dates."
+    },
+    {
+      "id": "freshbooks_list_expenses",
+      "name": "List Expenses",
+      "description": "List expenses in FreshBooks. Optionally filter by category or date range. Returns expense descriptions, amounts, and vendors."
+    },
+    {
+      "id": "freshbooks_get_profit_loss",
+      "name": "Get Profit Loss",
+      "description": "Retrieve the profit & loss report from FreshBooks. Specify a date range for the report period."
+    }
+  ],
+  "configSchema": {
+    "accountId": {
+      "type": "string",
+      "label": "Account ID",
+      "description": "Your FreshBooks account ID",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

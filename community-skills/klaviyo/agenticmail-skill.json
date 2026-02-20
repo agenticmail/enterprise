@@ -1,0 +1,48 @@
+{
+  "id": "klaviyo",
+  "name": "Klaviyo",
+  "description": "Integrate with Klaviyo to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/klaviyo",
+  "license": "MIT",
+  "category": "marketing",
+  "risk": "medium",
+  "tags": [
+    "klaviyo",
+    "marketing"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "klaviyo"
+  },
+  "tools": [
+    {
+      "id": "klaviyo_list_profiles",
+      "name": "List Profiles",
+      "description": "List profiles (contacts) from Klaviyo. Supports filtering by email and pagination."
+    },
+    {
+      "id": "klaviyo_create_event",
+      "name": "Create Event",
+      "description": "Track a custom event in Klaviyo. Events are used for triggering flows, segmentation, and analytics."
+    },
+    {
+      "id": "klaviyo_list_campaigns",
+      "name": "List Campaigns",
+      "description": "List email campaigns from Klaviyo. Returns campaign names, statuses, and send times."
+    },
+    {
+      "id": "klaviyo_list_flows",
+      "name": "List Flows",
+      "description": "List automation flows from Klaviyo. Returns flow names, statuses, and trigger types."
+    },
+    {
+      "id": "klaviyo_get_metrics",
+      "name": "Get Metrics",
+      "description": "List available metrics (event types) in Klaviyo. Returns metric names, integration sources, and IDs."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

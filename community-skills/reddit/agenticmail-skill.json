@@ -1,0 +1,48 @@
+{
+  "id": "reddit",
+  "name": "Reddit",
+  "description": "Integrate with Reddit to search, get, submit and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/reddit",
+  "license": "MIT",
+  "category": "social",
+  "risk": "low",
+  "tags": [
+    "reddit",
+    "social"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "reddit"
+  },
+  "tools": [
+    {
+      "id": "reddit_search",
+      "name": "Search",
+      "description": "Search for posts across Reddit or within a specific subreddit. Returns titles, scores, and comment counts."
+    },
+    {
+      "id": "reddit_get_subreddit",
+      "name": "Get Subreddit",
+      "description": "Get information about a subreddit. Returns description, subscriber count, rules, and active users."
+    },
+    {
+      "id": "reddit_submit_post",
+      "name": "Submit Post",
+      "description": "Submit a new post to a subreddit. Supports text (self) posts and link posts."
+    },
+    {
+      "id": "reddit_get_comments",
+      "name": "Get Comments",
+      "description": "Get comments for a Reddit post. Returns the comment tree with authors, scores, and replies."
+    },
+    {
+      "id": "reddit_get_user",
+      "name": "Get User",
+      "description": "Get information about a Reddit user. Returns karma, account age, and recent activity summary."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

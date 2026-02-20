@@ -1,0 +1,70 @@
+{
+  "id": "quickbooks-accounting",
+  "name": "QuickBooks Accounting",
+  "description": "Manage QuickBooks invoices, expenses, and customers. Generate financial reports and summaries.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/quickbooks-accounting",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "auth": {
+    "type": "oauth2",
+    "provider": "intuit",
+    "scopes": ["com.intuit.quickbooks.accounting"]
+  },
+  "tags": ["quickbooks", "accounting", "invoices", "finance"],
+  "tools": [
+    {
+      "id": "qb_create_invoice",
+      "name": "Create Invoice",
+      "description": "Create a new invoice for a customer"
+    },
+    {
+      "id": "qb_list_expenses",
+      "name": "List Expenses",
+      "description": "List recent expenses and purchases"
+    },
+    {
+      "id": "qb_get_report",
+      "name": "Get Report",
+      "description": "Generate a financial report (P&L, balance sheet)"
+    },
+    {
+      "id": "qb_list_customers",
+      "name": "List Customers",
+      "description": "List all customers"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "companyId": {
+        "type": "string",
+        "description": "QuickBooks company/realm ID"
+      },
+      "sandboxMode": {
+        "type": "boolean",
+        "description": "Use QuickBooks sandbox environment for testing",
+        "default": false
+      },
+      "defaultPaymentTerms": {
+        "type": "string",
+        "description": "Default payment terms for new invoices",
+        "default": "Net 30"
+      },
+      "autoCategorize": {
+        "type": "boolean",
+        "description": "Automatically categorize transactions",
+        "default": true
+      },
+      "fiscalYearStart": {
+        "type": "string",
+        "description": "Month when the fiscal year starts",
+        "default": "January"
+      }
+    },
+    "required": ["companyId"]
+  },
+  "minEngineVersion": "0.3.0"
+}

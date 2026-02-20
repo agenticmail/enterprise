@@ -1,0 +1,56 @@
+{
+  "id": "statuspage",
+  "name": "Atlassian Statuspage",
+  "description": "Integrate with Atlassian Statuspage to list, create, update and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/statuspage",
+  "license": "MIT",
+  "category": "monitoring",
+  "risk": "medium",
+  "tags": [
+    "statuspage",
+    "atlassian",
+    "monitoring"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "statuspage"
+  },
+  "tools": [
+    {
+      "id": "statuspage_list_incidents",
+      "name": "List Incidents",
+      "description": "List incidents from the Statuspage. Returns incident names, statuses, and impact levels."
+    },
+    {
+      "id": "statuspage_create_incident",
+      "name": "Create Incident",
+      "description": "Create a new incident on the Statuspage. Provide a name, status, and optional impact and component IDs."
+    },
+    {
+      "id": "statuspage_update_incident",
+      "name": "Update Incident",
+      "description": "Update an existing Statuspage incident. Can change status, add an update message, or modify impact."
+    },
+    {
+      "id": "statuspage_list_components",
+      "name": "List Components",
+      "description": "List components on the Statuspage. Returns component names, statuses, and descriptions."
+    },
+    {
+      "id": "statuspage_update_component",
+      "name": "Update Component",
+      "description": "Update a component on the Statuspage. Typically used to change the operational status of a component."
+    }
+  ],
+  "configSchema": {
+    "pageId": {
+      "type": "string",
+      "label": "Page ID",
+      "description": "Your Statuspage page ID (found in your Statuspage dashboard settings)",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

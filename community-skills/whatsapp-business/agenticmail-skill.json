@@ -1,0 +1,52 @@
+{
+  "id": "whatsapp-business",
+  "name": "WhatsApp Business",
+  "description": "Integrate with WhatsApp Business to send, send, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/whatsapp-business",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "whatsappbusiness",
+    "whatsapp",
+    "business",
+    "communication"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "whatsapp"
+  },
+  "tools": [
+    {
+      "id": "whatsapp_send_message",
+      "name": "Send Message",
+      "description": "Send a text message via WhatsApp Business API. Requires the recipient phone number in international format and the message text."
+    },
+    {
+      "id": "whatsapp_send_template",
+      "name": "Send Template",
+      "description": "Send a pre-approved message template via WhatsApp Business API. Templates are required for initiating conversations."
+    },
+    {
+      "id": "whatsapp_get_media",
+      "name": "Get Media",
+      "description": "Retrieve media metadata (URL, MIME type, size) for a WhatsApp media ID. The URL can then be used to download the media."
+    },
+    {
+      "id": "whatsapp_list_templates",
+      "name": "List Templates",
+      "description": "List approved message templates for the WhatsApp Business account. Templates are required for initiating conversations with users."
+    }
+  ],
+  "configSchema": {
+    "phoneNumberId": {
+      "type": "string",
+      "label": "Phone Number ID",
+      "description": "Your WhatsApp Business Phone Number ID from the Meta Developer Dashboard",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,103 @@
+<div class="page-header">
+  <h1>Guardrails</h1>
+  <p>Agent controls, interventions, and anomaly detection rules</p>
+</div>
+
+<div class="card">
+  <h3>Pause Agent</h3>
+  <form method="post" action="/guardrails/pause">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Agent ID</label>
+        <input type="text" name="agent_id" required placeholder="e.g. agent-123">
+      </div>
+      <div class="form-group">
+        <label>Reason</label>
+        <input type="text" name="reason" placeholder="e.g. Suspicious activity detected">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Pause Agent</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Interventions (<%= @interventions.size %>)</h3>
+  <% if @interventions.empty? %>
+    <div class="empty"><span class="icon">&#128737;</span>No active interventions</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Agent</th><th>Reason</th><th>Status</th><th>Time</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @interventions.each do |i| %>
+            <tr>
+              <td><strong><%= escape_html(i['agent_id'] || i['agent'] || '-') %></strong></td>
+              <td><%= escape_html(i['reason'] || '-') %></td>
+              <td><%= status_badge(i['status'] || 'paused') %></td>
+              <td style="color:var(--text-muted)"><%= time_ago(i['created_at'] || i['timestamp']) %></td>
+              <td>
+                <% if (i['status'] || '').downcase == 'paused' %>
+                  <form method="post" action="/guardrails/resume/<%= i['id'] || i['agent_id'] %>" style="display:inline">
+                    <button class="btn btn-sm btn-primary" type="submit">Resume</button>
+                  </form>
+                <% end %>
+                <form method="post" action="/guardrails/kill/<%= i['id'] || i['agent_id'] %>" style="display:inline" onsubmit="return confirm('Kill this agent? This cannot be undone.')">
+                  <button class="btn btn-sm btn-danger" type="submit">Kill</button>
+                </form>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div class="card">
+  <h3>Create Anomaly Rule</h3>
+  <form method="post" action="/anomaly-rules/create">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="e.g. Rate Limit Exceeded">
+      </div>
+      <div class="form-group">
+        <label>Action</label>
+        <input type="text" name="action" placeholder="e.g. pause" value="pause">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Condition</label>
+      <input type="text" name="condition" required placeholder="e.g. messages_per_minute > 100">
+    </div>
+    <button class="btn btn-primary" type="submit">Create Anomaly Rule</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Anomaly Rules (<%= @anomaly_rules.size %>)</h3>
+  <% if @anomaly_rules.empty? %>
+    <div class="empty"><span class="icon">&#128200;</span>No anomaly rules configured. Create one above.</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Condition</th><th>Action</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @anomaly_rules.each do |r| %>
+            <tr>
+              <td><strong><%= escape_html(r['name'] || '-') %></strong></td>
+              <td><code><%= escape_html(r['condition'] || '-') %></code></td>
+              <td><%= escape_html(r['action'] || '-') %></td>
+              <td><%= status_badge(r['status'] || 'enabled') %></td>
+              <td>
+                <form method="post" action="/anomaly-rules/<%= r['id'] %>/delete" style="display:inline" onsubmit="return confirm('Delete this anomaly rule?')">
+                  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

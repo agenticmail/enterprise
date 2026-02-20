@@ -1,0 +1,56 @@
+{
+  "id": "splunk",
+  "name": "Splunk",
+  "description": "Integrate with Splunk to search, list, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/splunk",
+  "license": "MIT",
+  "category": "monitoring",
+  "risk": "medium",
+  "tags": [
+    "splunk",
+    "monitoring"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "splunk"
+  },
+  "tools": [
+    {
+      "id": "splunk_search",
+      "name": "Search",
+      "description": "Create and run a Splunk search job. Provide an SPL query and optional time range. Returns the search job ID for result retrieval."
+    },
+    {
+      "id": "splunk_list_saved_searches",
+      "name": "List Saved Searches",
+      "description": "List saved searches in Splunk. Returns search names, schedules, and next run times."
+    },
+    {
+      "id": "splunk_get_search_results",
+      "name": "Get Search Results",
+      "description": "Retrieve results of a completed Splunk search job by its SID. Returns result rows with field values."
+    },
+    {
+      "id": "splunk_list_indexes",
+      "name": "List Indexes",
+      "description": "List Splunk indexes. Returns index names, sizes, event counts, and data models."
+    },
+    {
+      "id": "splunk_create_alert",
+      "name": "Create Alert",
+      "description": "Create a new Splunk saved search configured as an alert. Specify the search query, schedule, and alert conditions."
+    }
+  ],
+  "configSchema": {
+    "instanceUrl": {
+      "type": "string",
+      "label": "Splunk Instance URL",
+      "description": "Your Splunk instance management URL (including port)",
+      "required": true,
+      "placeholder": "https://splunk.example.com:8089"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

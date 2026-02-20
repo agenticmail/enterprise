@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Users</h1>
+  <p>Manage team members</p>
+</div>
+
+<div class="card">
+  <h3>Create User</h3>
+  <form method="POST" action="{{ url_for('users_bp.create_user') }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" required>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Role</label>
+        <select name="role">
+          <option>member</option>
+          <option>admin</option>
+          <option>owner</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" required minlength="8">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+</div>
+
+<div class="card">
+  {% if users %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Last Login</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td style="font-weight: 600;">{{ u.name }}</td>
+          <td style="color: var(--text-dim);">{{ u.email }}</td>
+          <td>{{ u.role|badge }}</td>
+          <td style="color: var(--text-muted); font-size: 12px;">{{ u.lastLoginAt|time_ago }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No users yet</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

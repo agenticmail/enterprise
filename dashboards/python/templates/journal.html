@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Journal</h1>
+  <p>Action journal with rollback capabilities</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+  <div class="card" style="text-align: center;">
+    <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ stats.total or 0 }}</div>
+    <div style="color: var(--text-muted); font-size: 13px;">Total Entries</div>
+  </div>
+  <div class="card" style="text-align: center;">
+    <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ stats.reversible or 0 }}</div>
+    <div style="color: var(--text-muted); font-size: 13px;">Reversible</div>
+  </div>
+  <div class="card" style="text-align: center;">
+    <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ stats.rolledBack or 0 }}</div>
+    <div style="color: var(--text-muted); font-size: 13px;">Rolled Back</div>
+  </div>
+</div>
+
+<div class="card">
+  {% if entries %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Agent</th>
+          <th>Action</th>
+          <th>Resource</th>
+          <th>Status</th>
+          <th>Reversible</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td style="font-size: 12px; color: var(--text-muted);">{{ e.timestamp|time_ago }}</td>
+          <td style="font-weight: 600;">{{ e.agentId or '-' }}</td>
+          <td style="color: var(--primary); font-weight: 500;">{{ e.action }}</td>
+          <td style="font-size: 12px;">{{ e.resource or '-' }}</td>
+          <td>{{ e.status|status_badge }}</td>
+          <td>{{ 'Yes' if e.reversible else 'No' }}</td>
+          <td>
+            {% if e.reversible and e.status != 'rolled_back' %}
+            <form method="POST" action="{{ url_for('journal_bp.rollback', id=e.id) }}" style="display: inline;">
+              <button class="btn btn-sm btn-danger" type="submit">Rollback</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No journal entries yet</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

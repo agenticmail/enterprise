@@ -1,0 +1,48 @@
+{
+  "id": "snyk",
+  "name": "Snyk Security",
+  "description": "Integrate with Snyk Security to list, list, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/snyk",
+  "license": "MIT",
+  "category": "security",
+  "risk": "medium",
+  "tags": [
+    "snyk",
+    "security"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "snyk"
+  },
+  "tools": [
+    {
+      "id": "snyk_list_orgs",
+      "name": "List Orgs",
+      "description": "List Snyk organizations that the authenticated user belongs to. Returns org names, slugs, and IDs."
+    },
+    {
+      "id": "snyk_list_projects",
+      "name": "List Projects",
+      "description": "List Snyk projects within an organization. Returns project names, types, and last test dates."
+    },
+    {
+      "id": "snyk_list_issues",
+      "name": "List Issues",
+      "description": "List Snyk issues (vulnerabilities) for a project within an organization. Returns issue titles, severities, and remediation info."
+    },
+    {
+      "id": "snyk_get_project",
+      "name": "Get Project",
+      "description": "Retrieve details of a specific Snyk project. Returns project name, type, origin, issue counts, and last test date."
+    },
+    {
+      "id": "snyk_test_package",
+      "name": "Test Package",
+      "description": "Test a package for known vulnerabilities using Snyk. Provide the ecosystem, package name, and version."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

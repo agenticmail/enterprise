@@ -1,0 +1,44 @@
+{
+  "id": "loom-video",
+  "name": "Loom",
+  "description": "Integrate with Loom to list, get, delete and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/loom-video",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "low",
+  "tags": [
+    "loomvideo",
+    "loom",
+    "communication"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "loom"
+  },
+  "tools": [
+    {
+      "id": "loom_list_videos",
+      "name": "List Videos",
+      "description": "List Loom videos owned by the authenticated user. Returns video names, durations, and share links."
+    },
+    {
+      "id": "loom_get_video",
+      "name": "Get Video",
+      "description": "Get detailed information about a specific Loom video including its share link, duration, and view count."
+    },
+    {
+      "id": "loom_delete_video",
+      "name": "Delete Video",
+      "description": "Delete a Loom video by its ID. This action is permanent and cannot be undone."
+    },
+    {
+      "id": "loom_get_transcript",
+      "name": "Get Transcript",
+      "description": "Get the transcript of a Loom video. Returns the full text transcript with timestamps."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

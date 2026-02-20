@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/agenticmail-skill.v1.schema.json",
+  "id": "your-skill-id",
+  "name": "Your Skill Name",
+  "description": "A clear description of what this skill enables AI agents to do (20-500 chars).",
+  "version": "1.0.0",
+  "author": "your-github-username",
+  "repository": "https://github.com/your-username/your-repo",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "medium",
+  "icon": "🔧",
+  "tags": ["your-tag", "another-tag"],
+  "tools": [
+    {
+      "id": "your_tool_read",
+      "name": "Read Something",
+      "description": "Reads data from the service",
+      "category": "read",
+      "riskLevel": "low",
+      "sideEffects": [],
+      "parameters": {
+        "query": { "type": "string", "description": "Search query", "required": true }
+      }
+    },
+    {
+      "id": "your_tool_create",
+      "name": "Create Something",
+      "description": "Creates a new resource in the service",
+      "category": "write",
+      "riskLevel": "medium",
+      "sideEffects": ["network-request"],
+      "parameters": {
+        "data": { "type": "string", "description": "Data to create", "required": true }
+      }
+    }
+  ],
+  "configSchema": {
+    "apiKey": {
+      "type": "secret",
+      "label": "API Key",
+      "description": "Your service API key",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0",
+  "homepage": "https://your-docs-url.com"
+}

@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">Messages</h2>
+<p class="desc">View and send messages</p>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Send Message</div>
+<form method="POST">
+<input type="hidden" name="_action" value="send">
+<div class="fg"><label class="fl">To</label><input class="input" name="to" required placeholder="e.g. agent@example.com"></div>
+<div class="fg"><label class="fl">Subject</label><input class="input" name="subject" required placeholder="Message subject"></div>
+<div class="fg"><label class="fl">Body</label><textarea class="input" name="body" rows="4" placeholder="Message body..."></textarea></div>
+<button class="btn btn-p" type="submit">Send</button>
+</form>
+</div>
+<div class="card">
+<div class="ct">Messages</div>
+{% if messages %}
+<table>
+<thead><tr><th>Time</th><th>From</th><th>To</th><th>Subject</th><th>Direction</th><th>Channel</th><th>Status</th></tr></thead>
+<tbody>
+{% for m in messages %}
+<tr>
+<td style="font-size:12px;color:var(--muted)">{{ m.timestamp }}</td>
+<td style="font-weight:600">{{ m.from|default:m.sender }}</td>
+<td>{{ m.to|default:m.recipient }}</td>
+<td>{{ m.subject }}</td>
+<td>{{ m.direction_badge|safe }}</td>
+<td>{{ m.channel_badge|safe }}</td>
+<td style="font-size:12px;color:var(--dim)">{{ m.status|default:"sent" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">&#x1f4e8; No messages yet</div>
+{% endif %}
+</div>
+{% endblock %}

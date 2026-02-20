@@ -1,0 +1,45 @@
+{
+  "id": "gotomeeting",
+  "name": "GoTo Meeting",
+  "description": "Integrate with GoTo Meeting to list, create, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/gotomeeting",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "gotomeeting",
+    "goto",
+    "meeting",
+    "communication"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "goto"
+  },
+  "tools": [
+    {
+      "id": "goto_list_meetings",
+      "name": "List Meetings",
+      "description": "List upcoming and past GoTo Meetings. Filter by date range and whether to include historical meetings."
+    },
+    {
+      "id": "goto_create_meeting",
+      "name": "Create Meeting",
+      "description": "Create a new GoTo Meeting. Specify subject, start and end times, and optional password."
+    },
+    {
+      "id": "goto_get_meeting",
+      "name": "Get Meeting",
+      "description": "Get detailed information about a specific GoTo Meeting by its meeting ID."
+    },
+    {
+      "id": "goto_delete_meeting",
+      "name": "Delete Meeting",
+      "description": "Delete (cancel) a scheduled GoTo Meeting by its meeting ID. This action cannot be undone."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

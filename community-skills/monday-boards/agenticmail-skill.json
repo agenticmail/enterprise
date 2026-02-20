@@ -1,0 +1,68 @@
+{
+  "id": "monday-boards",
+  "name": "Monday.com Boards",
+  "description": "Manage boards, items, and columns in Monday.com. Automate status updates and notifications.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/monday-boards",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "monday",
+    "scopes": [
+      "boards:read",
+      "boards:write",
+      "workspaces:read"
+    ]
+  },
+  "tags": [
+    "monday",
+    "boards",
+    "project-management",
+    "workflow"
+  ],
+  "tools": [
+    {
+      "id": "monday_create_item",
+      "name": "Create Item",
+      "description": "Create a new item on a board"
+    },
+    {
+      "id": "monday_update_item",
+      "name": "Update Item",
+      "description": "Update column values of an item"
+    },
+    {
+      "id": "monday_list_boards",
+      "name": "List Boards",
+      "description": "List all boards in the workspace"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultWorkspace": {
+        "type": "string",
+        "description": "Default Monday.com workspace to use when none is specified"
+      },
+      "defaultBoard": {
+        "type": "string",
+        "description": "Default Monday.com board to use when none is specified"
+      },
+      "autoNotify": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically send notifications on item updates"
+      },
+      "dateFormat": {
+        "type": "string",
+        "default": "YYYY-MM-DD",
+        "description": "Date format to use for date columns"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

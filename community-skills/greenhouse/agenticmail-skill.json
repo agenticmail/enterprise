@@ -1,0 +1,49 @@
+{
+  "id": "greenhouse",
+  "name": "Greenhouse Recruiting",
+  "description": "Integrate with Greenhouse Recruiting to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/greenhouse",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "greenhouse",
+    "recruiting",
+    "hr"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "greenhouse"
+  },
+  "tools": [
+    {
+      "id": "greenhouse_list_candidates",
+      "name": "List Candidates",
+      "description": "List candidates from Greenhouse. Returns candidate names, emails, and application info."
+    },
+    {
+      "id": "greenhouse_get_candidate",
+      "name": "Get Candidate",
+      "description": "Get detailed information about a specific Greenhouse candidate by their ID."
+    },
+    {
+      "id": "greenhouse_list_jobs",
+      "name": "List Jobs",
+      "description": "List jobs from Greenhouse. Returns job titles, departments, offices, and status."
+    },
+    {
+      "id": "greenhouse_list_applications",
+      "name": "List Applications",
+      "description": "List applications from Greenhouse. Returns application status, candidate info, and job associations."
+    },
+    {
+      "id": "greenhouse_add_note",
+      "name": "Add Note",
+      "description": "Add a note to a candidate in Greenhouse. Notes are visible to the hiring team on the candidate profile."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

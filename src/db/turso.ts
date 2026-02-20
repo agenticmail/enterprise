@@ -48,6 +48,28 @@ export class TursoAdapter extends DatabaseAdapter {
     return this.client !== null;
   }
 
+  // ─── Engine Integration ──────────────────────────────────
+
+  getEngineDB() {
+    if (!this.client) return null;
+    const client = this.client;
+    return {
+      run: async (sql: string, params?: any[]) => { await client.execute({ sql, args: params || [] }); },
+      get: async <T = any>(sql: string, params?: any[]): Promise<T | undefined> => {
+        const result = await client.execute({ sql, args: params || [] });
+        return (result.rows?.[0] || undefined) as T | undefined;
+      },
+      all: async <T = any>(sql: string, params?: any[]): Promise<T[]> => {
+        const result = await client.execute({ sql, args: params || [] });
+        return (result.rows || []) as T[];
+      },
+    };
+  }
+
+  getDialect(): string {
+    return 'turso';
+  }
+
   private async run(sql: string, args: any[] = []): Promise<any> {
     return this.client.execute({ sql, args });
   }
@@ -86,6 +108,12 @@ export class TursoAdapter extends DatabaseAdapter {
       smtpHost: 'smtp_host', smtpPort: 'smtp_port', smtpUser: 'smtp_user',
       smtpPass: 'smtp_pass', dkimPrivateKey: 'dkim_private_key',
       logoUrl: 'logo_url', primaryColor: 'primary_color', plan: 'plan',
+      deploymentKeyHash: 'deployment_key_hash',
+      domainRegistrationId: 'domain_registration_id',
+      domainDnsChallenge: 'domain_dns_challenge',
+      domainVerifiedAt: 'domain_verified_at',
+      domainRegisteredAt: 'domain_registered_at',
+      domainStatus: 'domain_status',
     };
     const sets: string[] = [];
     const vals: any[] = [];
@@ -94,6 +122,22 @@ export class TursoAdapter extends DatabaseAdapter {
         sets.push(`${col} = ?`);
         vals.push((updates as any)[key]);
       }
+    }
+    if (updates.ssoConfig !== undefined) {
+      sets.push('sso_config = ?');
+      vals.push(JSON.stringify(updates.ssoConfig));
+    }
+    if (updates.toolSecurityConfig !== undefined) {
+      sets.push('tool_security_config = ?');
+      vals.push(JSON.stringify(updates.toolSecurityConfig));
+    }
+    if (updates.firewallConfig !== undefined) {
+      sets.push('firewall_config = ?');
+      vals.push(JSON.stringify(updates.firewallConfig));
+    }
+    if (updates.modelPricingConfig !== undefined) {
+      sets.push('model_pricing_config = ?');
+      vals.push(JSON.stringify(updates.modelPricingConfig));
     }
     sets.push("updated_at = datetime('now')");
     vals.push('default');
@@ -104,7 +148,7 @@ export class TursoAdapter extends DatabaseAdapter {
   // ─── Agents ──────────────────────────────────────────────
 
   async createAgent(input: AgentInput): Promise<Agent> {
-    const id = randomUUID();
+    const id = input.id || randomUUID();
     const email = input.email || `${input.name.toLowerCase().replace(/\s+/g, '-')}@localhost`;
     await this.run(
       `INSERT INTO agents (id, name, email, role, metadata, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -405,7 +449,17 @@ export class TursoAdapter extends DatabaseAdapter {
       id: r.id, name: r.name, domain: r.domain, subdomain: r.subdomain,
       smtpHost: r.smtp_host, smtpPort: r.smtp_port, smtpUser: r.smtp_user, smtpPass: r.smtp_pass,
       dkimPrivateKey: r.dkim_private_key, logoUrl: r.logo_url, primaryColor: r.primary_color,
+      ssoConfig: r.sso_config ? (typeof r.sso_config === 'string' ? JSON.parse(r.sso_config) : r.sso_config) : undefined,
+      toolSecurityConfig: r.tool_security_config ? (typeof r.tool_security_config === 'string' ? JSON.parse(r.tool_security_config) : r.tool_security_config) : {},
+      firewallConfig: r.firewall_config ? (typeof r.firewall_config === 'string' ? JSON.parse(r.firewall_config) : r.firewall_config) : {},
+      modelPricingConfig: r.model_pricing_config ? (typeof r.model_pricing_config === 'string' ? JSON.parse(r.model_pricing_config) : r.model_pricing_config) : {},
       plan: r.plan, createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
+      deploymentKeyHash: r.deployment_key_hash,
+      domainRegistrationId: r.domain_registration_id,
+      domainDnsChallenge: r.domain_dns_challenge,
+      domainVerifiedAt: r.domain_verified_at || undefined,
+      domainRegisteredAt: r.domain_registered_at || undefined,
+      domainStatus: r.domain_status || 'unregistered',
     };
   }
 }

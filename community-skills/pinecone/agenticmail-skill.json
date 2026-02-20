@@ -1,0 +1,48 @@
+{
+  "id": "pinecone",
+  "name": "Pinecone",
+  "description": "Integrate with Pinecone to list, query, upsert and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/pinecone",
+  "license": "MIT",
+  "category": "database",
+  "risk": "medium",
+  "tags": [
+    "pinecone",
+    "database"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "pinecone"
+  },
+  "tools": [
+    {
+      "id": "pinecone_list_indexes",
+      "name": "List Indexes",
+      "description": "List all Pinecone indexes in the account. Returns index names, dimensions, and status."
+    },
+    {
+      "id": "pinecone_query",
+      "name": "Query",
+      "description": "Query a Pinecone index for the nearest vectors to a given query vector. Returns IDs, scores, and optional metadata."
+    },
+    {
+      "id": "pinecone_upsert",
+      "name": "Upsert",
+      "description": "Upsert vectors into a Pinecone index. Insert new vectors or update existing ones by ID."
+    },
+    {
+      "id": "pinecone_describe_index",
+      "name": "Describe Index",
+      "description": "Get detailed information about a specific Pinecone index including its configuration, status, and stats."
+    },
+    {
+      "id": "pinecone_delete_vectors",
+      "name": "Delete Vectors",
+      "description": "Delete vectors from a Pinecone index by ID list, by metadata filter, or delete all vectors in a namespace."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

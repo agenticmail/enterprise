@@ -1,7 +1,7 @@
 /**
  * Enterprise Engine — Public API
  *
- * The complete engine powering managed OpenClaw+AgenticMail deployment:
+ * The complete engine powering managed AgenticMail deployment:
  *
  * 1. Skill Registry + Permission Engine — what tools each agent can use
  * 2. Agent Config Generator — workspace files, gateway config, deploy scripts
@@ -50,15 +50,18 @@ export {
   type LiveAgentStatus,
 } from './deployer.js';
 
-// 4. Approval Workflows
+// 4. Approval Workflows + Escalation Chains
 export {
   ApprovalEngine,
   type ApprovalRequest,
   type ApprovalDecision,
   type ApprovalPolicy,
+  type EscalationChain,
+  type EscalationLevel,
+  type EscalationState,
 } from './approvals.js';
 
-// 5. Agent Lifecycle Manager
+// 5. Agent Lifecycle Manager + Budget Controls
 export {
   AgentLifecycleManager,
   type ManagedAgent,
@@ -66,6 +69,8 @@ export {
   type StateTransition,
   type AgentHealth,
   type AgentUsage,
+  type AgentBudgetConfig,
+  type BudgetAlert,
   type LifecycleEvent,
   type LifecycleEventType,
 } from './lifecycle.js';
@@ -103,14 +108,14 @@ export {
   type TimelineEntry,
 } from './activity.js';
 
-// 9. Tool Catalog (real OpenClaw + AgenticMail tool IDs)
+// 9. Tool Catalog (all AgenticMail tool IDs)
 export {
-  OPENCLAW_CORE_TOOLS,
+  CORE_TOOLS,
   AGENTICMAIL_TOOLS,
   ALL_TOOLS,
   TOOL_INDEX,
   getToolsBySkill,
-  generateOpenClawToolPolicy,
+  generateToolPolicy,
 } from './tool-catalog.js';
 
 // 10. Database Persistence + Migration System
@@ -127,8 +132,124 @@ export {
   type DynamicTableDef,
 } from './db-schema.js';
 
-// 10. OpenClaw Integration Hook
-export { EnterpriseHook, createEnterpriseHook, type EnterpriseHookConfig, type HookResult } from './openclaw-hook.js';
+// 10. Data Loss Prevention (DLP)
+export {
+  DLPEngine,
+  type DLPRule,
+  type DLPViolation,
+  type DLPScanResult,
+} from './dlp.js';
 
-// 11. AgenticMail Bridge
-export { AgenticMailBridge, createAgenticMailBridge, type BridgeConfig, type ToolInterceptor } from './agenticmail-bridge.js';
+// 13. Agent-to-Agent Communication
+export {
+  AgentCommunicationBus,
+  type AgentMessage,
+  type MessageType,
+  type MessageStatus,
+  type MessagePriority,
+} from './communication.js';
+
+// 14. Guardrails — Real-time Intervention & Anomaly Detection
+export {
+  GuardrailEngine,
+  type InterventionRecord,
+  type AnomalyRule,
+} from './guardrails.js';
+
+// 15. Action Journal + Rollback
+export {
+  ActionJournal,
+  type JournalEntry,
+  type ActionType,
+  type RollbackResult,
+} from './journal.js';
+
+// 16. Compliance Reporting
+export {
+  ComplianceReporter,
+  type ComplianceReport,
+} from './compliance.js';
+
+// 17. Community Skill Registry (Marketplace)
+export {
+  CommunitySkillRegistry,
+  type CommunitySkillManifest,
+  type IndexedCommunitySkill,
+  type InstalledCommunitySkill,
+  type CommunitySkillReview,
+} from './community-registry.js';
+
+// 18. Skill Validator (CLI + CI)
+export {
+  validateSkillManifest,
+  collectCommunityToolIds,
+  type ManifestValidationResult,
+  VALID_CATEGORIES,
+  VALID_TOOL_CATEGORIES,
+  VALID_RISK_LEVELS,
+  VALID_SIDE_EFFECTS,
+  VALID_SPDX_LICENSES,
+} from './skill-validator.js';
+
+// 19. Workforce Management
+export {
+  WorkforceManager,
+} from './workforce.js';
+
+// 20. Organization Policies
+export {
+  OrgPolicyEngine,
+} from './org-policies.js';
+
+// 21. Agent Memory
+export {
+  AgentMemoryManager,
+} from './agent-memory.js';
+
+// 22. Onboarding
+export {
+  OnboardingManager,
+} from './onboarding.js';
+
+// 23. Secure Vault
+export {
+  SecureVault,
+} from './vault.js';
+
+// 24. Storage Manager
+export {
+  StorageManager,
+} from './storage-manager.js';
+
+// 25. Agent Runtime
+export {
+  AgentRuntime,
+  createAgentRuntime,
+  SessionManager as RuntimeSessionManager,
+  createRuntimeHooks,
+  createNoopHooks,
+  runAgentLoop,
+  SubAgentManager,
+  EmailChannel,
+  FollowUpScheduler,
+  callLLM,
+  toolsToDefinitions,
+  ToolRegistry,
+  executeTool,
+  type AgentConfig as RuntimeAgentConfig,
+  type SessionState as RuntimeSessionState,
+  type StreamEvent as RuntimeStreamEvent,
+  type RuntimeConfig,
+  type ModelConfig as RuntimeModelConfig,
+  type SpawnOptions as RuntimeSpawnOptions,
+  type RuntimeHooks,
+  type BudgetCheckResult as RuntimeBudgetCheckResult,
+  type FollowUp as RuntimeFollowUp,
+  PROVIDER_REGISTRY,
+  resolveProvider,
+  resolveApiKeyForProvider,
+  listAllProviders,
+  type ProviderDef,
+  type CustomProviderDef,
+  type ApiType,
+} from '../runtime/index.js';

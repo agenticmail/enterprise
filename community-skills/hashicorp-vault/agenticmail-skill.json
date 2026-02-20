@@ -1,0 +1,58 @@
+{
+  "id": "hashicorp-vault",
+  "name": "HashiCorp Vault",
+  "description": "Integrate with HashiCorp Vault to read, list, write and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/hashicorp-vault",
+  "license": "MIT",
+  "category": "security",
+  "risk": "high",
+  "tags": [
+    "hashicorpvault",
+    "hashicorp",
+    "vault",
+    "security"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "hashicorp"
+  },
+  "tools": [
+    {
+      "id": "vault_read_secret",
+      "name": "Read Secret",
+      "description": "Read a secret from HashiCorp Vault at a given path. Supports KV v1 and v2 engines. Returns secret key-value pairs."
+    },
+    {
+      "id": "vault_list_secrets",
+      "name": "List Secrets",
+      "description": "List secret keys at a given path in HashiCorp Vault. Returns a list of key names (not values)."
+    },
+    {
+      "id": "vault_write_secret",
+      "name": "Write Secret",
+      "description": "Write a secret to HashiCorp Vault at a given path. Provide key-value pairs as the secret data."
+    },
+    {
+      "id": "vault_list_mounts",
+      "name": "List Mounts",
+      "description": "List all secret engine mounts in HashiCorp Vault. Returns mount paths, types, and descriptions."
+    },
+    {
+      "id": "vault_get_health",
+      "name": "Get Health",
+      "description": "Check the health status of the HashiCorp Vault server. Returns initialization, seal status, and version info."
+    }
+  ],
+  "configSchema": {
+    "vaultAddr": {
+      "type": "string",
+      "label": "Vault Address",
+      "description": "The HashiCorp Vault server address",
+      "required": true,
+      "placeholder": "https://vault.example.com"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

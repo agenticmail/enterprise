@@ -1,0 +1,55 @@
+{
+  "id": "bigcommerce",
+  "name": "BigCommerce",
+  "description": "Integrate with BigCommerce to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/bigcommerce",
+  "license": "MIT",
+  "category": "ecommerce",
+  "risk": "medium",
+  "tags": [
+    "bigcommerce",
+    "ecommerce"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "bigcommerce"
+  },
+  "tools": [
+    {
+      "id": "bc_list_products",
+      "name": "List Products",
+      "description": "List products in the BigCommerce store. Returns product names, prices, SKUs, and availability."
+    },
+    {
+      "id": "bc_create_product",
+      "name": "Create Product",
+      "description": "Create a new product in the BigCommerce store. Provide a name, price, type, and weight."
+    },
+    {
+      "id": "bc_list_orders",
+      "name": "List Orders",
+      "description": "List orders from the BigCommerce store. Optionally filter by status or date range."
+    },
+    {
+      "id": "bc_list_customers",
+      "name": "List Customers",
+      "description": "List customers in the BigCommerce store. Optionally filter by email or name."
+    },
+    {
+      "id": "bc_get_store_info",
+      "name": "Get Store Info",
+      "description": "Get general information about the BigCommerce store, including name, domain, plan, and status."
+    }
+  ],
+  "configSchema": {
+    "storeHash": {
+      "type": "string",
+      "label": "Store Hash",
+      "description": "Your BigCommerce store hash (found in your API account settings)",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

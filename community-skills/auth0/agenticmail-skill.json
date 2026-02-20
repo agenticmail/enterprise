@@ -1,0 +1,56 @@
+{
+  "id": "auth0",
+  "name": "Auth0",
+  "description": "Integrate with Auth0 to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/auth0",
+  "license": "MIT",
+  "category": "security",
+  "risk": "high",
+  "tags": [
+    "auth0",
+    "security"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "auth0"
+  },
+  "tools": [
+    {
+      "id": "auth0_list_users",
+      "name": "List Users",
+      "description": "List Auth0 users. Optionally search using Lucene query syntax or filter by connection."
+    },
+    {
+      "id": "auth0_get_user",
+      "name": "Get User",
+      "description": "Retrieve details of a specific Auth0 user by their user_id. Returns profile, identities, and metadata."
+    },
+    {
+      "id": "auth0_list_connections",
+      "name": "List Connections",
+      "description": "List Auth0 connections (identity providers). Returns connection names, strategies, and enabled clients."
+    },
+    {
+      "id": "auth0_list_clients",
+      "name": "List Clients",
+      "description": "List Auth0 clients (applications). Returns client names, IDs, app types, and callback URLs."
+    },
+    {
+      "id": "auth0_block_user",
+      "name": "Block User",
+      "description": "Block or unblock an Auth0 user by setting the blocked flag. Blocked users cannot log in."
+    }
+  ],
+  "configSchema": {
+    "domain": {
+      "type": "string",
+      "label": "Auth0 Domain",
+      "description": "Your Auth0 tenant domain",
+      "required": true,
+      "placeholder": "myapp.auth0.com"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

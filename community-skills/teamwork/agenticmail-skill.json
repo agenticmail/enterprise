@@ -1,0 +1,56 @@
+{
+  "id": "teamwork",
+  "name": "Teamwork",
+  "description": "Integrate with Teamwork to list, list, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/teamwork",
+  "license": "MIT",
+  "category": "project-management",
+  "risk": "medium",
+  "tags": [
+    "teamwork",
+    "project-management"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "teamwork"
+  },
+  "tools": [
+    {
+      "id": "teamwork_list_projects",
+      "name": "List Projects",
+      "description": "List all projects in the Teamwork account. Returns project names, statuses, and company info."
+    },
+    {
+      "id": "teamwork_list_tasks",
+      "name": "List Tasks",
+      "description": "List tasks in a Teamwork project or tasklist. Returns task names, assignees, and due dates."
+    },
+    {
+      "id": "teamwork_create_task",
+      "name": "Create Task",
+      "description": "Create a new task in a Teamwork tasklist. Specify name, description, assignees, and due date."
+    },
+    {
+      "id": "teamwork_list_milestones",
+      "name": "List Milestones",
+      "description": "List milestones in a Teamwork project. Returns milestone names, deadlines, and completion status."
+    },
+    {
+      "id": "teamwork_log_time",
+      "name": "Log Time",
+      "description": "Log time against a Teamwork task. Specify hours, minutes, date, and an optional description."
+    }
+  ],
+  "configSchema": {
+    "siteName": {
+      "type": "string",
+      "label": "Teamwork Site",
+      "description": "Your Teamwork site name (the subdomain in your Teamwork URL)",
+      "required": true,
+      "placeholder": "mycompany"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

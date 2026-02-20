@@ -1,0 +1,26 @@
+{#
+  Reusable stat cards component.
+
+  Usage:
+    {% from "components/stats.html" import stat_cards %}
+    {{ stat_cards(stats) }}
+
+  stats: list of dicts with keys:
+    - label: the stat label (e.g. "Total Agents")
+    - value: the numeric value
+    - color: optional CSS class or inline color (e.g. "pink", "var(--success)")
+#}
+
+{% macro stat_cards(stats) %}
+<div class="stats-grid">
+  {% for s in stats %}
+  <div class="stat-card">
+    <div class="label">{{ s.label }}</div>
+    <div class="value{% if s.color == 'pink' %} pink{% endif %}"
+         {% if s.color and s.color != 'pink' %}style="color: {{ s.color }}"{% endif %}>
+      {{ s.value }}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}

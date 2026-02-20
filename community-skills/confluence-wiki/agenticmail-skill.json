@@ -1,0 +1,74 @@
+{
+  "id": "confluence-wiki",
+  "name": "Confluence Wiki",
+  "description": "Create, edit, and search Confluence pages and spaces. Manage documentation and knowledge bases.",
+  "version": "1.1.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/confluence-wiki",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "atlassian",
+    "scopes": [
+      "read:confluence-content.all",
+      "write:confluence-content",
+      "read:confluence-space.summary"
+    ]
+  },
+  "tags": [
+    "confluence",
+    "wiki",
+    "documentation",
+    "knowledge-base"
+  ],
+  "tools": [
+    {
+      "id": "confluence_create_page",
+      "name": "Create Page",
+      "description": "Create a new Confluence page"
+    },
+    {
+      "id": "confluence_update_page",
+      "name": "Update Page",
+      "description": "Update an existing page"
+    },
+    {
+      "id": "confluence_search",
+      "name": "Search Pages",
+      "description": "Search pages using CQL"
+    },
+    {
+      "id": "confluence_list_spaces",
+      "name": "List Spaces",
+      "description": "List all Confluence spaces"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultSpace": {
+        "type": "string",
+        "description": "Default Confluence space key to use when none is specified"
+      },
+      "contentFormat": {
+        "type": "string",
+        "enum": ["storage", "wiki"],
+        "default": "storage",
+        "description": "Default content format for creating and updating pages"
+      },
+      "autoPublish": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically publish pages instead of saving as drafts"
+      },
+      "templateId": {
+        "type": "string",
+        "description": "Default page template ID to use when creating pages"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

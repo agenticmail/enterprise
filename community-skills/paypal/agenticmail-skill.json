@@ -1,0 +1,55 @@
+{
+  "id": "paypal",
+  "name": "PayPal",
+  "description": "Integrate with PayPal to list, create, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/paypal",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "paypal",
+    "finance"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "paypal"
+  },
+  "tools": [
+    {
+      "id": "paypal_list_transactions",
+      "name": "List Transactions",
+      "description": "List PayPal transactions within a date range. Returns transaction IDs, amounts, statuses, and payer info."
+    },
+    {
+      "id": "paypal_create_payment",
+      "name": "Create Payment",
+      "description": "Create a PayPal payment order. Specify the amount, currency, and intent. Returns an order ID and approval URL."
+    },
+    {
+      "id": "paypal_get_order",
+      "name": "Get Order",
+      "description": "Retrieve details of a PayPal order by its ID. Returns order status, amounts, and payer information."
+    },
+    {
+      "id": "paypal_create_payout",
+      "name": "Create Payout",
+      "description": "Create a PayPal batch payout to send money to one or more recipients via email."
+    },
+    {
+      "id": "paypal_list_disputes",
+      "name": "List Disputes",
+      "description": "List PayPal payment disputes. Optionally filter by status or date range. Returns dispute IDs, reasons, and amounts."
+    }
+  ],
+  "configSchema": {
+    "sandbox": {
+      "type": "boolean",
+      "label": "Sandbox Mode",
+      "description": "Use PayPal sandbox environment for testing",
+      "default": false
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

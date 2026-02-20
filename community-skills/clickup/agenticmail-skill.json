@@ -1,0 +1,48 @@
+{
+  "id": "clickup",
+  "name": "ClickUp",
+  "description": "Integrate with ClickUp to list, create, update and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/clickup",
+  "license": "MIT",
+  "category": "project-management",
+  "risk": "low",
+  "tags": [
+    "clickup",
+    "project-management"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "clickup"
+  },
+  "tools": [
+    {
+      "id": "clickup_list_tasks",
+      "name": "List Tasks",
+      "description": "List tasks in a ClickUp list. Filter by status, assignees, and due dates."
+    },
+    {
+      "id": "clickup_create_task",
+      "name": "Create Task",
+      "description": "Create a new task in a ClickUp list. Specify name, description, assignees, priority, and due date."
+    },
+    {
+      "id": "clickup_update_task",
+      "name": "Update Task",
+      "description": "Update an existing ClickUp task. Change name, status, priority, description, assignees, or due date."
+    },
+    {
+      "id": "clickup_list_spaces",
+      "name": "List Spaces",
+      "description": "List all spaces in a ClickUp team/workspace. Returns space names, IDs, and feature settings."
+    },
+    {
+      "id": "clickup_list_lists",
+      "name": "List Lists",
+      "description": "List all lists within a ClickUp folder or space. Returns list names, IDs, and task counts."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

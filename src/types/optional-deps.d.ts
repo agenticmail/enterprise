@@ -1,0 +1,10 @@
+declare module '@aws-sdk/client-s3';
+declare module '@aws-sdk/s3-request-presigner';
+declare module '@aws-sdk/client-dynamodb';
+declare module '@aws-sdk/lib-dynamodb';
+declare module '@azure/storage-blob';
+declare module '@google-cloud/storage';
+declare module '@libsql/client';
+declare module 'pg';
+declare module 'mongodb';
+declare module 'better-sqlite3';

@@ -1,0 +1,56 @@
+{
+  "id": "workday",
+  "name": "Workday",
+  "description": "Integrate with Workday to list, get, search and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/workday",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "workday",
+    "hr"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "workday"
+  },
+  "tools": [
+    {
+      "id": "workday_list_workers",
+      "name": "List Workers",
+      "description": "List workers from Workday. Returns a paginated list of all workers in the organization."
+    },
+    {
+      "id": "workday_get_worker",
+      "name": "Get Worker",
+      "description": "Get detailed information about a specific Workday worker by their ID. Returns name, position, department, manager, and contact info."
+    },
+    {
+      "id": "workday_search_workers",
+      "name": "Search Workers",
+      "description": "Search for workers in Workday by name, email, or other criteria. Returns matching worker records."
+    },
+    {
+      "id": "workday_list_organizations",
+      "name": "List Organizations",
+      "description": "List organizations (departments, cost centers, divisions) in Workday. Useful for understanding the org structure."
+    },
+    {
+      "id": "workday_get_time_off_balance",
+      "name": "Get Time Off Balance",
+      "description": "Get time-off balance information for a specific Workday worker. Shows available balances across different time-off plans."
+    }
+  ],
+  "configSchema": {
+    "tenant": {
+      "type": "string",
+      "label": "Workday Tenant",
+      "description": "Your Workday tenant name (e.g. \"mycompany\" for mycompany.workday.com)",
+      "required": true,
+      "placeholder": "mycompany"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

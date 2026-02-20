@@ -1,0 +1,1320 @@
+{
+  "generatedAt": "2026-02-19T15:06:16.376Z",
+  "count": 146,
+  "skills": [
+    {
+      "id": "activecampaign",
+      "name": "ActiveCampaign",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with ActiveCampaign to list, create, list and more."
+    },
+    {
+      "id": "adobe-sign",
+      "name": "Adobe Acrobat Sign",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "legal",
+      "risk": "medium",
+      "description": "Integrate with Adobe Acrobat Sign to list, create, get and more."
+    },
+    {
+      "id": "adp",
+      "name": "ADP Workforce",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with ADP Workforce to list, get, get and more."
+    },
+    {
+      "id": "airtable-bases",
+      "name": "Airtable Bases",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "productivity",
+      "risk": "low",
+      "description": "Read, create, and update records in Airtable bases. Query views and manage field configurations."
+    },
+    {
+      "id": "apollo-io",
+      "name": "Apollo.io Sales Intelligence",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Apollo.io Sales Intelligence to search, enrich, search and more."
+    },
+    {
+      "id": "asana-tasks",
+      "name": "Asana Tasks",
+      "version": "1.4.0",
+      "author": "agenticmail",
+      "category": "productivity",
+      "risk": "low",
+      "description": "Create, assign, and track tasks in Asana. Manage projects, sections, and due dates."
+    },
+    {
+      "id": "auth0",
+      "name": "Auth0",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "security",
+      "risk": "high",
+      "description": "Integrate with Auth0 to list, get, list and more."
+    },
+    {
+      "id": "aws-services",
+      "name": "AWS Services",
+      "version": "1.3.0",
+      "author": "agenticmail",
+      "category": "cloud",
+      "risk": "critical",
+      "description": "Manage AWS resources including S3 buckets, Lambda functions, and EC2 instances."
+    },
+    {
+      "id": "azure-devops",
+      "name": "Azure DevOps",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "devops",
+      "risk": "medium",
+      "description": "Integrate with Azure DevOps to list, list, create and more."
+    },
+    {
+      "id": "bamboohr",
+      "name": "BambooHR",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with BambooHR to list, get, get and more."
+    },
+    {
+      "id": "basecamp",
+      "name": "Basecamp",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "project-management",
+      "risk": "medium",
+      "description": "Integrate with Basecamp to list, list, create and more."
+    },
+    {
+      "id": "bigcommerce",
+      "name": "BigCommerce",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "ecommerce",
+      "risk": "medium",
+      "description": "Integrate with BigCommerce to list, create, list and more."
+    },
+    {
+      "id": "bitbucket-repos",
+      "name": "Bitbucket Repos",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "development",
+      "risk": "medium",
+      "description": "Manage Bitbucket repositories, pull requests, and branch permissions."
+    },
+    {
+      "id": "box",
+      "name": "Box",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "storage",
+      "risk": "medium",
+      "description": "Integrate with Box to list, get, upload and more."
+    },
+    {
+      "id": "brex",
+      "name": "Brex",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Brex to list, list, list and more."
+    },
+    {
+      "id": "buffer",
+      "name": "Buffer Social Media",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with Buffer Social Media to list, create, list and more."
+    },
+    {
+      "id": "calendly",
+      "name": "Calendly",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with Calendly to list, get, list and more."
+    },
+    {
+      "id": "canva-design",
+      "name": "Canva Design",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "design",
+      "risk": "low",
+      "description": "Create designs, manage templates, and export assets from Canva. Automate social media graphics."
+    },
+    {
+      "id": "chargebee",
+      "name": "Chargebee",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Chargebee to list, create, list and more."
+    },
+    {
+      "id": "circleci-pipelines",
+      "name": "CircleCI Pipelines",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "development",
+      "risk": "medium",
+      "description": "Trigger builds, view pipeline status, and manage CircleCI workflows."
+    },
+    {
+      "id": "clickup",
+      "name": "ClickUp",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "project-management",
+      "risk": "low",
+      "description": "Integrate with ClickUp to list, create, update and more."
+    },
+    {
+      "id": "close-crm",
+      "name": "Close CRM",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Close CRM to list, create, search and more."
+    },
+    {
+      "id": "cloudflare-cdn",
+      "name": "Cloudflare",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "cloud",
+      "risk": "high",
+      "description": "Manage Cloudflare DNS records, firewall rules, and Workers. Purge cache and view analytics."
+    },
+    {
+      "id": "confluence-wiki",
+      "name": "Confluence Wiki",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "productivity",
+      "risk": "low",
+      "description": "Create, edit, and search Confluence pages and spaces. Manage documentation and knowledge bases."
+    },
+    {
+      "id": "contentful",
+      "name": "Contentful CMS",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with Contentful CMS to list, get, create and more."
+    },
+    {
+      "id": "copper-crm",
+      "name": "Copper CRM",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Copper CRM to list, create, search and more."
+    },
+    {
+      "id": "crisp",
+      "name": "Crisp Chat",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "customer-support",
+      "risk": "medium",
+      "description": "Integrate with Crisp Chat to list, send, get and more."
+    },
+    {
+      "id": "crowdstrike",
+      "name": "CrowdStrike",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "security",
+      "risk": "high",
+      "description": "Integrate with CrowdStrike to list, get, list and more."
+    },
+    {
+      "id": "datadog-monitoring",
+      "name": "Datadog Monitoring",
+      "version": "1.2.0",
+      "author": "agenticmail",
+      "category": "analytics",
+      "risk": "medium",
+      "description": "Query metrics, create monitors, and manage alerts in Datadog. Search logs and APM traces."
+    },
+    {
+      "id": "digitalocean",
+      "name": "DigitalOcean",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "cloud-infrastructure",
+      "risk": "high",
+      "description": "Integrate with DigitalOcean to list, create, list and more."
+    },
+    {
+      "id": "discord",
+      "name": "Discord Bot",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Send messages, manage servers, and moderate channels in Discord."
+    },
+    {
+      "id": "docker-containers",
+      "name": "Docker Containers",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "cloud",
+      "risk": "high",
+      "description": "Manage Docker containers, images, and volumes. Start, stop, and inspect running containers."
+    },
+    {
+      "id": "docusign-esign",
+      "name": "DocuSign eSignature",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "legal",
+      "risk": "high",
+      "description": "Send documents for electronic signature, track envelope status, and manage templates."
+    },
+    {
+      "id": "drift",
+      "name": "Drift Conversational Marketing",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Drift Conversational Marketing to list, send, list and more."
+    },
+    {
+      "id": "dropbox-storage",
+      "name": "Dropbox Storage",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "productivity",
+      "risk": "medium",
+      "description": "Upload, download, and manage files in Dropbox. Share folders and create file requests."
+    },
+    {
+      "id": "figma-design",
+      "name": "Figma Design",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "design",
+      "risk": "low",
+      "description": "Export assets, list files, and retrieve comments from Figma projects. Manage design components."
+    },
+    {
+      "id": "firebase",
+      "name": "Firebase",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "database",
+      "risk": "medium",
+      "description": "Integrate with Firebase to list, get, create and more."
+    },
+    {
+      "id": "flyio",
+      "name": "Fly.io",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "cloud-infrastructure",
+      "risk": "medium",
+      "description": "Integrate with Fly.io to list, get, list and more."
+    },
+    {
+      "id": "freshbooks",
+      "name": "FreshBooks",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with FreshBooks to list, create, list and more."
+    },
+    {
+      "id": "freshdesk",
+      "name": "Freshdesk Support",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "customer-support",
+      "risk": "medium",
+      "description": "Integrate with Freshdesk Support to list, create, update and more."
+    },
+    {
+      "id": "freshsales",
+      "name": "Freshsales CRM",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Freshsales CRM to list, create, list and more."
+    },
+    {
+      "id": "freshservice",
+      "name": "Freshservice ITSM",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "customer-support",
+      "risk": "medium",
+      "description": "Integrate with Freshservice ITSM to list, create, update and more."
+    },
+    {
+      "id": "front",
+      "name": "Front",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Front to list, send, list and more."
+    },
+    {
+      "id": "github",
+      "name": "GitHub Issues Manager",
+      "version": "1.2.0",
+      "author": "agenticmail",
+      "category": "development",
+      "risk": "medium",
+      "description": "Create, update, close, and triage GitHub issues. Supports labels, milestones, and assignees."
+    },
+    {
+      "id": "github-actions",
+      "name": "GitHub Actions",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "development",
+      "risk": "medium",
+      "description": "Trigger workflows, view run status, and manage GitHub Actions across repositories."
+    },
+    {
+      "id": "gitlab-ci",
+      "name": "GitLab CI/CD",
+      "version": "1.3.0",
+      "author": "agenticmail",
+      "category": "development",
+      "risk": "medium",
+      "description": "Manage GitLab merge requests, pipelines, and issues. Trigger CI/CD jobs and view logs."
+    },
+    {
+      "id": "gong",
+      "name": "Gong Revenue Intelligence",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Gong Revenue Intelligence to list, get, get and more."
+    },
+    {
+      "id": "google-ads",
+      "name": "Google Ads",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "high",
+      "description": "Manage Google Ads campaigns, ad groups, and keywords. Retrieve performance reports and metrics."
+    },
+    {
+      "id": "google-analytics",
+      "name": "Google Analytics",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "analytics",
+      "risk": "low",
+      "description": "Retrieve website analytics data from Google Analytics 4. Query reports, metrics, and dimensions."
+    },
+    {
+      "id": "google-cloud",
+      "name": "Google Cloud Platform",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "cloud",
+      "risk": "critical",
+      "description": "Manage GCP resources including Cloud Storage, Compute Engine, and BigQuery."
+    },
+    {
+      "id": "google-drive",
+      "name": "Google Drive",
+      "version": "1.2.0",
+      "author": "agenticmail",
+      "category": "productivity",
+      "risk": "medium",
+      "description": "Upload, download, and organize files in Google Drive. Manage sharing permissions and folders."
+    },
+    {
+      "id": "gotomeeting",
+      "name": "GoTo Meeting",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with GoTo Meeting to list, create, get and more."
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "monitoring",
+      "risk": "medium",
+      "description": "Integrate with Grafana to list, get, list and more."
+    },
+    {
+      "id": "greenhouse",
+      "name": "Greenhouse Recruiting",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with Greenhouse Recruiting to list, get, list and more."
+    },
+    {
+      "id": "gusto",
+      "name": "Gusto Payroll",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with Gusto Payroll to list, get, list and more."
+    },
+    {
+      "id": "hashicorp-vault",
+      "name": "HashiCorp Vault",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "security",
+      "risk": "high",
+      "description": "Integrate with HashiCorp Vault to read, list, write and more."
+    },
+    {
+      "id": "heroku",
+      "name": "Heroku",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "cloud-infrastructure",
+      "risk": "high",
+      "description": "Integrate with Heroku to list, get, list and more."
+    },
+    {
+      "id": "hibob",
+      "name": "HiBob",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with HiBob to list, get, search and more."
+    },
+    {
+      "id": "hootsuite",
+      "name": "Hootsuite",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with Hootsuite to list, schedule, list and more."
+    },
+    {
+      "id": "hubspot-crm",
+      "name": "HubSpot CRM",
+      "version": "1.2.0",
+      "author": "agenticmail",
+      "category": "sales",
+      "risk": "medium",
+      "description": "Manage HubSpot contacts, deals, companies, and tickets. Automate sales and marketing workflows."
+    },
+    {
+      "id": "huggingface",
+      "name": "HuggingFace",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "platform",
+      "risk": "medium",
+      "description": "Integrate with HuggingFace to inference, list, get and more."
+    },
+    {
+      "id": "intercom-support",
+      "name": "Intercom Messenger",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "customer-support",
+      "risk": "medium",
+      "description": "Manage Intercom conversations, contacts, and articles. Automate customer communication."
+    },
+    {
+      "id": "jira",
+      "name": "Jira Integration",
+      "version": "1.5.0",
+      "author": "agenticmail",
+      "category": "productivity",
+      "risk": "medium",
+      "description": "Full Jira integration for creating tickets, managing sprints, and tracking progress."
+    },
+    {
+      "id": "klaviyo",
+      "name": "Klaviyo",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with Klaviyo to list, create, list and more."
+    },
+    {
+      "id": "kubernetes-cluster",
+      "name": "Kubernetes Cluster",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "cloud",
+      "risk": "critical",
+      "description": "Manage Kubernetes pods, deployments, and services. Scale workloads and view cluster status."
+    },
+    {
+      "id": "lattice",
+      "name": "Lattice Performance",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with Lattice Performance to list, get, list and more."
+    },
+    {
+      "id": "launchdarkly",
+      "name": "LaunchDarkly",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "devops",
+      "risk": "medium",
+      "description": "Integrate with LaunchDarkly to list, get, toggle and more."
+    },
+    {
+      "id": "lever",
+      "name": "Lever Recruiting",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with Lever Recruiting to list, create, list and more."
+    },
+    {
+      "id": "linear",
+      "name": "Linear Issue Tracker",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "development",
+      "risk": "low",
+      "description": "Create and manage Linear issues, projects, and cycles. Streamline engineering workflows."
+    },
+    {
+      "id": "linkedin",
+      "name": "LinkedIn",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "social",
+      "risk": "medium",
+      "description": "Integrate with LinkedIn to get, create, list and more."
+    },
+    {
+      "id": "livechat",
+      "name": "LiveChat",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "customer-support",
+      "risk": "medium",
+      "description": "Integrate with LiveChat to list, send, list and more."
+    },
+    {
+      "id": "loom-video",
+      "name": "Loom",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "low",
+      "description": "Integrate with Loom to list, get, delete and more."
+    },
+    {
+      "id": "mailchimp-campaigns",
+      "name": "Mailchimp Campaigns",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Create and send Mailchimp email campaigns. Manage audiences, segments, and templates."
+    },
+    {
+      "id": "mailgun",
+      "name": "Mailgun",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with Mailgun to send, list, validate and more."
+    },
+    {
+      "id": "microsoft-teams",
+      "name": "Microsoft Teams",
+      "version": "1.1.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Send messages, manage channels, and schedule meetings in Microsoft Teams."
+    },
+    {
+      "id": "miro-boards",
+      "name": "Miro",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "collaboration",
+      "risk": "medium",
+      "description": "Integrate with Miro to list, create, create and more."
+    },
+    {
+      "id": "mixpanel-analytics",
+      "name": "Mixpanel Analytics",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "analytics",
+      "risk": "low",
+      "description": "Query Mixpanel events, funnels, and user cohorts. Track product analytics and retention."
+    },
+    {
+      "id": "monday-boards",
+      "name": "Monday.com Boards",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "productivity",
+      "risk": "low",
+      "description": "Manage boards, items, and columns in Monday.com. Automate status updates and notifications."
+    },
+    {
+      "id": "mongodb-atlas",
+      "name": "MongoDB Atlas",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "database",
+      "risk": "medium",
+      "description": "Integrate with MongoDB Atlas to list, get, list and more."
+    },
+    {
+      "id": "neon",
+      "name": "Neon Serverless Postgres",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "database",
+      "risk": "medium",
+      "description": "Integrate with Neon Serverless Postgres to list, get, list and more."
+    },
+    {
+      "id": "netlify",
+      "name": "Netlify",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "cloud-infrastructure",
+      "risk": "medium",
+      "description": "Integrate with Netlify to list, get, list and more."
+    },
+    {
+      "id": "netsuite",
+      "name": "NetSuite ERP",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with NetSuite ERP to search, get, create and more."
+    },
+    {
+      "id": "newrelic",
+      "name": "New Relic",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "monitoring",
+      "risk": "medium",
+      "description": "Integrate with New Relic to list, get, query and more."
+    },
+    {
+      "id": "notion",
+      "name": "Notion Sync",
+      "version": "1.1.0",
+      "author": "community",
+      "category": "productivity",
+      "risk": "low",
+      "description": "Read, create, and update Notion pages and databases. Supports rich content blocks."
+    },
+    {
+      "id": "okta",
+      "name": "Okta Identity",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "security",
+      "risk": "high",
+      "description": "Integrate with Okta Identity to list, get, list and more."
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "platform",
+      "risk": "medium",
+      "description": "Integrate with OpenAI to chat, create, list and more."
+    },
+    {
+      "id": "opsgenie",
+      "name": "OpsGenie",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "monitoring",
+      "risk": "medium",
+      "description": "Integrate with OpsGenie to list, create, acknowledge and more."
+    },
+    {
+      "id": "outreach",
+      "name": "Outreach Sales Engagement",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Outreach Sales Engagement to list, create, list and more."
+    },
+    {
+      "id": "paddle",
+      "name": "Paddle",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Paddle to list, list, list and more."
+    },
+    {
+      "id": "pagerduty",
+      "name": "PagerDuty",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "monitoring",
+      "risk": "medium",
+      "description": "Integrate with PagerDuty to list, create, acknowledge and more."
+    },
+    {
+      "id": "pandadoc",
+      "name": "PandaDoc",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "legal",
+      "risk": "medium",
+      "description": "Integrate with PandaDoc to list, create, send and more."
+    },
+    {
+      "id": "paypal",
+      "name": "PayPal",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with PayPal to list, create, get and more."
+    },
+    {
+      "id": "personio",
+      "name": "Personio",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with Personio to list, get, list and more."
+    },
+    {
+      "id": "pinecone",
+      "name": "Pinecone",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "database",
+      "risk": "medium",
+      "description": "Integrate with Pinecone to list, query, upsert and more."
+    },
+    {
+      "id": "pipedrive-deals",
+      "name": "Pipedrive Deals",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "sales",
+      "risk": "medium",
+      "description": "Manage Pipedrive deals, contacts, and organizations. Track sales pipeline and activities."
+    },
+    {
+      "id": "plaid",
+      "name": "Plaid",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Plaid to get, get, get and more."
+    },
+    {
+      "id": "postmark",
+      "name": "Postmark",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with Postmark to send, list, send and more."
+    },
+    {
+      "id": "power-automate",
+      "name": "Microsoft Power Automate",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "automation",
+      "risk": "high",
+      "description": "Integrate with Microsoft Power Automate to list, run, get and more."
+    },
+    {
+      "id": "quickbooks-accounting",
+      "name": "QuickBooks Accounting",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "finance",
+      "risk": "high",
+      "description": "Manage QuickBooks invoices, expenses, and customers. Generate financial reports and summaries."
+    },
+    {
+      "id": "recurly",
+      "name": "Recurly",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Recurly to list, list, list and more."
+    },
+    {
+      "id": "reddit",
+      "name": "Reddit",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "social",
+      "risk": "low",
+      "description": "Integrate with Reddit to search, get, submit and more."
+    },
+    {
+      "id": "render",
+      "name": "Render",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "cloud-infrastructure",
+      "risk": "medium",
+      "description": "Integrate with Render to list, get, list and more."
+    },
+    {
+      "id": "ringcentral",
+      "name": "RingCentral",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with RingCentral to send, list, get and more."
+    },
+    {
+      "id": "rippling",
+      "name": "Rippling HR",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with Rippling HR to list, get, list and more."
+    },
+    {
+      "id": "salesforce",
+      "name": "Salesforce CRM",
+      "version": "1.3.0",
+      "author": "community",
+      "category": "sales",
+      "risk": "high",
+      "description": "Manage Salesforce records, opportunities, contacts, and run SOQL queries."
+    },
+    {
+      "id": "salesloft",
+      "name": "SalesLoft",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with SalesLoft to list, create, list and more."
+    },
+    {
+      "id": "sanity",
+      "name": "Sanity CMS",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with Sanity CMS to query, create, patch and more."
+    },
+    {
+      "id": "sap",
+      "name": "SAP S/4HANA",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "platform",
+      "risk": "high",
+      "description": "Integrate with SAP S/4HANA to list, get, list and more."
+    },
+    {
+      "id": "segment-cdp",
+      "name": "Segment CDP",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "data",
+      "risk": "medium",
+      "description": "Manage Segment sources, destinations, and tracking plans. Send events and manage user profiles."
+    },
+    {
+      "id": "sendgrid-email",
+      "name": "SendGrid Email",
+      "version": "1.1.0",
+      "author": "community",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Send transactional and marketing emails via SendGrid. Manage contacts and templates."
+    },
+    {
+      "id": "sentry",
+      "name": "Sentry Error Tracking",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "monitoring",
+      "risk": "medium",
+      "description": "Integrate with Sentry Error Tracking to list, get, list and more."
+    },
+    {
+      "id": "servicenow",
+      "name": "ServiceNow",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "platform",
+      "risk": "high",
+      "description": "Integrate with ServiceNow to list, create, update and more."
+    },
+    {
+      "id": "shopify",
+      "name": "Shopify",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "ecommerce",
+      "risk": "medium",
+      "description": "Integrate with Shopify to list, create, list and more."
+    },
+    {
+      "id": "shortcut",
+      "name": "Shortcut",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "project-management",
+      "risk": "low",
+      "description": "Integrate with Shortcut to list, create, search and more."
+    },
+    {
+      "id": "slack",
+      "name": "Slack Notifications",
+      "version": "2.0.1",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Send messages, create channels, and manage notifications in Slack workspaces."
+    },
+    {
+      "id": "smartsheet",
+      "name": "Smartsheet",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "project-management",
+      "risk": "medium",
+      "description": "Integrate with Smartsheet to list, get, add and more."
+    },
+    {
+      "id": "snowflake-warehouse",
+      "name": "Snowflake Data Warehouse",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "data",
+      "risk": "high",
+      "description": "Run SQL queries, manage warehouses, and list databases in Snowflake."
+    },
+    {
+      "id": "snyk",
+      "name": "Snyk Security",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "security",
+      "risk": "medium",
+      "description": "Integrate with Snyk Security to list, list, list and more."
+    },
+    {
+      "id": "splunk",
+      "name": "Splunk",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "monitoring",
+      "risk": "medium",
+      "description": "Integrate with Splunk to search, list, get and more."
+    },
+    {
+      "id": "square",
+      "name": "Square",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Square to list, create, list and more."
+    },
+    {
+      "id": "statuspage",
+      "name": "Atlassian Statuspage",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "monitoring",
+      "risk": "medium",
+      "description": "Integrate with Atlassian Statuspage to list, create, update and more."
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe Billing",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "finance",
+      "risk": "high",
+      "description": "Manage Stripe customers, subscriptions, invoices, and payment methods."
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "database",
+      "risk": "medium",
+      "description": "Integrate with Supabase to query, insert, update and more."
+    },
+    {
+      "id": "teamwork",
+      "name": "Teamwork",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "project-management",
+      "risk": "medium",
+      "description": "Integrate with Teamwork to list, list, create and more."
+    },
+    {
+      "id": "telegram-bot",
+      "name": "Telegram Bot",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with Telegram Bot to send, send, get and more."
+    },
+    {
+      "id": "terraform-iac",
+      "name": "Terraform IaC",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "cloud",
+      "risk": "critical",
+      "description": "Plan, apply, and manage Terraform infrastructure. View state and manage workspaces."
+    },
+    {
+      "id": "todoist-tasks",
+      "name": "Todoist Tasks",
+      "version": "1.0.0",
+      "author": "community",
+      "category": "productivity",
+      "risk": "low",
+      "description": "Create, complete, and organize tasks in Todoist. Manage projects, labels, and due dates."
+    },
+    {
+      "id": "trello-cards",
+      "name": "Trello Cards",
+      "version": "1.2.0",
+      "author": "agenticmail",
+      "category": "productivity",
+      "risk": "low",
+      "description": "Create and manage Trello cards, lists, and boards. Move cards across lists and add labels."
+    },
+    {
+      "id": "twilio-sms",
+      "name": "Twilio SMS & Voice",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "high",
+      "description": "Send SMS messages, make voice calls, and manage phone numbers with Twilio."
+    },
+    {
+      "id": "twitter",
+      "name": "Twitter/X",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "social",
+      "risk": "medium",
+      "description": "Integrate with Twitter/X to post, search, get and more."
+    },
+    {
+      "id": "vercel-deployments",
+      "name": "Vercel Deployments",
+      "version": "1.2.0",
+      "author": "agenticmail",
+      "category": "development",
+      "risk": "high",
+      "description": "Deploy projects, manage domains, and monitor deployments on Vercel."
+    },
+    {
+      "id": "weaviate",
+      "name": "Weaviate",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "database",
+      "risk": "medium",
+      "description": "Integrate with Weaviate to query, create, get and more."
+    },
+    {
+      "id": "webex",
+      "name": "Webex",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with Webex to send, list, create and more."
+    },
+    {
+      "id": "webflow",
+      "name": "Webflow",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with Webflow to list, list, list and more."
+    },
+    {
+      "id": "whatsapp-business",
+      "name": "WhatsApp Business",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "medium",
+      "description": "Integrate with WhatsApp Business to send, send, get and more."
+    },
+    {
+      "id": "whereby",
+      "name": "Whereby",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "low",
+      "description": "Integrate with Whereby to create, get, delete and more."
+    },
+    {
+      "id": "woocommerce",
+      "name": "WooCommerce",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "ecommerce",
+      "risk": "medium",
+      "description": "Integrate with WooCommerce to list, create, list and more."
+    },
+    {
+      "id": "wordpress",
+      "name": "WordPress",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "marketing",
+      "risk": "medium",
+      "description": "Integrate with WordPress to list, create, update and more."
+    },
+    {
+      "id": "workday",
+      "name": "Workday",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "hr",
+      "risk": "medium",
+      "description": "Integrate with Workday to list, get, search and more."
+    },
+    {
+      "id": "wrike",
+      "name": "Wrike",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "project-management",
+      "risk": "medium",
+      "description": "Integrate with Wrike to list, create, list and more."
+    },
+    {
+      "id": "xero",
+      "name": "Xero Accounting",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Xero Accounting to list, create, list and more."
+    },
+    {
+      "id": "youtube",
+      "name": "YouTube",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "media",
+      "risk": "low",
+      "description": "Integrate with YouTube to search, list, get and more."
+    },
+    {
+      "id": "zendesk-tickets",
+      "name": "Zendesk Tickets",
+      "version": "1.3.0",
+      "author": "agenticmail",
+      "category": "customer-support",
+      "risk": "medium",
+      "description": "Create, update, and resolve Zendesk support tickets. Manage users, organizations, and macros."
+    },
+    {
+      "id": "zoho-crm",
+      "name": "Zoho CRM",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "crm",
+      "risk": "medium",
+      "description": "Integrate with Zoho CRM to list, get, create and more."
+    },
+    {
+      "id": "zoom-meetings",
+      "name": "Zoom Meetings",
+      "version": "1.2.0",
+      "author": "agenticmail",
+      "category": "communication",
+      "risk": "low",
+      "description": "Create, update, and manage Zoom meetings and webinars. Retrieve recordings and participant lists."
+    },
+    {
+      "id": "zuora",
+      "name": "Zuora",
+      "version": "1.0.0",
+      "author": "agenticmail",
+      "category": "finance",
+      "risk": "high",
+      "description": "Integrate with Zuora to list, create, list and more."
+    }
+  ]
+}

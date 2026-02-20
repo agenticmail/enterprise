@@ -1,0 +1,69 @@
+{
+  "id": "airtable-bases",
+  "name": "Airtable Bases",
+  "description": "Read, create, and update records in Airtable bases. Query views and manage field configurations.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/airtable-bases",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "airtable",
+    "scopes": [
+      "data.records:read",
+      "data.records:write",
+      "schema.bases:read"
+    ]
+  },
+  "tags": [
+    "airtable",
+    "database",
+    "spreadsheet",
+    "no-code"
+  ],
+  "tools": [
+    {
+      "id": "airtable_list_records",
+      "name": "List Records",
+      "description": "List records from a table with optional filters"
+    },
+    {
+      "id": "airtable_create_record",
+      "name": "Create Record",
+      "description": "Create a new record in a table"
+    },
+    {
+      "id": "airtable_update_record",
+      "name": "Update Record",
+      "description": "Update fields on an existing record"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultBase": {
+        "type": "string",
+        "description": "Default Airtable base to use when none is specified"
+      },
+      "defaultTable": {
+        "type": "string",
+        "description": "Default table name to use when none is specified"
+      },
+      "pageSize": {
+        "type": "number",
+        "default": 100,
+        "description": "Number of records to return per page"
+      },
+      "cellFormat": {
+        "type": "string",
+        "enum": ["json", "string"],
+        "default": "json",
+        "description": "Format for cell values in API responses"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

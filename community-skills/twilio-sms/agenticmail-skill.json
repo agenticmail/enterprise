@@ -1,0 +1,63 @@
+{
+  "id": "twilio-sms",
+  "name": "Twilio SMS & Voice",
+  "description": "Send SMS messages, make voice calls, and manage phone numbers with Twilio.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/twilio-sms",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "high",
+  "auth": {
+    "type": "credentials",
+    "fields": ["accountSid", "authToken"],
+    "envVars": {
+      "accountSid": "TWILIO_ACCOUNT_SID",
+      "authToken": "TWILIO_AUTH_TOKEN"
+    },
+    "description": "Twilio Account SID and Auth Token from console.twilio.com"
+  },
+  "tags": ["twilio", "sms", "voice", "phone"],
+  "tools": [
+    {
+      "id": "twilio_send_sms",
+      "name": "Send SMS",
+      "description": "Send an SMS message to a phone number"
+    },
+    {
+      "id": "twilio_make_call",
+      "name": "Make Call",
+      "description": "Initiate an outbound voice call"
+    },
+    {
+      "id": "twilio_list_messages",
+      "name": "List Messages",
+      "description": "List recent SMS messages"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultFromNumber": {
+        "type": "string",
+        "description": "Default phone number to send from"
+      },
+      "maxMessageLength": {
+        "type": "number",
+        "default": 1600,
+        "description": "Maximum character length for SMS messages"
+      },
+      "deliveryCallbackUrl": {
+        "type": "string",
+        "format": "uri",
+        "description": "URL for delivery status callbacks"
+      },
+      "messagingServiceSid": {
+        "type": "string",
+        "description": "Twilio Messaging Service SID for advanced routing"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

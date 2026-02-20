@@ -1,0 +1,56 @@
+{
+  "id": "servicenow",
+  "name": "ServiceNow",
+  "description": "Integrate with ServiceNow to list, create, update and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/servicenow",
+  "license": "MIT",
+  "category": "platform",
+  "risk": "high",
+  "tags": [
+    "servicenow",
+    "platform"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "servicenow"
+  },
+  "tools": [
+    {
+      "id": "snow_list_incidents",
+      "name": "List Incidents",
+      "description": "List incidents from ServiceNow. Optionally filter by state, priority, or assignment group."
+    },
+    {
+      "id": "snow_create_incident",
+      "name": "Create Incident",
+      "description": "Create a new incident in ServiceNow. Provide a short description and optional details."
+    },
+    {
+      "id": "snow_update_incident",
+      "name": "Update Incident",
+      "description": "Update an existing ServiceNow incident. Can change state, priority, assignment, or add work notes."
+    },
+    {
+      "id": "snow_list_changes",
+      "name": "List Changes",
+      "description": "List change requests from ServiceNow. Optionally filter by state, type, or risk."
+    },
+    {
+      "id": "snow_search",
+      "name": "Search",
+      "description": "Search records across ServiceNow tables using encoded queries. Useful for finding records by keyword or advanced criteria."
+    }
+  ],
+  "configSchema": {
+    "instance": {
+      "type": "string",
+      "label": "Instance Name",
+      "description": "Your ServiceNow instance name (e.g. \"mycompany\" for mycompany.service-now.com)",
+      "required": true,
+      "placeholder": "mycompany"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

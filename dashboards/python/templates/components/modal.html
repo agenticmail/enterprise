@@ -1,0 +1,43 @@
+{#
+  Reusable modal component.
+
+  Usage:
+    {% from "components/modal.html" import create_modal %}
+    {{ create_modal("create-agent", "Create Agent", "/agents/create", fields) }}
+
+  fields is a list of dicts:
+    [{"name": "name", "label": "Name", "type": "text", "required": true, "placeholder": "..."},
+     {"name": "role", "label": "Role", "type": "select", "options": ["assistant", "researcher"]}]
+#}
+
+{% macro create_modal(id, title, action_url, fields) %}
+<div class="modal-overlay" id="{{ id }}-modal">
+  <div class="modal">
+    <h3>{{ title }}</h3>
+    <form method="POST" action="{{ action_url }}">
+      {% for field in fields %}
+      <div class="form-group">
+        <label>{{ field.label }}</label>
+        {% if field.type == 'select' %}
+        <select name="{{ field.name }}" {% if field.required %}required{% endif %}>
+          {% for opt in field.options %}
+          <option value="{{ opt }}">{{ opt }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input type="{{ field.type or 'text' }}" name="{{ field.name }}"
+               {% if field.required %}required{% endif %}
+               {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+               {% if field.minlength %}minlength="{{ field.minlength }}"{% endif %}
+               {% if field.value %}value="{{ field.value }}"{% endif %}>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="this.closest('.modal-overlay').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">{{ title }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endmacro %}

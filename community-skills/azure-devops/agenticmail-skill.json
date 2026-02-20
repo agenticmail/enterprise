@@ -1,0 +1,57 @@
+{
+  "id": "azure-devops",
+  "name": "Azure DevOps",
+  "description": "Integrate with Azure DevOps to list, list, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/azure-devops",
+  "license": "MIT",
+  "category": "devops",
+  "risk": "medium",
+  "tags": [
+    "azuredevops",
+    "azure",
+    "devops"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "azure"
+  },
+  "tools": [
+    {
+      "id": "azdo_list_projects",
+      "name": "List Projects",
+      "description": "List all projects in the Azure DevOps organization. Returns project names, IDs, states, and descriptions."
+    },
+    {
+      "id": "azdo_list_work_items",
+      "name": "List Work Items",
+      "description": "Query work items in an Azure DevOps project using WIQL (Work Item Query Language). Returns IDs, titles, states, and types."
+    },
+    {
+      "id": "azdo_create_work_item",
+      "name": "Create Work Item",
+      "description": "Create a new work item in an Azure DevOps project. Specify the type (Bug, Task, User Story, etc.) and fields."
+    },
+    {
+      "id": "azdo_list_repos",
+      "name": "List Repos",
+      "description": "List Git repositories in an Azure DevOps project. Returns repo names, IDs, default branches, and sizes."
+    },
+    {
+      "id": "azdo_list_pipelines",
+      "name": "List Pipelines",
+      "description": "List build/release pipelines in an Azure DevOps project. Returns pipeline names, IDs, and folders."
+    }
+  ],
+  "configSchema": {
+    "organization": {
+      "type": "string",
+      "label": "Azure DevOps Organization",
+      "description": "Your Azure DevOps organization name (from dev.azure.com/{org})",
+      "required": true,
+      "placeholder": "my-organization"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">Audit Log</h2>
+<p class="desc">{{ total }} total events</p>
+<div class="card">
+{% if events %}
+<table>
+<thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>IP</th></tr></thead>
+<tbody>
+{% for e in events %}
+<tr>
+<td style="font-size:12px;color:var(--muted)">{{ e.timestamp }}</td>
+<td>{{ e.actor }}</td>
+<td style="color:var(--primary);font-weight:500">{{ e.action }}</td>
+<td style="font-size:12px">{{ e.resource }}</td>
+<td style="font-size:12px;color:var(--muted)">{{ e.ip|default:"-" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% include "components/pagination.html" %}
+{% else %}
+<div class="empty">&#x1f4cb; No audit events yet</div>
+{% endif %}
+</div>
+{% endblock %}

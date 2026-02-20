@@ -1,0 +1,65 @@
+{
+  "id": "zendesk-tickets",
+  "name": "Zendesk Tickets",
+  "description": "Create, update, and resolve Zendesk support tickets. Manage users, organizations, and macros.",
+  "version": "1.3.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/zendesk-tickets",
+  "license": "MIT",
+  "category": "customer-support",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "zendesk",
+    "scopes": ["read", "write", "tickets:write"]
+  },
+  "tags": ["zendesk", "support", "tickets", "helpdesk"],
+  "tools": [
+    {
+      "id": "zendesk_create_ticket",
+      "name": "Create Ticket",
+      "description": "Create a new support ticket"
+    },
+    {
+      "id": "zendesk_update_ticket",
+      "name": "Update Ticket",
+      "description": "Update ticket status, priority, or assignee"
+    },
+    {
+      "id": "zendesk_search_tickets",
+      "name": "Search Tickets",
+      "description": "Search tickets with filters"
+    },
+    {
+      "id": "zendesk_list_users",
+      "name": "List Users",
+      "description": "List end users and agents"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "subdomain": {
+        "type": "string",
+        "description": "Your Zendesk subdomain (e.g. 'mycompany' for mycompany.zendesk.com)"
+      },
+      "defaultGroup": {
+        "type": "string",
+        "description": "Default group to assign new tickets to"
+      },
+      "defaultPriority": {
+        "type": "string",
+        "description": "Default priority for new tickets",
+        "enum": ["low", "normal", "high", "urgent"],
+        "default": "normal"
+      },
+      "autoTag": {
+        "type": "boolean",
+        "description": "Automatically tag tickets based on content",
+        "default": true
+      }
+    },
+    "required": ["subdomain"]
+  },
+  "minEngineVersion": "0.3.0"
+}

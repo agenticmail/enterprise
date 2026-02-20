@@ -1,0 +1,43 @@
+{
+  "id": "whereby",
+  "name": "Whereby",
+  "description": "Integrate with Whereby to create, get, delete and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/whereby",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "low",
+  "tags": [
+    "whereby",
+    "communication"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "whereby"
+  },
+  "tools": [
+    {
+      "id": "whereby_create_meeting",
+      "name": "Create Meeting",
+      "description": "Create a new Whereby video meeting room. Specify an end date and optional room settings."
+    },
+    {
+      "id": "whereby_get_meeting",
+      "name": "Get Meeting",
+      "description": "Get details of a specific Whereby meeting room by its meeting ID."
+    },
+    {
+      "id": "whereby_delete_meeting",
+      "name": "Delete Meeting",
+      "description": "Delete a Whereby meeting room by its meeting ID. The room URL will no longer be accessible."
+    },
+    {
+      "id": "whereby_list_meetings",
+      "name": "List Meetings",
+      "description": "List all active Whereby meeting rooms. Returns room URLs, modes, and expiration dates."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

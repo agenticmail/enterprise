@@ -1,0 +1,66 @@
+{
+  "id": "docusign-esign",
+  "name": "DocuSign eSignature",
+  "description": "Send documents for electronic signature, track envelope status, and manage templates.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/docusign-esign",
+  "license": "MIT",
+  "category": "legal",
+  "risk": "high",
+  "auth": {
+    "type": "oauth2",
+    "provider": "docusign",
+    "scopes": ["signature", "extended"]
+  },
+  "tags": ["docusign", "esignature", "contracts", "legal"],
+  "tools": [
+    {
+      "id": "docusign_send_envelope",
+      "name": "Send Envelope",
+      "description": "Send a document for electronic signature"
+    },
+    {
+      "id": "docusign_get_status",
+      "name": "Get Envelope Status",
+      "description": "Check the status of a sent envelope"
+    },
+    {
+      "id": "docusign_list_templates",
+      "name": "List Templates",
+      "description": "List available signing templates"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "accountId": {
+        "type": "string",
+        "description": "DocuSign account ID"
+      },
+      "sandboxMode": {
+        "type": "boolean",
+        "description": "Use DocuSign sandbox environment for testing",
+        "default": true
+      },
+      "defaultExpirationDays": {
+        "type": "number",
+        "description": "Default number of days before envelopes expire",
+        "default": 30
+      },
+      "reminderDays": {
+        "type": "number",
+        "description": "Days between automatic reminders",
+        "default": 3
+      },
+      "signingOrder": {
+        "type": "string",
+        "description": "Default signing order for multiple signers",
+        "enum": ["parallel", "sequential"],
+        "default": "sequential"
+      }
+    },
+    "required": ["accountId"]
+  },
+  "minEngineVersion": "0.3.0"
+}

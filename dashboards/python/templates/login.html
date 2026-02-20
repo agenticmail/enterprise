@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgenticMail Enterprise</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="login-screen">
+    <div class="login-box">
+      <h1>AgenticMail Enterprise</h1>
+      <p class="subtitle">Sign in &middot; Python Dashboard</p>
+      <div class="login-card">
+        {% if error %}
+        <div class="login-error">{{ error }}</div>
+        {% endif %}
+        <form method="POST">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" required autofocus>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" required>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">Sign In</button>
+        </form>
+      </div>
+      <p style="text-align: center; margin-top: 16px; font-size: 11px; color: var(--text-muted);">
+        Connected to: {{ api_url }}
+      </p>
+    </div>
+  </div>
+</body>
+</html>

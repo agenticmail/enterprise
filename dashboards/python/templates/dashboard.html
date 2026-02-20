@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% from "components/stats.html" import stat_cards %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <p>Overview of your AgenticMail instance</p>
+</div>
+
+{{ stat_cards([
+  {"label": "Total Agents", "value": stats.totalAgents|default(0), "color": "pink"},
+  {"label": "Active Agents", "value": stats.activeAgents|default(0), "color": "var(--success)"},
+  {"label": "Users", "value": stats.totalUsers|default(0)},
+  {"label": "Audit Events", "value": stats.totalAuditEvents|default(0)},
+]) }}
+
+<div class="card">
+  <h3>Recent Activity</h3>
+  {% if audit %}
+    {% for e in audit %}
+    <div style="padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px;">
+      <span style="color: var(--primary); font-weight: 500;">{{ e.action }}</span> on {{ e.resource }}
+      <div style="font-size: 11px; color: var(--text-muted);">
+        {{ e.timestamp|time_ago }}{{ ' &middot; ' + e.ip if e.ip else '' }}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      <span class="icon">No activity yet</span>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

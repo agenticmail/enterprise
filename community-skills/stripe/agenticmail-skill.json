@@ -1,0 +1,66 @@
+{
+  "id": "stripe",
+  "name": "Stripe Billing",
+  "description": "Manage Stripe customers, subscriptions, invoices, and payment methods.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/stripe",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "auth": {
+    "type": "api_key",
+    "name": "Stripe Secret Key",
+    "envVar": "STRIPE_SECRET_KEY",
+    "description": "Restricted API key from Stripe Dashboard"
+  },
+  "tags": [
+    "stripe",
+    "billing",
+    "payments"
+  ],
+  "tools": [
+    {
+      "id": "stripe_create_customer",
+      "name": "Create Customer",
+      "description": "Create a Stripe customer"
+    },
+    {
+      "id": "stripe_create_invoice",
+      "name": "Create Invoice",
+      "description": "Generate an invoice"
+    },
+    {
+      "id": "stripe_list_subscriptions",
+      "name": "List Subscriptions",
+      "description": "List active subscriptions"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultCurrency": {
+        "type": "string",
+        "default": "usd",
+        "description": "Default currency for charges and invoices"
+      },
+      "autoConfirmPayments": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically confirm payments without manual review"
+      },
+      "webhookEndpoint": {
+        "type": "string",
+        "format": "uri",
+        "description": "URL endpoint for Stripe webhook events"
+      },
+      "testMode": {
+        "type": "boolean",
+        "default": true,
+        "description": "Use Stripe test mode instead of live mode"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

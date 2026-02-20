@@ -1,0 +1,48 @@
+{
+  "id": "recurly",
+  "name": "Recurly",
+  "description": "Integrate with Recurly to list, list, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/recurly",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "recurly",
+    "finance"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "recurly"
+  },
+  "tools": [
+    {
+      "id": "recurly_list_accounts",
+      "name": "List Accounts",
+      "description": "List accounts (customers) in Recurly. Optionally filter by state or email. Returns account codes, emails, and statuses."
+    },
+    {
+      "id": "recurly_list_subscriptions",
+      "name": "List Subscriptions",
+      "description": "List subscriptions in Recurly. Optionally filter by state or plan. Returns subscription IDs, plans, statuses, and amounts."
+    },
+    {
+      "id": "recurly_list_invoices",
+      "name": "List Invoices",
+      "description": "List invoices in Recurly. Optionally filter by state or type. Returns invoice numbers, amounts, and statuses."
+    },
+    {
+      "id": "recurly_get_account",
+      "name": "Get Account",
+      "description": "Retrieve details of a single Recurly account by its ID or code. Returns account name, email, state, and billing info."
+    },
+    {
+      "id": "recurly_list_plans",
+      "name": "List Plans",
+      "description": "List subscription plans in Recurly. Returns plan names, codes, pricing, and statuses."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

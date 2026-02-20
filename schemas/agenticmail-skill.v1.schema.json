@@ -1,0 +1,180 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agenticmail.io/schemas/agenticmail-skill.v1.json",
+  "title": "AgenticMail Community Skill Manifest",
+  "description": "Schema for agenticmail-skill.json — the manifest file for community-contributed skills in AgenticMail Enterprise.",
+  "type": "object",
+  "required": ["id", "name", "description", "version", "author", "repository", "license", "category", "risk", "tools"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON Schema for IDE autocompletion"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$",
+      "description": "Unique skill identifier. Lowercase alphanumeric with hyphens/underscores, 3-64 chars."
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Human-readable skill name."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 500,
+      "description": "Clear description of what this skill enables (20-500 chars)."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[\\w.]+)?(\\+[\\w.]+)?$",
+      "description": "Semantic version (e.g. 1.0.0, 2.1.0-beta.1)."
+    },
+    "author": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "GitHub username of the skill author."
+    },
+    "repository": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the skill's source repository."
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier (e.g. MIT, Apache-2.0).",
+      "enum": [
+        "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC",
+        "MPL-2.0", "GPL-2.0", "GPL-3.0", "LGPL-2.1", "LGPL-3.0",
+        "AGPL-3.0", "Unlicense", "CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0",
+        "BSL-1.0", "0BSD", "Artistic-2.0", "Zlib", "PSF-2.0"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "description": "Skill category.",
+      "enum": [
+        "communication", "development", "productivity", "research", "media",
+        "automation", "smart-home", "data", "security", "social", "platform",
+        "collaboration", "crm", "project-management", "cloud-infrastructure",
+        "devops", "finance", "analytics", "design", "ecommerce", "marketing",
+        "hr", "legal", "customer-support", "storage", "database", "monitoring"
+      ]
+    },
+    "risk": {
+      "type": "string",
+      "description": "Overall risk level of this skill.",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "icon": {
+      "type": "string",
+      "description": "Emoji or URL for the skill icon."
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "description": "Tags for search and filtering (lowercase, max 20)."
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Tool definitions this skill provides.",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "description"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$",
+            "description": "Unique tool identifier. Lowercase alphanumeric with underscores."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable tool name."
+          },
+          "description": {
+            "type": "string",
+            "description": "What this tool does."
+          },
+          "category": {
+            "type": "string",
+            "enum": ["read", "write", "execute", "communicate", "destroy"],
+            "description": "Tool operation category."
+          },
+          "riskLevel": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"],
+            "description": "Risk level of this specific tool."
+          },
+          "sideEffects": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "sends-email", "sends-message", "sends-sms", "posts-social",
+                "runs-code", "modifies-files", "deletes-data", "network-request",
+                "controls-device", "accesses-secrets", "financial"
+              ]
+            },
+            "description": "Side effects this tool can cause."
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Tool parameters as key-value definitions.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "description": { "type": "string" },
+                "required": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "configSchema": {
+      "type": "object",
+      "description": "Configuration fields required to use this skill.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "select", "secret"]
+          },
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "required": { "type": "boolean" },
+          "default": {},
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": { "type": "string" },
+                "value": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "minEngineVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Minimum AgenticMail Enterprise engine version required."
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL to the skill's documentation or homepage."
+    }
+  },
+  "additionalProperties": false
+}

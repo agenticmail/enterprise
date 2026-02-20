@@ -1,0 +1,48 @@
+{
+  "id": "openai",
+  "name": "OpenAI",
+  "description": "Integrate with OpenAI to chat, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/openai",
+  "license": "MIT",
+  "category": "platform",
+  "risk": "medium",
+  "tags": [
+    "openai",
+    "platform"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "openai"
+  },
+  "tools": [
+    {
+      "id": "openai_chat_completion",
+      "name": "Chat Completion",
+      "description": "Create a chat completion using OpenAI models. Send a list of messages and receive an AI-generated response."
+    },
+    {
+      "id": "openai_create_embedding",
+      "name": "Create Embedding",
+      "description": "Generate vector embeddings for input text using OpenAI embedding models. Useful for semantic search and similarity."
+    },
+    {
+      "id": "openai_list_models",
+      "name": "List Models",
+      "description": "List all models available to the authenticated OpenAI account. Returns model IDs and ownership info."
+    },
+    {
+      "id": "openai_create_image",
+      "name": "Create Image",
+      "description": "Generate images using DALL-E. Provide a text prompt and optionally specify size and quality."
+    },
+    {
+      "id": "openai_moderate",
+      "name": "Moderate",
+      "description": "Check text for policy violations using the OpenAI Moderation API. Returns category flags and scores."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

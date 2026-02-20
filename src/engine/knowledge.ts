@@ -82,9 +82,46 @@ export interface SearchResult {
 
 // ─── Knowledge Base Engine ──────────────────────────────
 
+import type { EngineDatabase } from './db-adapter.js';
+
 export class KnowledgeBaseEngine {
   private knowledgeBases = new Map<string, KnowledgeBase>();
   private embeddings = new Map<string, number[]>();  // chunkId → embedding
+  private engineDb?: EngineDatabase;
+
+  /**
+   * Set the database adapter and load existing knowledge bases from DB
+   */
+  async setDb(db: EngineDatabase): Promise<void> {
+    this.engineDb = db;
+    await this.loadFromDb();
+  }
+
+  /**
+   * Load all knowledge bases from DB into memory
+   */
+  private async loadFromDb(): Promise<void> {
+    if (!this.engineDb) return;
+    try {
+      const rows = await this.engineDb.query<any>('SELECT id FROM knowledge_bases');
+      for (const row of rows) {
+        const kb = await this.engineDb.getKnowledgeBase(row.id);
+        if (kb) {
+          this.knowledgeBases.set(kb.id, kb);
+          // Load embeddings into memory
+          for (const doc of kb.documents) {
+            for (const chunk of doc.chunks) {
+              if (chunk.embedding) {
+                this.embeddings.set(chunk.id, chunk.embedding);
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Table may not exist yet
+    }
+  }
 
   /**
    * Create a new knowledge base
@@ -119,6 +156,9 @@ export class KnowledgeBaseEngine {
     };
 
     this.knowledgeBases.set(kb.id, kb);
+    this.engineDb?.upsertKnowledgeBase(kb).catch((err) => {
+      console.error(`[knowledge] Failed to persist knowledge base ${kb.id}:`, err);
+    });
     return kb;
   }
 
@@ -178,6 +218,16 @@ export class KnowledgeBaseEngine {
     } catch (error: any) {
       doc.status = 'error';
       doc.error = error.message;
+    }
+
+    // Persist doc and updated KB to DB
+    if (this.engineDb) {
+      this.engineDb.insertKBDocument(doc).catch((err) => {
+        console.error(`[knowledge] Failed to persist document ${doc.id}:`, err);
+      });
+      this.engineDb.upsertKnowledgeBase(kb).catch((err) => {
+        console.error(`[knowledge] Failed to persist KB after document ingest:`, err);
+      });
     }
 
     return doc;
@@ -270,6 +320,10 @@ export class KnowledgeBaseEngine {
     return this.knowledgeBases.get(id);
   }
 
+  getAllKnowledgeBases(): KnowledgeBase[] {
+    return Array.from(this.knowledgeBases.values());
+  }
+
   getKnowledgeBasesByOrg(orgId: string): KnowledgeBase[] {
     return Array.from(this.knowledgeBases.values()).filter(kb => kb.orgId === orgId);
   }
@@ -291,15 +345,33 @@ export class KnowledgeBaseEngine {
       this.embeddings.delete(chunk.id);
     }
 
+    const removedDoc = kb.documents[idx];
     kb.documents.splice(idx, 1);
     kb.stats.totalDocuments = kb.documents.length;
     kb.stats.totalChunks = kb.documents.reduce((sum, d) => sum + d.chunks.length, 0);
     kb.updatedAt = new Date().toISOString();
+
+    // Persist to DB
+    if (this.engineDb) {
+      this.engineDb.deleteKBDocument(removedDoc.id).catch((err) => {
+        console.error(`[knowledge] Failed to delete document ${removedDoc.id} from DB:`, err);
+      });
+      this.engineDb.upsertKnowledgeBase(kb).catch((err) => {
+        console.error(`[knowledge] Failed to persist KB after document deletion:`, err);
+      });
+    }
+
     return true;
   }
 
   deleteKnowledgeBase(id: string): boolean {
-    return this.knowledgeBases.delete(id);
+    const deleted = this.knowledgeBases.delete(id);
+    if (deleted) {
+      this.engineDb?.deleteKnowledgeBase(id).catch((err) => {
+        console.error(`[knowledge] Failed to delete knowledge base ${id} from DB:`, err);
+      });
+    }
+    return deleted;
   }
 
   // ─── Text Processing ─────────────────────────────────

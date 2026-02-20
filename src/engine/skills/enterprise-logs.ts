@@ -1,0 +1,115 @@
+import type { SkillDefinition, ToolDefinition } from '../skills.js';
+
+export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
+  id: 'enterprise-logs',
+  name: 'Log Search & Aggregation',
+  description: 'Search, aggregate, and analyze application logs across services. Supports querying by time range, severity, service, and content patterns. Provides log correlation, trend analysis, and error rate tracking.',
+  category: 'monitoring',
+  risk: 'low',
+  icon: '📋',
+  source: 'builtin',
+  version: '1.0.0',
+  author: 'AgenticMail',
+};
+
+export const TOOLS: ToolDefinition[] = [
+  {
+    id: 'ent_log_search',
+    name: 'Search Logs',
+    description: 'Full-text search across application logs with filters for time range, severity level, service name, and regex patterns. Returns matching log entries with context.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-logs',
+    sideEffects: ['network-request'],
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query (supports regex)' },
+        service: { type: 'string', description: 'Filter by service/application name' },
+        severity: { type: 'string', enum: ['debug', 'info', 'warn', 'error', 'fatal'], description: 'Minimum severity level' },
+        startTime: { type: 'string', description: 'Start of time range (ISO 8601)' },
+        endTime: { type: 'string', description: 'End of time range (ISO 8601)' },
+        limit: { type: 'number', default: 100 },
+        context: { type: 'number', description: 'Number of surrounding log lines to include', default: 2 },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    id: 'ent_log_aggregate',
+    name: 'Aggregate Log Metrics',
+    description: 'Compute aggregate statistics over log data: error rates, request counts, latency percentiles, grouped by service, endpoint, or time bucket.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-logs',
+    sideEffects: ['network-request'],
+    parameters: {
+      type: 'object',
+      properties: {
+        metric: { type: 'string', enum: ['count', 'error_rate', 'latency_p50', 'latency_p95', 'latency_p99', 'throughput'] },
+        service: { type: 'string' },
+        groupBy: { type: 'string', enum: ['service', 'endpoint', 'status_code', 'hour', 'day'] },
+        startTime: { type: 'string' },
+        endTime: { type: 'string' },
+        interval: { type: 'string', enum: ['1m', '5m', '1h', '1d'], description: 'Time bucket size' },
+      },
+      required: ['metric', 'startTime', 'endTime'],
+    },
+  },
+  {
+    id: 'ent_log_tail',
+    name: 'Tail Live Logs',
+    description: 'Stream the most recent log entries from a service in real-time. Useful for monitoring deployments and debugging live issues.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-logs',
+    sideEffects: ['network-request'],
+    parameters: {
+      type: 'object',
+      properties: {
+        service: { type: 'string', description: 'Service to tail' },
+        severity: { type: 'string', enum: ['debug', 'info', 'warn', 'error', 'fatal'] },
+        lines: { type: 'number', description: 'Number of recent lines', default: 50 },
+        filter: { type: 'string', description: 'Filter pattern (regex)' },
+      },
+      required: ['service'],
+    },
+  },
+  {
+    id: 'ent_log_correlate',
+    name: 'Correlate Logs',
+    description: 'Trace a request across multiple services using a correlation/trace ID. Returns the full request journey showing timing, errors, and dependencies.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-logs',
+    sideEffects: ['network-request'],
+    parameters: {
+      type: 'object',
+      properties: {
+        traceId: { type: 'string', description: 'Trace/correlation ID to follow' },
+        requestId: { type: 'string', description: 'Request ID (alternative to traceId)' },
+        timeRange: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } },
+      },
+      required: [],
+    },
+  },
+  {
+    id: 'ent_log_errors',
+    name: 'Top Errors Summary',
+    description: 'Get a summary of the most frequent errors across services in a time period. Groups errors by message pattern with counts and first/last occurrence.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'enterprise-logs',
+    sideEffects: ['network-request'],
+    parameters: {
+      type: 'object',
+      properties: {
+        service: { type: 'string', description: 'Specific service (or all)' },
+        startTime: { type: 'string' },
+        endTime: { type: 'string' },
+        limit: { type: 'number', default: 20 },
+      },
+      required: ['startTime', 'endTime'],
+    },
+  },
+];

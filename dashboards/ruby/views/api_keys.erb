@@ -1,0 +1,59 @@
+<div class="page-header">
+  <h1>API Keys</h1>
+  <p>Manage programmatic access credentials</p>
+</div>
+
+<% if @created_key %>
+  <div class="key-banner">
+    <strong>New API key created!</strong> Copy it now -- it will not be shown again.
+    <code><%= escape_html(@created_key) %></code>
+  </div>
+<% end %>
+
+<div class="card">
+  <h3>Create API Key</h3>
+  <form method="post" action="/api-keys">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="e.g. Production Key">
+      </div>
+      <div class="form-group">
+        <label>Scopes (comma separated)</label>
+        <input type="text" name="scopes" placeholder="e.g. agents:read, messages:write">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Generate Key</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Active Keys (<%= @keys.size %>)</h3>
+  <% if @keys.empty? %>
+    <div class="empty"><span class="icon">&#128273;</span>No API keys. Generate one above.</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Key Prefix</th><th>Scopes</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @keys.each do |k| %>
+            <tr>
+              <td><strong><%= escape_html(k['name'] || '-') %></strong></td>
+              <td><code><%= escape_html(k['prefix'] || k['keyPrefix'] || k['key_prefix'] || (k['key'] ? k['key'][0..11] + '...' : '-')) %></code></td>
+              <td><%= (k['scopes'] || []).map { |s| badge(s) }.join(' ') %></td>
+              <td><%= status_badge(k['revoked'] ? 'revoked' : (k['status'] || 'active')) %></td>
+              <td style="color:var(--text-muted)"><%= time_ago(k['created_at']) %></td>
+              <td>
+                <% unless (k['status'] || '').downcase == 'revoked' || k['revoked'] %>
+                  <form method="post" action="/api-keys/<%= k['id'] %>/revoke" style="display:inline" onsubmit="return confirm('Revoke this API key? This cannot be undone.')">
+                    <button class="btn btn-sm btn-danger" type="submit">Revoke</button>
+                  </form>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,70 @@
+{
+  "id": "hubspot-crm",
+  "name": "HubSpot CRM",
+  "description": "Manage HubSpot contacts, deals, companies, and tickets. Automate sales and marketing workflows.",
+  "version": "1.2.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/hubspot-crm",
+  "license": "MIT",
+  "category": "sales",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "hubspot",
+    "scopes": [
+      "crm.objects.contacts.read",
+      "crm.objects.contacts.write",
+      "crm.objects.deals.read",
+      "crm.objects.deals.write"
+    ]
+  },
+  "tags": ["hubspot", "crm", "sales", "marketing"],
+  "tools": [
+    {
+      "id": "hubspot_create_contact",
+      "name": "Create Contact",
+      "description": "Create a new contact in HubSpot"
+    },
+    {
+      "id": "hubspot_update_deal",
+      "name": "Update Deal",
+      "description": "Update a deal stage or properties"
+    },
+    {
+      "id": "hubspot_list_companies",
+      "name": "List Companies",
+      "description": "List companies with filters"
+    },
+    {
+      "id": "hubspot_search_contacts",
+      "name": "Search Contacts",
+      "description": "Search contacts by name, email, or properties"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultPipeline": {
+        "type": "string",
+        "description": "Default sales pipeline"
+      },
+      "autoCreateContacts": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically create contacts from email interactions"
+      },
+      "associateDeals": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically associate deals with contacts"
+      },
+      "portalTimeZone": {
+        "type": "string",
+        "default": "US/Eastern",
+        "description": "HubSpot portal timezone"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

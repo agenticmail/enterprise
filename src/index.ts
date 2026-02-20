@@ -30,7 +30,7 @@ export { createServer } from './server.js';
 export type { ServerConfig, ServerInstance } from './server.js';
 
 // Deploy
-export { deployToCloud, generateDockerCompose, generateFlyToml } from './deploy/managed.js';
+export { deployToCloud, generateDockerCompose, generateEnvFile, generateFlyToml } from './deploy/managed.js';
 
 // Routes (for custom server setups)
 export { createAdminRoutes } from './admin/routes.js';
@@ -49,6 +49,10 @@ export {
   ValidationError,
 } from './middleware/index.js';
 
+// Setup Wizard
+export { runSetupWizard, provision } from './setup/index.js';
+export type { CompanyInfo, DatabaseSelection, DeployTarget, DomainSelection, ProvisionConfig, ProvisionResult } from './setup/index.js';
+
 // Engine (managed agent deployment platform)
 export * from './engine/index.js';
 
@@ -62,3 +66,7 @@ export {
   CircuitOpenError,
 } from './lib/resilience.js';
 export type { RetryOptions, CircuitBreakerOptions, RateLimiterOptions, HealthCheckOptions } from './lib/resilience.js';
+
+// Agent Runtime (standalone agent execution)
+export { AgentRuntime, createAgentRuntime } from './runtime/index.js';
+export type { AgentConfig, SessionState, StreamEvent, RuntimeConfig, ModelConfig, SpawnOptions } from './runtime/types.js';

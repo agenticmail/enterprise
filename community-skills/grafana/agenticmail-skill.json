@@ -1,0 +1,56 @@
+{
+  "id": "grafana",
+  "name": "Grafana",
+  "description": "Integrate with Grafana to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/grafana",
+  "license": "MIT",
+  "category": "monitoring",
+  "risk": "medium",
+  "tags": [
+    "grafana",
+    "monitoring"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "grafana"
+  },
+  "tools": [
+    {
+      "id": "grafana_list_dashboards",
+      "name": "List Dashboards",
+      "description": "List Grafana dashboards. Optionally filter by folder ID or tag. Returns dashboard titles, UIDs, and URLs."
+    },
+    {
+      "id": "grafana_get_dashboard",
+      "name": "Get Dashboard",
+      "description": "Retrieve a specific Grafana dashboard by UID. Returns dashboard title, panels, and metadata."
+    },
+    {
+      "id": "grafana_list_alerts",
+      "name": "List Alerts",
+      "description": "List Grafana alert rules. Returns alert names, states, and associated dashboards."
+    },
+    {
+      "id": "grafana_list_datasources",
+      "name": "List Datasources",
+      "description": "List all Grafana datasources. Returns datasource names, types, and connection details."
+    },
+    {
+      "id": "grafana_search",
+      "name": "Search",
+      "description": "Search Grafana for dashboards and folders by query string. Returns matching items with types and UIDs."
+    }
+  ],
+  "configSchema": {
+    "instanceUrl": {
+      "type": "string",
+      "label": "Grafana URL",
+      "description": "Your Grafana instance URL",
+      "required": true,
+      "placeholder": "https://grafana.example.com"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

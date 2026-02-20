@@ -1,0 +1,55 @@
+{
+  "id": "woocommerce",
+  "name": "WooCommerce",
+  "description": "Integrate with WooCommerce to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/woocommerce",
+  "license": "MIT",
+  "category": "ecommerce",
+  "risk": "medium",
+  "tags": [
+    "woocommerce",
+    "ecommerce"
+  ],
+  "auth": {
+    "type": "credentials",
+    "provider": "woocommerce"
+  },
+  "tools": [
+    {
+      "id": "woo_list_products",
+      "name": "List Products",
+      "description": "List products in the WooCommerce store. Returns product names, prices, stock status, and SKUs."
+    },
+    {
+      "id": "woo_create_product",
+      "name": "Create Product",
+      "description": "Create a new product in the WooCommerce store. Provide a name and optional price, description, SKU, and status."
+    },
+    {
+      "id": "woo_list_orders",
+      "name": "List Orders",
+      "description": "List orders from the WooCommerce store. Optionally filter by status or date range."
+    },
+    {
+      "id": "woo_update_order",
+      "name": "Update Order",
+      "description": "Update an existing WooCommerce order. Can change status, add a note, or update billing/shipping details."
+    },
+    {
+      "id": "woo_list_customers",
+      "name": "List Customers",
+      "description": "List customers in the WooCommerce store. Optionally search by name or email."
+    }
+  ],
+  "configSchema": {
+    "siteUrl": {
+      "type": "string",
+      "label": "Site URL",
+      "description": "Your WooCommerce site URL (e.g. \"https://mysite.com\")",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,43 @@
+{
+  "id": "calendly",
+  "name": "Calendly",
+  "description": "Integrate with Calendly to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/calendly",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "tags": [
+    "calendly",
+    "communication"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "calendly"
+  },
+  "tools": [
+    {
+      "id": "calendly_list_events",
+      "name": "List Events",
+      "description": "List scheduled Calendly events. Filter by status and date range. Requires the user URI."
+    },
+    {
+      "id": "calendly_get_event",
+      "name": "Get Event",
+      "description": "Get detailed information about a specific Calendly event by its UUID."
+    },
+    {
+      "id": "calendly_list_event_types",
+      "name": "List Event Types",
+      "description": "List available Calendly event types (booking pages) for a user. Returns names, durations, and scheduling URLs."
+    },
+    {
+      "id": "calendly_cancel_event",
+      "name": "Cancel Event",
+      "description": "Cancel a scheduled Calendly event. Provide the event UUID and an optional cancellation reason."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

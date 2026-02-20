@@ -1,0 +1,48 @@
+{
+  "id": "heroku",
+  "name": "Heroku",
+  "description": "Integrate with Heroku to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/heroku",
+  "license": "MIT",
+  "category": "cloud-infrastructure",
+  "risk": "high",
+  "tags": [
+    "heroku",
+    "cloud-infrastructure"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "heroku"
+  },
+  "tools": [
+    {
+      "id": "heroku_list_apps",
+      "name": "List Apps",
+      "description": "List all Heroku apps accessible to the authenticated user. Returns app names, regions, stacks, and last updated times."
+    },
+    {
+      "id": "heroku_get_app",
+      "name": "Get App",
+      "description": "Get detailed information about a specific Heroku app by name or ID."
+    },
+    {
+      "id": "heroku_list_dynos",
+      "name": "List Dynos",
+      "description": "List all dynos for a Heroku app. Returns dyno names, types, states, sizes, and commands."
+    },
+    {
+      "id": "heroku_restart_dyno",
+      "name": "Restart Dyno",
+      "description": "Restart a specific dyno or all dynos for a Heroku app. If dynoIdOrName is omitted, all dynos are restarted."
+    },
+    {
+      "id": "heroku_get_config",
+      "name": "Get Config",
+      "description": "Get config vars (environment variables) for a Heroku app. Returns all key-value pairs. Sensitive values may be masked."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

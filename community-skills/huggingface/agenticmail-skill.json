@@ -1,0 +1,48 @@
+{
+  "id": "huggingface",
+  "name": "HuggingFace",
+  "description": "Integrate with HuggingFace to inference, list, get and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/huggingface",
+  "license": "MIT",
+  "category": "platform",
+  "risk": "medium",
+  "tags": [
+    "huggingface",
+    "platform"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "huggingface"
+  },
+  "tools": [
+    {
+      "id": "hf_inference",
+      "name": "Inference",
+      "description": "Run inference on a HuggingFace model. Supports text generation, summarization, classification, and more depending on the model."
+    },
+    {
+      "id": "hf_list_models",
+      "name": "List Models",
+      "description": "Search and list models on HuggingFace Hub. Filter by search query, author, or task."
+    },
+    {
+      "id": "hf_get_model",
+      "name": "Get Model",
+      "description": "Get detailed information about a specific HuggingFace model including description, tags, downloads, and config."
+    },
+    {
+      "id": "hf_list_datasets",
+      "name": "List Datasets",
+      "description": "Search and list datasets on HuggingFace Hub. Filter by search query, author, or task."
+    },
+    {
+      "id": "hf_list_spaces",
+      "name": "List Spaces",
+      "description": "Search and list Spaces on HuggingFace Hub. Spaces are hosted ML demo apps (Gradio, Streamlit, etc.)."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

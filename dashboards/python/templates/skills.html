@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Skills</h1>
+  <p>Browse builtin skills and manage installed community skills</p>
+</div>
+
+<!-- Builtin Skills -->
+<div class="card">
+  <h3>Builtin Skills</h3>
+  {% if categories %}
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;">
+    {% for category, skill_list in categories.items() %}
+    <div class="skill-card" style="border: 1px solid var(--border-color, #dee2e6); border-radius: 8px; padding: 14px;">
+      <div style="font-weight: 600; margin-bottom: 8px; text-transform: capitalize;">{{ category }}</div>
+      {% for skill in skill_list %}
+      <div style="font-size: 13px; padding: 4px 0; color: var(--text-muted);">
+        <span style="font-weight: 500; color: var(--text-color, #212529);">{{ skill.name }}</span>
+        {% if skill.description %}
+        <span style="font-size: 11px;"> &mdash; {{ skill.description }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No builtin skills available</span>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Installed Community Skills -->
+<div class="card">
+  <h3>Installed Community Skills</h3>
+  {% if installed %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Version</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in installed %}
+        <tr>
+          <td style="font-weight: 600;">{{ s.name }}</td>
+          <td style="font-size: 12px; color: var(--text-muted);">{{ s.version or '-' }}</td>
+          <td>
+            {% if s.enabled %}
+              {{ 'enabled'|status_badge }}
+            {% else %}
+              {{ 'disabled'|status_badge }}
+            {% endif %}
+          </td>
+          <td style="display: flex; gap: 4px;">
+            {% if s.enabled %}
+            <form method="POST" action="{{ url_for('skills_bp.disable_skill') }}" style="display: inline;">
+              <input type="hidden" name="skill_id" value="{{ s.id }}">
+              <button class="btn btn-sm" type="submit">Disable</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('skills_bp.enable_skill') }}" style="display: inline;">
+              <input type="hidden" name="skill_id" value="{{ s.id }}">
+              <button class="btn btn-sm btn-primary" type="submit">Enable</button>
+            </form>
+            {% endif %}
+            <form method="POST" action="{{ url_for('skills_bp.uninstall_skill') }}" style="display: inline;">
+              <input type="hidden" name="skill_id" value="{{ s.id }}">
+              <button class="btn btn-sm btn-danger" type="submit">Uninstall</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No community skills installed</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{
+  "id": "rippling",
+  "name": "Rippling HR",
+  "description": "Integrate with Rippling HR to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/rippling",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "rippling",
+    "hr"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "rippling"
+  },
+  "tools": [
+    {
+      "id": "rippling_list_employees",
+      "name": "List Employees",
+      "description": "List employees from Rippling. Returns names, emails, titles, and department information."
+    },
+    {
+      "id": "rippling_get_employee",
+      "name": "Get Employee",
+      "description": "Get detailed information about a specific Rippling employee by their ID."
+    },
+    {
+      "id": "rippling_list_departments",
+      "name": "List Departments",
+      "description": "List all departments in Rippling. Returns department names, head counts, and leadership info."
+    },
+    {
+      "id": "rippling_list_teams",
+      "name": "List Teams",
+      "description": "List all teams in Rippling. Returns team names, members count, and team leads."
+    },
+    {
+      "id": "rippling_get_company",
+      "name": "Get Company",
+      "description": "Get company information from Rippling. Returns company name, address, employee count, and configuration."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

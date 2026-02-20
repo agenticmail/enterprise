@@ -1,0 +1,65 @@
+<div class="page-header">
+  <h1>Journal</h1>
+  <p>Action journal with audit trail and rollback capabilities</p>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="label">Total Entries</div>
+    <div class="value pink"><%= @stats['total_entries'] || @stats['total'] || 0 %></div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Entries Today</div>
+    <div class="value"><%= @stats['today'] || @stats['entries_today'] || 0 %></div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Rollbacks</div>
+    <div class="value"><%= @stats['rollbacks'] || @stats['total_rollbacks'] || 0 %></div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Pending</div>
+    <div class="value"><%= @stats['pending'] || @stats['pending_entries'] || 0 %></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Journal Entries</h3>
+  <% if @entries.empty? %>
+    <div class="empty"><span class="icon">&#128214;</span>No journal entries recorded</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>Actor</th><th>Resource</th><th>Status</th><th>Time</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @entries.each do |e| %>
+            <tr>
+              <td><strong><%= escape_html(e['action'] || e['event'] || '-') %></strong></td>
+              <td><%= escape_html(e['actor'] || e['user'] || '-') %></td>
+              <td><%= escape_html(e['resource'] || e['target'] || '-') %></td>
+              <td><%= status_badge(e['status'] || 'success') %></td>
+              <td style="color:var(--muted)"><%= time_ago(e['created_at'] || e['timestamp']) %></td>
+              <td>
+                <% unless (e['status'] || '').downcase == 'rolled_back' %>
+                  <form method="post" action="/journal/<%= e['id'] %>/rollback" style="display:inline" onsubmit="return confirm('Rollback this entry?')">
+                    <button class="btn btn-sm btn-danger" type="submit">Rollback</button>
+                  </form>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <% if @page > 1 %>
+        <a href="/journal?page=<%= @page - 1 %>">&laquo; Previous</a>
+      <% end %>
+      <span class="current">Page <%= @page %></span>
+      <% if @entries.size >= @limit %>
+        <a href="/journal?page=<%= @page + 1 %>">Next &raquo;</a>
+      <% end %>
+      <span style="color:var(--muted);font-size:12px;margin-left:auto"><%= @total %> total entries</span>
+    </div>
+  <% end %>
+</div>

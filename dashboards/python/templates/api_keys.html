@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>API Keys</h1>
+  <p>Manage programmatic access</p>
+</div>
+
+<div class="card">
+  <h3>Create Key</h3>
+  <form method="POST" action="{{ url_for('api_keys_bp.create_api_key') }}" style="display: flex; gap: 10px; align-items: end;">
+    <div class="form-group" style="flex: 1; margin: 0;">
+      <label>Key Name</label>
+      <input type="text" name="name" required placeholder="e.g. CI/CD pipeline">
+    </div>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+</div>
+
+<div class="card">
+  {% if keys %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Key</th>
+          <th>Last Used</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for k in keys %}
+        <tr>
+          <td style="font-weight: 600;">{{ k.name }}</td>
+          <td><code style="font-size: 12px;">{{ k.keyPrefix }}...</code></td>
+          <td style="color: var(--text-muted); font-size: 12px;">{{ k.lastUsedAt|time_ago }}</td>
+          <td>
+            {% if k.revoked %}
+              {{ 'revoked'|status_badge }}
+            {% else %}
+              {{ 'active'|status_badge }}
+            {% endif %}
+          </td>
+          <td>
+            {% if not k.revoked %}
+            <form method="POST" action="{{ url_for('api_keys_bp.revoke_api_key', id=k.id) }}" style="display: inline;">
+              <button class="btn btn-sm btn-danger" type="submit">Revoke</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No API keys</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

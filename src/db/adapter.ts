@@ -45,6 +45,7 @@ export interface Agent {
 }
 
 export interface AgentInput {
+  id?: string;
   name: string;
   email?: string;
   role?: string;
@@ -147,11 +148,36 @@ export interface RetentionPolicy {
   archiveFirst: boolean;   // Archive before delete
 }
 
+export interface SsoConfig {
+  saml?: {
+    entityId: string;
+    ssoUrl: string;
+    certificate: string;
+    signatureAlgorithm?: string;
+    /** Auto-create users on first SSO login */
+    autoProvision?: boolean;
+    /** Default role for SSO-provisioned users */
+    defaultRole?: 'admin' | 'member' | 'viewer';
+    /** Only allow users from these email domains */
+    allowedDomains?: string[];
+  };
+  oidc?: {
+    clientId: string;
+    clientSecret: string;
+    discoveryUrl: string;
+    /** Scopes to request (default: openid email profile) */
+    scopes?: string[];
+    autoProvision?: boolean;
+    defaultRole?: 'admin' | 'member' | 'viewer';
+    allowedDomains?: string[];
+  };
+}
+
 export interface CompanySettings {
   id: string;
   name: string;
   domain?: string;
-  subdomain: string;       // <subdomain>.agenticmail.cloud
+  subdomain: string;       // <subdomain>.agenticmail.io
   smtpHost?: string;
   smtpPort?: number;
   smtpUser?: string;
@@ -159,9 +185,93 @@ export interface CompanySettings {
   dkimPrivateKey?: string;
   logoUrl?: string;
   primaryColor?: string;
+  ssoConfig?: SsoConfig;
   plan: 'free' | 'team' | 'enterprise' | 'self-hosted';
+  // Domain Registration & Verification
+  deploymentKeyHash?: string;
+  domainRegistrationId?: string;
+  domainDnsChallenge?: string;
+  domainVerifiedAt?: string;
+  domainRegisteredAt?: string;
+  domainStatus?: 'unregistered' | 'pending_dns' | 'verified' | 'failed';
+  toolSecurityConfig?: Record<string, any>;
+  firewallConfig?: FirewallConfig;
+  modelPricingConfig?: ModelPricingConfig;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface FirewallConfig {
+  ipAccess?: {
+    enabled?: boolean;
+    mode?: 'allowlist' | 'blocklist';
+    allowlist?: string[];
+    blocklist?: string[];
+    bypassPaths?: string[];
+  };
+  egress?: {
+    enabled?: boolean;
+    mode?: 'allowlist' | 'blocklist';
+    allowedHosts?: string[];
+    blockedHosts?: string[];
+    allowedPorts?: number[];
+    blockedPorts?: number[];
+  };
+  proxy?: {
+    httpProxy?: string;
+    httpsProxy?: string;
+    noProxy?: string[];
+  };
+  trustedProxies?: {
+    enabled?: boolean;
+    ips?: string[];
+  };
+  network?: {
+    corsOrigins?: string[];
+    rateLimit?: {
+      enabled?: boolean;
+      requestsPerMinute?: number;
+      skipPaths?: string[];
+    };
+    httpsEnforcement?: {
+      enabled?: boolean;
+      excludePaths?: string[];
+    };
+    securityHeaders?: {
+      hsts?: boolean;
+      hstsMaxAge?: number;
+      xFrameOptions?: 'DENY' | 'SAMEORIGIN' | 'ALLOW';
+      xContentTypeOptions?: boolean;
+      referrerPolicy?: string;
+      permissionsPolicy?: string;
+    };
+  };
+}
+
+export interface ModelPricingEntry {
+  provider: string;       // 'anthropic' | 'openai' | 'google' | custom
+  modelId: string;        // e.g. 'claude-sonnet-4-5-20250929'
+  displayName: string;    // e.g. 'Claude Sonnet 4.5'
+  inputCostPerMillion: number;   // USD per 1M input tokens
+  outputCostPerMillion: number;  // USD per 1M output tokens
+  contextWindow?: number;        // max tokens
+  notes?: string;
+}
+
+export interface ModelPricingConfig {
+  models: ModelPricingEntry[];
+  defaultProvider?: string;
+  currency?: string;  // default 'USD'
+  updatedAt?: string;
+  customProviders?: Array<{
+    id: string;
+    name: string;
+    baseUrl: string;
+    apiType: 'anthropic' | 'openai-compatible' | 'google' | 'ollama';
+    apiKeyEnvVar?: string;
+    headers?: Record<string, string>;
+    models?: Array<{ id: string; name: string; contextWindow?: number }>;
+  }>;
 }
 
 // ─── Abstract Adapter ────────────────────────────────────────
@@ -227,4 +337,27 @@ export abstract class DatabaseAdapter {
     totalEmails: number;
     totalAuditEvents: number;
   }>;
+
+  // ─── Engine Integration ────────────────────────────────
+
+  /**
+   * Returns a raw SQL execution interface for the engine subsystem.
+   * Override in SQL-compatible adapters. Returns null for NoSQL backends
+   * (MongoDB, DynamoDB) which don't support raw SQL queries.
+   */
+  getEngineDB(): {
+    run(sql: string, params?: any[]): Promise<void>;
+    get<T = any>(sql: string, params?: any[]): Promise<T | undefined>;
+    all<T = any>(sql: string, params?: any[]): Promise<T[]>;
+  } | null {
+    return null;
+  }
+
+  /**
+   * Returns the SQL dialect identifier for the engine database.
+   * Maps to EngineDatabase dialect: 'sqlite' | 'postgres' | 'mysql' | 'turso' | 'mongodb' | 'dynamodb'
+   */
+  getDialect(): string {
+    return this.type;
+  }
 }

@@ -1,0 +1,70 @@
+{
+  "id": "bitbucket-repos",
+  "name": "Bitbucket Repos",
+  "description": "Manage Bitbucket repositories, pull requests, and branch permissions.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/bitbucket-repos",
+  "license": "Apache-2.0",
+  "category": "development",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "bitbucket",
+    "scopes": [
+      "repository",
+      "repository:write",
+      "pullrequest",
+      "pullrequest:write"
+    ]
+  },
+  "tags": [
+    "bitbucket",
+    "git",
+    "pull-requests",
+    "code-review"
+  ],
+  "tools": [
+    {
+      "id": "bitbucket_create_pr",
+      "name": "Create Pull Request",
+      "description": "Create a new pull request"
+    },
+    {
+      "id": "bitbucket_list_repos",
+      "name": "List Repositories",
+      "description": "List repositories in a workspace"
+    },
+    {
+      "id": "bitbucket_merge_pr",
+      "name": "Merge Pull Request",
+      "description": "Merge an approved pull request"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultWorkspace": {
+        "type": "string",
+        "description": "Default Bitbucket workspace slug to use when none is specified"
+      },
+      "defaultProject": {
+        "type": "string",
+        "description": "Default Bitbucket project key to use when none is specified"
+      },
+      "reviewerStrategy": {
+        "type": "string",
+        "enum": ["round-robin", "codeowners", "none"],
+        "default": "none",
+        "description": "Strategy for assigning pull request reviewers"
+      },
+      "autoApprovePipelines": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically approve pipeline runs"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

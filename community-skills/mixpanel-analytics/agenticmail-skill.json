@@ -1,0 +1,64 @@
+{
+  "id": "mixpanel-analytics",
+  "name": "Mixpanel Analytics",
+  "description": "Query Mixpanel events, funnels, and user cohorts. Track product analytics and retention.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/mixpanel-analytics",
+  "license": "MIT",
+  "category": "analytics",
+  "risk": "low",
+  "auth": {
+    "type": "credentials",
+    "fields": ["projectId", "serviceAccountUser", "serviceAccountSecret"],
+    "envVars": {
+      "serviceAccountSecret": "MIXPANEL_SECRET"
+    },
+    "description": "Mixpanel project credentials from Project Settings"
+  },
+  "tags": ["mixpanel", "analytics", "product-analytics", "events"],
+  "tools": [
+    {
+      "id": "mixpanel_query_events",
+      "name": "Query Events",
+      "description": "Query event data with filters and breakdowns"
+    },
+    {
+      "id": "mixpanel_get_funnel",
+      "name": "Get Funnel",
+      "description": "Retrieve funnel conversion data"
+    },
+    {
+      "id": "mixpanel_get_retention",
+      "name": "Get Retention",
+      "description": "Get user retention cohort data"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultProject": {
+        "type": "string",
+        "description": "Default Mixpanel project to query"
+      },
+      "dateRange": {
+        "type": "string",
+        "enum": ["7d", "30d", "90d"],
+        "default": "30d",
+        "description": "Default date range for queries"
+      },
+      "timezone": {
+        "type": "string",
+        "default": "US/Pacific",
+        "description": "Timezone for date calculations"
+      },
+      "bookmarkResults": {
+        "type": "boolean",
+        "default": false,
+        "description": "Bookmark query results for later reference"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

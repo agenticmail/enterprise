@@ -1,0 +1,56 @@
+{
+  "id": "firebase",
+  "name": "Firebase",
+  "description": "Integrate with Firebase to list, get, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/firebase",
+  "license": "MIT",
+  "category": "database",
+  "risk": "medium",
+  "tags": [
+    "firebase",
+    "database"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "google"
+  },
+  "tools": [
+    {
+      "id": "firebase_list_documents",
+      "name": "List Documents",
+      "description": "List documents in a Firestore collection. Returns document IDs and field summaries."
+    },
+    {
+      "id": "firebase_get_document",
+      "name": "Get Document",
+      "description": "Get a single Firestore document by its full path (collection/documentId)."
+    },
+    {
+      "id": "firebase_create_document",
+      "name": "Create Document",
+      "description": "Create a new document in a Firestore collection. Provide fields as key-value pairs."
+    },
+    {
+      "id": "firebase_update_document",
+      "name": "Update Document",
+      "description": "Update fields on an existing Firestore document. Only specified fields are updated."
+    },
+    {
+      "id": "firebase_query",
+      "name": "Query",
+      "description": "Run a structured query against a Firestore collection. Supports field filters, ordering, and limits."
+    }
+  ],
+  "configSchema": {
+    "projectId": {
+      "type": "string",
+      "label": "Firebase Project ID",
+      "description": "Your Firebase project ID (found in Firebase Console settings)",
+      "required": true,
+      "placeholder": "my-firebase-project"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

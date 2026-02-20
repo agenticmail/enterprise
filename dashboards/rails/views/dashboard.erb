@@ -1,0 +1,46 @@
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <p>Overview of your AgenticMail Enterprise instance</p>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="label">Total Agents</div>
+    <div class="value pink"><%= @stats['agents'] || @stats['total_agents'] || 0 %></div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Total Users</div>
+    <div class="value"><%= @stats['users'] || @stats['total_users'] || 0 %></div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Messages Today</div>
+    <div class="value"><%= @stats['messages_today'] || @stats['messages'] || 0 %></div>
+  </div>
+  <div class="stat-card">
+    <div class="label">API Keys</div>
+    <div class="value"><%= @stats['api_keys'] || @stats['total_api_keys'] || 0 %></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Recent Audit Events</h3>
+  <% if @audit.empty? %>
+    <div class="empty"><span class="icon">&#128220;</span>No recent audit events</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Event</th><th>Actor</th><th>Resource</th><th>Time</th></tr></thead>
+        <tbody>
+          <% @audit.each do |ev| %>
+            <tr>
+              <td><%= escape_html(ev['action'] || ev['event'] || 'unknown') %></td>
+              <td><%= escape_html(ev['actor'] || ev['user'] || ev['email'] || '-') %></td>
+              <td><%= escape_html(ev['resource'] || ev['target'] || '-') %></td>
+              <td style="color:var(--muted)"><%= time_ago(ev['created_at'] || ev['timestamp']) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

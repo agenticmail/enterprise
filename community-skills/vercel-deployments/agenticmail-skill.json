@@ -1,0 +1,70 @@
+{
+  "id": "vercel-deployments",
+  "name": "Vercel Deployments",
+  "description": "Deploy projects, manage domains, and monitor deployments on Vercel.",
+  "version": "1.2.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/vercel-deployments",
+  "license": "MIT",
+  "category": "development",
+  "risk": "high",
+  "auth": {
+    "type": "token",
+    "name": "Vercel Access Token",
+    "envVar": "VERCEL_TOKEN",
+    "description": "Access token from Vercel Account Settings"
+  },
+  "tags": [
+    "vercel",
+    "deployments",
+    "hosting",
+    "serverless"
+  ],
+  "tools": [
+    {
+      "id": "vercel_create_deployment",
+      "name": "Create Deployment",
+      "description": "Deploy a project to Vercel"
+    },
+    {
+      "id": "vercel_list_deployments",
+      "name": "List Deployments",
+      "description": "List recent deployments"
+    },
+    {
+      "id": "vercel_manage_domains",
+      "name": "Manage Domains",
+      "description": "Add or remove custom domains"
+    },
+    {
+      "id": "vercel_get_logs",
+      "name": "Get Logs",
+      "description": "Retrieve deployment and function logs"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultTeam": {
+        "type": "string",
+        "description": "Default Vercel team to scope API requests"
+      },
+      "productionBranch": {
+        "type": "string",
+        "default": "main",
+        "description": "Branch that triggers production deployments"
+      },
+      "autoPromote": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically promote preview deployments to production"
+      },
+      "buildCommand": {
+        "type": "string",
+        "description": "Custom build command to use for deployments"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

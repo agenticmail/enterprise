@@ -1,0 +1,51 @@
+<div class="page-header">
+  <h1>Messages</h1>
+  <p>View and send messages</p>
+</div>
+
+<div class="card">
+  <h3>Send Message</h3>
+  <form method="post" action="/messages/send">
+    <div class="form-row">
+      <div class="form-group">
+        <label>To</label>
+        <input type="text" name="to" required placeholder="e.g. user@example.com">
+      </div>
+      <div class="form-group">
+        <label>Subject</label>
+        <input type="text" name="subject" required placeholder="e.g. Weekly Report">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Body</label>
+      <textarea name="body" rows="4" required placeholder="Message content..."></textarea>
+    </div>
+    <button class="btn btn-primary" type="submit">Send Message</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>All Messages (<%= @messages.size %>)</h3>
+  <% if @messages.empty? %>
+    <div class="empty"><span class="icon">&#128231;</span>No messages yet. Send one above.</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Subject</th><th>From</th><th>To</th><th>Direction</th><th>Channel</th><th>Status</th><th>Time</th></tr></thead>
+        <tbody>
+          <% @messages.each do |m| %>
+            <tr>
+              <td><strong><%= escape_html(m['subject'] || '-') %></strong></td>
+              <td><%= escape_html(m['from'] || m['sender'] || '-') %></td>
+              <td><%= escape_html(m['to'] || m['recipient'] || '-') %></td>
+              <td><%= direction_badge(m['direction'] || 'inbound') %></td>
+              <td><%= channel_badge(m['channel'] || 'email') %></td>
+              <td><%= status_badge(m['status'] || 'sent') %></td>
+              <td style="color:var(--text-muted)"><%= time_ago(m['created_at'] || m['timestamp']) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

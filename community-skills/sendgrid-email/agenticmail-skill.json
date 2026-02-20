@@ -1,0 +1,71 @@
+{
+  "id": "sendgrid-email",
+  "name": "SendGrid Email",
+  "description": "Send transactional and marketing emails via SendGrid. Manage contacts and templates.",
+  "version": "1.1.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/sendgrid-email",
+  "license": "MIT",
+  "category": "communication",
+  "risk": "medium",
+  "auth": {
+    "type": "api_key",
+    "name": "SendGrid API Key",
+    "envVar": "SENDGRID_API_KEY",
+    "description": "API key from SendGrid Settings"
+  },
+  "tags": ["sendgrid", "email", "transactional", "marketing"],
+  "tools": [
+    {
+      "id": "sendgrid_send_email",
+      "name": "Send Email",
+      "description": "Send an email via SendGrid"
+    },
+    {
+      "id": "sendgrid_create_template",
+      "name": "Create Template",
+      "description": "Create a dynamic email template"
+    },
+    {
+      "id": "sendgrid_add_contact",
+      "name": "Add Contact",
+      "description": "Add a contact to a mailing list"
+    },
+    {
+      "id": "sendgrid_get_stats",
+      "name": "Get Stats",
+      "description": "Retrieve email delivery statistics"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultFromEmail": {
+        "type": "string",
+        "format": "email",
+        "description": "Default verified sender email address"
+      },
+      "defaultFromName": {
+        "type": "string",
+        "description": "Default display name for the sender"
+      },
+      "trackOpens": {
+        "type": "boolean",
+        "default": true,
+        "description": "Track email open events"
+      },
+      "trackClicks": {
+        "type": "boolean",
+        "default": true,
+        "description": "Track link click events in emails"
+      },
+      "sandboxMode": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable sandbox mode for testing without sending"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

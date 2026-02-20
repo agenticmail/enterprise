@@ -1,0 +1,53 @@
+<div class="page-header">
+  <h1>Users</h1>
+  <p>Manage user accounts and roles</p>
+</div>
+
+<div class="card">
+  <h3>Invite User</h3>
+  <form method="post" action="/users">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" required placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" required placeholder="user@company.com">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select name="role">
+        <option value="member">Member</option>
+        <option value="admin">Admin</option>
+        <option value="viewer">Viewer</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">Create User</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>All Users (<%= @users.size %>)</h3>
+  <% if @users.empty? %>
+    <div class="empty"><span class="icon">&#128101;</span>No users found</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th></tr></thead>
+        <tbody>
+          <% @users.each do |u| %>
+            <tr>
+              <td><strong><%= escape_html(u['name'] || '-') %></strong></td>
+              <td><%= escape_html(u['email'] || '-') %></td>
+              <td><%= badge(u['role'] || 'member') %></td>
+              <td><%= status_badge(u['status'] || 'active') %></td>
+              <td style="color:var(--text-muted)"><%= time_ago(u['created_at']) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

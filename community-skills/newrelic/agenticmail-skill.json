@@ -1,0 +1,58 @@
+{
+  "id": "newrelic",
+  "name": "New Relic",
+  "description": "Integrate with New Relic to list, get, query and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/newrelic",
+  "license": "MIT",
+  "category": "monitoring",
+  "risk": "medium",
+  "tags": [
+    "newrelic",
+    "new",
+    "relic",
+    "monitoring"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "newrelic"
+  },
+  "tools": [
+    {
+      "id": "nr_list_applications",
+      "name": "List Applications",
+      "description": "List New Relic APM applications. Optionally filter by name or health status."
+    },
+    {
+      "id": "nr_get_application",
+      "name": "Get Application",
+      "description": "Retrieve details of a specific New Relic APM application by ID. Returns health status, throughput, response time, and error rate."
+    },
+    {
+      "id": "nr_query_nrql",
+      "name": "Query Nrql",
+      "description": "Execute a NRQL query against New Relic Insights. Returns query results as structured data."
+    },
+    {
+      "id": "nr_list_alerts",
+      "name": "List Alerts",
+      "description": "List New Relic alert policies. Returns policy names, IDs, and incident preferences."
+    },
+    {
+      "id": "nr_get_synthetics",
+      "name": "Get Synthetics",
+      "description": "List New Relic Synthetics monitors. Returns monitor names, types, statuses, and locations."
+    }
+  ],
+  "configSchema": {
+    "accountId": {
+      "type": "string",
+      "label": "Account ID",
+      "description": "Your New Relic account ID",
+      "required": true,
+      "placeholder": "1234567"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

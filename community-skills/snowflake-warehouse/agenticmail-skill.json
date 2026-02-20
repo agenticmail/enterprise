@@ -1,0 +1,71 @@
+{
+  "id": "snowflake-warehouse",
+  "name": "Snowflake Data Warehouse",
+  "description": "Run SQL queries, manage warehouses, and list databases in Snowflake.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/snowflake-warehouse",
+  "license": "Apache-2.0",
+  "category": "data",
+  "risk": "high",
+  "auth": {
+    "type": "credentials",
+    "fields": ["account", "username", "password"],
+    "envVars": {
+      "password": "SNOWFLAKE_PASSWORD"
+    },
+    "description": "Snowflake account credentials. Supports key-pair auth via vault."
+  },
+  "tags": ["snowflake", "data-warehouse", "sql", "analytics"],
+  "tools": [
+    {
+      "id": "snowflake_run_query",
+      "name": "Run Query",
+      "description": "Execute a SQL query on Snowflake"
+    },
+    {
+      "id": "snowflake_list_databases",
+      "name": "List Databases",
+      "description": "List available databases and schemas"
+    },
+    {
+      "id": "snowflake_get_query_history",
+      "name": "Query History",
+      "description": "View recent query execution history"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultWarehouse": {
+        "type": "string",
+        "description": "Default warehouse to use for queries"
+      },
+      "defaultDatabase": {
+        "type": "string",
+        "description": "Default database"
+      },
+      "defaultSchema": {
+        "type": "string",
+        "default": "PUBLIC",
+        "description": "Default schema"
+      },
+      "defaultRole": {
+        "type": "string",
+        "description": "Default Snowflake role"
+      },
+      "queryTimeout": {
+        "type": "number",
+        "default": 300,
+        "description": "Query timeout in seconds"
+      },
+      "resultLimit": {
+        "type": "number",
+        "default": 10000,
+        "description": "Maximum number of rows to return"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

@@ -1,0 +1,58 @@
+{
+  "id": "mongodb-atlas",
+  "name": "MongoDB Atlas",
+  "description": "Integrate with MongoDB Atlas to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/mongodb-atlas",
+  "license": "MIT",
+  "category": "database",
+  "risk": "medium",
+  "tags": [
+    "mongodbatlas",
+    "mongodb",
+    "atlas",
+    "database"
+  ],
+  "auth": {
+    "type": "credentials",
+    "provider": "mongodb"
+  },
+  "tools": [
+    {
+      "id": "atlas_list_clusters",
+      "name": "List Clusters",
+      "description": "List all clusters in a MongoDB Atlas project. Returns cluster names, states, MongoDB versions, and provider settings."
+    },
+    {
+      "id": "atlas_get_cluster",
+      "name": "Get Cluster",
+      "description": "Get detailed information about a specific MongoDB Atlas cluster by name."
+    },
+    {
+      "id": "atlas_list_databases",
+      "name": "List Databases",
+      "description": "List databases in a MongoDB Atlas cluster. Returns database names and sizes."
+    },
+    {
+      "id": "atlas_list_projects",
+      "name": "List Projects",
+      "description": "List all projects (groups) accessible to the authenticated Atlas user."
+    },
+    {
+      "id": "atlas_get_metrics",
+      "name": "Get Metrics",
+      "description": "Get performance metrics for a MongoDB Atlas cluster process. Returns metrics such as connections, opcounters, and memory usage."
+    }
+  ],
+  "configSchema": {
+    "groupId": {
+      "type": "string",
+      "label": "Project ID",
+      "description": "Default MongoDB Atlas project (group) ID",
+      "required": true,
+      "placeholder": "60c8a8f9e4b0a1b2c3d4e5f6"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

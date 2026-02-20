@@ -1,0 +1,69 @@
+<div class="page-header">
+  <h1>Compliance</h1>
+  <p>Generate and download compliance reports</p>
+</div>
+
+<div class="card">
+  <h3>Generate Report</h3>
+  <form method="post" action="/compliance/reports">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Report Name</label>
+        <input type="text" name="name" required placeholder="e.g. Q1 2026 Audit Report">
+      </div>
+      <div class="form-group">
+        <label>Report Type</label>
+        <select name="type">
+          <option value="audit">Audit</option>
+          <option value="dlp">DLP Summary</option>
+          <option value="access">Access Review</option>
+          <option value="activity">Activity Report</option>
+          <option value="full">Full Compliance</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date From</label>
+        <input type="date" name="date_from" required>
+      </div>
+      <div class="form-group">
+        <label>Date To</label>
+        <input type="date" name="date_to" required>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Generate Report</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Reports (<%= @reports.size %>)</h3>
+  <% if @reports.empty? %>
+    <div class="empty"><span class="icon">&#128203;</span>No compliance reports generated. Create one above.</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Date Range</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @reports.each do |r| %>
+            <tr>
+              <td><strong><%= escape_html(r['name'] || '-') %></strong></td>
+              <td><%= badge(r['type'] || '-') %></td>
+              <td style="color:var(--muted)"><%= escape_html(r['date_from'] || '-') %> &mdash; <%= escape_html(r['date_to'] || '-') %></td>
+              <td><%= status_badge(r['status'] || 'pending') %></td>
+              <td style="color:var(--muted)"><%= time_ago(r['created_at']) %></td>
+              <td>
+                <% if (r['status'] || '').downcase == 'ready' || (r['status'] || '').downcase == 'success' %>
+                  <a class="btn btn-sm btn-primary" href="/engine/compliance/reports/<%= r['id'] %>/download" target="_blank">Download</a>
+                <% end %>
+                <form method="post" action="/compliance/reports/<%= r['id'] %>/delete" style="display:inline" onsubmit="return confirm('Delete this report?')">
+                  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

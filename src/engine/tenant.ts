@@ -45,7 +45,7 @@ export interface Organization {
     requireApprovalForDeploy: boolean;
     auditRetentionDays: number;
     dataRegion: string;              // Where data is stored
-    customDomain?: string;           // company.agenticmail.cloud or custom
+    customDomain?: string;           // company.agenticmail.io or custom
   };
 
   createdAt: string;
@@ -155,19 +155,47 @@ export const PLAN_LIMITS: Record<OrgPlan, OrgLimits> = {
 
 // ─── Tenant Manager ─────────────────────────────────────
 
+import type { EngineDatabase } from './db-adapter.js';
+
 export class TenantManager {
   private orgs = new Map<string, Organization>();
+  private engineDb?: EngineDatabase;
+  private dirtyOrgs = new Set<string>();
+  private flushTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * Set the database adapter and load existing orgs from DB
+   */
+  async setDb(db: EngineDatabase): Promise<void> {
+    this.engineDb = db;
+    await this.loadFromDb();
+  }
+
+  /**
+   * Load all organizations from DB into memory
+   */
+  private async loadFromDb(): Promise<void> {
+    if (!this.engineDb) return;
+    try {
+      const orgs = await this.engineDb.listOrganizations();
+      for (const org of orgs) {
+        this.orgs.set(org.id, org);
+      }
+    } catch {
+      // Table may not exist yet
+    }
+  }
 
   /**
    * Create a new organization
    */
-  createOrg(opts: {
+  async createOrg(opts: {
     name: string;
     slug: string;
     plan: OrgPlan;
     adminEmail: string;
     settings?: Partial<Organization['settings']>;
-  }): Organization {
+  }): Promise<Organization> {
     if (this.orgs.has(opts.slug)) {
       throw new Error(`Organization slug "${opts.slug}" already exists`);
     }
@@ -199,6 +227,11 @@ export class TenantManager {
     };
 
     this.orgs.set(org.id, org);
+    try {
+      await this.engineDb?.upsertOrganization(org);
+    } catch (err) {
+      console.error(`[tenants] Failed to persist org ${org.id}:`, err);
+    }
     return org;
   }
 
@@ -268,12 +301,34 @@ export class TenantManager {
     if (update.storageMb) org.usage.storageMb = update.storageMb;
     if (update.deploymentsThisMonth) org.usage.deploymentsThisMonth += update.deploymentsThisMonth;
     org.usage.lastUpdated = new Date().toISOString();
+
+    this.dirtyOrgs.add(orgId);
+    this.scheduleUsageFlush();
+  }
+
+  private scheduleUsageFlush(): void {
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(async () => {
+      this.flushTimer = null;
+      const orgIds = [...this.dirtyOrgs];
+      this.dirtyOrgs.clear();
+      for (const id of orgIds) {
+        const org = this.orgs.get(id);
+        if (org) {
+          try {
+            await this.engineDb?.upsertOrganization(org);
+          } catch (err) {
+            console.error(`[tenants] Failed to flush usage for org ${id}:`, err);
+          }
+        }
+      }
+    }, 5_000);
   }
 
   /**
    * Upgrade/downgrade org plan
    */
-  changePlan(orgId: string, newPlan: OrgPlan): Organization {
+  async changePlan(orgId: string, newPlan: OrgPlan): Promise<Organization> {
     const org = this.orgs.get(orgId);
     if (!org) throw new Error(`Organization ${orgId} not found`);
 
@@ -284,6 +339,11 @@ export class TenantManager {
     // Adjust retention based on plan
     org.settings.auditRetentionDays = newPlan === 'free' ? 30 : newPlan === 'team' ? 90 : 365;
 
+    try {
+      await this.engineDb?.upsertOrganization(org);
+    } catch (err) {
+      console.error(`[tenants] Failed to persist plan change for org ${orgId}:`, err);
+    }
     return org;
   }
 
@@ -303,7 +363,7 @@ export class TenantManager {
    * Single-tenant mode: create default org with unlimited (self-hosted) plan.
    * For open-source / self-hosted deployments that don't need multi-tenancy.
    */
-  createDefaultOrg(name: string = 'Default'): Organization {
+  async createDefaultOrg(name: string = 'Default'): Promise<Organization> {
     const existing = this.getOrgBySlug('default');
     if (existing) return existing;
     return this.createOrg({
@@ -329,7 +389,9 @@ export class TenantManager {
   resetDailyCounters() {
     for (const org of this.orgs.values()) {
       org.usage.apiCallsToday = 0;
+      this.dirtyOrgs.add(org.id);
     }
+    this.scheduleUsageFlush();
   }
 
   /**
@@ -340,6 +402,8 @@ export class TenantManager {
       org.usage.tokensThisMonth = 0;
       org.usage.costThisMonth = 0;
       org.usage.deploymentsThisMonth = 0;
+      this.dirtyOrgs.add(org.id);
     }
+    this.scheduleUsageFlush();
   }
 }

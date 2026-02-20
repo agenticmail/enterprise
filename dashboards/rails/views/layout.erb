@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title><%= title %> - AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    &#127970; AgenticMail Enterprise
+    <small>Admin Dashboard &middot; Rails</small>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="/" class="<%= active?('/') %>">&#128202; Dashboard</a>
+    <a href="/agents" class="<%= active?('/agents') %>">&#129302; Agents</a>
+    <a href="/users" class="<%= active?('/users') %>">&#128101; Users</a>
+    <a href="/api-keys" class="<%= active?('/api-keys') %>">&#128273; API Keys</a>
+    <a href="/vault" class="<%= active?('/vault') %>">&#128274; Vault</a>
+    <a href="/skills" class="<%= active?('/skills') %>">&#128295; Skills</a>
+    <a href="/audit" class="<%= active?('/audit') %>">&#128220; Audit Log</a>
+    <a href="/settings" class="<%= active?('/settings') %>">&#9881;&#65039; Settings</a>
+    <small style="color:var(--muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Management</small>
+    <a href="/messages" class="<%= active?('/messages') %>">&#128231; Messages</a>
+    <a href="/guardrails" class="<%= active?('/guardrails') %>">&#128737; Guardrails</a>
+    <a href="/journal" class="<%= active?('/journal') %>">&#128214; Journal</a>
+    <small style="color:var(--muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Admin</small>
+    <a href="/dlp" class="<%= active?('/dlp') %>">&#128274; DLP</a>
+    <a href="/compliance" class="<%= active?('/compliance') %>">&#128203; Compliance</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div style="margin-bottom:6px"><%= escape_html(current_user['email'] || current_user['name'] || 'Admin') %></div>
+    <a href="/logout">Sign out</a>
+    &nbsp;&middot;&nbsp;
+    <button class="theme-toggle" onclick="document.documentElement.toggleAttribute('data-theme');document.documentElement.getAttribute('data-theme')===''?document.documentElement.setAttribute('data-theme','dark'):null" title="Toggle dark mode">&#127763;</button>
+  </div>
+</aside>
+<main class="main">
+  <%= flash_messages %>
+  <%= content %>
+</main>
+<script>
+// Persist dark mode preference
+if(localStorage.getItem('dark')==='1') document.documentElement.setAttribute('data-theme','dark');
+document.querySelector('.theme-toggle')?.addEventListener('click',()=>{
+  const d=document.documentElement.hasAttribute('data-theme');
+  if(d){document.documentElement.removeAttribute('data-theme');localStorage.removeItem('dark')}
+  else{document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('dark','1')}
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="t">Compliance</h2>
+<p class="desc">Generate and review compliance reports</p>
+<div class="card" style="margin-bottom:16px">
+<div class="ct">Generate Report</div>
+<form method="POST" style="display:flex;gap:10px;align-items:end">
+<input type="hidden" name="_action" value="generate">
+<div class="fg" style="flex:1;margin:0"><label class="fl">Report Type</label><select class="input" name="report_type"><option value="soc2">SOC 2</option><option value="gdpr">GDPR</option><option value="audit">Audit</option></select></div>
+<button class="btn btn-p" type="submit">Generate</button>
+</form>
+</div>
+<div class="card">
+<div class="ct">Reports</div>
+{% if reports %}
+<table>
+<thead><tr><th>Time</th><th>Type</th><th>Status</th><th>Summary</th></tr></thead>
+<tbody>
+{% for r in reports %}
+<tr>
+<td style="font-size:12px;color:var(--muted)">{{ r.timestamp }}</td>
+<td style="font-weight:600;text-transform:uppercase">{{ r.type }}</td>
+<td>{{ r.status_badge|safe }}</td>
+<td style="font-size:12px">{{ r.summary|default:"-" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<div class="empty">&#x1f4c4; No compliance reports yet</div>
+{% endif %}
+</div>
+{% endblock %}

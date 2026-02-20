@@ -6,7 +6,7 @@
  * 
  * Each customer gets:
  * - Isolated Fly.io machine
- * - <subdomain>.agenticmail.cloud domain
+ * - <subdomain>.agenticmail.io domain
  * - Auto-TLS via Fly.io
  * - Secrets injected as env vars
  */
@@ -243,7 +243,7 @@ export async function deployToFly(
   fly: FlyConfig,
 ): Promise<DeployResult> {
   const appName = `am-${config.subdomain}`;
-  const domain = `${config.subdomain}.agenticmail.cloud`;
+  const domain = `${config.subdomain}.agenticmail.io`;
 
   try {
     // Step 1: Create app

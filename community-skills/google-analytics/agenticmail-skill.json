@@ -1,0 +1,69 @@
+{
+  "id": "google-analytics",
+  "name": "Google Analytics",
+  "description": "Retrieve website analytics data from Google Analytics 4. Query reports, metrics, and dimensions.",
+  "version": "1.1.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/google-analytics",
+  "license": "MIT",
+  "category": "analytics",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "google",
+    "scopes": [
+      "https://www.googleapis.com/auth/analytics.readonly"
+    ]
+  },
+  "tags": [
+    "google",
+    "analytics",
+    "web-analytics",
+    "reporting"
+  ],
+  "tools": [
+    {
+      "id": "ga_run_report",
+      "name": "Run Report",
+      "description": "Run an analytics report with metrics and dimensions"
+    },
+    {
+      "id": "ga_get_realtime",
+      "name": "Get Realtime Data",
+      "description": "Get real-time active users and events"
+    },
+    {
+      "id": "ga_list_properties",
+      "name": "List Properties",
+      "description": "List all GA4 properties"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultPropertyId": {
+        "type": "string",
+        "description": "GA4 property ID"
+      },
+      "dateRange": {
+        "type": "string",
+        "enum": ["7d", "30d", "90d", "365d"],
+        "default": "30d",
+        "description": "Default date range for reports"
+      },
+      "includeDemographics": {
+        "type": "boolean",
+        "default": false,
+        "description": "Include demographic data in reports"
+      },
+      "samplingLevel": {
+        "type": "string",
+        "enum": ["DEFAULT", "SMALL", "LARGE"],
+        "default": "DEFAULT",
+        "description": "Sampling level for report queries"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

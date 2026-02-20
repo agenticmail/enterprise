@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Messages</h1>
+  <p>View and send messages</p>
+</div>
+
+<div class="card">
+  <h3>Send Message</h3>
+  <form method="POST" action="{{ url_for('messages_bp.send_message') }}">
+    <div style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+      <div class="form-group" style="margin: 0;">
+        <label>Type</label>
+        <select name="type">
+          <option>email</option>
+          <option>notification</option>
+          <option>alert</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 1; margin: 0;">
+        <label>From</label>
+        <input type="text" name="from_addr" required placeholder="sender@example.com">
+      </div>
+      <div class="form-group" style="flex: 1; margin: 0;">
+        <label>To</label>
+        <input type="text" name="to_addr" required placeholder="recipient@example.com">
+      </div>
+      <div class="form-group" style="flex: 1; margin: 0;">
+        <label>Subject</label>
+        <input type="text" name="subject" required placeholder="Message subject">
+      </div>
+      <div class="form-group" style="margin: 0;">
+        <label>Priority</label>
+        <select name="priority">
+          <option>normal</option>
+          <option>high</option>
+          <option>low</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top: 10px;">
+      <label>Body</label>
+      <textarea name="body" rows="3" placeholder="Message body (optional)" style="width: 100%;"></textarea>
+    </div>
+    <button class="btn btn-primary" type="submit">Send</button>
+  </form>
+</div>
+
+<div class="card">
+  {% if messages %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Direction</th>
+          <th>Channel</th>
+          <th>From</th>
+          <th>To</th>
+          <th>Subject</th>
+          <th>Status</th>
+          <th>Priority</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in messages %}
+        <tr>
+          <td>{{ m.type|badge }}</td>
+          <td>{{ m.direction|direction_badge }}</td>
+          <td>{{ m.channel|channel_badge }}</td>
+          <td style="font-size: 12px;">{{ m.from or m.sender or '-' }}</td>
+          <td style="font-size: 12px;">{{ m.to or m.recipient or '-' }}</td>
+          <td style="font-weight: 600;">{{ m.subject or '-' }}</td>
+          <td>{{ m.status|status_badge }}</td>
+          <td>{{ m.priority|badge }}</td>
+          <td style="font-size: 12px; color: var(--text-muted);">{{ m.timestamp|time_ago }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <span class="icon">No messages yet</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

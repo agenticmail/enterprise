@@ -1,0 +1,55 @@
+{
+  "id": "freshsales",
+  "name": "Freshsales CRM",
+  "description": "Integrate with Freshsales CRM to list, create, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/freshsales",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "freshsales",
+    "crm"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "freshsales"
+  },
+  "tools": [
+    {
+      "id": "freshsales_list_contacts",
+      "name": "List Contacts",
+      "description": "List contacts from Freshsales CRM with optional filtering and pagination."
+    },
+    {
+      "id": "freshsales_create_contact",
+      "name": "Create Contact",
+      "description": "Create a new contact in Freshsales CRM. Provide at least an email or last name."
+    },
+    {
+      "id": "freshsales_list_deals",
+      "name": "List Deals",
+      "description": "List deals from Freshsales CRM with optional filtering and pagination."
+    },
+    {
+      "id": "freshsales_create_deal",
+      "name": "Create Deal",
+      "description": "Create a new deal in Freshsales CRM. Provide at least a name."
+    },
+    {
+      "id": "freshsales_search",
+      "name": "Search",
+      "description": "Search across Freshsales CRM entities (contacts, deals, accounts, etc.) by keyword."
+    }
+  ],
+  "configSchema": {
+    "domain": {
+      "type": "string",
+      "label": "Freshsales Domain",
+      "description": "Your Freshsales subdomain (e.g. \"mycompany\" for mycompany.myfreshworks.com)",
+      "required": true
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

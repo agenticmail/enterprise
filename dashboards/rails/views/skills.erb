@@ -1,0 +1,66 @@
+<div class="page-header">
+  <h1>Skills</h1>
+  <p>Browse builtin skills and manage installed community skills</p>
+</div>
+
+<div class="card">
+  <h3>Builtin Skills</h3>
+  <% if @categories.empty? %>
+    <div class="empty"><span class="icon">&#128295;</span>No builtin skills available</div>
+  <% else %>
+    <div class="skills-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+      <% @categories.each do |category, skills| %>
+        <div class="card" style="margin:0">
+          <h4 style="margin-bottom:8px"><%= escape_html(category.to_s) %></h4>
+          <% (skills.is_a?(Array) ? skills : []).each do |skill| %>
+            <div style="padding:6px 0;border-bottom:1px solid var(--border)">
+              <strong><%= escape_html(skill['name'] || skill['id'] || '-') %></strong>
+              <% if skill['description'] %>
+                <div style="color:var(--muted);font-size:13px"><%= escape_html(skill['description']) %></div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<div class="card">
+  <h3>Installed Community Skills (<%= @installed.size %>)</h3>
+  <% if @installed.empty? %>
+    <div class="empty"><span class="icon">&#128230;</span>No community skills installed</div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Version</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @installed.each do |s| %>
+            <tr>
+              <td><strong><%= escape_html(s['name'] || s['id'] || '-') %></strong></td>
+              <td><code><%= escape_html(s['version'] || '-') %></code></td>
+              <td><%= status_badge(s['enabled'] == true || s['enabled'] == 'true' ? 'enabled' : 'disabled') %></td>
+              <td>
+                <% if s['enabled'] == true || s['enabled'] == 'true' %>
+                  <form method="post" action="/skills/disable" style="display:inline">
+                    <input type="hidden" name="skill_id" value="<%= escape_html(s['id'] || s['name']) %>">
+                    <button class="btn btn-sm" type="submit">Disable</button>
+                  </form>
+                <% else %>
+                  <form method="post" action="/skills/enable" style="display:inline">
+                    <input type="hidden" name="skill_id" value="<%= escape_html(s['id'] || s['name']) %>">
+                    <button class="btn btn-sm btn-primary" type="submit">Enable</button>
+                  </form>
+                <% end %>
+                <form method="post" action="/skills/uninstall" style="display:inline" onsubmit="return confirm('Uninstall this skill?')">
+                  <input type="hidden" name="skill_id" value="<%= escape_html(s['id'] || s['name']) %>">
+                  <button class="btn btn-sm btn-danger" type="submit">Uninstall</button>
+                </form>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

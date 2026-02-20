@@ -1,0 +1,59 @@
+{
+  "id": "google-cloud",
+  "name": "Google Cloud Platform",
+  "description": "Manage GCP resources including Cloud Storage, Compute Engine, and BigQuery.",
+  "version": "1.1.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/google-cloud",
+  "license": "Apache-2.0",
+  "category": "cloud",
+  "risk": "critical",
+  "auth": {
+    "type": "oauth2",
+    "provider": "google",
+    "scopes": ["https://www.googleapis.com/auth/cloud-platform"]
+  },
+  "tags": ["gcp", "cloud", "bigquery", "compute"],
+  "tools": [
+    {
+      "id": "gcp_list_buckets",
+      "name": "List Buckets",
+      "description": "List Cloud Storage buckets"
+    },
+    {
+      "id": "gcp_run_bigquery",
+      "name": "Run BigQuery",
+      "description": "Execute a BigQuery SQL query"
+    },
+    {
+      "id": "gcp_list_instances",
+      "name": "List Instances",
+      "description": "List Compute Engine instances"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultProject": {
+        "type": "string",
+        "description": "GCP project ID"
+      },
+      "defaultRegion": {
+        "type": "string",
+        "default": "us-central1",
+        "description": "Default GCP region"
+      },
+      "defaultZone": {
+        "type": "string",
+        "default": "us-central1-a",
+        "description": "Default GCP zone"
+      },
+      "serviceAccountEmail": {
+        "type": "string",
+        "description": "Service account for impersonation"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

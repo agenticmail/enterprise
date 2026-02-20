@@ -1,0 +1,9 @@
+<div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+{% if page_num > 0 %}
+<a class="btn btn-sm" href="{{ base_url }}?p={{ prev_page }}">&larr; Prev</a>
+{% endif %}
+<span style="padding:6px 12px;font-size:12px;color:var(--muted)">Page {{ current_page }}</span>
+{% if has_next %}
+<a class="btn btn-sm" href="{{ base_url }}?p={{ next_page }}">Next &rarr;</a>
+{% endif %}
+</div>

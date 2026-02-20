@@ -1,0 +1,67 @@
+{
+  "id": "dropbox-storage",
+  "name": "Dropbox Storage",
+  "description": "Upload, download, and manage files in Dropbox. Share folders and create file requests.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/dropbox-storage",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "dropbox",
+    "scopes": ["files.content.read", "files.content.write", "sharing.read", "sharing.write"]
+  },
+  "tags": ["dropbox", "storage", "files", "sharing"],
+  "tools": [
+    {
+      "id": "dropbox_upload_file",
+      "name": "Upload File",
+      "description": "Upload a file to Dropbox"
+    },
+    {
+      "id": "dropbox_download_file",
+      "name": "Download File",
+      "description": "Download a file from Dropbox"
+    },
+    {
+      "id": "dropbox_list_files",
+      "name": "List Files",
+      "description": "List files in a folder"
+    },
+    {
+      "id": "dropbox_share_folder",
+      "name": "Share Folder",
+      "description": "Share a folder with collaborators"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "rootFolder": {
+        "type": "string",
+        "description": "Root folder path for file operations",
+        "default": "/"
+      },
+      "autoSync": {
+        "type": "boolean",
+        "description": "Automatically sync files after modifications",
+        "default": false
+      },
+      "conflictPolicy": {
+        "type": "string",
+        "description": "Policy for handling file conflicts",
+        "enum": ["overwrite", "rename", "skip"],
+        "default": "rename"
+      },
+      "maxFileSize": {
+        "type": "number",
+        "description": "Max upload size in MB",
+        "default": 150
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

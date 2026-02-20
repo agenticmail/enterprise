@@ -1,0 +1,56 @@
+{
+  "id": "supabase",
+  "name": "Supabase",
+  "description": "Integrate with Supabase to query, insert, update and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/supabase",
+  "license": "MIT",
+  "category": "database",
+  "risk": "medium",
+  "tags": [
+    "supabase",
+    "database"
+  ],
+  "auth": {
+    "type": "api_key",
+    "provider": "supabase"
+  },
+  "tools": [
+    {
+      "id": "supabase_query",
+      "name": "Query",
+      "description": "Query rows from a Supabase table using PostgREST syntax. Supports select, filtering, ordering, and pagination."
+    },
+    {
+      "id": "supabase_insert",
+      "name": "Insert",
+      "description": "Insert one or more rows into a Supabase table. Returns the inserted rows."
+    },
+    {
+      "id": "supabase_update",
+      "name": "Update",
+      "description": "Update rows in a Supabase table matching a filter. Returns the updated rows."
+    },
+    {
+      "id": "supabase_delete",
+      "name": "Delete",
+      "description": "Delete rows from a Supabase table matching a filter. Returns the deleted rows."
+    },
+    {
+      "id": "supabase_rpc",
+      "name": "Rpc",
+      "description": "Call a Supabase database function (RPC). Pass the function name and an optional parameter object."
+    }
+  ],
+  "configSchema": {
+    "projectRef": {
+      "type": "string",
+      "label": "Project Reference",
+      "description": "Supabase project reference ID (found in project URL)",
+      "required": true,
+      "placeholder": "abcdefghijklmnop"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

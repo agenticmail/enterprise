@@ -1,0 +1,550 @@
+<%
+  config = @config || {}
+  identity = config['identity'] || {}
+  persona = config['persona'] || @agent['persona'] || {}
+  traits = persona['traits'] || config.dig('persona', 'traits') || {}
+  permissions = config['permissionProfile'] || config['permission_profile'] || {}
+
+  display_name = identity['name'] || config['name'] || config['displayName'] || @agent['name'] || 'Unnamed Agent'
+  email = identity['email'] || config['email'] || @agent['email'] || ''
+  avatar_initial = display_name[0]&.upcase || '?'
+
+  status = @agent['status'] || config['status'] || 'unknown'
+  role = @agent['role'] || config['role'] || identity['role'] || '-'
+  model_val = config['model']
+  model_display = if model_val.is_a?(Hash)
+    model_val['modelId'] || model_val['provider'] || '-'
+  else
+    (model_val || @agent['model'] || '-').to_s
+  end
+  created = @agent['created_at'] || @agent['createdAt'] || config['created_at']
+  description = config['description'] || @agent['description']
+  state = @agent['state'] || config['state'] || status
+
+  gender = persona['gender'] || '-'
+  dob = persona['dateOfBirth'] || persona['date_of_birth'] || '-'
+  marital = persona['maritalStatus'] || persona['marital_status'] || '-'
+  cultural = persona['culturalBackground'] || persona['cultural_background'] || '-'
+  language = persona['language'] || '-'
+%>
+
+<div class="page-header">
+  <p><a href="/agents">&larr; Back to Agents</a></p>
+</div>
+
+<!-- Agent Header -->
+<div class="card" style="display:flex;align-items:center;gap:20px">
+  <div class="agent-avatar"><%= avatar_initial %></div>
+  <div style="flex:1">
+    <h1 style="font-size:22px;font-weight:700;margin-bottom:4px"><%= escape_html(display_name) %></h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <%= status_badge(state) %>
+      <%= badge(role, 'primary') %>
+      <% unless email.to_s.empty? || email.to_s.match?(/\A[0-9a-f-]{36}\z/i) %>
+        <span style="color:var(--text-muted);font-size:13px"><%= escape_html(email) %></span>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Card -->
+<div class="card">
+  <h3>Summary</h3>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">Status</div>
+      <div style="margin-top:4px"><%= status_badge(state) %></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Role</div>
+      <div class="value" style="font-size:18px"><%= escape_html(role) %></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Model</div>
+      <div class="value" style="font-size:18px"><code><%= escape_html(model_display) %></code></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Created</div>
+      <div class="value" style="font-size:18px"><%= time_ago(created) %></div>
+    </div>
+  </div>
+</div>
+
+<!-- Description -->
+<% if description && !description.to_s.strip.empty? %>
+<div class="card">
+  <h3>Description</h3>
+  <p style="color:var(--text-dim);font-size:14px;line-height:1.6"><%= escape_html(description) %></p>
+</div>
+<% end %>
+
+<!-- Personality Traits -->
+<% unless traits.empty? %>
+<div class="card">
+  <h3>Personality Traits</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:8px">
+    <% traits.each do |key, value| %>
+      <span class="badge badge-default" style="font-size:12px;text-transform:none"><strong><%= escape_html(key) %></strong>: <%= escape_html(value) %></span>
+    <% end %>
+  </div>
+</div>
+<% end %>
+
+<!-- Actions -->
+<div class="card">
+  <h3>Actions</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <form method="post" action="/agents/<%= @agent['id'] %>/deploy" style="display:inline">
+      <button class="btn btn-primary btn-sm" type="submit">Deploy</button>
+    </form>
+    <form method="post" action="/agents/<%= @agent['id'] %>/stop" style="display:inline" onsubmit="return confirm('Stop this agent?')">
+      <button class="btn btn-sm" type="submit">Stop</button>
+    </form>
+    <form method="post" action="/agents/<%= @agent['id'] %>/restart" style="display:inline" onsubmit="return confirm('Restart this agent?')">
+      <button class="btn btn-sm" type="submit">Restart</button>
+    </form>
+    <% unless (state).to_s.downcase == 'archived' %>
+      <form method="post" action="/agents/<%= @agent['id'] %>/archive" style="display:inline" onsubmit="return confirm('Archive this agent?')">
+        <button class="btn btn-sm btn-danger" type="submit">Archive</button>
+      </form>
+    <% end %>
+  </div>
+</div>
+
+<!-- Personal Details -->
+<%
+  has_personal = [
+    persona&.dig('gender'),
+    persona&.dig('dateOfBirth'),
+    persona&.dig('maritalStatus'),
+    persona&.dig('culturalBackground'),
+    persona&.dig('language')
+  ].any? { |v| v && !v.to_s.strip.empty? }
+%>
+<% if has_personal %>
+<div class="card">
+  <h3>Personal Details</h3>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td style="font-weight:600;width:200px">Gender</td><td><%= escape_html(gender) %></td></tr>
+        <tr><td style="font-weight:600">Date of Birth</td><td><%= escape_html(dob) %></td></tr>
+        <tr><td style="font-weight:600">Marital Status</td><td><%= escape_html(marital) %></td></tr>
+        <tr><td style="font-weight:600">Cultural Background</td><td><%= escape_html(cultural) %></td></tr>
+        <tr><td style="font-weight:600">Language</td><td><%= escape_html(language) %></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% end %>
+
+<!-- Permission Profile -->
+<% unless permissions.empty? %>
+<%
+  profile = permissions
+  profile_name = profile['name'] || profile['preset'] || 'Custom'
+  max_risk = profile['maxRiskLevel'] || profile['max_risk_level'] || '-'
+  sandbox_mode = profile['sandboxMode'].nil? ? profile['sandbox_mode'] : profile['sandboxMode']
+  rate_limits = profile['rateLimits'] || profile['rate_limits'] || {}
+  calls_per_min = rate_limits['toolCallsPerMinute'] || rate_limits['calls_per_minute']
+  calls_per_hr = rate_limits['toolCallsPerHour'] || rate_limits['calls_per_hour']
+  blocked_effects = profile['blockedSideEffects'] || profile['blocked_side_effects'] || []
+  risk_color = case max_risk.to_s.downcase
+    when 'low' then '#10b981'
+    when 'medium' then '#f59e0b'
+    when 'high', 'critical' then '#ef4444'
+    else '#6b7280'
+  end
+%>
+<div class="card">
+  <h3>Permission Profile</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div>
+      <div style="font-weight:600;font-size:13px;color:var(--text-muted);margin-bottom:4px">Profile Name</div>
+      <div style="font-size:15px"><%= escape_html(profile_name) %></div>
+    </div>
+    <div>
+      <div style="font-weight:600;font-size:13px;color:var(--text-muted);margin-bottom:4px">Max Risk Level</div>
+      <div><span style="display:inline-block;padding:2px 10px;border-radius:9999px;font-size:13px;font-weight:600;color:#fff;background:<%= risk_color %>"><%= escape_html(max_risk.to_s) %></span></div>
+    </div>
+    <div>
+      <div style="font-weight:600;font-size:13px;color:var(--text-muted);margin-bottom:4px">Sandbox Mode</div>
+      <div style="font-size:15px"><%= sandbox_mode ? 'Enabled' : 'Disabled' %></div>
+    </div>
+    <div>
+      <div style="font-weight:600;font-size:13px;color:var(--text-muted);margin-bottom:4px">Rate Limits</div>
+      <div style="font-size:15px">
+        <% if calls_per_min || calls_per_hr %>
+          <% if calls_per_min %><span><%= escape_html(calls_per_min.to_s) %>/min</span><% end %>
+          <% if calls_per_min && calls_per_hr %><span style="margin:0 6px;color:var(--text-muted)">&middot;</span><% end %>
+          <% if calls_per_hr %><span><%= escape_html(calls_per_hr.to_s) %>/hr</span><% end %>
+        <% else %>
+          <span style="color:var(--text-muted)">None set</span>
+        <% end %>
+      </div>
+    </div>
+    <% unless blocked_effects.empty? %>
+    <div style="grid-column:1/-1">
+      <div style="font-weight:600;font-size:13px;color:var(--text-muted);margin-bottom:4px">Blocked Side Effects</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <% blocked_effects.each do |effect| %>
+          <span style="display:inline-block;padding:2px 10px;border-radius:9999px;font-size:12px;font-weight:600;color:#fff;background:#ef4444"><%= escape_html(effect.to_s) %></span>
+        <% end %>
+      </div>
+    </div>
+    <% end %>
+  </div>
+</div>
+<% end %>
+
+<!-- Tool Security -->
+<%
+  ats = @agent_tool_security || {}
+  ats_sec = ats['security'] || {}
+  ats_mw = ats['middleware'] || {}
+  ats_ps = ats_sec['pathSandbox'] || {}
+  ats_ssrf = ats_sec['ssrf'] || {}
+  ats_cs = ats_sec['commandSanitizer'] || {}
+  ats_audit = ats_mw['audit'] || {}
+  ats_rl = ats_mw['rateLimit'] || {}
+  ats_cb = ats_mw['circuitBreaker'] || {}
+  ats_tel = ats_mw['telemetry'] || {}
+  has_overrides = !(@agent_tool_security_overrides || {}).empty?
+%>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <h3 style="margin-bottom:0">Tool Security</h3>
+    <% if has_overrides %>
+      <span class="badge badge-warning" style="font-size:10px">AGENT OVERRIDES</span>
+    <% else %>
+      <span class="badge badge-default" style="font-size:10px">ORG DEFAULTS</span>
+    <% end %>
+  </div>
+  <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Per-agent tool security overrides. Leave unchanged to inherit org defaults.</p>
+  <form method="post" action="/agents/<%= @agent['id'] %>/tool-security">
+
+    <h4 style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:12px;margin-top:4px">Security</h4>
+
+    <!-- Path Sandbox -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" name="path_sandbox_enabled" id="agent_path_sandbox_enabled" <%= ats_ps['enabled'] != false ? 'checked' : '' %> style="width:auto">
+        <label for="agent_path_sandbox_enabled" style="font-weight:600;font-size:13px;margin:0">Path Sandbox</label>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Allowed Directories <small style="color:var(--text-muted)">(comma-separated)</small></label>
+          <input type="text" name="path_sandbox_allowed_dirs" value="<%= escape_html((ats_ps['allowedDirs'] || []).join(', ')) %>" placeholder="/tmp, /data">
+        </div>
+        <div class="form-group">
+          <label>Blocked Patterns <small style="color:var(--text-muted)">(comma-separated)</small></label>
+          <input type="text" name="path_sandbox_blocked_patterns" value="<%= escape_html((ats_ps['blockedPatterns'] || []).join(', ')) %>" placeholder="*.key, *.pem">
+        </div>
+      </div>
+    </div>
+
+    <!-- SSRF Protection -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" name="ssrf_enabled" id="agent_ssrf_enabled" <%= ats_ssrf['enabled'] != false ? 'checked' : '' %> style="width:auto">
+        <label for="agent_ssrf_enabled" style="font-weight:600;font-size:13px;margin:0">SSRF Protection</label>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Allowed Hosts <small style="color:var(--text-muted)">(comma-separated)</small></label>
+          <input type="text" name="ssrf_allowed_hosts" value="<%= escape_html((ats_ssrf['allowedHosts'] || []).join(', ')) %>" placeholder="api.example.com">
+        </div>
+        <div class="form-group">
+          <label>Blocked CIDRs <small style="color:var(--text-muted)">(comma-separated)</small></label>
+          <input type="text" name="ssrf_blocked_cidrs" value="<%= escape_html((ats_ssrf['blockedCidrs'] || []).join(', ')) %>" placeholder="10.0.0.0/8, 172.16.0.0/12">
+        </div>
+      </div>
+    </div>
+
+    <!-- Command Sanitizer -->
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" name="command_sanitizer_enabled" id="agent_command_sanitizer_enabled" <%= ats_cs['enabled'] != false ? 'checked' : '' %> style="width:auto">
+        <label for="agent_command_sanitizer_enabled" style="font-weight:600;font-size:13px;margin:0">Command Sanitizer</label>
+      </div>
+      <div class="form-group">
+        <label>Mode</label>
+        <select name="command_sanitizer_mode">
+          <option value="blocklist" <%= (ats_cs['mode'] || 'blocklist') == 'blocklist' ? 'selected' : '' %>>Blocklist</option>
+          <option value="allowlist" <%= ats_cs['mode'] == 'allowlist' ? 'selected' : '' %>>Allowlist</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Allowed Commands <small style="color:var(--text-muted)">(comma-separated)</small></label>
+          <input type="text" name="command_sanitizer_allowed" value="<%= escape_html((ats_cs['allowedCommands'] || []).join(', ')) %>" placeholder="ls, cat, grep">
+        </div>
+        <div class="form-group">
+          <label>Blocked Patterns <small style="color:var(--text-muted)">(comma-separated)</small></label>
+          <input type="text" name="command_sanitizer_blocked" value="<%= escape_html((ats_cs['blockedPatterns'] || []).join(', ')) %>" placeholder="rm -rf, sudo, chmod">
+        </div>
+      </div>
+    </div>
+
+    <h4 style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:12px">Middleware</h4>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <!-- Audit -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <input type="checkbox" name="audit_enabled" id="agent_audit_enabled" <%= ats_audit['enabled'] != false ? 'checked' : '' %> style="width:auto">
+          <label for="agent_audit_enabled" style="font-weight:600;font-size:13px;margin:0">Audit Logging</label>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Redact Keys <small style="color:var(--text-muted)">(comma-separated)</small></label>
+          <input type="text" name="audit_redact_keys" value="<%= escape_html((ats_audit['redactKeys'] || []).join(', ')) %>" placeholder="password, secret, token">
+        </div>
+      </div>
+
+      <!-- Rate Limit -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <input type="checkbox" name="rate_limit_mw_enabled" id="agent_rate_limit_mw_enabled" <%= ats_rl['enabled'] != false ? 'checked' : '' %> style="width:auto">
+          <label for="agent_rate_limit_mw_enabled" style="font-weight:600;font-size:13px;margin:0">Rate Limiting</label>
+        </div>
+        <p style="color:var(--text-muted);font-size:12px;margin:0">Per-tool overrides can be configured via API.</p>
+      </div>
+
+      <!-- Circuit Breaker -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" name="circuit_breaker_enabled" id="agent_circuit_breaker_enabled" <%= ats_cb['enabled'] != false ? 'checked' : '' %> style="width:auto">
+          <label for="agent_circuit_breaker_enabled" style="font-weight:600;font-size:13px;margin:0">Circuit Breaker</label>
+        </div>
+      </div>
+
+      <!-- Telemetry -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" name="telemetry_enabled" id="agent_telemetry_enabled" <%= ats_tel['enabled'] != false ? 'checked' : '' %> style="width:auto">
+          <label for="agent_telemetry_enabled" style="font-weight:600;font-size:13px;margin:0">Telemetry</label>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Save Tool Security</button>
+  </form>
+</div>
+
+<!-- Activity Section -->
+<%
+  events = @events || []
+  tool_calls = @tool_calls || []
+  journal_entries = @journal_entries || []
+%>
+<div class="card" style="padding:0">
+  <div style="padding:20px 20px 0 20px">
+    <h3 style="margin-bottom:0">Activity</h3>
+  </div>
+  <!-- Sub-tab navigation -->
+  <div style="display:flex;gap:0;border-bottom:2px solid var(--border);padding:0 20px;margin-top:12px">
+    <button onclick="switchActivityTab('events')" id="tab-events" class="btn" style="border:none;border-radius:0;border-bottom:2px solid var(--primary);margin-bottom:-2px;background:none;color:var(--primary);font-weight:600;padding:8px 16px;font-size:13px;cursor:pointer">
+      Events (<%= events.size %>)
+    </button>
+    <button onclick="switchActivityTab('toolcalls')" id="tab-toolcalls" class="btn" style="border:none;border-radius:0;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;color:var(--text-muted);font-weight:600;padding:8px 16px;font-size:13px;cursor:pointer">
+      Tool Calls (<%= tool_calls.size %>)
+    </button>
+    <button onclick="switchActivityTab('journal')" id="tab-journal" class="btn" style="border:none;border-radius:0;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;color:var(--text-muted);font-weight:600;padding:8px 16px;font-size:13px;cursor:pointer">
+      Journal (<%= journal_entries.size %>)
+    </button>
+  </div>
+
+  <!-- Events Tab -->
+  <div id="panel-events" style="padding:0">
+    <% if events.empty? %>
+      <div class="empty"><span class="icon">&#128196;</span>No events recorded</div>
+    <% else %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>Source</th><th>Status</th><th>Time</th></tr></thead>
+          <tbody>
+            <% events.each do |ev| %>
+              <tr style="cursor:pointer" onclick="showActivityDetail('<%= escape_html(ev.to_json) %>', 'Event Detail')">
+                <td><strong><%= escape_html(ev['type'] || ev['event'] || ev['action'] || '-') %></strong></td>
+                <td><%= escape_html(ev['source'] || ev['origin'] || ev['actor'] || '-') %></td>
+                <td><%= status_badge(ev['status'] || 'completed') %></td>
+                <td style="color:var(--text-muted)" data-ts="<%= escape_html((ev['created_at'] || ev['timestamp'] || ev['createdAt'] || '').to_s) %>"><%= time_ago(ev['created_at'] || ev['timestamp'] || ev['createdAt']) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Tool Calls Tab -->
+  <div id="panel-toolcalls" style="display:none;padding:0">
+    <% if tool_calls.empty? %>
+      <div class="empty"><span class="icon">&#128295;</span>No tool calls recorded</div>
+    <% else %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tool</th><th>Status</th><th>Duration</th><th>Time</th></tr></thead>
+          <tbody>
+            <% tool_calls.each do |tc| %>
+              <tr style="cursor:pointer" onclick="showActivityDetail('<%= escape_html(tc.to_json) %>', 'Tool Call Detail')">
+                <td><strong><%= escape_html(tc['tool'] || tc['toolName'] || tc['tool_name'] || tc['name'] || '-') %></strong></td>
+                <td><%= status_badge(tc['status'] || tc['result'] || 'completed') %></td>
+                <td><%= escape_html((tc['duration'] || tc['durationMs'] || tc['duration_ms'] || '-').to_s) %><%= (tc['duration'] || tc['durationMs'] || tc['duration_ms']) ? 'ms' : '' %></td>
+                <td style="color:var(--text-muted)" data-ts="<%= escape_html((tc['created_at'] || tc['timestamp'] || tc['createdAt'] || '').to_s) %>"><%= time_ago(tc['created_at'] || tc['timestamp'] || tc['createdAt']) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Journal Tab -->
+  <div id="panel-journal" style="display:none;padding:0">
+    <% if journal_entries.empty? %>
+      <div class="empty"><span class="icon">&#128214;</span>No journal entries recorded</div>
+    <% else %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Action</th><th>Resource</th><th>Status</th><th>Time</th><th>Actions</th></tr></thead>
+          <tbody>
+            <% journal_entries.each do |je| %>
+              <tr>
+                <td style="cursor:pointer" onclick="showActivityDetail('<%= escape_html(je.to_json) %>', 'Journal Entry Detail')"><strong><%= escape_html(je['action'] || je['type'] || je['event'] || '-') %></strong></td>
+                <td style="cursor:pointer" onclick="showActivityDetail('<%= escape_html(je.to_json) %>', 'Journal Entry Detail')"><code><%= escape_html(je['resource'] || je['target'] || '-') %></code></td>
+                <td style="cursor:pointer" onclick="showActivityDetail('<%= escape_html(je.to_json) %>', 'Journal Entry Detail')"><%= status_badge(je['status'] || 'completed') %></td>
+                <td style="color:var(--text-muted);cursor:pointer" onclick="showActivityDetail('<%= escape_html(je.to_json) %>', 'Journal Entry Detail')" data-ts="<%= escape_html((je['created_at'] || je['timestamp'] || je['createdAt'] || '').to_s) %>"><%= time_ago(je['created_at'] || je['timestamp'] || je['createdAt']) %></td>
+                <td>
+                  <%
+                    je_reversible = je['reversible'] != false && je['reversible'] != 'false'
+                    je_reversed = (je['status'] || '').to_s.downcase == 'rolled_back' || je['reversed'] == true || je['reversed'] == 'true'
+                  %>
+                  <% if je_reversible && !je_reversed %>
+                    <form method="post" action="/journal/<%= je['id'] %>/rollback" style="display:inline" onsubmit="return confirm('Rollback this entry?')">
+                      <button class="btn btn-sm btn-danger" type="submit">Rollback</button>
+                    </form>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Activity Detail Modal -->
+<div id="activity-modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeActivityModal()">
+  <div class="modal" style="width:600px;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 id="activity-modal-title" style="margin:0">Detail</h3>
+      <button onclick="closeActivityModal()" class="btn btn-sm" style="border:none;font-size:18px;cursor:pointer;background:none;color:var(--text-muted)">&times;</button>
+    </div>
+    <div id="activity-modal-body" style="overflow-y:auto;flex:1">
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeActivityModal()" class="btn btn-sm">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchActivityTab(tab) {
+  var panels = ['events', 'toolcalls', 'journal'];
+  for (var i = 0; i < panels.length; i++) {
+    var p = panels[i];
+    document.getElementById('panel-' + p).style.display = (p === tab) ? 'block' : 'none';
+    var tabBtn = document.getElementById('tab-' + p);
+    if (p === tab) {
+      tabBtn.style.borderBottomColor = 'var(--primary)';
+      tabBtn.style.color = 'var(--primary)';
+    } else {
+      tabBtn.style.borderBottomColor = 'transparent';
+      tabBtn.style.color = 'var(--text-muted)';
+    }
+  }
+}
+
+function showActivityDetail(jsonStr, title) {
+  var data;
+  try {
+    var decoded = jsonStr.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&#x27;/g,"'").replace(/&#x2F;/g,'/');
+    data = JSON.parse(decoded);
+  } catch(e) {
+    data = { raw: jsonStr };
+  }
+  document.getElementById('activity-modal-title').textContent = title || 'Detail';
+  var body = document.getElementById('activity-modal-body');
+  var html = '<div style="display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:13px">';
+  var keys = Object.keys(data);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var val = data[key];
+    html += '<div style="font-weight:600;color:var(--text-muted);padding:6px 0">' + escapeHtml(key) + '</div>';
+    html += '<div style="padding:6px 0;word-break:break-word">' + formatValue(key, val) + '</div>';
+  }
+  html += '</div>';
+  body.innerHTML = html;
+  document.getElementById('activity-modal-overlay').classList.add('open');
+}
+
+function closeActivityModal() {
+  document.getElementById('activity-modal-overlay').classList.remove('open');
+}
+
+function formatValue(key, val) {
+  if (val === null || val === undefined) return '<span style="color:var(--text-muted)">-</span>';
+  if (typeof val === 'boolean') {
+    var color = val ? 'var(--success)' : 'var(--danger)';
+    var bg = val ? 'var(--success-bg)' : 'var(--danger-bg)';
+    return '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;color:' + color + ';background:' + bg + '">' + val + '</span>';
+  }
+  var kl = key.toLowerCase();
+  if (typeof val === 'string' && (kl.indexOf('time') !== -1 || kl.indexOf('date') !== -1 || kl.indexOf('created') !== -1 || kl.indexOf('updated') !== -1 || kl === 'timestamp')) {
+    try {
+      var d = new Date(val);
+      if (!isNaN(d.getTime())) return '<span>' + escapeHtml(d.toLocaleString()) + '</span>';
+    } catch(e) {}
+  }
+  if (typeof val === 'object' && Array.isArray(val)) {
+    if (val.length === 0) return '<span style="color:var(--text-muted)">[]</span>';
+    var allStrings = val.every(function(v) { return typeof v === 'string' || typeof v === 'number'; });
+    if (allStrings) {
+      var badges = '';
+      for (var i = 0; i < val.length; i++) {
+        badges += '<span class="badge badge-default" style="margin:2px">' + escapeHtml(String(val[i])) + '</span>';
+      }
+      return badges;
+    }
+    return '<pre style="background:var(--bg);padding:8px 12px;border-radius:var(--radius);font-size:12px;overflow-x:auto;margin:0;white-space:pre-wrap">' + escapeHtml(JSON.stringify(val, null, 2)) + '</pre>';
+  }
+  if (typeof val === 'object') {
+    return '<pre style="background:var(--bg);padding:8px 12px;border-radius:var(--radius);font-size:12px;overflow-x:auto;margin:0;white-space:pre-wrap">' + escapeHtml(JSON.stringify(val, null, 2)) + '</pre>';
+  }
+  return '<span>' + escapeHtml(String(val)) + '</span>';
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+// Format timestamps on page load
+document.addEventListener('DOMContentLoaded', function() {
+  var tsCells = document.querySelectorAll('[data-ts]');
+  for (var i = 0; i < tsCells.length; i++) {
+    var ts = tsCells[i].getAttribute('data-ts');
+    if (ts) {
+      try {
+        var d = new Date(ts);
+        if (!isNaN(d.getTime())) {
+          tsCells[i].textContent = d.toLocaleString();
+        }
+      } catch(e) {}
+    }
+  }
+});
+</script>

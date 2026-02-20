@@ -1,0 +1,67 @@
+{
+  "id": "cloudflare-cdn",
+  "name": "Cloudflare",
+  "description": "Manage Cloudflare DNS records, firewall rules, and Workers. Purge cache and view analytics.",
+  "version": "1.0.0",
+  "author": "community",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/cloudflare-cdn",
+  "license": "MIT",
+  "category": "cloud",
+  "risk": "high",
+  "auth": {
+    "type": "token",
+    "name": "Cloudflare API Token",
+    "envVar": "CLOUDFLARE_API_TOKEN",
+    "description": "Scoped API token from Cloudflare dashboard"
+  },
+  "tags": ["cloudflare", "cdn", "dns", "workers"],
+  "tools": [
+    {
+      "id": "cf_list_dns_records",
+      "name": "List DNS Records",
+      "description": "List DNS records for a zone"
+    },
+    {
+      "id": "cf_create_dns_record",
+      "name": "Create DNS Record",
+      "description": "Create a new DNS record"
+    },
+    {
+      "id": "cf_purge_cache",
+      "name": "Purge Cache",
+      "description": "Purge cached content for a zone"
+    },
+    {
+      "id": "cf_list_workers",
+      "name": "List Workers",
+      "description": "List deployed Cloudflare Workers"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultZone": {
+        "type": "string",
+        "description": "Primary domain/zone name"
+      },
+      "autoPurgeOnDeploy": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically purge cache on deploy"
+      },
+      "securityLevel": {
+        "type": "string",
+        "enum": ["off", "essentially_off", "low", "medium", "high", "under_attack"],
+        "default": "medium",
+        "description": "Default security level for zones"
+      },
+      "defaultTtl": {
+        "type": "number",
+        "default": 3600,
+        "description": "Default TTL in seconds for DNS records"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

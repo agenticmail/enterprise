@@ -1,0 +1,72 @@
+{
+  "id": "trello-cards",
+  "name": "Trello Cards",
+  "description": "Create and manage Trello cards, lists, and boards. Move cards across lists and add labels.",
+  "version": "1.2.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/trello-cards",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "low",
+  "auth": {
+    "type": "oauth2",
+    "provider": "trello",
+    "scopes": [
+      "read",
+      "write",
+      "account"
+    ]
+  },
+  "tags": [
+    "trello",
+    "kanban",
+    "cards",
+    "project-management"
+  ],
+  "tools": [
+    {
+      "id": "trello_create_card",
+      "name": "Create Card",
+      "description": "Create a new card on a list"
+    },
+    {
+      "id": "trello_move_card",
+      "name": "Move Card",
+      "description": "Move a card to another list"
+    },
+    {
+      "id": "trello_add_label",
+      "name": "Add Label",
+      "description": "Add a label to a card"
+    },
+    {
+      "id": "trello_list_boards",
+      "name": "List Boards",
+      "description": "List all boards for a member"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultBoard": {
+        "type": "string",
+        "description": "Default Trello board to use when none is specified"
+      },
+      "defaultList": {
+        "type": "string",
+        "description": "Default Trello list to use when creating cards"
+      },
+      "autoLabel": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically apply labels to new cards"
+      },
+      "cardTemplate": {
+        "type": "string",
+        "description": "Default card template to use when creating cards"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}

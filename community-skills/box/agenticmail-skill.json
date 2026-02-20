@@ -1,0 +1,48 @@
+{
+  "id": "box",
+  "name": "Box",
+  "description": "Integrate with Box to list, get, upload and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/box",
+  "license": "MIT",
+  "category": "storage",
+  "risk": "medium",
+  "tags": [
+    "box",
+    "storage"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "box"
+  },
+  "tools": [
+    {
+      "id": "box_list_files",
+      "name": "List Files",
+      "description": "List files and folders in a Box folder. Defaults to the root folder (ID \"0\"). Returns names, sizes, and modification dates."
+    },
+    {
+      "id": "box_get_file",
+      "name": "Get File",
+      "description": "Get detailed information about a specific Box file by its ID. Returns name, size, version, shared link, and metadata."
+    },
+    {
+      "id": "box_upload_file",
+      "name": "Upload File",
+      "description": "Upload a file to Box. Provide the file content as base64 and specify the target folder. Returns the new file ID and details."
+    },
+    {
+      "id": "box_search",
+      "name": "Search",
+      "description": "Search for files and folders in Box by name, content, or metadata. Returns matching items with relevance scores."
+    },
+    {
+      "id": "box_create_folder",
+      "name": "Create Folder",
+      "description": "Create a new folder in Box. Specify the parent folder and the new folder name."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

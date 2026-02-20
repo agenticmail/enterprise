@@ -1,0 +1,48 @@
+{
+  "id": "brex",
+  "name": "Brex",
+  "description": "Integrate with Brex to list, list, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/brex",
+  "license": "MIT",
+  "category": "finance",
+  "risk": "high",
+  "tags": [
+    "brex",
+    "finance"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "brex"
+  },
+  "tools": [
+    {
+      "id": "brex_list_transactions",
+      "name": "List Transactions",
+      "description": "List Brex card transactions. Optionally filter by date range or user. Returns transaction descriptions, amounts, and dates."
+    },
+    {
+      "id": "brex_list_cards",
+      "name": "List Cards",
+      "description": "List Brex cards. Optionally filter by user or card status. Returns card details including last four digits and limits."
+    },
+    {
+      "id": "brex_list_users",
+      "name": "List Users",
+      "description": "List users (employees) in Brex. Returns user names, emails, roles, and statuses."
+    },
+    {
+      "id": "brex_get_account",
+      "name": "Get Account",
+      "description": "Get Brex account details including the primary cash account balance and status."
+    },
+    {
+      "id": "brex_list_vendors",
+      "name": "List Vendors",
+      "description": "List vendors (payment recipients) in Brex. Returns vendor names, payment methods, and IDs."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

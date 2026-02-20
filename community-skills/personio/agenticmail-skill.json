@@ -1,0 +1,48 @@
+{
+  "id": "personio",
+  "name": "Personio",
+  "description": "Integrate with Personio to list, get, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/personio",
+  "license": "MIT",
+  "category": "hr",
+  "risk": "medium",
+  "tags": [
+    "personio",
+    "hr"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "personio"
+  },
+  "tools": [
+    {
+      "id": "personio_list_employees",
+      "name": "List Employees",
+      "description": "List employees from Personio. Returns names, emails, departments, and positions."
+    },
+    {
+      "id": "personio_get_employee",
+      "name": "Get Employee",
+      "description": "Get detailed information about a specific Personio employee by their ID."
+    },
+    {
+      "id": "personio_list_absences",
+      "name": "List Absences",
+      "description": "List absence (time-off) records from Personio. Filter by employee, date range, or type."
+    },
+    {
+      "id": "personio_create_absence",
+      "name": "Create Absence",
+      "description": "Create an absence (time-off) request in Personio for a specific employee."
+    },
+    {
+      "id": "personio_list_attendances",
+      "name": "List Attendances",
+      "description": "List attendance records from Personio. Filter by employee and date range to see clock-in/clock-out data."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

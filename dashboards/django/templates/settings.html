@@ -1,0 +1,472 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+.settings-help-btn{width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:6px;flex-shrink:0;transition:all .15s}
+.settings-help-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+.settings-help-panel{max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease;background:rgba(232,67,147,.04);border:1px solid transparent;border-radius:8px;padding:0 16px;font-size:13px;color:var(--dim);line-height:1.6}
+.settings-help-panel.open{max-height:600px;padding:14px 16px;border-color:rgba(232,67,147,.15);margin-bottom:12px}
+.settings-help-panel h4{font-size:13px;font-weight:600;margin:10px 0 4px;color:var(--text)}
+.settings-help-panel ul{margin:4px 0 8px 18px}
+.settings-help-panel li{margin-bottom:2px}
+.settings-help-panel p{margin:4px 0 8px}
+</style>
+<script>
+function toggleSettingsHelp(id) {
+  var p = document.getElementById('help-' + id);
+  if (p) p.classList.toggle('open');
+}
+</script>
+<h2 class="t">Settings</h2>
+<p class="desc">Configure your organization</p>
+<div class="card">
+<div style="display:flex;align-items:center;gap:0">
+<div class="ct">General</div>
+<button class="settings-help-btn" onclick="toggleSettingsHelp('general')" title="Learn more">?</button>
+</div>
+<div id="help-general" class="settings-help-panel">
+<p>The General section configures your organization's identity and email delivery.</p>
+<h4>Organization</h4>
+<ul>
+<li><strong>Company Name</strong> — Appears throughout the dashboard and in emails sent by agents.</li>
+<li><strong>Domain</strong> — Your company's primary domain, used for agent email addresses.</li>
+<li><strong>Subdomain</strong> — Your unique ID on the AgenticMail cloud (subdomain.agenticmail.io).</li>
+<li><strong>Logo URL</strong> — Link to your company logo, shown in dashboard and emails.</li>
+<li><strong>Primary Color</strong> — Customizes the dashboard accent color to match your brand.</li>
+</ul>
+<h4>SMTP Configuration</h4>
+<p>Controls outgoing email delivery. Leave blank to use the default AgenticMail relay. Configure custom SMTP to send from your own mail infrastructure.</p>
+</div>
+<form method="POST" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="fg"><label class="fl">Organization Name</label><input class="input" name="name" value="{{ s.name }}"></div>
+<div class="fg"><label class="fl">Domain</label><input class="input" name="domain" value="{{ s.domain }}" placeholder="agents.agenticmail.io"></div>
+<div class="fg"><label class="fl">Primary Color</label><input class="input" type="color" name="primaryColor" value="{{ s.primaryColor|default:'#e84393' }}" style="height:38px;padding:4px"></div>
+<div></div>
+<div><button class="btn btn-p" type="submit">Save Settings</button></div>
+</form>
+</div>
+<div class="card">
+<div class="ct">Plan</div>
+{{ plan_badge|safe }}
+<span style="font-size:13px;color:var(--dim);margin-left:12px">Subdomain: {{ s.subdomain|default:"not-set" }}.agenticmail.io</span>
+</div>
+{% if retention and retention_no_error %}
+<div class="card">
+<div class="ct">Data Retention</div>
+<div style="font-size:13px">Status: <span style="color:{% if retention.enabled %}var(--success){% else %}var(--muted){% endif %}">{% if retention.enabled %}Enabled{% else %}Disabled{% endif %}</span><br>
+<span style="color:var(--dim)">Retain emails for {{ retention.retainDays|default:"365" }} days</span></div>
+</div>
+{% endif %}
+
+<!-- Tool Security -->
+<div class="card">
+<div style="display:flex;align-items:center;gap:0">
+<div class="ct">Tool Security</div>
+<button class="settings-help-btn" onclick="toggleSettingsHelp('tool-security')" title="Learn more">?</button>
+</div>
+<div id="help-tool-security" class="settings-help-panel">
+<p>Tool Security controls what AI agents are allowed to do at the system level — safety guardrails that prevent agents from accessing sensitive resources.</p>
+<h4>Security Sandboxes</h4>
+<ul>
+<li><strong>Path Sandbox</strong> — Restricts which folders agents can read/write. Prevents access to sensitive files.</li>
+<li><strong>SSRF Protection</strong> — Blocks agents from reaching internal networks, cloud metadata, or private IPs.</li>
+<li><strong>Command Sanitizer</strong> — Controls which shell commands agents can execute. Blocklist blocks dangerous patterns; Allowlist only permits specified commands.</li>
+</ul>
+<h4>Middleware &amp; Observability</h4>
+<ul>
+<li><strong>Audit Logging</strong> — Records every tool action: what, when, success/failure, duration. Sensitive fields are auto-redacted.</li>
+<li><strong>Rate Limiting</strong> — Limits tool calls per minute per agent. Prevents system overload.</li>
+<li><strong>Circuit Breaker</strong> — Auto-pauses tools that keep failing (5 consecutive errors). Waits 30s before retry.</li>
+<li><strong>Telemetry</strong> — Collects performance metrics: call duration, success rates, output sizes.</li>
+</ul>
+</div>
+<p style="font-size:13px;color:var(--dim);margin-bottom:16px">Configure organization-wide security policies for agent tool usage.</p>
+<form method="POST">
+<input type="hidden" name="_action" value="tool_security">
+
+<!-- Security Section -->
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Security</h4>
+
+<!-- Path Sandbox -->
+<div style="margin-bottom:16px;padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="ps_enabled" id="ps_enabled" {% if ts_ps.enabled %}checked{% endif %}>
+<label for="ps_enabled" style="font-weight:600;font-size:13px">Path Sandbox</label>
+</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Restrict file system access to specific directories.</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="fg"><label class="fl">Allowed Directories <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="ps_allowedDirs" value="{{ ts_ps_allowedDirs }}" placeholder="/tmp, /data"></div>
+<div class="fg"><label class="fl">Blocked Patterns <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="ps_blockedPatterns" value="{{ ts_ps_blockedPatterns }}" placeholder="*.env, *.key"></div>
+</div>
+</div>
+
+<!-- SSRF Protection -->
+<div style="margin-bottom:16px;padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="ssrf_enabled" id="ssrf_enabled" {% if ts_ssrf.enabled %}checked{% endif %}>
+<label for="ssrf_enabled" style="font-weight:600;font-size:13px">SSRF Protection</label>
+</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Prevent server-side request forgery attacks.</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="fg"><label class="fl">Allowed Hosts <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="ssrf_allowedHosts" value="{{ ts_ssrf_allowedHosts }}" placeholder="api.example.com, cdn.example.com"></div>
+<div class="fg"><label class="fl">Blocked CIDRs <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="ssrf_blockedCidrs" value="{{ ts_ssrf_blockedCidrs }}" placeholder="10.0.0.0/8, 192.168.0.0/16"></div>
+</div>
+</div>
+
+<!-- Command Sanitizer -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="cs_enabled" id="cs_enabled" {% if ts_cs.enabled %}checked{% endif %}>
+<label for="cs_enabled" style="font-weight:600;font-size:13px">Command Sanitizer</label>
+</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Sanitize shell commands executed by agents.</p>
+<div class="fg" style="margin-bottom:10px"><label class="fl">Mode</label>
+<select class="input" name="cs_mode" style="width:auto;padding:6px 10px">
+<option value="blocklist" {% if ts_cs_mode == "blocklist" %}selected{% endif %}>Blocklist</option>
+<option value="allowlist" {% if ts_cs_mode == "allowlist" %}selected{% endif %}>Allowlist</option>
+</select>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="fg"><label class="fl">Allowed Commands <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="cs_allowedCommands" value="{{ ts_cs_allowedCommands }}" placeholder="ls, cat, grep"></div>
+<div class="fg"><label class="fl">Blocked Patterns <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="cs_blockedPatterns" value="{{ ts_cs_blockedPatterns }}" placeholder="rm -rf, sudo, chmod"></div>
+</div>
+</div>
+</div>
+
+<!-- Middleware Section -->
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Middleware</h4>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<!-- Audit -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="audit_enabled" id="audit_enabled" {% if ts_audit.enabled %}checked{% endif %}>
+<label for="audit_enabled" style="font-weight:600;font-size:13px">Audit Logging</label>
+</div>
+<div class="fg" style="margin-bottom:0"><label class="fl">Redact Keys <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="audit_redactKeys" value="{{ ts_audit_redactKeys }}" placeholder="password, secret, token"></div>
+</div>
+
+<!-- Rate Limit -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="rl_enabled" id="rl_enabled" {% if ts_rl.enabled %}checked{% endif %}>
+<label for="rl_enabled" style="font-weight:600;font-size:13px">Rate Limiting</label>
+</div>
+<p style="font-size:12px;color:var(--muted);margin:0">Throttle tool call frequency per agent.</p>
+</div>
+
+<!-- Circuit Breaker -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px">
+<input type="checkbox" name="cb_enabled" id="cb_enabled" {% if ts_cb.enabled %}checked{% endif %}>
+<label for="cb_enabled" style="font-weight:600;font-size:13px">Circuit Breaker</label>
+</div>
+<p style="font-size:12px;color:var(--muted);margin:4px 0 0 0">Auto-disable failing tools to prevent cascading errors.</p>
+</div>
+
+<!-- Telemetry -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px">
+<input type="checkbox" name="tel_enabled" id="tel_enabled" {% if ts_tel.enabled %}checked{% endif %}>
+<label for="tel_enabled" style="font-weight:600;font-size:13px">Telemetry</label>
+</div>
+<p style="font-size:12px;color:var(--muted);margin:4px 0 0 0">Collect performance metrics for tool executions.</p>
+</div>
+</div>
+</div>
+
+<button class="btn btn-p" type="submit">Save Tool Security</button>
+</form>
+</div>
+
+<!-- Network & Firewall -->
+<div class="card">
+<div style="display:flex;align-items:center;gap:0">
+<div class="ct">Network &amp; Firewall</div>
+<button class="settings-help-btn" onclick="toggleSettingsHelp('network')" title="Learn more">?</button>
+</div>
+<div id="help-network" class="settings-help-panel">
+<p>Controls who can access your AgenticMail instance and what agents can reach on the internet.</p>
+<h4>IP Access Control</h4>
+<p>Restricts which IPs can reach the dashboard and APIs. Allowlist = only listed IPs connect. Blocklist = all except blocked IPs.</p>
+<h4>Outbound Egress</h4>
+<p>Controls which external hosts/ports agents can reach. Allowlist = only approved hosts. Blocklist = everything except blocked hosts.</p>
+<h4>Proxy &amp; Trusted Proxies</h4>
+<ul>
+<li><strong>Proxy Config</strong> — HTTP/HTTPS proxy URLs for outbound access. "No-Proxy" bypasses the proxy.</li>
+<li><strong>Trusted Proxies</strong> — IPs of your load balancers/reverse proxies, so IP access control sees real client IPs.</li>
+</ul>
+<h4>Network Settings</h4>
+<ul>
+<li><strong>CORS Origins</strong> — Which websites can make API calls to AgenticMail. Empty = allow all.</li>
+<li><strong>Rate Limiting</strong> — Limits API requests per IP per minute. Protects against abuse.</li>
+<li><strong>HTTPS Enforcement</strong> — Forces encrypted connections. Recommended for production.</li>
+<li><strong>Security Headers</strong> — Browser security: HSTS, X-Frame-Options, Content-Type-Options.</li>
+</ul>
+</div>
+<p style="font-size:13px;color:var(--dim);margin-bottom:16px">IP access control, egress filtering, proxy settings, and network security policies.</p>
+<form method="POST">
+<input type="hidden" name="_action" value="firewall">
+
+<!-- IP Access Control -->
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">IP Access Control</h4>
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="fw_ip_enabled" id="fw_ip_enabled" {% if fw_ipAccess.enabled %}checked{% endif %}>
+<label for="fw_ip_enabled" style="font-weight:600;font-size:13px">Enable IP Access Control</label>
+</div>
+<div class="fg" style="margin-bottom:10px"><label class="fl">Mode</label>
+<select class="input" name="fw_ip_mode" style="width:auto;padding:6px 10px">
+<option value="allowlist" {% if fw_ip_mode == "allowlist" %}selected{% endif %}>Allowlist</option>
+<option value="blocklist" {% if fw_ip_mode == "blocklist" %}selected{% endif %}>Blocklist</option>
+</select>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="fg"><label class="fl">Allowlist IPs/CIDRs <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_ip_allowlist" value="{{ fw_ip_allowlist }}" placeholder="10.0.0.0/8, 192.168.1.0/24"></div>
+<div class="fg"><label class="fl">Blocklist IPs/CIDRs <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_ip_blocklist" value="{{ fw_ip_blocklist }}" placeholder="203.0.113.0/24"></div>
+</div>
+<div class="fg" style="margin-top:10px"><label class="fl">Bypass Paths <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_ip_bypassPaths" value="{{ fw_ip_bypassPaths }}" placeholder="/health, /ready"></div>
+</div>
+</div>
+
+<!-- Outbound Egress -->
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Outbound Egress</h4>
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="fw_egress_enabled" id="fw_egress_enabled" {% if fw_egress.enabled %}checked{% endif %}>
+<label for="fw_egress_enabled" style="font-weight:600;font-size:13px">Enable Egress Filtering</label>
+</div>
+<div class="fg" style="margin-bottom:10px"><label class="fl">Mode</label>
+<select class="input" name="fw_egress_mode" style="width:auto;padding:6px 10px">
+<option value="blocklist" {% if fw_egress_mode == "blocklist" %}selected{% endif %}>Blocklist</option>
+<option value="allowlist" {% if fw_egress_mode == "allowlist" %}selected{% endif %}>Allowlist</option>
+</select>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="fg"><label class="fl">Allowed Hosts <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_egress_allowedHosts" value="{{ fw_egress_allowedHosts }}" placeholder="api.example.com"></div>
+<div class="fg"><label class="fl">Blocked Hosts <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_egress_blockedHosts" value="{{ fw_egress_blockedHosts }}" placeholder="evil.com"></div>
+<div class="fg"><label class="fl">Allowed Ports <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_egress_allowedPorts" value="{{ fw_egress_allowedPorts }}" placeholder="80, 443"></div>
+<div class="fg"><label class="fl">Blocked Ports <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_egress_blockedPorts" value="{{ fw_egress_blockedPorts }}" placeholder="25, 445"></div>
+</div>
+</div>
+</div>
+
+<!-- Proxy & Trusted Proxies -->
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Proxy &amp; Trusted Proxies</h4>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<!-- Proxy -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="font-weight:600;font-size:13px;margin-bottom:8px">Proxy Settings</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Configure outbound proxy for agent HTTP requests.</p>
+<div class="fg" style="margin-bottom:8px"><label class="fl">HTTP Proxy</label><input class="input" name="fw_proxy_http" value="{{ fw_proxy_http }}" placeholder="http://proxy:8080"></div>
+<div class="fg" style="margin-bottom:8px"><label class="fl">HTTPS Proxy</label><input class="input" name="fw_proxy_https" value="{{ fw_proxy_https }}" placeholder="http://proxy:8443"></div>
+<div class="fg" style="margin-bottom:0"><label class="fl">No-Proxy Hosts <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_proxy_noProxy" value="{{ fw_proxy_noProxy }}" placeholder="localhost, 127.0.0.1"></div>
+</div>
+<!-- Trusted Proxies -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="font-weight:600;font-size:13px;margin-bottom:8px">Trusted Proxies</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Trust X-Forwarded-For headers from specific reverse proxies.</p>
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="fw_tp_enabled" id="fw_tp_enabled" {% if fw_trustedProxies.enabled %}checked{% endif %}>
+<label for="fw_tp_enabled" style="font-weight:600;font-size:13px">Enable Trusted Proxies</label>
+</div>
+<div class="fg" style="margin-bottom:0"><label class="fl">Trusted Proxy IPs/CIDRs <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_tp_ips" value="{{ fw_tp_ips }}" placeholder="10.0.0.1, 172.16.0.0/12"></div>
+</div>
+</div>
+</div>
+
+<!-- Network Settings -->
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Network Settings</h4>
+
+<!-- CORS -->
+<div style="margin-bottom:16px;padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="font-weight:600;font-size:13px;margin-bottom:8px">CORS Origins</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Allowed origins for Cross-Origin Resource Sharing.</p>
+<div class="fg" style="margin-bottom:0"><input class="input" name="fw_net_corsOrigins" value="{{ fw_net_corsOrigins }}" placeholder="https://app.example.com, https://admin.example.com"></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+<!-- Rate Limiting -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="fw_net_rl_enabled" id="fw_net_rl_enabled" {% if fw_netRl.enabled %}checked{% endif %}>
+<label for="fw_net_rl_enabled" style="font-weight:600;font-size:13px">Rate Limiting</label>
+</div>
+<div class="fg" style="margin-bottom:8px"><label class="fl">Requests Per Minute</label><input class="input" type="number" name="fw_net_rl_rpm" value="{{ fw_net_rl_rpm }}" style="width:150px"></div>
+<div class="fg" style="margin-bottom:0"><label class="fl">Skip Paths <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_net_rl_skipPaths" value="{{ fw_net_rl_skipPaths }}" placeholder="/health, /ready"></div>
+</div>
+<!-- HTTPS Enforcement -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+<input type="checkbox" name="fw_net_https_enabled" id="fw_net_https_enabled" {% if fw_httpsEnf.enabled %}checked{% endif %}>
+<label for="fw_net_https_enabled" style="font-weight:600;font-size:13px">HTTPS Enforcement</label>
+</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">Redirect HTTP to HTTPS and enforce secure connections.</p>
+<div class="fg" style="margin-bottom:0"><label class="fl">Exclude Paths <span style="color:var(--muted)">(comma-separated)</span></label><input class="input" name="fw_net_https_excludePaths" value="{{ fw_net_https_excludePaths }}" placeholder="/health, /ready"></div>
+</div>
+</div>
+
+<!-- Security Headers -->
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="font-weight:600;font-size:13px;margin-bottom:8px">Security Headers</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:10px">HTTP response security headers applied to all responses.</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="display:flex;align-items:center;gap:8px">
+<input type="checkbox" name="fw_sh_hsts" id="fw_sh_hsts" {% if fw_secHeaders.hsts %}checked{% endif %}>
+<label for="fw_sh_hsts" style="font-size:13px">Enable HSTS</label>
+</div>
+<div class="fg" style="margin-bottom:0"><label class="fl">HSTS Max-Age (seconds)</label><input class="input" type="number" name="fw_sh_hstsMaxAge" value="{{ fw_sh_hstsMaxAge }}" style="width:150px"></div>
+<div class="fg" style="margin-bottom:0"><label class="fl">X-Frame-Options</label>
+<select class="input" name="fw_sh_xFrameOptions" style="width:auto;padding:6px 10px">
+<option value="DENY" {% if fw_sh_xFrameOptions == "DENY" %}selected{% endif %}>DENY</option>
+<option value="SAMEORIGIN" {% if fw_sh_xFrameOptions == "SAMEORIGIN" %}selected{% endif %}>SAMEORIGIN</option>
+<option value="" {% if fw_sh_xFrameOptions == "" %}selected{% endif %}>Disabled</option>
+</select>
+</div>
+<div style="display:flex;align-items:center;gap:8px">
+<input type="checkbox" name="fw_sh_xContentTypeOptions" id="fw_sh_xContentTypeOptions" {% if fw_secHeaders.xContentTypeOptions %}checked{% endif %}>
+<label for="fw_sh_xContentTypeOptions" style="font-size:13px">X-Content-Type-Options: nosniff</label>
+</div>
+<div class="fg" style="margin-bottom:0"><label class="fl">Referrer-Policy</label>
+<select class="input" name="fw_sh_referrerPolicy" style="width:auto;padding:6px 10px">
+<option value="strict-origin-when-cross-origin" {% if fw_sh_referrerPolicy == "strict-origin-when-cross-origin" %}selected{% endif %}>strict-origin-when-cross-origin</option>
+<option value="no-referrer" {% if fw_sh_referrerPolicy == "no-referrer" %}selected{% endif %}>no-referrer</option>
+<option value="same-origin" {% if fw_sh_referrerPolicy == "same-origin" %}selected{% endif %}>same-origin</option>
+<option value="origin" {% if fw_sh_referrerPolicy == "origin" %}selected{% endif %}>origin</option>
+</select>
+</div>
+<div class="fg" style="margin-bottom:0"><label class="fl">Permissions-Policy</label><input class="input" name="fw_sh_permissionsPolicy" value="{{ fw_sh_permissionsPolicy }}" placeholder="camera=(), microphone=(), geolocation=()"></div>
+</div>
+</div>
+</div>
+
+<button class="btn btn-p" type="submit">Save Network &amp; Firewall</button>
+</form>
+</div>
+
+<!-- Model Pricing -->
+<div class="card">
+<div style="display:flex;align-items:center;gap:0">
+<div class="ct">Model Pricing</div>
+<button class="settings-help-btn" onclick="toggleSettingsHelp('model-pricing')" title="Learn more">?</button>
+</div>
+<div id="help-model-pricing" class="settings-help-panel">
+<p>Configure per-model token pricing for cost tracking and budget enforcement across your organization.</p>
+<h4>How It Works</h4>
+<ul>
+<li><strong>Input Cost</strong> — Cost per 1M input (prompt) tokens sent to the model.</li>
+<li><strong>Output Cost</strong> — Cost per 1M output (completion) tokens generated by the model.</li>
+<li><strong>Context Window</strong> — Maximum number of tokens the model can process in a single request.</li>
+</ul>
+<p>These costs are used by the budget system to calculate agent spend and enforce limits.</p>
+</div>
+<p style="font-size:13px;color:var(--dim);margin-bottom:16px">Configure token costs per model for budget tracking and cost management.</p>
+<form method="POST">
+<input type="hidden" name="_action" value="model_pricing">
+<input type="hidden" name="mp_currency" value="{{ mp_currency }}">
+<input type="hidden" name="mp_model_count" value="{{ mp_model_count }}">
+
+{% if mp_has_models %}
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Configured Models</h4>
+
+{% for group in mp_provider_groups %}
+<div style="margin-bottom:16px">
+<div style="font-weight:600;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding:6px 12px;background:rgba(0,0,0,.02);border-radius:4px">{{ group.provider }}</div>
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead>
+<tr style="border-bottom:1px solid var(--border)">
+<th style="text-align:left;padding:8px 12px;font-weight:600;font-size:12px;color:var(--muted)">Model ID</th>
+<th style="text-align:left;padding:8px 12px;font-weight:600;font-size:12px;color:var(--muted)">Display Name</th>
+<th style="text-align:right;padding:8px 12px;font-weight:600;font-size:12px;color:var(--muted)">Input $/1M</th>
+<th style="text-align:right;padding:8px 12px;font-weight:600;font-size:12px;color:var(--muted)">Output $/1M</th>
+<th style="text-align:right;padding:8px 12px;font-weight:600;font-size:12px;color:var(--muted)">Context Window</th>
+<th style="text-align:center;padding:8px 12px;font-weight:600;font-size:12px;color:var(--muted)">Remove</th>
+</tr>
+</thead>
+<tbody>
+{% for m in group.models %}
+<tr style="border-bottom:1px solid var(--border)">
+<td style="padding:8px 12px">
+<input type="hidden" name="mp_provider_{{ m.idx }}" value="{{ m.provider }}">
+<input type="hidden" name="mp_modelId_{{ m.idx }}" value="{{ m.modelId }}">
+<code style="font-size:12px;background:rgba(0,0,0,.04);padding:2px 6px;border-radius:4px">{{ m.modelId }}</code>
+</td>
+<td style="padding:8px 12px">
+<input class="input" type="text" name="mp_displayName_{{ m.idx }}" value="{{ m.displayName }}" style="width:100%;padding:4px 8px;font-size:13px">
+</td>
+<td style="padding:8px 12px;text-align:right">
+<input class="input" type="number" step="0.01" min="0" name="mp_input_{{ m.idx }}" value="{{ m.inputCostPerMillion }}" style="width:100px;padding:4px 8px;font-size:13px;text-align:right">
+</td>
+<td style="padding:8px 12px;text-align:right">
+<input class="input" type="number" step="0.01" min="0" name="mp_output_{{ m.idx }}" value="{{ m.outputCostPerMillion }}" style="width:100px;padding:4px 8px;font-size:13px;text-align:right">
+</td>
+<td style="padding:8px 12px;text-align:right">
+<input class="input" type="number" step="1" min="0" name="mp_context_{{ m.idx }}" value="{{ m.contextWindow }}" style="width:110px;padding:4px 8px;font-size:13px;text-align:right">
+</td>
+<td style="padding:8px 12px;text-align:center">
+<label style="cursor:pointer;font-size:12px;color:var(--muted)">
+<input type="checkbox" onchange="this.closest('tr').style.display=this.checked?'none':'';var p=this.closest('tr').querySelector('[name^=mp_provider_]');var m=this.closest('tr').querySelector('[name^=mp_modelId_]');if(this.checked){p.value='';m.value='';}" style="cursor:pointer">
+&times;
+</label>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<!-- Add New Model -->
+<div style="margin-bottom:20px;padding:16px;border:1px solid var(--border);border-radius:8px">
+<h4 style="font-size:14px;font-weight:600;margin-bottom:12px">Add Model</h4>
+<div style="padding:12px;background:rgba(0,0,0,.02);border-radius:6px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div class="fg"><label class="fl">Provider</label>
+<select class="input" name="mp_new_provider" style="width:100%;padding:6px 10px">
+<option value="">-- Select --</option>
+<option value="anthropic">Anthropic</option>
+<option value="openai">OpenAI</option>
+<option value="google">Google</option>
+<option value="deepseek">DeepSeek</option>
+<option value="xai">xAI (Grok)</option>
+<option value="mistral">Mistral</option>
+<option value="groq">Groq</option>
+<option value="together">Together</option>
+<option value="fireworks">Fireworks</option>
+<option value="moonshot">Moonshot (Kimi)</option>
+<option value="cerebras">Cerebras</option>
+<option value="openrouter">OpenRouter</option>
+<option value="ollama">Ollama (Local)</option>
+<option value="vllm">vLLM (Local)</option>
+<option value="lmstudio">LM Studio (Local)</option>
+<option value="litellm">LiteLLM (Local)</option>
+<option value="azure">Azure OpenAI</option>
+<option value="aws-bedrock">AWS Bedrock</option>
+<option value="custom">Custom</option>
+</select>
+</div>
+<div class="fg"><label class="fl">Model ID</label><input class="input" type="text" name="mp_new_modelId" placeholder="gpt-4o, claude-sonnet-4-20250514, etc."></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px">
+<div class="fg"><label class="fl">Display Name</label><input class="input" type="text" name="mp_new_displayName" placeholder="GPT-4o, Claude Sonnet, etc."></div>
+<div class="fg"><label class="fl">Context Window (tokens)</label><input class="input" type="number" step="1" min="0" name="mp_new_context" value="0" placeholder="128000"></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px">
+<div class="fg"><label class="fl">Input Cost ($ per 1M tokens)</label><input class="input" type="number" step="0.01" min="0" name="mp_new_input" value="0"></div>
+<div class="fg"><label class="fl">Output Cost ($ per 1M tokens)</label><input class="input" type="number" step="0.01" min="0" name="mp_new_output" value="0"></div>
+</div>
+</div>
+</div>
+
+<button class="btn btn-p" type="submit">Save Model Pricing</button>
+</form>
+</div>
+{% endblock %}

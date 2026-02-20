@@ -1,0 +1,56 @@
+{
+  "id": "basecamp",
+  "name": "Basecamp",
+  "description": "Integrate with Basecamp to list, list, create and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/basecamp",
+  "license": "MIT",
+  "category": "project-management",
+  "risk": "medium",
+  "tags": [
+    "basecamp",
+    "project-management"
+  ],
+  "auth": {
+    "type": "oauth2",
+    "provider": "basecamp"
+  },
+  "tools": [
+    {
+      "id": "basecamp_list_projects",
+      "name": "List Projects",
+      "description": "List all projects in the Basecamp account. Returns project names, descriptions, and status."
+    },
+    {
+      "id": "basecamp_list_todos",
+      "name": "List Todos",
+      "description": "List to-dos in a Basecamp to-do list. Returns to-do titles, assignees, and completion status."
+    },
+    {
+      "id": "basecamp_create_todo",
+      "name": "Create Todo",
+      "description": "Create a new to-do in a Basecamp to-do list. Specify content, assignees, and optional due date."
+    },
+    {
+      "id": "basecamp_list_messages",
+      "name": "List Messages",
+      "description": "List messages (posts) in a Basecamp project message board. Returns titles, authors, and dates."
+    },
+    {
+      "id": "basecamp_create_message",
+      "name": "Create Message",
+      "description": "Create a new message (post) on a Basecamp project message board."
+    }
+  ],
+  "configSchema": {
+    "accountId": {
+      "type": "string",
+      "label": "Account ID",
+      "description": "Your Basecamp account ID (found in your Basecamp URL)",
+      "required": true,
+      "placeholder": "1234567"
+    }
+  },
+  "minEngineVersion": "0.3.0"
+}

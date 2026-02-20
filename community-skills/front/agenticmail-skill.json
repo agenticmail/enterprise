@@ -1,0 +1,48 @@
+{
+  "id": "front",
+  "name": "Front",
+  "description": "Integrate with Front to list, send, list and more.",
+  "version": "1.0.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/front",
+  "license": "MIT",
+  "category": "crm",
+  "risk": "medium",
+  "tags": [
+    "front",
+    "crm"
+  ],
+  "auth": {
+    "type": "token",
+    "provider": "front"
+  },
+  "tools": [
+    {
+      "id": "front_list_conversations",
+      "name": "List Conversations",
+      "description": "List conversations from Front. Returns subjects, statuses, assignees, and tags."
+    },
+    {
+      "id": "front_send_reply",
+      "name": "Send Reply",
+      "description": "Send a reply to a Front conversation. The reply is sent as an email from the assigned inbox."
+    },
+    {
+      "id": "front_list_inboxes",
+      "name": "List Inboxes",
+      "description": "List inboxes from Front. Returns inbox names, types, and addresses."
+    },
+    {
+      "id": "front_assign_conversation",
+      "name": "Assign Conversation",
+      "description": "Assign a Front conversation to a specific teammate. Can also unassign by omitting assignee_id."
+    },
+    {
+      "id": "front_tag_conversation",
+      "name": "Tag Conversation",
+      "description": "Add or remove tags on a Front conversation."
+    }
+  ],
+  "configSchema": {},
+  "minEngineVersion": "0.3.0"
+}

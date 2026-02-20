@@ -1,0 +1,72 @@
+{
+  "id": "jira",
+  "name": "Jira Integration",
+  "description": "Full Jira integration for creating tickets, managing sprints, and tracking progress.",
+  "version": "1.5.0",
+  "author": "agenticmail",
+  "repository": "https://github.com/agenticmail/enterprise/tree/main/community-skills/jira",
+  "license": "MIT",
+  "category": "productivity",
+  "risk": "medium",
+  "auth": {
+    "type": "oauth2",
+    "provider": "atlassian",
+    "scopes": [
+      "read:jira-work",
+      "write:jira-work",
+      "read:jira-user"
+    ]
+  },
+  "tags": [
+    "jira",
+    "project-management",
+    "agile"
+  ],
+  "tools": [
+    {
+      "id": "jira_create_ticket",
+      "name": "Create Ticket",
+      "description": "Create a Jira ticket"
+    },
+    {
+      "id": "jira_update_ticket",
+      "name": "Update Ticket",
+      "description": "Update an existing ticket"
+    },
+    {
+      "id": "jira_transition",
+      "name": "Transition Issue",
+      "description": "Move issue to new status"
+    },
+    {
+      "id": "jira_search",
+      "name": "Search Issues",
+      "description": "Search Jira issues with JQL"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "defaultProject": {
+        "type": "string",
+        "description": "Default Jira project key (e.g., PROJ)"
+      },
+      "defaultIssueType": {
+        "type": "string",
+        "default": "Task",
+        "description": "Default issue type for new tickets"
+      },
+      "autoTransition": {
+        "type": "boolean",
+        "default": false,
+        "description": "Automatically transition issues based on workflow rules"
+      },
+      "sprintBoard": {
+        "type": "string",
+        "description": "Default sprint board name or ID"
+      }
+    },
+    "required": []
+  },
+  "minEngineVersion": "0.3.0"
+}
