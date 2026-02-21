@@ -14,8 +14,50 @@ import { loadMessages } from './pages/messages.js';
 import { loadCompliance } from './pages/compliance.js';
 import { loadVault } from './pages/vault.js';
 import { loadSkills } from './pages/skills.js';
+// New pages
+import { renderActivity } from './pages/activity.js';
+import { renderApprovals } from './pages/approvals.js';
+import { renderCommunitySkills } from './pages/community-skills.js';
+import { renderDomainStatus } from './pages/domain-status.js';
+import { renderKnowledge } from './pages/knowledge.js';
+import { renderKnowledgeContributions } from './pages/knowledge-contributions.js';
+import { renderSkillConnections } from './pages/skill-connections.js';
+import { renderWorkforce } from './pages/workforce.js';
 
 export let currentPage = 'dashboard';
+
+// Wrapper functions for new pages
+function loadActivity() {
+  document.getElementById('page-content').innerHTML = renderActivity();
+}
+
+function loadApprovals() {
+  document.getElementById('page-content').innerHTML = renderApprovals();
+}
+
+function loadCommunitySkills() {
+  document.getElementById('page-content').innerHTML = renderCommunitySkills();
+}
+
+function loadDomainStatus() {
+  document.getElementById('page-content').innerHTML = renderDomainStatus();
+}
+
+function loadKnowledge() {
+  document.getElementById('page-content').innerHTML = renderKnowledge();
+}
+
+function loadKnowledgeContributions() {
+  document.getElementById('page-content').innerHTML = renderKnowledgeContributions();
+}
+
+function loadSkillConnections() {
+  document.getElementById('page-content').innerHTML = renderSkillConnections();
+}
+
+function loadWorkforce() {
+  document.getElementById('page-content').innerHTML = renderWorkforce();
+}
 
 var pages = {
   dashboard: loadDashboard,
@@ -31,6 +73,15 @@ var pages = {
   compliance: loadCompliance,
   vault: loadVault,
   skills: loadSkills,
+  // New pages
+  activity: loadActivity,
+  approvals: loadApprovals,
+  'community-skills': loadCommunitySkills,
+  'domain-status': loadDomainStatus,
+  knowledge: loadKnowledge,
+  'knowledge-contributions': loadKnowledgeContributions,
+  'skill-connections': loadSkillConnections,
+  workforce: loadWorkforce,
 };
 
 export function navigate(page) {
