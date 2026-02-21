@@ -686,7 +686,7 @@ if (!is_logged_in()) {
 }
 
 // Authenticated pages
-$validPages = ['dashboard', 'agents', 'agent-detail', 'users', 'api-keys', 'vault', 'skills', 'audit', 'settings', 'dlp', 'guardrails', 'journal', 'messages', 'compliance'];
+$validPages = ['dashboard', 'agents', 'agent-detail', 'users', 'api-keys', 'vault', 'skills', 'audit', 'settings', 'dlp', 'guardrails', 'journal', 'messages', 'compliance', 'activity', 'approvals', 'community-skills', 'domain-status', 'knowledge', 'knowledge-contributions', 'skill-connections', 'workforce'];
 if (!in_array($page, $validPages)) {
     $page = 'dashboard';
 }

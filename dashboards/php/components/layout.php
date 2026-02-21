@@ -31,23 +31,28 @@ function layout_start(string $title = 'Dashboard', string $page = 'dashboard'): 
     </div>
     <div class="nav">
       <div class="nav-sec">Overview</div>
-      <a href="?page=dashboard" class="<?= $page === 'dashboard' ? 'active' : '' ?>">&#128202; <span>Dashboard</span></a>
-      <div class="nav-sec">Manage</div>
-      <a href="?page=agents" class="<?= $page === 'agents' ? 'active' : '' ?>">&#129302; <span>Agents</span></a>
-      <a href="?page=users" class="<?= $page === 'users' ? 'active' : '' ?>">&#128101; <span>Users</span></a>
-      <a href="?page=api-keys" class="<?= $page === 'api-keys' ? 'active' : '' ?>">&#128273; <span>API Keys</span></a>
-      <a href="?page=vault" class="<?= $page === 'vault' ? 'active' : '' ?>">&#128274; <span>Vault</span></a>
-      <a href="?page=skills" class="<?= $page === 'skills' ? 'active' : '' ?>">&#128268; <span>Skills</span></a>
+      <a href="?page=dashboard" class="<?= $page === 'dashboard' ? 'active' : '' ?>">📊 <span>Dashboard</span></a>
       <div class="nav-sec">Management</div>
-      <a href="?page=messages" class="<?= $page === 'messages' ? 'active' : '' ?>">&#128231; <span>Messages</span></a>
-      <a href="?page=guardrails" class="<?= $page === 'guardrails' ? 'active' : '' ?>">&#128737; <span>Guardrails</span></a>
-      <a href="?page=journal" class="<?= $page === 'journal' ? 'active' : '' ?>">&#128214; <span>Journal</span></a>
-      <div class="nav-sec">Admin</div>
-      <a href="?page=dlp" class="<?= $page === 'dlp' ? 'active' : '' ?>">&#128274; <span>DLP</span></a>
-      <a href="?page=compliance" class="<?= $page === 'compliance' ? 'active' : '' ?>">&#128196; <span>Compliance</span></a>
-      <div class="nav-sec">System</div>
-      <a href="?page=audit" class="<?= $page === 'audit' ? 'active' : '' ?>">&#128203; <span>Audit Log</span></a>
-      <a href="?page=settings" class="<?= $page === 'settings' ? 'active' : '' ?>">&#9881;&#65039; <span>Settings</span></a>
+      <a href="?page=agents" class="<?= $page === 'agents' ? 'active' : '' ?>">🤖 <span>Agents</span></a>
+      <a href="?page=skills" class="<?= $page === 'skills' ? 'active' : '' ?>">🛠️ <span>Skills</span></a>
+      <a href="?page=community-skills" class="<?= $page === 'community-skills' ? 'active' : '' ?>">🏪 <span>Community Skills</span></a>
+      <a href="?page=skill-connections" class="<?= $page === 'skill-connections' ? 'active' : '' ?>">🔗 <span>Skill Connections</span></a>
+      <a href="?page=knowledge" class="<?= $page === 'knowledge' ? 'active' : '' ?>">📚 <span>Knowledge Bases</span></a>
+      <a href="?page=knowledge-contributions" class="<?= $page === 'knowledge-contributions' ? 'active' : '' ?>">📚 <span>Knowledge Hub</span></a>
+      <a href="?page=approvals" class="<?= $page === 'approvals' ? 'active' : '' ?>">✅ <span>Approvals</span></a>
+      <div class="nav-sec">Management</div>
+      <a href="?page=workforce" class="<?= $page === 'workforce' ? 'active' : '' ?>">🕐 <span>Workforce</span></a>
+      <a href="?page=messages" class="<?= $page === 'messages' ? 'active' : '' ?>">💬 <span>Messages</span></a>
+      <a href="?page=guardrails" class="<?= $page === 'guardrails' ? 'active' : '' ?>">🛡️ <span>Guardrails</span></a>
+      <a href="?page=journal" class="<?= $page === 'journal' ? 'active' : '' ?>">📖 <span>Journal</span></a>
+      <div class="nav-sec">Administration</div>
+      <a href="?page=dlp" class="<?= $page === 'dlp' ? 'active' : '' ?>">🔒 <span>DLP</span></a>
+      <a href="?page=compliance" class="<?= $page === 'compliance' ? 'active' : '' ?>">📋 <span>Compliance</span></a>
+      <a href="?page=domain-status" class="<?= $page === 'domain-status' ? 'active' : '' ?>">🛡️ <span>Domain</span></a>
+      <a href="?page=users" class="<?= $page === 'users' ? 'active' : '' ?>">👥 <span>Users</span></a>
+      <a href="?page=vault" class="<?= $page === 'vault' ? 'active' : '' ?>">🔐 <span>Vault</span></a>
+      <a href="?page=audit" class="<?= $page === 'audit' ? 'active' : '' ?>">📋 <span>Audit Log</span></a>
+      <a href="?page=settings" class="<?= $page === 'settings' ? 'active' : '' ?>">⚙️ <span>Settings</span></a>
     </div>
     <div class="sidebar-footer">
       <div style="color:var(--dim)"><?= e($user['name'] ?? '') ?></div>
