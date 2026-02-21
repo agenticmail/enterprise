@@ -1,926 +1,100 @@
 # @agenticmail/enterprise
 
-**Deploy and manage AI agents as employees in your organization.** Full platform for configuring agent skills, permissions, deployment targets, lifecycle management, and compliance — with a web dashboard and REST API.
+**AI Agent Identity, Email & Workforce Platform for Organizations**
 
-AgenticMail Enterprise turns AI agents into managed employees. You define what an agent can do (skills, tools, permissions), where it runs (Docker, VPS, Fly.io, Railway), and how it's supervised (approval workflows, activity tracking, audit logs). The platform handles provisioning, health monitoring, auto-recovery, and multi-tenant isolation. Each agent gets its own email, workspace, and tool access — governed by policies you control from a single dashboard.
+Deploy, manage, and govern AI agents as first-class employees — each with their own email address, skills, permissions, memory, and lifecycle. Built on [AgenticMail](https://agenticmail.io) + [OpenClaw](https://openclaw.ai).
 
-[![npm](https://img.shields.io/npm/v/@agenticmail/enterprise)](https://www.npmjs.com/package/@agenticmail/enterprise)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org)
+```bash
+npx @agenticmail/enterprise
+```
+
+One command. Interactive setup wizard. Dashboard URL in under 2 minutes.
 
 ---
 
 ## Table of Contents
 
+- [Overview](#overview)
 - [Quick Start](#quick-start)
-- [What This Does (Plain English)](#what-this-does-plain-english)
-- [Architecture](#architecture)
 - [Setup Wizard](#setup-wizard)
-- [Database Support](#database-support)
-- [The Engine](#the-engine)
-  - [Skills & Permissions](#1-skills--permissions)
-  - [Agent Configuration](#2-agent-configuration)
-  - [Deployment Engine](#3-deployment-engine)
-  - [Approval Workflows](#4-approval-workflows)
-  - [Agent Lifecycle](#5-agent-lifecycle)
-  - [Knowledge Base](#6-knowledge-base)
-  - [Multi-Tenant Isolation](#7-multi-tenant-isolation)
-  - [Activity Tracking](#8-activity-tracking)
-  - [Tool Catalog](#9-tool-catalog)
-  - [Runtime Hooks](#10-runtime-hooks)
-  - [AgenticMail Bridge](#11-agenticmail-bridge)
-- [REST API](#rest-api)
-  - [Authentication](#authentication)
-  - [Admin Endpoints](#admin-endpoints)
-  - [Engine Endpoints](#engine-endpoints)
+- [Architecture](#architecture)
+- [Database Backends](#database-backends)
+- [Engine Modules](#engine-modules)
+- [Agent Runtime](#agent-runtime)
+- [MCP Integration Adapters](#mcp-integration-adapters)
+- [Agent Tools](#agent-tools)
+- [Enterprise Skills](#enterprise-skills)
 - [Dashboard](#dashboard)
+- [API Reference](#api-reference)
 - [Deployment](#deployment)
-  - [AgenticMail Cloud](#agenticmail-cloud)
-  - [Fly.io](#flyio)
-  - [Docker](#docker)
-  - [Local Development](#local-development)
-- [Server Configuration](#server-configuration)
-- [Middleware](#middleware)
-- [Resilience](#resilience)
-- [Programmatic Usage](#programmatic-usage)
+- [CLI Commands](#cli-commands)
 - [Security](#security)
+- [Community Skills](#community-skills)
+- [Configuration](#configuration)
 - [License](#license)
+
+---
+
+## Overview
+
+AgenticMail Enterprise turns your organization's AI agents into managed employees:
+
+- **Identity** — Each agent gets a real email address, phone number, and digital identity
+- **Skills** — 47 enterprise skill definitions (Google Workspace, Microsoft 365, custom) + 147 SaaS integration adapters
+- **Permissions** — Fine-grained tool-level access control with 5 preset profiles
+- **Governance** — DLP scanning, guardrails, anomaly detection, compliance reporting, action journaling with rollback
+- **Workforce** — Shifts, schedules, on-call rotations, capacity planning, birthday automation
+- **Runtime** — Full agent execution loop with LLM streaming, session management, sub-agents, budget gates
+- **Dashboard** — Admin UI with dark/light themes, real-time activity tracking, agent creation wizard
+
+### By the Numbers
+
+| Metric | Count |
+|--------|-------|
+| Source files | 342 |
+| Engine modules | 25+ |
+| API routes | 328 |
+| Database backends | 10 |
+| SaaS integration adapters | 147 |
+| Enterprise skill definitions | 47 |
+| Agent tools | 28 |
+| Route sub-apps | 22 |
+| Soul templates | 51 (14 categories) |
+| Community skill marketplace | Built-in |
 
 ---
 
 ## Quick Start
 
+### Option A: Interactive Wizard (Recommended)
+
 ```bash
 npx @agenticmail/enterprise
 ```
 
-The interactive wizard walks you through:
-1. Company name and admin credentials
-2. Database selection (10 backends supported)
-3. Deployment target (Cloud, Fly.io, Docker, Railway, or Local)
-4. Optional custom domain
+The wizard walks you through:
+1. **Company Info** — Name, admin email, password, subdomain selection
+2. **Database** — Pick from 10 backends (SQLite for dev, Postgres/MySQL/MongoDB/DynamoDB/Turso for production)
+3. **Deployment** — AgenticMail Cloud, Fly.io, Railway, Docker, or Local
+4. **Custom Domain** — Optional: point your own domain at the dashboard
+5. **Domain Registration** — Optional: register with AgenticMail registry for domain protection
 
-Within 2 minutes you get a live dashboard URL with your admin account ready.
-
----
-
-## What This Does (Plain English)
-
-Think of AgenticMail Enterprise as an HR department for AI agents.
-
-**The problem:** You want to deploy AI agents that do real work — answer customer emails, research topics, write reports, manage schedules. But right now, setting up each agent means manually configuring tools, permissions, credentials, deployment, and monitoring. Scale that to 10 or 50 agents across a team, and it becomes unmanageable.
-
-**What Enterprise does:**
-
-- **Hiring** — You pick from 38 pre-built skill sets (email management, web research, coding, customer support, etc.) and assign them to a new agent. The platform generates all the config files, workspace setup, and tool permissions automatically.
-
-- **Onboarding** — The agent gets deployed to your chosen infrastructure (a Docker container, a VPS, Fly.io, Railway, or our managed cloud). It gets its own email address, API keys, and workspace. No manual setup.
-
-- **Permissions** — You control exactly what each agent can and can't do. "This agent can send emails but not access the filesystem." "This agent can browse the web but needs approval before making purchases." Five preset permission profiles (Research Assistant, Customer Support, Developer, Full Access, Sandbox) or fully custom.
-
-- **Supervision** — Sensitive actions trigger approval workflows. An agent wants to send an email to a client? It gets queued for human review first. You set the policies.
-
-- **Health & Recovery** — The platform monitors every agent. If one crashes, it auto-restarts. If it's stuck, it gets flagged. You see everything in the dashboard — which agents are running, what they're doing, how much they cost.
-
-- **Knowledge** — Agents can share knowledge bases. Upload documents, and the platform chunks them for retrieval. Agents search the knowledge base as part of their workflow.
-
-- **Teams** — Multi-tenant isolation means different teams or clients get their own agents, data, and billing. Plan tiers (Free, Team, Enterprise, Self-Hosted) enforce limits.
-
-- **Audit** — Every action is logged. Who did what, when, to which resource. Compliance teams can pull reports.
-
-**In short:** You focus on what your agents should do. Enterprise handles how they run, where they run, and keeping them in line.
-
----
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│                    Dashboard (Web UI)                │
-│              Single HTML · React 18 · CDN            │
-└─────────────────────────┬────────────────────────────┘
-                          │ HTTP
-┌─────────────────────────▼────────────────────────────┐
-│                   Hono API Server                    │
-│                                                      │
-│  ┌─────────┐  ┌──────────┐  ┌──────────────────────┐ │
-│  │  Auth    │  │  Admin   │  │       Engine          │ │
-│  │  Routes  │  │  Routes  │  │                       │ │
-│  │         │  │          │  │  Skills · Permissions  │ │
-│  │  JWT    │  │  Users   │  │  Config · Deployer    │ │
-│  │  Login  │  │  Agents  │  │  Approvals · Lifecycle│ │
-│  │  Keys   │  │  Audit   │  │  Knowledge · Tenants  │ │
-│  │         │  │  Keys    │  │  Activity · Hook      │ │
-│  └─────────┘  └──────────┘  └──────────────────────┘ │
-│                                                       │
-│  ┌─────────────────────────────────────────────────┐  │
-│  │               Middleware Stack                    │  │
-│  │  Rate Limit · CORS · Security Headers · Audit   │  │
-│  │  Request ID · Error Handler · RBAC              │  │
-│  └─────────────────────────────────────────────────┘  │
-│                                                       │
-│  ┌─────────────────────────────────────────────────┐  │
-│  │               Resilience Layer                   │  │
-│  │  Circuit Breaker · Health Monitor · Retry       │  │
-│  │  Rate Limiter · Keyed Rate Limiter              │  │
-│  └─────────────────────────────────────────────────┘  │
-└─────────────────────────┬────────────────────────────┘
-                          │
-┌─────────────────────────▼────────────────────────────┐
-│              Database Adapter (Abstract)               │
-│                                                       │
-│  SQLite · Postgres · MySQL · MongoDB · DynamoDB      │
-│  Turso · Supabase · Neon · PlanetScale · CockroachDB │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-## Setup Wizard
-
-The CLI wizard (`npx @agenticmail/enterprise`) runs in 4 steps:
-
-### Step 1: Company Info
-- Company name (used to generate your subdomain)
-- Admin email and password
-
-### Step 2: Database
-Choose from 10 supported backends. Each asks for its specific connection details:
-- **SQLite** — file path (default: `./agenticmail-enterprise.db`)
-- **PostgreSQL / Supabase / Neon / CockroachDB** — connection string
-- **MySQL / PlanetScale** — connection string
-- **MongoDB** — connection URI
-- **DynamoDB** — AWS region + credentials
-- **Turso / LibSQL** — database URL + auth token
-
-### Step 3: Deployment Target
-- **AgenticMail Cloud** — managed hosting, instant URL (`company.agenticmail.io`)
-- **Fly.io** — generates `fly.toml`, you deploy to your Fly account
-- **Railway** — generates Railway config
-- **Docker** — generates `docker-compose.yml` for self-hosting
-- **Local** — starts the server immediately on localhost (dev/testing)
-
-### Step 4: Custom Domain (optional)
-Add a custom domain (e.g., `agents.agenticmail.io`) with CNAME setup instructions.
-
----
-
-## Database Support
-
-Enterprise uses an abstract `DatabaseAdapter` interface. All 10 backends implement the same methods — you pick the one that fits your infrastructure.
-
-| Database | Type | Connection | Best For |
-|----------|------|------------|----------|
-| **SQLite** | Embedded SQL | File path | Local dev, single-server, prototyping |
-| **PostgreSQL** | Hosted SQL | Connection string | Production, most cloud providers |
-| **MySQL** | Hosted SQL | Connection string | Existing MySQL infrastructure |
-| **MongoDB** | NoSQL | Connection URI | Document-oriented workloads |
-| **DynamoDB** | NoSQL | AWS credentials | AWS-native, serverless scale |
-| **Turso / LibSQL** | Edge SQL | URL + token | Edge deployments, global distribution |
-| **Supabase** | Managed Postgres | Connection string | Supabase ecosystem |
-| **Neon** | Serverless Postgres | Connection string | Serverless, branching |
-| **PlanetScale** | Managed MySQL | Connection string | PlanetScale ecosystem |
-| **CockroachDB** | Distributed SQL | Connection string | Multi-region, high availability |
-
-### Adapter Pattern
-
-Every adapter extends `DatabaseAdapter` and implements:
+### Option B: Programmatic
 
 ```typescript
-// Core operations
-migrate(): Promise<void>
-disconnect(): Promise<void>
-getStats(): Promise<Stats>
-
-// Users
-createUser(input: UserInput): Promise<User>
-getUserByEmail(email: string): Promise<User | null>
-validatePassword(email: string, password: string): Promise<User | null>
-
-// Agents
-createAgent(input: AgentInput): Promise<Agent>
-listAgents(filters?): Promise<Agent[]>
-getAgent(id: string): Promise<Agent | null>
-updateAgent(id: string, updates): Promise<Agent>
-deleteAgent(id: string): Promise<void>
-
-// API Keys
-createApiKey(input: ApiKeyInput): Promise<ApiKey>
-validateApiKey(key: string): Promise<ApiKey | null>
-revokeApiKey(id: string): Promise<void>
-
-// Audit Log
-logEvent(event: AuditEvent): Promise<void>
-getAuditLog(filters: AuditFilters): Promise<AuditEvent[]>
-
-// Settings
-getSettings(): Promise<CompanySettings>
-updateSettings(updates): Promise<CompanySettings>
-```
-
-### MongoDB Notes
-- Uses `_id` field directly (stores `randomUUID()` as `_id`)
-- Indexes created on `email`, `apiKey`, `createdAt`
-
-### DynamoDB Notes
-- Single-table design with PK prefix pattern (`USER#`, `AGENT#`, `KEY#`, `AUDIT#`)
-- GSI1 for secondary access patterns
-- All entities in one table for cost efficiency
-
-### Creating a Custom Adapter
-
-```typescript
-import { DatabaseAdapter } from '@agenticmail/enterprise';
-
-class MyAdapter extends DatabaseAdapter {
-  async migrate() { /* create tables/collections */ }
-  async createUser(input) { /* ... */ }
-  // ... implement all abstract methods
-}
-```
-
----
-
-## The Engine
-
-The Engine is the brain of Enterprise — 11 subsystems that handle everything from "what can this agent do?" to "deploy it to production and watch it run."
-
-### 1. Skills & Permissions
-
-**38 built-in skills** organized into categories:
-
-| Category | Skills |
-|----------|--------|
-| Communication | Email Management, SMS & Phone, Calendar, Messaging |
-| Research | Web Search, Web Browsing, News Monitoring, Academic Research |
-| Development | Code Execution, Git & GitHub, Database, API Integration |
-| Content | Writing, Image Generation, Audio/TTS, Video Processing |
-| Productivity | Task Management, Note Taking, File Management, Spreadsheets |
-| System | System Administration, Docker, Network, Security |
-| AI/ML | Model Inference, RAG/Knowledge Base, Agent Orchestration |
-| Business | CRM, Analytics, Billing, HR |
-| IoT/Smart Home | Home Automation, Camera/Surveillance, Media Playback |
-| Custom | Custom Tools (user-defined) |
-
-Each skill defines:
-- **Tools** — which tool IDs are included (mapped to registered AgenticMail tool IDs)
-- **Config fields** — what settings the skill needs (API keys, hostnames, etc.)
-- **Risk level** — low, medium, high, critical
-- **Side effects** — what the skill can affect (network, filesystem, email, etc.)
-
-**5 preset permission profiles:**
-
-| Profile | Description | Tools | Risk |
-|---------|-------------|-------|------|
-| Research Assistant | Web search, reading, note-taking | ~25 | Low |
-| Customer Support | Email, messaging, CRM, KB search | ~35 | Medium |
-| Developer | Code, Git, Docker, APIs, databases | ~45 | High |
-| Full Access | Everything enabled | All | Critical |
-| Sandbox | Minimal tools, no external access | ~10 | Low |
-
-**How permissions work:**
-
-```typescript
-const engine = new PermissionEngine();
-
-// Check if an agent can use a tool
-const result = engine.checkPermission(agentProfile, 'agenticmail_send');
-// → { allowed: true, reason: 'Granted by Email Management skill' }
-
-// Or with approval required
-const result2 = engine.checkPermission(agentProfile, 'exec');
-// → { allowed: false, requiresApproval: true, reason: 'Code Execution requires admin approval' }
-```
-
-### 2. Agent Configuration
-
-Generates all the files an agent needs to run:
-
-- **SOUL.md** — personality, tone, boundaries
-- **AGENTS.md** — workspace conventions
-- **USER.md** — who the agent serves
-- **TOOLS.md** — environment-specific tool notes
-- **Gateway config** — agent runtime gateway config with plugins, channels, tool policies
-- **Deploy scripts** — Dockerfile, docker-compose, startup scripts
-
-```typescript
-const generator = new AgentConfigGenerator();
-const config = generator.generate({
-  name: 'support-bot',
-  role: 'Customer Support Agent',
-  skills: ['email-management', 'crm', 'knowledge-base'],
-  channels: [{ type: 'email' }, { type: 'slack', webhook: '...' }],
-  deployment: { target: 'docker' },
-});
-// → { workspace: { 'SOUL.md': '...', ... }, gateway: { ... }, deploy: { ... } }
-```
-
-### 3. Deployment Engine
-
-Provisions and manages agent infrastructure:
-
-- **Docker** — Generates Dockerfile + compose, builds image, starts container
-- **VPS** — SSH into a server, install dependencies, configure systemd service
-- **Fly.io** — Creates Fly app, sets secrets, deploys
-- **Railway** — Generates Railway config, links project
-
-Each deployment goes through phases:
-1. **Validate** — check config, verify credentials
-2. **Provision** — create infrastructure resources
-3. **Configure** — write config files, set environment variables
-4. **Deploy** — push code/image, start the agent
-5. **Verify** — health check, confirm agent is responding
-
-```typescript
-const deployer = new DeploymentEngine();
-const result = await deployer.deploy({
-  agentId: 'agent-123',
-  target: 'docker',
-  config: { /* ... */ },
-});
-// → { status: 'deployed', url: 'http://...', phases: [...] }
-```
-
-### 4. Approval Workflows
-
-Human-in-the-loop for sensitive operations. **All data persisted to database.**
-
-- Define **policies** — which actions need approval and from whom
-- Agents **request** approval when they hit a policy boundary
-- Admins **approve or reject** from the dashboard or via API
-- Supports **auto-approve** rules (e.g., "auto-approve emails to internal domains")
-- **Escalation** — unreviewed requests escalate after a configurable timeout
-- **Persistence** — pending requests and policies survive server restarts
-
-```typescript
-const approvals = new ApprovalEngine();
-await approvals.setDb(engineDb); // Wire to database, loads pending requests
-
-// Create a policy
-approvals.addPolicy({
-  id: crypto.randomUUID(),
-  name: 'External Email Review',
-  triggers: { sideEffects: ['email'] },
-  approvers: { userIds: [], roles: ['admin'], requireMultiple: 1 },
-  timeout: { minutes: 60, defaultAction: 'deny' },
-  notify: { channels: ['webhook'] },
-  enabled: true,
-}, 'org-id');
-
-// Agent requests approval
-const request = await approvals.requestApproval({
-  agentId: 'agent-123',
-  agentName: 'Support Bot',
-  toolId: 'agenticmail_send',
-  toolName: 'Send Email',
-  riskLevel: 'medium',
-  sideEffects: ['email'],
-  orgId: 'org-id',
-});
-// → { id: 'req-456', status: 'pending' } — persisted to DB
-
-// Admin approves
-approvals.decide('req-456', { action: 'approve', by: 'admin-1' });
-// → Updates both in-memory and DB
-```
-
-### 5. Agent Lifecycle
-
-State machine for agent lifecycle management. **All state persisted to database.**
-
-```
-draft → configuring → ready → provisioning → deploying → starting → running
-                                                                      ↕
-                                                                   degraded
-                                                                      ↓
-                                         stopped ← error ← destroying
-```
-
-- **12 states** — draft, configuring, ready, provisioning, deploying, starting, running, degraded, stopped, error, updating, destroying
-- **Health checks** — 30-second polling loop, response time tracking, error rate monitoring
-- **Auto-recovery** — restarts after 5 consecutive health failures
-- **Budget enforcement** — auto-stops when monthly token or cost budget exceeded
-- **State transitions** — every transition persisted to `agent_state_history` table
-- **Persistence** — all agent data written through to `managed_agents` table, loaded from DB on startup
-
-```typescript
-const lifecycle = new AgentLifecycleManager({ permissions: permissionEngine });
-await lifecycle.setDb(engineDb); // Wire to database, loads all agents
-
-// Create an agent
-const agent = await lifecycle.createAgent('org-id', agentConfig, 'admin-1');
-// → Persisted to managed_agents table
-
-// Deploy
-await lifecycle.deploy(agent.id, 'admin-1');
-// → Provisions infrastructure, starts container, begins health check loop
-
-// Get agent status
-const status = lifecycle.getAgent(agent.id);
-// → { state: 'running', health: { status: 'healthy', uptime: 86400 }, usage: { tokensToday: 150000, costToday: 1.25 } }
-
-// Stop
-await lifecycle.stop(agent.id, 'admin-1', 'Maintenance window');
-```
-
-### 6. Knowledge Base
-
-Document ingestion and retrieval for agent knowledge. **All data persisted to database.**
-
-- **Upload documents** — PDF, Markdown, plain text, HTML, CSV
-- **Chunking** — automatic splitting with configurable chunk size and overlap
-- **Embeddings** — OpenAI text-embedding-3-small (optional, falls back to keyword matching)
-- **Semantic search** — cosine similarity on embeddings, keyword fallback
-- **RAG context** — generates context string for agent prompts with token budget
-- **Per-agent or shared** — knowledge bases can be private or shared across agents
-- **Persistence** — KBs, documents, and chunks persisted to 3 tables. Embeddings stored as binary blobs.
-
-```typescript
-const kb = new KnowledgeBaseEngine();
-await kb.setDb(engineDb); // Wire to database, loads all KBs + embeddings
-
-// Create a knowledge base
-const base = kb.createKnowledgeBase('org-id', {
-  name: 'Company Policies',
-  agentIds: ['agent-1', 'agent-2'],
-  config: { embeddingProvider: 'openai', chunkSize: 512 },
-});
-// → Persisted to knowledge_bases table
-
-// Ingest a document
-const doc = await kb.ingestDocument(base.id, {
-  name: 'PTO Policy',
-  content: '...',
-  sourceType: 'text',
-  mimeType: 'text/markdown',
-});
-// → Chunked, embedded, persisted to kb_documents + kb_chunks tables
-
-// Search
-const results = await kb.search('agent-1', 'how many vacation days');
-// → [{ chunk: { content: '...' }, document: { name: 'PTO Policy' }, score: 0.92 }]
-
-// Get RAG context for an agent prompt
-const context = await kb.getContext('agent-1', 'vacation policy', 2000);
-// → "## Relevant Knowledge Base Context\n\n### From: PTO Policy\n..."
-```
-
-### 7. Multi-Tenant Isolation
-
-Organizations, plans, and resource limits. **All data persisted to database.**
-
-For SaaS deployments, companies sharing infrastructure get strict data separation. For self-hosted / open-source, single-tenant mode uses a default org with no limits.
-
-**Plan Tiers:**
-
-| Feature | Free | Team | Enterprise | Self-Hosted |
-|---------|------|------|-----------|-------------|
-| Agents | 3 | 25 | Unlimited | Unlimited |
-| Users | 5 | 50 | Unlimited | Unlimited |
-| Knowledge Bases | 1 | 10 | 999 | 999 |
-| Storage | 100 MB | 5 GB | 100 GB | Unlimited |
-| Token Budget (monthly) | 1M | 10M | Unlimited | Unlimited |
-| API Calls/min | 30 | 120 | 600 | 999 |
-| SSO | - | Yes | Yes | Yes |
-| Audit Retention | 30 days | 90 days | 365 days | 365 days |
-| Custom Domain | - | - | Yes | Yes |
-| White-Label | - | - | Yes | Yes |
-| Deploy Targets | Docker, Local | Docker, VPS, Fly, Railway, Local | All | All |
-| Custom Skills | - | Yes | Yes | Yes |
-| Data Residency | - | - | Yes | Yes |
-
-```typescript
-const tenants = new TenantManager();
-await tenants.setDb(engineDb); // Wire to database, loads all orgs
-
-// Create an organization
-const org = tenants.createOrg({
-  name: 'AgenticMail Inc',
-  slug: 'agenticmail',
-  plan: 'team',
-  adminEmail: 'admin@agenticmail.io',
-});
-// → Persisted to organizations table
-
-// Check limits before creating an agent
-const check = tenants.checkLimit(org.id, 'maxAgents');
-// → { allowed: true, limit: 25, current: 5, remaining: 20 }
-
-// Check feature gates
-tenants.hasFeature(org.id, 'sso'); // → true (team plan)
-tenants.hasFeature(org.id, 'white-label'); // → false (enterprise only)
-tenants.canDeployTo(org.id, 'aws'); // → false (team plan)
-
-// Record usage
-tenants.recordUsage(org.id, { tokensThisMonth: 50000, costThisMonth: 0.42 });
-// → Persisted to database
-
-// Upgrade plan
-tenants.changePlan(org.id, 'enterprise');
-// → Limits updated, persisted
-
-// Single-tenant mode (self-hosted)
-tenants.createDefaultOrg(); // Creates 'default' org with self-hosted plan
-tenants.isSingleTenant(); // → true
-```
-
-### 8. Activity Tracking
-
-Real-time monitoring of everything agents do. **All data persisted to database (fire-and-forget).**
-
-- **Events** — lifecycle state changes, errors, custom events per agent/org
-- **Tool calls** — tool ID, arguments, result, duration, success/failure. Start/end tracked separately.
-- **Conversations** — session-based message recording with role, token count, cost
-- **Timeline** — chronological per-agent daily view of all activity
-- **SSE streaming** — real-time event stream with heartbeats, filterable by org/agent
-- **Aggregations** — event/tool call/conversation counts, cost summaries
-- **In-memory buffer** — recent events kept in memory for fast dashboard queries; all writes fire-and-forget to DB
-
-```typescript
-const activity = new ActivityTracker();
-activity.setDb(engineDb); // Wire to database (no loadFromDb — high-volume, uses buffer)
-
-// Record an event (fire-and-forget to DB)
-activity.record({
-  agentId: 'agent-123',
-  orgId: 'org-456',
-  type: 'tool_call',
-  data: { tool: 'agenticmail_send', to: 'user@example.com' },
-});
-
-// Track a tool call with start/end
-const callId = activity.startToolCall({
-  agentId: 'agent-123', orgId: 'org-456',
-  toolId: 'agenticmail_send', toolName: 'Send Email',
-  args: { to: 'user@example.com', subject: 'Hello' },
-});
-// ... tool executes ...
-activity.endToolCall(callId, { success: true, result: 'Sent', durationMs: 450 });
-
-// Record a conversation message
-activity.recordMessage({
-  agentId: 'agent-123', orgId: 'org-456', sessionId: 'sess-789',
-  role: 'assistant', content: 'I sent the email.',
-  tokenCount: 150, costUsd: 0.001,
-});
-
-// Get agent timeline for a specific day
-const timeline = activity.getTimeline('agent-123', '2026-02-18');
-
-// Get aggregate stats
-const stats = activity.getStats('org-456');
-// → { events: 1542, toolCalls: 380, conversations: 45 }
-
-// Subscribe to real-time events (used by SSE endpoint)
-const unsubscribe = activity.subscribe((event) => {
-  console.log('New event:', event.type, event.agentId);
-});
-```
-
-### 9. Tool Catalog
-
-Maps AgenticMail tool IDs to skills:
-
-- **129 total tools** cataloged (24 core platform + 63 AgenticMail MCP + 42 shell commands)
-- Each tool mapped to one or more skills
-- Used by the Permission Engine to resolve skill → tool access
-
-```typescript
-import { ALL_TOOLS, getToolsBySkill, generateToolPolicy } from '@agenticmail/enterprise';
-
-// Get all tools for a skill
-const emailTools = getToolsBySkill('email-management');
-// → ['agenticmail_send', 'agenticmail_inbox', 'agenticmail_reply', ...]
-
-// Generate tool policy
-const policy = generateToolPolicy(['email-management', 'web-search']);
-// → { allow: ['agenticmail_send', ...], deny: [...] }
-```
-
-### 10. Runtime Hooks
-
-Lifecycle hooks for intercepting agent tool calls at runtime. See `src/runtime/hooks.ts`.
-
-- **Permission enforcement** — checks every tool call against the agent's permission profile
-- **Activity logging** — records tool calls to the activity tracker
-- **Approval gating** — blocks tool calls that require approval
-- **Permission caching** — avoids repeated DB lookups on high-frequency calls
-
-```typescript
-import { createEnterpriseHook } from '@agenticmail/enterprise';
-
-const hook = createEnterpriseHook({
-  apiUrl: 'http://localhost:3000',
-  apiKey: 'ek_...',
-  agentId: 'agent-123',
-});
-
-// hook.beforeToolCall(toolName, args) → { allowed, requiresApproval, reason }
-// hook.afterToolCall(toolName, result, duration) → void (logs activity)
-```
-
-### 11. AgenticMail Bridge
-
-Connects the Engine to an existing AgenticMail instance:
-
-- **Account sync** — creates/manages agent email accounts
-- **Tool interception** — wraps AgenticMail tool calls with permission checks
-- **Event forwarding** — pipes AgenticMail events (new email, task completion) to the activity tracker
-
-```typescript
-import { createAgenticMailBridge } from '@agenticmail/enterprise';
-
-const bridge = createAgenticMailBridge({
-  agenticmailUrl: 'http://localhost:3100',
-  masterKey: 'mk_...',
-});
-
-// Sync an agent's email account
-await bridge.ensureAgent({ name: 'support-bot', role: 'customer-support' });
-```
-
----
-
-## REST API
-
-### Authentication
-
-Two methods:
-
-**JWT Token** (for dashboard users):
-```
-POST /auth/login
-{ "email": "admin@agenticmail.io", "password": "..." }
-→ { "token": "eyJ...", "user": { ... } }
-
-# Then:
-Authorization: Bearer eyJ...
-```
-
-**API Key** (for programmatic access):
-```
-X-API-Key: ek_abc123...
-```
-
-API keys have scoped permissions and are created through the admin API.
-
-### Auth Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/auth/login` | Email/password login (sets httpOnly cookies + returns JWT) |
-| POST | `/auth/refresh` | Refresh session using refresh token/cookie |
-| GET | `/auth/me` | Get current authenticated user |
-| POST | `/auth/logout` | Clear session cookies |
-| POST | `/auth/saml/callback` | SAML 2.0 assertion callback (stub — 501) |
-| GET | `/auth/saml/metadata` | SAML SP metadata (stub — 501) |
-| GET | `/auth/oidc/authorize` | OIDC authorization redirect (stub — 501) |
-| GET | `/auth/oidc/callback` | OIDC callback (stub — 501) |
-
-### Admin Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/stats` | Dashboard statistics (agents, users, keys count) |
-| GET | `/api/agents` | List agents (supports `status`, `limit`, `offset`) |
-| POST | `/api/agents` | Create agent (validates name, email, role) |
-| GET | `/api/agents/:id` | Get agent details |
-| PATCH | `/api/agents/:id` | Update agent (name, email, role, status) |
-| POST | `/api/agents/:id/archive` | Archive agent |
-| POST | `/api/agents/:id/restore` | Restore archived agent |
-| DELETE | `/api/agents/:id` | Permanently delete agent (admin only) |
-| GET | `/api/users` | List users (admin only) |
-| POST | `/api/users` | Create user (admin only, validates email/role) |
-| PATCH | `/api/users/:id` | Update user (admin only) |
-| DELETE | `/api/users/:id` | Delete user (owner only, cannot delete self) |
-| GET | `/api/audit` | Query audit log (supports actor, action, resource, date range, pagination) |
-| GET | `/api/api-keys` | List API keys (admin only, hashes redacted) |
-| POST | `/api/api-keys` | Create API key (admin only, returns plaintext once) |
-| DELETE | `/api/api-keys/:id` | Revoke API key (admin only) |
-| GET | `/api/rules` | List email rules (optional `agentId` filter) |
-| POST | `/api/rules` | Create email rule |
-| PATCH | `/api/rules/:id` | Update email rule |
-| DELETE | `/api/rules/:id` | Delete email rule |
-| GET | `/api/settings` | Get company settings (sensitive fields redacted) |
-| PATCH | `/api/settings` | Update company settings (admin only) |
-| GET | `/api/retention` | Get data retention policy (admin only) |
-| PUT | `/api/retention` | Set data retention policy (owner only) |
-
-### Engine Endpoints
-
-**Skills & Permissions:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/engine/skills` | List all 38 skills with categories |
-| GET | `/api/engine/skills/by-category` | Skills grouped by category |
-| GET | `/api/engine/skills/:id` | Get skill details + tools |
-| GET | `/api/engine/profiles/presets` | List 5 permission presets |
-| GET | `/api/engine/profiles/:agentId` | Get agent's permission profile |
-| PUT | `/api/engine/profiles/:agentId` | Update agent's permission profile |
-| POST | `/api/engine/profiles/:agentId/apply-preset` | Apply a preset to agent |
-| POST | `/api/engine/permissions/check` | Check if agent can use a tool |
-| GET | `/api/engine/permissions/:agentId/tools` | List tools available to agent |
-| GET | `/api/engine/permissions/:agentId/policy` | Generate tool policy |
-
-**Agent Lifecycle:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/engine/agents` | Create engine agent (orgId, config, createdBy) |
-| GET | `/api/engine/agents` | List engine agents (requires `orgId` query) |
-| GET | `/api/engine/agents/:id` | Get engine agent with state, health, usage |
-| PATCH | `/api/engine/agents/:id/config` | Update agent config |
-| POST | `/api/engine/agents/:id/deploy` | Deploy agent to target infrastructure |
-| POST | `/api/engine/agents/:id/stop` | Stop a running agent |
-| POST | `/api/engine/agents/:id/restart` | Restart agent |
-| POST | `/api/engine/agents/:id/hot-update` | Hot-update config without restart |
-| DELETE | `/api/engine/agents/:id` | Destroy agent and clean up resources |
-| GET | `/api/engine/agents/:id/usage` | Agent resource usage, health, state |
-| GET | `/api/engine/usage/:orgId` | Aggregate org usage across all agents |
-
-**Config Generation:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/engine/config/workspace` | Generate workspace files (SOUL.md, TOOLS.md, etc.) |
-| POST | `/api/engine/config/gateway` | Generate gateway config |
-| POST | `/api/engine/config/docker-compose` | Generate docker-compose.yml |
-| POST | `/api/engine/config/systemd` | Generate systemd service unit |
-| POST | `/api/engine/config/deploy-script` | Generate VPS deploy script |
-
-**Knowledge Base:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/engine/knowledge-bases` | Create knowledge base |
-| GET | `/api/engine/knowledge-bases` | List KBs (filter by `orgId` or `agentId`) |
-| GET | `/api/engine/knowledge-bases/:id` | Get KB details with documents |
-| POST | `/api/engine/knowledge-bases/:id/documents` | Ingest document (chunked + embedded) |
-| DELETE | `/api/engine/knowledge-bases/:kbId/documents/:docId` | Delete document |
-| POST | `/api/engine/knowledge-bases/search` | Semantic search across KBs |
-| POST | `/api/engine/knowledge-bases/context` | Get RAG context for agent prompt |
-| DELETE | `/api/engine/knowledge-bases/:id` | Delete knowledge base |
-
-**Organizations (Tenants):**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/engine/orgs` | Create organization |
-| GET | `/api/engine/orgs` | List all organizations |
-| GET | `/api/engine/orgs/:id` | Get organization details |
-| GET | `/api/engine/orgs/slug/:slug` | Get organization by slug |
-| POST | `/api/engine/orgs/:id/check-limit` | Check plan resource limits |
-| POST | `/api/engine/orgs/:id/check-feature` | Check feature gate |
-| POST | `/api/engine/orgs/:id/change-plan` | Change organization plan |
-
-**Approvals:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/engine/approvals/pending` | List pending approvals (optional `agentId` filter) |
-| GET | `/api/engine/approvals/history` | Approval history (supports `agentId`, `limit`, `offset`) |
-| GET | `/api/engine/approvals/:id` | Get approval request details |
-| POST | `/api/engine/approvals/:id/decide` | Approve or reject a request |
-| GET | `/api/engine/approvals/policies` | List approval policies |
-| POST | `/api/engine/approvals/policies` | Create approval policy |
-| DELETE | `/api/engine/approvals/policies/:id` | Delete approval policy |
-
-**Activity & Monitoring:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/engine/activity/events` | Activity events (filter by `agentId`, `orgId`, `since`, `limit`) |
-| GET | `/api/engine/activity/tool-calls` | Tool call records (filter by `agentId`, `orgId`, `toolId`) |
-| GET | `/api/engine/activity/conversation/:sessionId` | Conversation entries for a session |
-| GET | `/api/engine/activity/timeline/:agentId/:date` | Daily timeline for an agent |
-| GET | `/api/engine/activity/stats` | Aggregate activity stats (optional `orgId`) |
-| GET | `/api/engine/activity/stream` | SSE real-time event stream (filter by `orgId`, `agentId`) |
-
-**Dashboard Stats & Schema:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/engine/stats/:orgId` | Org dashboard stats (agents, usage, real-time) |
-| POST | `/api/engine/schema/tables` | Create dynamic `ext_*` table |
-| GET | `/api/engine/schema/tables` | List dynamic tables |
-| POST | `/api/engine/schema/query` | Query dynamic tables (SELECT any, mutations ext_* only) |
-
----
-
-## Dashboard
-
-The admin dashboard is a single HTML file using React 18 from CDN — no build step required. It includes:
-
-- **Login page** with JWT authentication
-- **Overview** with agent counts, activity stats, system health
-- **Agent management** — create, configure, deploy, monitor
-- **Audit log** — searchable, filterable event history
-- **API key management** — create scoped keys, revoke
-- **Settings** — company info, custom domain, plan management
-- **Dark and light mode** themes
-
-The dashboard is served automatically at `/dashboard` when the server starts. It communicates with the API using the same JWT/API key auth as any other client.
-
-### Building Your Own Frontend
-
-The dashboard is a reference implementation. You can build your own UI by hitting the REST API directly. Every API response follows a consistent format:
-
-```json
-{
-  "data": { ... },
-  "meta": { "total": 42, "page": 1, "limit": 20 }
-}
-```
-
-Errors:
-```json
-{
-  "error": "Description of what went wrong",
-  "code": "VALIDATION_ERROR",
-  "details": { ... }
-}
-```
-
----
-
-## Deployment
-
-### AgenticMail Cloud
-
-Managed hosting on Fly.io infrastructure. Instant URL at `company.agenticmail.io`.
-
-```bash
-npx @agenticmail/enterprise
-# → Select "AgenticMail Cloud"
-# → Dashboard live at https://agenticmail-inc.agenticmail.io
-```
-
-Optional custom domain via CNAME:
-```
-agents.agenticmail.io → agenticmail-inc.agenticmail.io
-```
-
-### Fly.io
-
-Deploy to your own Fly.io account:
-
-```bash
-npx @agenticmail/enterprise
-# → Select "Fly.io"
-# → Generates fly.toml
-
-fly launch --copy-config
-fly secrets set DATABASE_URL="..." JWT_SECRET="..."
-fly deploy
-```
-
-### Docker
-
-Self-hosted with Docker Compose:
-
-```bash
-npx @agenticmail/enterprise
-# → Select "Docker"
-# → Generates docker-compose.yml
-
-docker compose up -d
-# → Dashboard at http://localhost:3000
-```
-
-### Local Development
-
-Start immediately for testing:
-
-```bash
-npx @agenticmail/enterprise
-# → Select "Local"
-# → Server runs on http://localhost:3000
-```
-
----
-
-## Server Configuration
-
-```typescript
-import { createAdapter, createServer } from '@agenticmail/enterprise';
+import { createServer } from '@agenticmail/enterprise';
+import { createAdapter } from '@agenticmail/enterprise/db';
 
 const db = await createAdapter({
   type: 'postgres',
-  connectionString: 'postgresql://user:pass@host:5432/db',
+  connectionString: process.env.DATABASE_URL,
 });
 await db.migrate();
 
 const server = createServer({
   port: 3000,
   db,
-  jwtSecret: 'your-secret-here',
-
-  // Optional
-  corsOrigins: ['https://app.agenticmail.io'],
-  rateLimit: 120,            // requests per minute per IP
-  trustedProxies: ['10.0.0.0/8'],
-  logging: true,
+  jwtSecret: process.env.JWT_SECRET,
 });
 
 await server.start();
@@ -928,193 +102,704 @@ await server.start();
 
 ---
 
-## Middleware
+## Setup Wizard
 
-All middleware is exported for use in custom server setups:
+The interactive setup wizard (`npx @agenticmail/enterprise` or `npx @agenticmail/enterprise setup`) guides you through every step with sensible defaults.
 
-| Middleware | Description |
-|-----------|-------------|
-| `requestIdMiddleware()` | Adds `X-Request-Id` header to every request |
-| `requestLogger()` | Logs method, path, status, duration |
-| `rateLimiter(opts)` | Per-IP rate limiting with configurable window |
-| `securityHeaders()` | Sets security headers (CSP, HSTS, X-Frame-Options, etc.) |
-| `errorHandler()` | Catches unhandled errors, returns JSON |
-| `auditLogger(db)` | Logs all mutations to the audit trail |
-| `requireRole(role)` | RBAC middleware — requires specific user role |
-| `validate(schema)` | Request body validation |
+### Step 1: Company Info
+
+- Company name
+- Admin email + password (min 8 chars, requires uppercase or number)
+- Subdomain selection with auto-generated suggestions (slug from company name, abbreviations, variants)
+- "Generate more" option for random suffix suggestions
+- Custom subdomain input with validation
+
+### Step 2: Database
+
+Choose from 10 backends organized by category:
+
+| Category | Options |
+|----------|---------|
+| **SQL** | PostgreSQL, MySQL/MariaDB, SQLite |
+| **NoSQL** | MongoDB |
+| **Edge** | Turso (LibSQL) |
+| **Cloud** | DynamoDB (AWS), Supabase, Neon, PlanetScale, CockroachDB |
+
+Each option collects the right credentials:
+- **SQLite**: File path (default: `./agenticmail-enterprise.db`)
+- **DynamoDB**: AWS Region + Access Key ID + Secret Access Key
+- **Turso**: Database URL + Auth Token
+- **All others**: Connection string with format hints
+
+### Step 3: Deployment
+
+| Target | Description |
+|--------|-------------|
+| **AgenticMail Cloud** | Managed hosting, instant URL (`subdomain.agenticmail.io`) |
+| **Fly.io** | Your Fly.io account, generates `fly.toml` |
+| **Railway** | Your Railway account, generates `railway.toml` |
+| **Docker** | Self-hosted, generates `docker-compose.yml` + `.env` |
+| **Local** | Dev/testing, starts server immediately on port 3000 |
+
+### Step 4: Custom Domain (Optional)
+
+For non-local deployments, optionally configure a custom domain. The wizard shows DNS instructions specific to your deployment target (CNAME for cloud/Fly, reverse proxy for Docker, Railway settings).
+
+### Step 5: Domain Registration (Optional)
+
+Registers your domain with the AgenticMail central registry:
+- Generates a 256-bit deployment key (shown once, must be saved)
+- Creates a DNS TXT verification challenge
+- Optional immediate DNS verification (retries 5x with 10s intervals)
+- Recovery via `agenticmail-enterprise recover` if key is available
 
 ---
 
-## Resilience
+## Architecture
 
-Built-in resilience primitives:
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Admin Dashboard                        │
+│              (React, dark/light themes)                   │
+├─────────────────────────────────────────────────────────┤
+│                    Hono API Server                        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │  Auth     │  │  Admin   │  │  Engine  │              │
+│  │  Routes   │  │  Routes  │  │  Routes  │              │
+│  └──────────┘  └──────────┘  └──────────┘              │
+├─────────────────────────────────────────────────────────┤
+│                   Engine Modules (25+)                    │
+│  Skills · Permissions · Lifecycle · Knowledge Base        │
+│  DLP · Guardrails · Journal · Compliance · Activity      │
+│  Communication · Workforce · Vault · Storage · Onboarding│
+│  Policies · Memory · Approvals · Tenants · Deployer      │
+│  Community Registry · Soul Library · Tool Catalog         │
+├─────────────────────────────────────────────────────────┤
+│                   Agent Runtime                           │
+│  LLM Client · Session Manager · Tool Executor            │
+│  Sub-Agent Manager · Email Channel · Follow-Up Scheduler │
+├─────────────────────────────────────────────────────────┤
+│              MCP Integration Framework                    │
+│           147 SaaS Adapters · OAuth Connect               │
+├─────────────────────────────────────────────────────────┤
+│                Database Adapter Layer                     │
+│  Postgres · MySQL · SQLite · MongoDB · DynamoDB · Turso  │
+│  Supabase · Neon · PlanetScale · CockroachDB             │
+└─────────────────────────────────────────────────────────┘
+```
 
-| Component | Description |
-|-----------|-------------|
-| `CircuitBreaker` | Fails fast after N consecutive errors, auto-recovers after cooldown |
-| `HealthMonitor` | Periodic health checks with configurable thresholds |
-| `withRetry(fn, opts)` | Retry with exponential backoff |
-| `RateLimiter` | Token bucket rate limiter |
-| `KeyedRateLimiter` | Per-key rate limiting (e.g., per-user, per-IP) |
+### Middleware Stack
+
+- **Request ID** — UUID per request for tracing
+- **Security Headers** — CSP, HSTS, XSS protection
+- **CORS** — Configurable origins
+- **Rate Limiting** — Per-IP, configurable RPM (default: 120)
+- **IP Access Control** — CIDR-based firewall
+- **Audit Logging** — Every mutating action logged
+- **RBAC** — Role-based access control (owner, admin, member, viewer)
+- **Error Handling** — Structured error responses
+- **Circuit Breaker** — Database connectivity protection
+- **Health Monitor** — Periodic health checks with unhealthy threshold
+
+---
+
+## Database Backends
+
+All 10 backends implement the same `DatabaseAdapter` interface with full feature parity:
 
 ```typescript
-import { CircuitBreaker, withRetry, HealthMonitor } from '@agenticmail/enterprise';
+import { createAdapter, type DatabaseType } from '@agenticmail/enterprise/db';
 
-// Circuit breaker wrapping a database call
-const breaker = new CircuitBreaker({ failureThreshold: 5, recoveryTimeMs: 30000 });
-const result = await breaker.execute(() => db.query('SELECT ...'));
-
-// Retry with backoff
-const data = await withRetry(() => fetch('https://api.example.com'), {
-  maxRetries: 3,
-  baseDelayMs: 1000,
-  backoffMultiplier: 2,
+const db = await createAdapter({
+  type: 'postgres',  // or mysql, sqlite, mongodb, dynamodb, turso, supabase, neon, planetscale, cockroachdb
+  connectionString: '...',
 });
+
+await db.migrate();        // Run schema migrations
+await db.getStats();       // Health check
+await db.createUser({...}); // CRUD operations
+await db.logEvent({...});  // Audit logging
+```
+
+### Adapter Details
+
+| Backend | Module | Notes |
+|---------|--------|-------|
+| PostgreSQL | `postgres.ts` | Full SQL, migrations, engine DB |
+| MySQL/MariaDB | `mysql.ts` | Full SQL, auto-converted DDL |
+| SQLite | `sqlite.ts` | Embedded, `better-sqlite3` |
+| MongoDB | `mongodb.ts` | Uses `_id` = `randomUUID()` |
+| DynamoDB | `dynamodb.ts` | Single-table design, GSI1 |
+| Turso | `turso.ts` | LibSQL edge database |
+| Supabase | `postgres.ts` | Managed Postgres (same adapter) |
+| Neon | `postgres.ts` | Serverless Postgres (same adapter) |
+| PlanetScale | `mysql.ts` | Managed MySQL (same adapter) |
+| CockroachDB | `postgres.ts` | Distributed (same adapter) |
+
+### Engine Database
+
+SQL-backed deployments also get the `EngineDatabase` layer for engine module persistence:
+
+```typescript
+const engineDbInterface = db.getEngineDB();
+const engineDb = new EngineDatabase(engineDbInterface, 'postgres');
+await engineDb.migrate(); // Versioned migration system
+```
+
+Features: DDL auto-conversion (`sqliteToPostgres()`, `sqliteToMySQL()`), dynamic table creation with `ext_` prefix, agent storage tables with `agt_`/`shared_` prefixes.
+
+---
+
+## Engine Modules
+
+The engine is the core of Enterprise — 25+ modules that power agent governance:
+
+### 1. Skill Registry & Permission Engine
+- 47 built-in enterprise skill definitions (Google Workspace, Microsoft 365, custom)
+- Fine-grained tool-level permissions (allow/deny per tool)
+- 5 preset profiles: Research Assistant, Customer Support, Developer, Full Access, Sandbox
+- Skill suites for bulk assignment
+- Risk level classification (low, medium, high, critical)
+- Side effect tracking (read, write, delete, external, financial)
+
+### 2. Agent Config Generator
+- Generates workspace files (SOUL.md, AGENTS.md, etc.)
+- Gateway configuration
+- Channel configs (email, Slack, Teams, etc.)
+- Deployment scripts per target
+
+### 3. Deployment Engine
+- Docker, VPS, Fly.io, Railway provisioning
+- Deployment event tracking
+- Live agent status monitoring
+
+### 4. Approval Workflows
+- Human-in-the-loop approval policies
+- Escalation chains with multi-level escalation
+- Time-based auto-escalation
+- Approval/rejection with audit trail
+
+### 5. Agent Lifecycle Manager
+- State machine: `provisioning` → `active` → `paused` → `stopped` → `decommissioned`
+- Health checks and auto-recovery
+- Budget controls with alerts and hard limits
+- Usage tracking (tokens, cost, API calls)
+- Birthday automation (sends birthday emails to agents on their DOB)
+
+### 6. Knowledge Base
+- Document ingestion and chunking
+- BM25F text search (extracted to shared library)
+- RAG retrieval for agent context
+- Multi-knowledge-base support per org
+
+### 7. Multi-Tenant Isolation
+- Organization management with plan enforcement
+- 4 plan tiers: Free (3 agents), Team (25), Enterprise (unlimited), Self-Hosted (unlimited)
+- Feature gates per plan
+- SSO configuration (Google, Microsoft, GitHub, Okta, SAML, LDAP)
+- Usage quotas and billing
+
+### 8. Real-Time Activity Tracking
+- Live tool call recording
+- Conversation logging
+- Agent timelines
+- Cost tracking per agent/org
+
+### 9. Tool Catalog
+- 86+ cataloged tool IDs across all AgenticMail packages
+- Tool-to-skill mapping
+- Dynamic tool policy generation
+
+### 10. Data Loss Prevention (DLP)
+- Content scanning rules (PII, credentials, sensitive data)
+- Violation tracking and alerting
+- Configurable rule sets per org
+
+### 11. Agent-to-Agent Communication
+- Message bus (direct, broadcast, topic-based)
+- Task assignment and delegation
+- Priority levels (normal, high, urgent)
+- Agent email registry integration
+
+### 12. Guardrails & Anomaly Detection
+- Real-time intervention system
+- Configurable anomaly rules (rate limits, cost thresholds, pattern matching)
+- Auto-stop agents on violation
+- Onboarding gate checks
+- Workforce off-duty enforcement
+
+### 13. Action Journal & Rollback
+- Every agent action journaled with before/after state
+- Rollback capability for reversible actions
+- Audit trail with timestamps and actor
+
+### 14. Compliance Reporting
+- SOC2, GDPR, HIPAA report generation
+- Data retention policies
+- Access audit reports
+
+### 15. Community Skill Registry (Marketplace)
+- Install community skills from the marketplace
+- Automatic periodic sync from GitHub (every 6 hours)
+- Skill reviews and ratings
+- Local directory loading for development
+- Validation CLI for skill authors
+
+### 16. Workforce Management
+- Shift schedules and on-call rotations
+- Capacity planning
+- Off-duty enforcement via guardrails
+- Work-life balance rules
+
+### 17. Organization Policies
+- Global and per-org policy configuration
+- Policy import/export
+- Compliance policy templates
+
+### 18. Agent Memory
+- Long-term memory persistence
+- Memory queries and search
+- Cross-session continuity
+
+### 19. Onboarding Manager
+- Agent onboarding workflows
+- Onboarding gates (must complete before agent goes live)
+- Policy acknowledgment tracking
+
+### 20. Secure Vault
+- Encrypted credential storage
+- API key management
+- OAuth token management
+- DLP-integrated access control
+
+### 21. Storage Manager
+- Dynamic table management for agents
+- Agent-scoped tables (`agt_` prefix)
+- Shared tables (`shared_` prefix)
+- 28 storage actions (create, query, aggregate, import/export, raw SQL, etc.)
+
+### 22. Soul Library
+- 51 personality templates across 14 categories
+- Search and browse templates
+- Custom soul creation
+
+### 23. Knowledge Contribution Manager
+- Agents contribute learned knowledge back to org knowledge bases
+- Scheduled aggregation
+
+### 24. Skill Auto-Updater
+- Monitors community skill registry for updates
+- Auto-applies compatible updates
+- Scheduled update checks
+
+### 25. OAuth Connect
+- OAuth flow management for SaaS integrations
+- Token storage in vault
+- Refresh token rotation
+
+---
+
+## Agent Runtime
+
+Full standalone agent execution runtime — run agents entirely in-process without OpenClaw:
+
+```typescript
+import { createAgentRuntime } from '@agenticmail/enterprise';
+
+const runtime = createAgentRuntime({
+  engineDb: db,
+  apiKeys: { anthropic: process.env.ANTHROPIC_API_KEY },
+});
+
+await runtime.start();
+
+const session = await runtime.spawnSession({
+  agentId: 'agent-1',
+  message: 'Research Q3 revenue trends and draft a summary email',
+});
+```
+
+### Runtime Features
+
+- **LLM Client** — Multi-provider (Anthropic, OpenAI, custom), streaming, retry with exponential backoff
+- **Session Manager** — Incremental message persistence, crash recovery, session resume on startup
+- **Tool Executor** — 28 built-in tools with security sandboxing
+- **Sub-Agent Manager** — Spawn child agents for parallel work
+- **Email Channel** — Bi-directional email communication
+- **Follow-Up Scheduler** — Schedule agent follow-ups and reminders
+- **Budget Gates** — Cost check before every LLM call
+- **Gateway Integration** — Register as OpenClaw plugin for hybrid deployments
+- **Heartbeat** — Stale session detection and cleanup
+- **SSE Streaming** — Real-time event streaming for dashboard
+
+### Supported LLM Providers
+
+```typescript
+import { listAllProviders } from '@agenticmail/enterprise';
+
+// Built-in: anthropic, openai
+// Custom providers can be registered via PROVIDER_REGISTRY
 ```
 
 ---
 
-## Programmatic Usage
+## MCP Integration Adapters
 
-Use Enterprise as a library in your own application:
+147 pre-built adapters for connecting agents to SaaS tools via [Model Context Protocol](https://modelcontextprotocol.io):
+
+<details>
+<summary><b>Full adapter list (147)</b></summary>
+
+ActiveCampaign, Adobe Sign, ADP, Airtable, Apollo, Asana, Auth0, AWS, Azure DevOps, BambooHR, Basecamp, BigCommerce, Bitbucket, Box, Brex, Buffer, Calendly, Canva, Chargebee, CircleCI, ClickUp, Close, Cloudflare, Confluence, Contentful, Copper, Crisp, CrowdStrike, Datadog, DigitalOcean, Discord, Docker, DocuSign, Drift, Dropbox, Figma, Firebase, Fly.io, FreshBooks, Freshdesk, Freshsales, Freshservice, Front, GitHub, GitHub Actions, GitLab, Gong, Google Ads, Google Analytics, Google Cloud, Google Drive, GoToMeeting, Grafana, Greenhouse, Gusto, HashiCorp Vault, Heroku, HiBob, Hootsuite, HubSpot, Hugging Face, Intercom, Jira, Klaviyo, Kubernetes, Lattice, LaunchDarkly, Lever, Linear, LinkedIn, LiveChat, Loom, Mailchimp, Mailgun, Microsoft Teams, Miro, Mixpanel, Monday, MongoDB Atlas, Neon, Netlify, NetSuite, New Relic, Notion, Okta, OpenAI, OpsGenie, Outreach, Paddle, PagerDuty, PandaDoc, PayPal, Personio, Pinecone, Pipedrive, Plaid, Postmark, Power Automate, QuickBooks, Recurly, Reddit, Render, RingCentral, Rippling, Salesforce, SalesLoft, Sanity, SAP, Segment, SendGrid, Sentry, ServiceNow, Shopify, Shortcut, Slack, Smartsheet, Snowflake, Snyk, Splunk, Square, Statuspage, Stripe, Supabase, Teamwork, Telegram, Terraform, Todoist, Trello, Twilio, Twitter/X, Vercel, Weaviate, Webex, Webflow, WhatsApp, Whereby, WooCommerce, WordPress, Workday, Wrike, Xero, YouTube, Zendesk, Zoho CRM, Zoom, Zuora
+
+</details>
+
+### MCP Framework
 
 ```typescript
-import {
-  // Database
-  createAdapter,
-  
-  // Server
-  createServer,
-  
-  // Engine
-  PermissionEngine,
-  BUILTIN_SKILLS,
-  PRESET_PROFILES,
-  AgentConfigGenerator,
-  DeploymentEngine,
-  ApprovalEngine,
-  AgentLifecycleManager,
-  KnowledgeBaseEngine,
-  TenantManager,
-  ActivityTracker,
-  
-  // Tool catalog
-  ALL_TOOLS,
-  getToolsBySkill,
-  generateToolPolicy,
+import { SkillMCPFramework } from '@agenticmail/enterprise/mcp';
 
-  // Engine persistence
-  EngineDatabase,
+// Each adapter provides:
+// - Tool definitions (name, description, parameters, schema)
+// - API executor with credential resolution
+// - OAuth flow configuration
+// - Rate limit handling
+```
 
-  // Runtime hooks & bridge
-  createEnterpriseHook,
-  createAgenticMailBridge,
-  
-  // Resilience
-  CircuitBreaker,
-  withRetry,
-  HealthMonitor,
-  
-  // Middleware (for custom servers)
-  rateLimiter,
-  auditLogger,
-  requireRole,
-} from '@agenticmail/enterprise';
+The framework includes:
+- **API Executor** — HTTP client with retry, rate limiting, pagination
+- **Credential Resolver** — Pulls secrets from Vault, env, or OAuth tokens
+- **AWS SigV4** — Native AWS request signing for DynamoDB, S3, etc.
+
+---
+
+## Agent Tools
+
+28 built-in tools available to agents running in the Enterprise runtime:
+
+| Tool | Description |
+|------|-------------|
+| `bash` | Shell command execution (sandboxed) |
+| `browser` | Web browser automation |
+| `edit` | File editing with diff |
+| `glob` | File pattern matching |
+| `grep` | Text search across files |
+| `memory` | Agent memory read/write |
+| `read` | File reading |
+| `write` | File writing |
+| `web-fetch` | HTTP requests |
+| `web-search` | Web search (Brave API) |
+| `enterprise-calendar` | Calendar management |
+| `enterprise-code-sandbox` | Isolated code execution |
+| `enterprise-database` | Database queries |
+| `enterprise-diff` | File/text diff generation |
+| `enterprise-documents` | Document processing |
+| `enterprise-finance` | Financial calculations |
+| `enterprise-http` | Advanced HTTP client |
+| `enterprise-knowledge-search` | RAG search across knowledge bases |
+| `enterprise-logs` | Log analysis |
+| `enterprise-notifications` | Send notifications |
+| `enterprise-security-scan` | Security vulnerability scanning |
+| `enterprise-spreadsheet` | Spreadsheet operations |
+| `enterprise-translation` | Multi-language translation |
+| `enterprise-vision` | Image analysis |
+| `enterprise-web-research` | Deep web research |
+| `enterprise-workflow` | Workflow orchestration |
+
+Tools include a security middleware layer for permission checking and DLP scanning.
+
+---
+
+## Enterprise Skills
+
+47 pre-built skill definitions organized into 3 suites:
+
+### Google Workspace (14 skills)
+Gmail, Calendar, Drive, Docs, Sheets, Slides, Forms, Meet, Chat, Keep, Sites, Groups, Admin, Vault
+
+### Microsoft 365 (17 skills)
+Outlook, Teams, OneDrive, Word, Excel, PowerPoint, SharePoint, Planner, Todo, OneNote, Forms, Bookings, Power BI, Power Automate, Whiteboard, Copilot, Admin
+
+### Enterprise Custom (16 skills)
+Calendar, Code Sandbox, Database, Diff, Documents, Finance, HTTP, Knowledge Search, Logs, Notifications, Security Scan, Spreadsheet, Translation, Vision, Web Research, Workflow
+
+Each skill definition includes:
+- Tool list with parameter schemas
+- Required configuration fields
+- Risk level and side effect classification
+- Category and description
+
+---
+
+## Dashboard
+
+React-based admin dashboard served from the enterprise server:
+
+- **Dark/Light themes** — Professional design with CSS custom properties
+- **Dynamic brand color** — Uses `settings.primaryColor` throughout
+- **Agent management** — Create, configure, start/stop, monitor
+- **Real-time activity** — Live tool calls, conversations, cost
+- **Knowledge bases** — Upload, manage, search documents
+- **Approval workflows** — Review and approve/reject pending requests
+- **Compliance** — View reports, DLP violations, audit logs
+- **Settings** — Company info, SSO, security, billing
+- **Onboarding** — Agent creation wizard with soul template selection
+
+---
+
+## API Reference
+
+The API is organized into 3 major sections:
+
+### Auth Routes (`/api/auth/*`)
+- `POST /api/auth/login` — Login with email/password
+- `POST /api/auth/refresh` — Refresh JWT tokens
+- `POST /api/auth/logout` — Logout (invalidate cookies)
+- SSO callback routes for Google, Microsoft, GitHub, Okta
+
+### Admin Routes (`/api/admin/*`)
+- Agent CRUD, user management, settings, audit log
+- Bridge API for unified agent management (`/api/admin/bridge/agents`)
+
+### Engine Routes (`/api/engine/*`)
+328 routes across 22 sub-apps:
+
+| Sub-App | Prefix | Description |
+|---------|--------|-------------|
+| DLP | `/dlp/*` | Data loss prevention rules & scans |
+| Guardrails | `/guardrails/*`, `/anomaly-rules/*` | Intervention rules & anomaly detection |
+| Journal | `/journal/*` | Action journal & rollback |
+| Communication | `/messages/*`, `/tasks/*` | Agent messaging & task delegation |
+| Compliance | `/compliance/*` | Reports & data retention |
+| Catalog | `/skills/*`, `/souls/*`, `/profiles/*`, `/permissions/*`, `/config/*` | Skill registry, soul library, permission profiles |
+| Agents | `/agents/*`, `/usage/*`, `/budget/*`, `/bridge/*` | Agent lifecycle, usage, budgets |
+| Knowledge | `/knowledge-bases/*` | Document ingestion & RAG |
+| Org/Approvals | `/orgs/*`, `/approvals/*`, `/escalation-chains/*` | Multi-tenant & approval workflows |
+| Activity | `/activity/*`, `/stats/*` | Real-time tracking & analytics |
+| Deploy/Schema | `/deploy-credentials/*`, `/schema/*` | Deployment & DB schema |
+| Community | `/community/*` | Skill marketplace |
+| Workforce | `/workforce/*` | Shifts, schedules, capacity |
+| Policies | `/policies/*` | Org policies & import |
+| Memory | `/memory/*` | Agent memory management |
+| Onboarding | `/onboarding/*` | Agent onboarding flows |
+| Vault | `/vault/*` | Encrypted credential storage |
+| Storage | `/storage/*` | Dynamic agent databases |
+| OAuth | `/oauth/*` | SaaS OAuth connect flows |
+| Knowledge Contrib | `/knowledge-contribution/*` | Agent-contributed knowledge |
+| Skill Updates | `/skill-updates/*` | Auto-update management |
+
+---
+
+## Deployment
+
+### Docker
+
+```bash
+npx @agenticmail/enterprise  # Select "Docker" in Step 3
+docker compose up -d
+```
+
+Generates `docker-compose.yml` + `.env` with all secrets.
+
+### Fly.io
+
+```bash
+npx @agenticmail/enterprise  # Select "Fly.io" in Step 3
+fly launch --copy-config
+fly secrets set DATABASE_URL="..." JWT_SECRET="..."
+fly deploy
+```
+
+### Railway
+
+```bash
+npx @agenticmail/enterprise  # Select "Railway" in Step 3
+railway init && railway link && railway up
+```
+
+### AgenticMail Cloud
+
+```bash
+npx @agenticmail/enterprise  # Select "AgenticMail Cloud" in Step 3
+# Instant URL: subdomain.agenticmail.io
+```
+
+### Local / Development
+
+```bash
+npx @agenticmail/enterprise  # Select "Local" in Step 3
+# Server starts on http://localhost:3000
+```
+
+Or with pm2 for production:
+
+```bash
+pm2 start dist/cli.js --name agenticmail-enterprise --watch
+```
+
+---
+
+## CLI Commands
+
+```bash
+# Interactive setup wizard (default)
+npx @agenticmail/enterprise
+
+# Validate a community skill manifest
+npx @agenticmail/enterprise validate ./community-skills/my-skill/
+npx @agenticmail/enterprise validate --all
+npx @agenticmail/enterprise validate --json
+
+# AI-assisted skill scaffolding
+npx @agenticmail/enterprise build-skill
+
+# Submit a skill to the marketplace
+npx @agenticmail/enterprise submit-skill ./community-skills/my-skill/
+
+# Recover a domain registration on a new machine
+npx @agenticmail/enterprise recover --domain agents.agenticmail.io --key <hex>
+
+# Check DNS verification status
+npx @agenticmail/enterprise verify-domain
+npx @agenticmail/enterprise verify-domain --domain agents.agenticmail.io
 ```
 
 ---
 
 ## Security
 
-- **JWT authentication** with configurable secret and expiry
-- **API key authentication** with scoped permissions
-- **RBAC** — owner, admin, member, viewer roles
-- **Rate limiting** — per-IP, configurable limits
-- **Audit logging** — every mutation logged with actor, action, resource, timestamp
-- **Outbound email scanning** — inherited from AgenticMail core (blocks PII, credentials, secrets)
-- **Security headers** — CSP, HSTS, X-Frame-Options, X-Content-Type-Options
-- **Input validation** — all API inputs validated before processing
-- **Circuit breaker** — protects against cascading failures
-- **Graceful shutdown** — clean connection teardown on SIGINT/SIGTERM
+### Authentication
+- **httpOnly cookies** — `em_session`, `em_refresh`, `em_csrf` (not localStorage JWT)
+- **CSRF protection** — Double-submit cookie pattern
+- **SSO** — Google, Microsoft, GitHub, Okta, SAML 2.0, LDAP
+- **Password hashing** — bcrypt with cost factor 12
+- **JWT** — Short-lived access tokens + long-lived refresh tokens
+
+### Authorization
+- **RBAC** — 4 roles: owner, admin, member, viewer
+- **Per-tool permissions** — Allow/deny at individual tool level
+- **Approval workflows** — Human-in-the-loop for sensitive operations
+- **Budget gates** — Hard cost limits per agent
+
+### Data Protection
+- **DLP Engine** — Content scanning for PII, credentials, sensitive data
+- **Secure Vault** — Encrypted credential storage with access control
+- **Egress Filter** — Outbound request filtering
+- **IP Firewall** — CIDR-based access control
+- **Audit Logging** — Every mutating action logged with actor, timestamp, details
+
+### Infrastructure
+- **Rate Limiting** — Per-IP, configurable
+- **Circuit Breaker** — Database connectivity protection
+- **Security Headers** — CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+- **Domain Lock** — Cryptographic domain registration to prevent unauthorized duplication
 
 ---
 
-## Project Structure
+## Community Skills
 
+Build and share skills through the community marketplace:
+
+### Creating a Skill
+
+```bash
+npx @agenticmail/enterprise build-skill
 ```
-enterprise/src/
-├── cli.ts                      # CLI entry point (npx @agenticmail/enterprise)
-├── server.ts                   # Hono server: middleware, auth, route mounting
-├── index.ts                    # Public API exports
-│
-├── auth/
-│   └── routes.ts               # JWT login, cookies, refresh, SAML/OIDC stubs
-│
-├── admin/
-│   └── routes.ts               # Users, Agents, API Keys, Audit, Settings, Rules CRUD
-│
-├── middleware/
-│   └── index.ts                # Rate limiter, security headers, audit logger, RBAC, error handler
-│
-├── lib/
-│   └── resilience.ts           # CircuitBreaker, HealthMonitor, withRetry, RateLimiter
-│
-├── db/                         # Admin database adapters (6 backends)
-│   ├── adapter.ts              # Abstract DatabaseAdapter interface
-│   ├── factory.ts              # createAdapter() factory
-│   ├── sql-schema.ts           # Shared SQL DDL + migrations
-│   ├── sqlite.ts               # SQLite (better-sqlite3)
-│   ├── postgres.ts             # PostgreSQL (pg)
-│   ├── mysql.ts                # MySQL (mysql2)
-│   ├── mongodb.ts              # MongoDB
-│   ├── dynamodb.ts             # DynamoDB (@aws-sdk)
-│   └── turso.ts                # Turso/LibSQL (@libsql/client)
-│
-├── engine/                     # Agent management platform (11 subsystems)
-│   ├── index.ts                # Public re-exports
-│   ├── routes.ts               # All engine REST endpoints (50+)
-│   ├── skills.ts               # 38 skills, 5 presets, PermissionEngine (DB-persisted)
-│   ├── agent-config.ts         # AgentConfigGenerator: workspace, gateway, docker-compose, systemd
-│   ├── deployer.ts             # DeploymentEngine: Docker, VPS/SSH, Fly.io, Railway
-│   ├── lifecycle.ts            # AgentLifecycleManager: state machine, health checks (DB-persisted)
-│   ├── approvals.ts            # ApprovalEngine: policies, requests, decisions (DB-persisted)
-│   ├── knowledge.ts            # KnowledgeBaseEngine: docs, chunking, embeddings, RAG (DB-persisted)
-│   ├── tenant.ts               # TenantManager: orgs, plans, limits, usage (DB-persisted)
-│   ├── activity.ts             # ActivityTracker: events, tool calls, conversations, SSE (DB-persisted)
-│   ├── tool-catalog.ts         # 167 tool IDs mapped to skills
-│   ├── runtime/                # Runtime hooks (permission enforcement, activity logging)
-│   ├── agenticmail-bridge.ts   # Bridge to AgenticMail API
-│   ├── db-adapter.ts           # EngineDatabase wrapper (all CRUD implemented)
-│   └── db-schema.ts            # Engine DDL: 15 tables, versioned migrations, dialect converters
-│
-├── deploy/                     # Cloud deployment
-│   ├── fly.ts                  # Fly.io Machines API
-│   └── managed.ts              # Managed cloud provisioning
-│
-├── setup/                      # CLI setup wizard
-│   ├── index.ts                # Wizard orchestrator
-│   ├── company.ts              # Company info prompts
-│   ├── database.ts             # Database selection
-│   ├── deployment.ts           # Deployment target
-│   ├── domain.ts               # Custom domain
-│   └── provision.ts            # Provisioning logic
-│
-└── dashboard/
-    └── index.html              # Admin UI (single HTML, React 18 from CDN)
+
+The AI-assisted scaffolding tool generates:
+- `manifest.json` — Skill metadata, tools, permissions, config fields
+- Tool implementations
+- README with usage instructions
+
+### Skill Manifest Format
+
+```json
+{
+  "name": "my-skill",
+  "version": "1.0.0",
+  "description": "What this skill does",
+  "author": "your-name",
+  "license": "MIT",
+  "category": "productivity",
+  "tools": [
+    {
+      "name": "my_tool",
+      "description": "What this tool does",
+      "parameters": { ... },
+      "riskLevel": "low",
+      "sideEffects": ["read"]
+    }
+  ],
+  "config": [
+    { "name": "API_KEY", "type": "secret", "required": true }
+  ]
+}
+```
+
+### Validating
+
+```bash
+npx @agenticmail/enterprise validate ./community-skills/my-skill/
+```
+
+### Submitting
+
+```bash
+npx @agenticmail/enterprise submit-skill ./community-skills/my-skill/
+```
+
+Skills are synced from the GitHub repository every 6 hours to all deployments.
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | Database connection string | — |
+| `JWT_SECRET` | JWT signing secret | — |
+| `PORT` | Server port | `3000` |
+| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `*` |
+| `RATE_LIMIT` | Requests per minute per IP | `120` |
+| `AGENTICMAIL_REGISTRY_URL` | Central registry URL | `https://registry.agenticmail.com/v1` |
+| `ANTHROPIC_API_KEY` | For agent runtime | — |
+| `OPENAI_API_KEY` | For agent runtime | — |
+
+### Server Config (Programmatic)
+
+```typescript
+createServer({
+  port: 3000,
+  db: adapter,
+  jwtSecret: 'your-secret',
+  corsOrigins: ['https://your-domain.com'],
+  rateLimit: 120,
+  trustedProxies: ['10.0.0.0/8'],
+  logging: true,
+  runtime: {
+    enabled: true,
+    defaultModel: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
+    apiKeys: { anthropic: '...' },
+  },
+});
 ```
 
 ---
 
-## Author
+## Requirements
 
-Created by **[Ope Olatunji](https://github.com/ope-olatunji)**.
+- **Node.js** 18+
+- **Database** — Any of the 10 supported backends
+- **LLM API Key** — Anthropic or OpenAI (for agent runtime)
 
-Part of the [AgenticMail](https://github.com/agenticmail/agenticmail) project — the first platform to give AI agents real email addresses and phone numbers.
-
-- GitHub: [@ope-olatunji](https://github.com/ope-olatunji)
-- Website: [agenticmail.io](https://agenticmail.io)
-- Twitter: [@agenticmail](https://x.com/agenticmail)
+---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE)
+MIT — See [LICENSE](./LICENSE)
+
+---
+
+Built by [AgenticMail](https://agenticmail.io) · [GitHub](https://github.com/agenticmail/enterprise) · [OpenClaw](https://openclaw.ai)
