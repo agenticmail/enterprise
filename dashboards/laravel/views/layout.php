@@ -7,21 +7,29 @@ $_user = Helpers::e($_SESSION['user']['email'] ?? $_SESSION['user']['name'] ?? '
 $_flash = Helpers::renderFlash();
 
 $_navLinks = [
-    '/'           => ['label' => 'Dashboard',   'icon' => '&#9632;',  'page' => 'dashboard'],
-    '/agents'     => ['label' => 'Agents',      'icon' => '&#9670;',  'page' => 'agents'],
-    '/users'      => ['label' => 'Users',       'icon' => '&#9862;',  'page' => 'users'],
-    '/api-keys'   => ['label' => 'API Keys',    'icon' => '&#9919;',  'page' => 'api-keys'],
-    '/vault'      => ['label' => 'Vault',       'icon' => '&#128274;', 'page' => 'vault'],
-    '/skills'     => ['label' => 'Skills',      'icon' => '&#128268;', 'page' => 'skills'],
-    '_mgmt'       => ['label' => 'Management',  'icon' => '',         'page' => '_section'],
-    '/messages'   => ['label' => 'Messages',    'icon' => '&#9993;',  'page' => 'messages'],
-    '/guardrails' => ['label' => 'Guardrails',  'icon' => '&#9888;',  'page' => 'guardrails'],
-    '/journal'    => ['label' => 'Journal',     'icon' => '&#9998;',  'page' => 'journal'],
-    '_admin'      => ['label' => 'Admin',       'icon' => '',         'page' => '_section'],
-    '/dlp'        => ['label' => 'DLP',         'icon' => '&#9730;',  'page' => 'dlp'],
-    '/compliance' => ['label' => 'Compliance',  'icon' => '&#9745;',  'page' => 'compliance'],
-    '/audit'      => ['label' => 'Audit Log',   'icon' => '&#9776;',  'page' => 'audit'],
-    '/settings'   => ['label' => 'Settings',    'icon' => '&#9881;',  'page' => 'settings'],
+    '_overview'           => ['label' => 'Overview',              'icon' => '',        'page' => '_section'],
+    '/'                   => ['label' => 'Dashboard',             'icon' => '📊',     'page' => 'dashboard'],
+    '_mgmt1'              => ['label' => 'Management',            'icon' => '',        'page' => '_section'],
+    '/agents'             => ['label' => 'Agents',               'icon' => '🤖',     'page' => 'agents'],
+    '/skills'             => ['label' => 'Skills',               'icon' => '⚡',     'page' => 'skills'],
+    '/community-skills'   => ['label' => 'Community Skills',     'icon' => '🏪',     'page' => 'community-skills'],
+    '/skill-connections'  => ['label' => 'Skill Connections',    'icon' => '🔗',     'page' => 'skill-connections'],
+    '/knowledge'          => ['label' => 'Knowledge Bases',      'icon' => '📚',     'page' => 'knowledge'],
+    '/knowledge-contributions' => ['label' => 'Knowledge Hub',  'icon' => '🧠',     'page' => 'knowledge-contributions'],
+    '/approvals'          => ['label' => 'Approvals',            'icon' => '✅',     'page' => 'approvals'],
+    '_mgmt2'              => ['label' => 'Management',            'icon' => '',        'page' => '_section'],
+    '/workforce'          => ['label' => 'Workforce',            'icon' => '⏰',     'page' => 'workforce'],
+    '/messages'           => ['label' => 'Messages',             'icon' => '💬',     'page' => 'messages'],
+    '/guardrails'         => ['label' => 'Guardrails',           'icon' => '🛡️',     'page' => 'guardrails'],
+    '/journal'            => ['label' => 'Journal',              'icon' => '📝',     'page' => 'journal'],
+    '_admin'              => ['label' => 'Administration',       'icon' => '',        'page' => '_section'],
+    '/dlp'                => ['label' => 'DLP',                  'icon' => '🔍',     'page' => 'dlp'],
+    '/compliance'         => ['label' => 'Compliance',           'icon' => '✔️',     'page' => 'compliance'],
+    '/domain-status'      => ['label' => 'Domain',               'icon' => '🛡️',     'page' => 'domain-status'],
+    '/users'              => ['label' => 'Users',                'icon' => '👥',     'page' => 'users'],
+    '/vault'              => ['label' => 'Vault',                'icon' => '🔐',     'page' => 'vault'],
+    '/audit'              => ['label' => 'Audit Log',            'icon' => '📋',     'page' => 'audit'],
+    '/settings'           => ['label' => 'Settings',             'icon' => '⚙️',     'page' => 'settings'],
 ];
 ?>
 <!DOCTYPE html>
@@ -33,38 +41,43 @@ $_navLinks = [
     <link rel="stylesheet" href="/public/styles.css">
 </head>
 <body>
-    <aside class="sidebar">
-        <div class="sidebar-brand">
-            &#x1F3E2; AgenticMail Enterprise
-            <small>Laravel Dashboard</small>
-        </div>
-        <nav class="sidebar-nav">
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>AgenticMail</h2>
+                <p>Enterprise Dashboard</p>
+            </div>
+            <nav class="nav">
 <?php foreach ($_navLinks as $_href => $_link): ?>
 <?php if ($_link['page'] === '_section'): ?>
-            <div class="nav-section"><?= $_link['label'] ?></div>
+                <div class="nav-section"><?= $_link['label'] ?></div>
 <?php else: ?>
-            <a href="<?= $_href ?>"<?= ($page === $_link['page']) ? ' class="active"' : '' ?>>
-                <span class="nav-icon"><?= $_link['icon'] ?></span>
-                <span><?= $_link['label'] ?></span>
-            </a>
+                <button class="nav-item<?= ($page === $_link['page']) ? ' active' : '' ?>" onclick="window.location.href='<?= $_href ?>'">
+                    <span><?= $_link['icon'] ?></span>
+                    <span><?= $_link['label'] ?></span>
+                </button>
 <?php endif; ?>
 <?php endforeach; ?>
-        </nav>
-        <div class="sidebar-footer">
-            <div style="margin-bottom: 6px"><?= $_user ?></div>
-            <a href="/logout">Sign Out</a>
-            &nbsp;&middot;&nbsp;
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">&#9790;</button>
-        </div>
-    </aside>
+            </nav>
+        </aside>
 
-    <main class="main">
-        <div class="page-header">
-            <h1><?= Helpers::e($title) ?></h1>
-        </div>
-        <?= $_flash ?>
-        <?= $content ?>
-    </main>
+        <main class="main-content">
+            <div class="topbar">
+                <div class="topbar-left">
+                    <div class="topbar-title"><?= Helpers::e($title) ?></div>
+                </div>
+                <div class="topbar-right">
+                    <span><?= $_user ?></span>
+                    <a href="/logout" class="btn btn-secondary btn-sm">Sign Out</a>
+                    <button class="btn btn-secondary btn-sm" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+                </div>
+            </div>
+            <div class="page-content">
+                <?= $_flash ?>
+                <?= $content ?>
+            </div>
+        </main>
+    </div>
 
     <script>
     (function() {

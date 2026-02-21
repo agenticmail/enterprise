@@ -57,6 +57,14 @@ require_once __DIR__ . '/controllers/MessageController.php';
 require_once __DIR__ . '/controllers/ComplianceController.php';
 require_once __DIR__ . '/controllers/VaultController.php';
 require_once __DIR__ . '/controllers/SkillController.php';
+require_once __DIR__ . '/controllers/ActivityController.php';
+require_once __DIR__ . '/controllers/ApprovalsController.php';
+require_once __DIR__ . '/controllers/CommunitySkillsController.php';
+require_once __DIR__ . '/controllers/DomainStatusController.php';
+require_once __DIR__ . '/controllers/KnowledgeController.php';
+require_once __DIR__ . '/controllers/KnowledgeContributionsController.php';
+require_once __DIR__ . '/controllers/SkillConnectionsController.php';
+require_once __DIR__ . '/controllers/WorkforceController.php';
 
 // ── Routing ──────────────────────────────────────────────────────────────────
 $method = $_SERVER['REQUEST_METHOD'];
@@ -308,6 +316,54 @@ if ($uri === '/compliance') {
     } else {
         $ctrl->index();
     }
+    exit;
+}
+
+// --- Activity ---
+if ($uri === '/activity') {
+    (new ActivityController())->index();
+    exit;
+}
+
+// --- Approvals ---
+if ($uri === '/approvals') {
+    (new ApprovalsController())->index();
+    exit;
+}
+
+// --- Community Skills ---
+if ($uri === '/community-skills') {
+    (new CommunitySkillsController())->index();
+    exit;
+}
+
+// --- Domain Status ---
+if ($uri === '/domain-status') {
+    (new DomainStatusController())->index();
+    exit;
+}
+
+// --- Knowledge ---
+if ($uri === '/knowledge') {
+    (new KnowledgeController())->index();
+    exit;
+}
+
+// --- Knowledge Contributions ---
+if ($uri === '/knowledge-contributions') {
+    (new KnowledgeContributionsController())->index();
+    exit;
+}
+
+// --- Skill Connections ---
+if ($uri === '/skill-connections') {
+    (new SkillConnectionsController())->index();
+    exit;
+}
+
+// --- Workforce ---
+if ($uri === '/workforce') {
+    (new WorkforceController())->index();
     exit;
 }
 
