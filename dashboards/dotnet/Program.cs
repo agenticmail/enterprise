@@ -67,6 +67,14 @@ JournalRoutes.Map(app);
 SettingRoutes.Map(app);
 VaultRoutes.Map(app);
 SkillRoutes.Map(app);
+ActivityRoutes.Map(app);
+ApprovalRoutes.Map(app);
+CommunitySkillRoutes.Map(app);
+DomainStatusRoutes.Map(app);
+KnowledgeRoutes.Map(app);
+KnowledgeContributionRoutes.Map(app);
+SkillConnectionRoutes.Map(app);
+WorkforceRoutes.Map(app);
 
 // --- Start ---
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5002";

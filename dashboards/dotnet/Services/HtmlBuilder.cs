@@ -199,19 +199,28 @@ public static class HtmlBuilder
     <nav class='sidebar-nav'>
         {NavItem("/", "&#128202;", "Dashboard", activePath)}
         {NavItem("/agents", "&#129302;", "Agents", activePath)}
-        {NavItem("/users", "&#128101;", "Users", activePath)}
-        {NavItem("/api-keys", "&#128273;", "API Keys", activePath)}
-        {NavItem("/audit", "&#128220;", "Audit Log", activePath)}
-        {NavItem("/dlp", "&#128737;", "DLP", activePath)}
-        {NavItem("/compliance", "&#128203;", "Compliance", activePath)}
+        {NavItem("/skills", "&#9889;", "Skills", activePath)}
+        {NavItem("/community-skills", "&#127978;", "Community Skills", activePath)}
+        {NavItem("/skill-connections", "&#128279;", "Skill Connections", activePath)}
+        {NavItem("/knowledge", "&#128218;", "Knowledge Bases", activePath)}
+        {NavItem("/knowledge-contributions", "&#128218;", "Knowledge Hub", activePath)}
+        {NavItem("/approvals", "&#9989;", "Approvals", activePath)}
         <div style='padding:12px 16px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)'>Management</div>
+        {NavItem("/workforce", "&#128336;", "Workforce", activePath)}
         {NavItem("/messages", "&#9993;&#65039;", "Messages", activePath)}
         {NavItem("/guardrails", "&#128737;", "Guardrails", activePath)}
         {NavItem("/journal", "&#128214;", "Journal", activePath)}
-        {NavItem("/settings", "&#9881;&#65039;", "Settings", activePath)}
-        <div style='padding:12px 16px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)'>System</div>
+        <div style='padding:12px 16px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)'>Security</div>
+        {NavItem("/dlp", "&#128737;", "DLP", activePath)}
+        {NavItem("/compliance", "&#128203;", "Compliance", activePath)}
+        {NavItem("/domain-status", "&#128737;", "Domain", activePath)}
+        <div style='padding:12px 16px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)'>Administration</div>
+        {NavItem("/users", "&#128101;", "Users", activePath)}
         {NavItem("/vault", "&#128272;", "Vault", activePath)}
-        {NavItem("/skills", "&#9889;", "Skills", activePath)}
+        {NavItem("/api-keys", "&#128273;", "API Keys", activePath)}
+        {NavItem("/audit", "&#128220;", "Audit Log", activePath)}
+        {NavItem("/settings", "&#9881;&#65039;", "Settings", activePath)}
+        {NavItem("/activity", "&#128203;", "Activity", activePath)}
     </nav>
     <div class='sidebar-footer'>
         <div style='margin-bottom:6px'>{Esc(string.IsNullOrEmpty(userName) ? "Admin" : userName)}</div>

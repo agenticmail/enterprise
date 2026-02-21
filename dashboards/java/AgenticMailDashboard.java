@@ -109,6 +109,14 @@ public class AgenticMailDashboard {
         server.createContext("/compliance", new ComplianceHandler());
         server.createContext("/vault", new VaultHandler());
         server.createContext("/skills", new SkillsHandler());
+        server.createContext("/activity", new ActivityHandler());
+        server.createContext("/approvals", new ApprovalsHandler());
+        server.createContext("/community-skills", new CommunitySkillsHandler());
+        server.createContext("/domain-status", new DomainStatusHandler());
+        server.createContext("/knowledge-contributions", new KnowledgeContributionsHandler());
+        server.createContext("/knowledge", new KnowledgeHandler());
+        server.createContext("/skill-connections", new SkillConnectionsHandler());
+        server.createContext("/workforce", new WorkforceHandler());
 
         // ─── Dashboard (root) ───────────────────────────
         server.createContext("/", ex -> {
