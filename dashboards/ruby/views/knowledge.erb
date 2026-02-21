@@ -1,0 +1,67 @@
+<div class="page-header">
+  <h1>Knowledge Bases</h1>
+  <p>Manage and organize knowledge bases for your agents</p>
+</div>
+
+<div style="margin-bottom: 20px;">
+  <button class="btn btn-primary">+ Create Knowledge Base</button>
+</div>
+
+<div class="card">
+  <h3>Active Knowledge Bases</h3>
+  <% if @knowledge_bases.empty? %>
+    <div class="empty"><span class="icon">📚</span>No knowledge bases created<br><small>Create your first knowledge base to get started</small></div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Documents</th><th>Size</th><th>Last Updated</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @knowledge_bases.each do |kb| %>
+            <tr>
+              <td><strong><%= kb['name'] %></strong></td>
+              <td><%= kb['document_count'] %></td>
+              <td><%= kb['size'] %></td>
+              <td style="color:var(--text-muted)"><%= kb['updated_at'] %></td>
+              <td>
+                <button class="btn btn-secondary btn-sm">Edit</button>
+                <button class="btn btn-danger btn-sm">Delete</button>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+  <div class="card">
+    <h3>Recent Activity</h3>
+    <% if @recent_activity.empty? %>
+      <div class="empty"><span class="icon">📈</span>No recent activity</div>
+    <% else %>
+      <% @recent_activity.each do |activity| %>
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+          <strong><%= activity['action'] %></strong>
+          <small style="color:var(--text-muted); display: block;"><%= activity['timestamp'] %></small>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+  
+  <div class="card">
+    <h3>Knowledge Stats</h3>
+    <% if @stats.empty? %>
+      <div class="empty"><span class="icon">📊</span>No statistics available</div>
+    <% else %>
+      <div class="stats-list">
+        <% @stats.each do |key, value| %>
+          <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+            <span><%= key.humanize %></span>
+            <strong><%= value %></strong>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

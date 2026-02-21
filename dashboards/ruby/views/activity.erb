@@ -1,0 +1,56 @@
+<div class="page-header">
+  <h1>Activity</h1>
+  <p>Real-time activity and tool usage across all agents</p>
+</div>
+
+<div class="tabs">
+  <div class="tab active">Events</div>
+  <div class="tab">Tool Calls</div>
+</div>
+
+<div class="card">
+  <h3>Recent Events</h3>
+  <% if @events.empty? %>
+    <div class="empty"><span class="icon">📋</span>No events recorded<br><small>Agent activity will appear here</small></div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Time</th><th>Type</th><th>Agent</th><th>Details</th></tr></thead>
+        <tbody>
+          <% @events.each do |ev| %>
+            <tr>
+              <td style="color:var(--text-muted)"><%= ev['timestamp'] %></td>
+              <td><span class="badge badge-info"><%= ev['type'] %></span></td>
+              <td><%= ev['agent'] %></td>
+              <td><%= ev['details'] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+  <h3>Tool Usage</h3>
+  <% if @tool_calls.empty? %>
+    <div class="empty"><span class="icon">🛠️</span>No tool calls recorded<br><small>Tool usage statistics will appear here</small></div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Time</th><th>Tool</th><th>Agent</th><th>Duration</th><th>Status</th></tr></thead>
+        <tbody>
+          <% @tool_calls.each do |tc| %>
+            <tr>
+              <td style="color:var(--text-muted)"><%= tc['timestamp'] %></td>
+              <td><%= tc['tool'] %></td>
+              <td><%= tc['agent'] %></td>
+              <td><%= tc['duration'] %></td>
+              <td><%= tc['status'] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,60 @@
+<div class="page-header">
+  <h1>Approvals</h1>
+  <p>Review and manage pending approval requests</p>
+</div>
+
+<div class="tabs">
+  <div class="tab active">Pending</div>
+  <div class="tab">Approved</div>
+  <div class="tab">Rejected</div>
+</div>
+
+<div class="card">
+  <h3>Pending Approvals</h3>
+  <% if @pending_approvals.empty? %>
+    <div class="empty"><span class="icon">✅</span>No pending approvals<br><small>Agent approval requests will appear here</small></div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Request</th><th>Agent</th><th>Type</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @pending_approvals.each do |approval| %>
+            <tr>
+              <td><%= approval['request'] %></td>
+              <td><%= approval['agent'] %></td>
+              <td><%= approval['type'] %></td>
+              <td style="color:var(--text-muted)"><%= approval['created'] %></td>
+              <td>
+                <button class="btn btn-success btn-sm">Approve</button>
+                <button class="btn btn-danger btn-sm">Reject</button>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+  <h3>Approval History</h3>
+  <% if @approval_history.empty? %>
+    <div class="empty"><span class="icon">📋</span>No approval history<br><small>Past approvals and rejections will appear here</small></div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Request</th><th>Status</th><th>Date</th><th>Reviewer</th></tr></thead>
+        <tbody>
+          <% @approval_history.each do |history| %>
+            <tr>
+              <td><%= history['request'] %></td>
+              <td><span class="badge badge-<%= history['status'] == 'approved' ? 'success' : 'danger' %>"><%= history['status'] %></span></td>
+              <td style="color:var(--text-muted)"><%= history['date'] %></td>
+              <td><%= history['reviewer'] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
