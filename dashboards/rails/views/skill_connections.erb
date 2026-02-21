@@ -1,0 +1,109 @@
+<div class="page-header">
+  <h1>Skill Connections</h1>
+  <p>Visualize and manage relationships between skills</p>
+</div>
+
+<div style="margin-bottom: 20px;">
+  <button class="btn btn-primary">+ Create Connection</button>
+  <button class="btn btn-secondary" style="margin-left: 10px;">View Network</button>
+</div>
+
+<div class="card">
+  <h3>Skill Network Overview</h3>
+  <% if @connections.empty? %>
+    <div class="empty"><span class="icon">🔗</span>No skill connections configured<br><small>Create connections between skills to enable complex workflows</small></div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Source</th><th>Target</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <% @connections.each do |connection| %>
+            <tr>
+              <td><%= connection['source'] %></td>
+              <td><%= connection['target'] %></td>
+              <td><span class="badge badge-info"><%= connection['type'] %></span></td>
+              <td><span class="badge badge-<%= connection['status'] == 'active' ? 'success' : 'warning' %>"><%= connection['status'] %></span></td>
+              <td>
+                <button class="btn btn-secondary btn-sm">Edit</button>
+                <button class="btn btn-danger btn-sm">Delete</button>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+  <div class="card">
+    <h3>Connection Types</h3>
+    <div style="padding: 20px;">
+      <div class="connection-type">
+        <span class="connection-indicator depends"></span>
+        <span>Dependencies</span>
+        <span class="badge"><%= @connection_types['dependencies'] %></span>
+      </div>
+      <div class="connection-type">
+        <span class="connection-indicator enhances"></span>
+        <span>Enhancements</span>
+        <span class="badge"><%= @connection_types['enhancements'] %></span>
+      </div>
+      <div class="connection-type">
+        <span class="connection-indicator conflicts"></span>
+        <span>Conflicts</span>
+        <span class="badge"><%= @connection_types['conflicts'] %></span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h3>Recent Changes</h3>
+    <% if @recent_changes.empty? %>
+      <div class="empty"><span class="icon">📋</span>No recent changes<br><small>Connection updates will appear here</small></div>
+    <% else %>
+      <% @recent_changes.each do |change| %>
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+          <strong><%= change['action'] %></strong>
+          <small style="color:var(--text-muted); display: block;"><%= change['timestamp'] %></small>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<style>
+.connection-type {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.connection-type:last-child {
+  border-bottom: none;
+}
+.connection-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.connection-indicator.depends {
+  background: var(--info);
+}
+.connection-indicator.enhances {
+  background: var(--success);
+}
+.connection-indicator.conflicts {
+  background: var(--warning);
+}
+.connection-type .badge {
+  margin-left: auto;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+</style>

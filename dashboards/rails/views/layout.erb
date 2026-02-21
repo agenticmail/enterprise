@@ -13,21 +13,29 @@
     <small>Admin Dashboard &middot; Rails</small>
   </div>
   <nav class="sidebar-nav">
-    <a href="/" class="<%= active?('/') %>">&#128202; Dashboard</a>
-    <a href="/agents" class="<%= active?('/agents') %>">&#129302; Agents</a>
-    <a href="/users" class="<%= active?('/users') %>">&#128101; Users</a>
-    <a href="/api-keys" class="<%= active?('/api-keys') %>">&#128273; API Keys</a>
-    <a href="/vault" class="<%= active?('/vault') %>">&#128274; Vault</a>
-    <a href="/skills" class="<%= active?('/skills') %>">&#128295; Skills</a>
-    <a href="/audit" class="<%= active?('/audit') %>">&#128220; Audit Log</a>
-    <a href="/settings" class="<%= active?('/settings') %>">&#9881;&#65039; Settings</a>
-    <small style="color:var(--muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Management</small>
-    <a href="/messages" class="<%= active?('/messages') %>">&#128231; Messages</a>
-    <a href="/guardrails" class="<%= active?('/guardrails') %>">&#128737; Guardrails</a>
-    <a href="/journal" class="<%= active?('/journal') %>">&#128214; Journal</a>
-    <small style="color:var(--muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Admin</small>
-    <a href="/dlp" class="<%= active?('/dlp') %>">&#128274; DLP</a>
-    <a href="/compliance" class="<%= active?('/compliance') %>">&#128203; Compliance</a>
+    <small style="color:var(--text-muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Overview</small>
+    <a href="/" class="<%= active?('/') %>">📊 Dashboard</a>
+    <small style="color:var(--text-muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Management</small>
+    <a href="/agents" class="<%= active?('/agents') %>">🤖 Agents</a>
+    <a href="/skills" class="<%= active?('/skills') %>">🛠️ Skills</a>
+    <a href="/community-skills" class="<%= active?('/community-skills') %>">🏪 Community Skills</a>
+    <a href="/skill-connections" class="<%= active?('/skill-connections') %>">🔗 Skill Connections</a>
+    <a href="/knowledge" class="<%= active?('/knowledge') %>">📚 Knowledge Bases</a>
+    <a href="/knowledge-contributions" class="<%= active?('/knowledge-contributions') %>">📚 Knowledge Hub</a>
+    <a href="/approvals" class="<%= active?('/approvals') %>">✅ Approvals</a>
+    <small style="color:var(--text-muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Management</small>
+    <a href="/workforce" class="<%= active?('/workforce') %>">🕐 Workforce</a>
+    <a href="/messages" class="<%= active?('/messages') %>">💬 Messages</a>
+    <a href="/guardrails" class="<%= active?('/guardrails') %>">🛡️ Guardrails</a>
+    <a href="/journal" class="<%= active?('/journal') %>">📖 Journal</a>
+    <small style="color:var(--text-muted);padding:12px 16px 4px;text-transform:uppercase;font-size:10px;letter-spacing:1px">Administration</small>
+    <a href="/dlp" class="<%= active?('/dlp') %>">🔒 DLP</a>
+    <a href="/compliance" class="<%= active?('/compliance') %>">📋 Compliance</a>
+    <a href="/domain-status" class="<%= active?('/domain-status') %>">🛡️ Domain</a>
+    <a href="/users" class="<%= active?('/users') %>">👥 Users</a>
+    <a href="/vault" class="<%= active?('/vault') %>">🔐 Vault</a>
+    <a href="/audit" class="<%= active?('/audit') %>">📋 Audit Log</a>
+    <a href="/settings" class="<%= active?('/settings') %>">⚙️ Settings</a>
   </nav>
   <div class="sidebar-footer">
     <div style="margin-bottom:6px"><%= escape_html(current_user['email'] || current_user['name'] || 'Admin') %></div>

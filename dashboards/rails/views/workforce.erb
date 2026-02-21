@@ -1,0 +1,124 @@
+<div class="page-header">
+  <h1>Workforce</h1>
+  <p>Monitor agent schedules, workloads, and availability</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+  <div class="stat-card">
+    <div class="stat-icon">🤖</div>
+    <div class="stat-value"><%= @stats['active_agents'] %></div>
+    <div class="stat-label">Active Agents</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⏳</div>
+    <div class="stat-value"><%= @stats['pending_tasks'] %></div>
+    <div class="stat-label">Pending Tasks</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">📊</div>
+    <div class="stat-value"><%= @stats['utilization'] %>%</div>
+    <div class="stat-label">Utilization</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active">Schedule</div>
+  <div class="tab">Workload</div>
+  <div class="tab">Analytics</div>
+</div>
+
+<div class="card">
+  <h3>Agent Schedule</h3>
+  <% if @schedules.empty? %>
+    <div class="empty"><span class="icon">🕐</span>No scheduled tasks<br><small>Agent schedules and time allocations will appear here</small></div>
+  <% else %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Agent</th><th>Task</th><th>Start Time</th><th>End Time</th><th>Status</th></tr></thead>
+        <tbody>
+          <% @schedules.each do |schedule| %>
+            <tr>
+              <td><%= schedule['agent'] %></td>
+              <td><%= schedule['task'] %></td>
+              <td><%= schedule['start_time'] %></td>
+              <td><%= schedule['end_time'] %></td>
+              <td><span class="badge badge-<%= schedule['status'] == 'active' ? 'success' : 'info' %>"><%= schedule['status'] %></span></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
+  <div class="card">
+    <h3>Workload Distribution</h3>
+    <% if @workload_data.empty? %>
+      <div class="empty"><span class="icon">⚖️</span>No workload data<br><small>Agent workload distribution will appear here</small></div>
+    <% else %>
+      <% @workload_data.each do |workload| %>
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between;">
+            <strong><%= workload['agent'] %></strong>
+            <span><%= workload['percentage'] %>%</span>
+          </div>
+          <div class="progress-bar" style="margin-top: 4px;">
+            <div class="progress-fill" style="width: <%= workload['percentage'] %>%;"></div>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+  
+  <div class="card">
+    <h3>Performance Metrics</h3>
+    <% if @performance_metrics.empty? %>
+      <div class="empty"><span class="icon">📈</span>No metrics available<br><small>Performance analytics will appear here</small></div>
+    <% else %>
+      <% @performance_metrics.each do |metric| %>
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between;">
+            <span><%= metric['name'] %></span>
+            <strong><%= metric['value'] %></strong>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<style>
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+.stat-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent-text);
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.progress-bar {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+</style>
