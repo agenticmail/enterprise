@@ -4,48 +4,173 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AgenticMail Enterprise — Django</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}:root,[data-theme=light]{--bg:#f8f9fa;--surface:#fff;--border:#dee2e6;--text:#212529;--dim:#495057;--muted:#868e96;--primary:#e84393;--success:#2b8a3e;--danger:#c92a2a;--warning:#e67700;--r:6px;color-scheme:light dark}[data-theme=dark]{--bg:#0f1114;--surface:#16181d;--border:#2c3038;--text:#e1e4e8;--dim:#b0b8c4;--muted:#6b7280;--primary:#f06595;--success:#37b24d;--danger:#f03e3e;--warning:#f08c00}@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1114;--surface:#16181d;--border:#2c3038;--text:#e1e4e8;--dim:#b0b8c4;--muted:#6b7280;--primary:#f06595;--success:#37b24d;--danger:#f03e3e;--warning:#f08c00}}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;font-size:14px}.layout{display:flex;min-height:100vh}.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);position:fixed;top:0;left:0;bottom:0;display:flex;flex-direction:column}.sh{padding:20px;border-bottom:1px solid var(--border)}.sh h2{font-size:16px}.sh h2 em{font-style:normal;color:var(--primary)}.sh small{font-size:11px;color:var(--muted);display:block;margin-top:2px}.nav{flex:1;padding:8px 0}.ns{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 20px 4px}.nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--dim);text-decoration:none;font-size:13px}.nav a:hover{color:var(--text);background:rgba(255,255,255,.03)}.nav a.on{color:var(--primary);background:rgba(232,67,147,.12);border-right:2px solid var(--primary)}.sf{padding:16px 20px;border-top:1px solid var(--border);font-size:12px}.content{flex:1;margin-left:240px;padding:32px;max-width:1100px}h2.t{font-size:22px;font-weight:700;margin-bottom:4px}.desc{font-size:13px;color:var(--dim);margin-bottom:24px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px}.stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.stat .v{font-size:30px;font-weight:700;margin-top:4px}.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}.ct{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:12px}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;padding:10px 12px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}td{padding:12px;border-bottom:1px solid var(--border)}.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600}.b-a{background:rgba(34,197,94,.12);color:var(--success)}.b-r{background:rgba(136,136,160,.1);color:var(--dim)}.b-w{background:rgba(245,158,11,.12);color:var(--warning)}.b-p{background:rgba(232,67,147,.12);color:var(--primary)}.b-blue{background:rgba(59,130,246,.12);color:#3b82f6}.b-info{background:rgba(6,182,212,.12);color:#06b6d4}.b-neutral{background:rgba(136,136,160,.08);color:var(--muted)}.empty{text-align:center;padding:48px 20px;color:var(--muted)}.btn{display:inline-flex;align-items:center;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);text-decoration:none}.btn-p{background:var(--primary);border-color:var(--primary);color:#fff}.btn-d{color:var(--danger);border-color:var(--danger)}.btn-sm{padding:4px 10px;font-size:12px}.input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none}.input:focus{border-color:var(--primary)}.fg{margin-bottom:14px}.fl{display:block;font-size:12px;color:var(--dim);margin-bottom:4px;font-weight:500}.flash{padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;background:rgba(34,197,94,.1);border:1px solid var(--success);color:var(--success)}.flash-err{background:rgba(239,68,68,.1);border-color:var(--danger);color:var(--danger)}
-</style>
+<link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-<div class="layout">
+<div class="app-layout">
 <div class="sidebar">
-  <div class="sh"><h2>&#x1f3e2; <em>Agentic</em>Mail</h2><small>Enterprise &middot; Django</small></div>
-  <div class="nav">
-    <div class="ns">Overview</div>
-    <a href="/" class="{% if page_name == 'dashboard' %}on{% endif %}">&#x1f4ca; <span>Dashboard</span></a>
-    <div class="ns">Manage</div>
-    <a href="/agents" class="{% if page_name == 'agents' %}on{% endif %}">&#x1f916; <span>Agents</span></a>
-    <a href="/users" class="{% if page_name == 'users' %}on{% endif %}">&#x1f465; <span>Users</span></a>
-    <a href="/api-keys" class="{% if page_name == 'keys' %}on{% endif %}">&#x1f511; <span>API Keys</span></a>
-    <a href="/vault" class="{% if page_name == 'vault' %}on{% endif %}">&#x1f510; <span>Vault</span></a>
-    <a href="/skills" class="{% if page_name == 'skills' %}on{% endif %}">&#x1f9e9; <span>Skills</span></a>
-    <div class="ns">Management</div>
-    <a href="/messages" class="{% if page_name == 'messages' %}on{% endif %}">&#x1f4e8; <span>Messages</span></a>
-    <a href="/guardrails" class="{% if page_name == 'guardrails' %}on{% endif %}">&#x1f6e1; <span>Guardrails</span></a>
-    <a href="/journal" class="{% if page_name == 'journal' %}on{% endif %}">&#x1f4d3; <span>Journal</span></a>
-    <div class="ns">System</div>
-    <a href="/audit" class="{% if page_name == 'audit' %}on{% endif %}">&#x1f4cb; <span>Audit Log</span></a>
-    <a href="/dlp" class="{% if page_name == 'dlp' %}on{% endif %}">&#x1f512; <span>DLP</span></a>
-    <a href="/compliance" class="{% if page_name == 'compliance' %}on{% endif %}">&#x1f4c4; <span>Compliance</span></a>
-    <a href="/settings" class="{% if page_name == 'settings' %}on{% endif %}">&#x2699;&#xfe0f; <span>Settings</span></a>
+  <div class="sidebar-brand">
+    <h2>AgenticMail</h2>
+    <p>Enterprise</p>
   </div>
-  <div class="sf">
-    <div style="color:var(--dim)">{{ user.name }}</div>
-    <div style="color:var(--muted);font-size:11px">{{ user.email }}</div>
-    <a href="/logout" style="color:var(--muted);font-size:11px;margin-top:6px;display:inline-block">Sign out</a>
+  <div class="sidebar-nav">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Overview</div>
+      <a href="/" class="nav-item {% if page_name == 'dashboard' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+    </div>
+    
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Management</div>
+      <a href="/agents" class="nav-item {% if page_name == 'agents' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+        </svg>
+        <span>Agents</span>
+      </a>
+      <a href="/skills" class="nav-item {% if page_name == 'skills' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M5.5 2A3.5 3.5 0 0 0 2 5.5v5A3.5 3.5 0 0 0 5.5 14h5a3.5 3.5 0 0 0 3.5-3.5V8a.5.5 0 0 1 1 0v2.5a4.5 4.5 0 0 1-4.5 4.5h-5A4.5 4.5 0 0 1 1 10.5v-5A4.5 4.5 0 0 1 5.5 1H8a.5.5 0 0 1 0 1H5.5z"/>
+        </svg>
+        <span>Skills</span>
+      </a>
+      <a href="/community-skills" class="nav-item {% if page_name == 'community-skills' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0z"/>
+        </svg>
+        <span>Community Skills</span>
+      </a>
+      <a href="/skill-connections" class="nav-item {% if page_name == 'skill-connections' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M4.715 6.542 3.248 7.17a.5.5 0 1 1-.4-.8l1.838-.918a.5.5 0 0 1 .478.011l1.06.53H8.5a.5.5 0 0 1 0 1H6.086l-1.371-.458z"/>
+        </svg>
+        <span>Skill Connections</span>
+      </a>
+      <a href="/knowledge" class="nav-item {% if page_name == 'knowledge' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.809 8.985.936 8 1.783z"/>
+        </svg>
+        <span>Knowledge Bases</span>
+      </a>
+      <a href="/knowledge-contributions" class="nav-item {% if page_name == 'knowledge-contributions' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.809 8.985.936 8 1.783z"/>
+        </svg>
+        <span>Knowledge Hub</span>
+      </a>
+      <a href="/approvals" class="nav-item {% if page_name == 'approvals' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.061L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/>
+        </svg>
+        <span>Approvals</span>
+      </a>
+    </div>
+    
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Operations</div>
+      <a href="/workforce" class="nav-item {% if page_name == 'workforce' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+        </svg>
+        <span>Workforce</span>
+      </a>
+      <a href="/activity" class="nav-item {% if page_name == 'activity' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M1.5 1.5A.5.5 0 0 0 1 2v4.8a2.5 2.5 0 0 0 2.5 2.5h9A2.5 2.5 0 0 0 15 6.8V2a.5.5 0 0 0-.5-.5h-13zM1 10.5A1.5 1.5 0 0 1 2.5 9h1A1.5 1.5 0 0 1 5 10.5v1A1.5 1.5 0 0 1 3.5 13h-1A1.5 1.5 0 0 1 1 11.5v-1zm6.5-9a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm2 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm2 0a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z"/>
+        </svg>
+        <span>Activity</span>
+      </a>
+      <a href="/messages" class="nav-item {% if page_name == 'messages' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M5 8a.5.5 0 0 1-.5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708 0L9.5 5.707V7.5a.5.5 0 0 1-1 0V4.5A1.5 1.5 0 0 1 10 3h3a1.5 1.5 0 0 1 1.5 1.5v7A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5V4.5A1.5 1.5 0 0 1 3 3h3a1.5 1.5 0 0 1 1.5 1.5V7.5A.5.5 0 0 1 7 8H5z"/>
+        </svg>
+        <span>Messages</span>
+      </a>
+      <a href="/guardrails" class="nav-item {% if page_name == 'guardrails' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/>
+        </svg>
+        <span>Guardrails</span>
+      </a>
+      <a href="/journal" class="nav-item {% if page_name == 'journal' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-1h1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v1H1V2a2 2 0 0 1 2-2z"/>
+        </svg>
+        <span>Journal</span>
+      </a>
+    </div>
+    
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Administration</div>
+      <a href="/dlp" class="nav-item {% if page_name == 'dlp' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10.24 8.051a.5.5 0 0 0-.128.334v2.115l-2.222 1.112a.5.5 0 0 1-.778-.416V8.385a.5.5 0 0 0-.128-.334L2.128 3.84A.5.5 0 0 1 2 3.5v-2z"/>
+        </svg>
+        <span>DLP</span>
+      </a>
+      <a href="/compliance" class="nav-item {% if page_name == 'compliance' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M9.669.864 8 0 6.331.864l-1.858.282-.842 1.68-1.337 1.32L2.6 6l-.306 1.854 1.337 1.32.842 1.68 1.858.282L8 16l1.669-.864 1.858-.282.842-1.68 1.337-1.32L13.4 10l.306-1.854-1.337-1.32-.842-1.68L9.669.864zm1.196 1.193.684 1.365 1.086 1.072L12.387 6l.248 1.506-1.086 1.072-.684 1.365-1.51.229L8 10.874l-1.355-.702-1.51-.229-.684-1.365-1.086-1.072L3.614 6l-.25-1.506 1.087-1.072.684-1.365 1.51-.229L8 1.126l1.356.702 1.509.229z"/>
+        </svg>
+        <span>Compliance</span>
+      </a>
+      <a href="/domain-status" class="nav-item {% if page_name == 'domain-status' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/>
+        </svg>
+        <span>Domain</span>
+      </a>
+      <a href="/users" class="nav-item {% if page_name == 'users' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+        </svg>
+        <span>Users</span>
+      </a>
+      <a href="/vault" class="nav-item {% if page_name == 'vault' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+        </svg>
+        <span>Vault</span>
+      </a>
+      <a href="/audit" class="nav-item {% if page_name == 'audit' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8.5 5.5a.5.5 0 0 0-1 0v3.362l-1.429 2.38a.5.5 0 1 0 .858.515l1.5-2.5A.5.5 0 0 0 8.5 9V5.5z"/>
+        </svg>
+        <span>Audit Log</span>
+      </a>
+      <a href="/settings" class="nav-item {% if page_name == 'settings' %}active{% endif %}">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+        </svg>
+        <span>Settings</span>
+      </a>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="avatar">{{ user.name.0|default:'A'|upper }}</div>
+      <div class="user-info">
+        <div class="user-name">{{ user.name|default:user.email }}</div>
+        <div class="user-role">{{ user.role|default:'admin' }}</div>
+      </div>
+    </div>
   </div>
 </div>
-<div class="content">
-{% if flash_msg %}
-{% if 'error' in flash_msg|lower or 'failed' in flash_msg|lower %}
-<div class="flash flash-err">{{ flash_msg }}</div>
-{% else %}
-<div class="flash">{{ flash_msg }}</div>
-{% endif %}
-{% endif %}
-{% block content %}{% endblock %}
+<div class="main-content">
+  <div class="page-content">
+    {% if flash_msg %}
+    {% if 'error' in flash_msg|lower or 'failed' in flash_msg|lower %}
+    <div class="alert alert-error">{{ flash_msg }}</div>
+    {% else %}
+    <div class="alert alert-success">{{ flash_msg }}</div>
+    {% endif %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
 </div>
 </div>
 </body>

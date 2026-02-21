@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-title">Knowledge Contributions</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Contributions</div>
+    <div class="stat-value">847</div>
+    <div class="stat-change" style="color: var(--success)">+12 this week</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Published</div>
+    <div class="stat-value">623</div>
+    <div class="stat-change" style="color: var(--success)">73% approval rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Contributors</div>
+    <div class="stat-value">89</div>
+    <div class="stat-change" style="color: var(--success)">+5 new this week</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Recent Contributions</h3>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Contributor</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Submitted</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>New Product Pricing Guide</td>
+          <td>Sarah Miller</td>
+          <td><span class="badge badge-success">Product Info</span></td>
+          <td><span class="badge badge-warning">Pending</span></td>
+          <td>2 hours ago</td>
+        </tr>
+        <tr>
+          <td>Customer Onboarding Checklist</td>
+          <td>John Doe</td>
+          <td><span class="badge badge-info">Support</span></td>
+          <td><span class="badge badge-success">Published</span></td>
+          <td>5 hours ago</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

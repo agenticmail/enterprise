@@ -1,0 +1,116 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-title">Agent Workforce</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Active Agents</div>
+    <div class="stat-value">24</div>
+    <div class="stat-change" style="color: var(--success)">+3 this week</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">CPU Usage</div>
+    <div class="stat-value">67%</div>
+    <div class="stat-change" style="color: var(--warning)">Moderate load</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Tasks Completed</div>
+    <div class="stat-value">1,847</div>
+    <div class="stat-change" style="color: var(--success)">+18% today</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Agent Fleet</h3>
+    <div>
+      <button class="btn btn-secondary">Start All</button>
+      <button class="btn btn-secondary" style="margin-left: 8px;">Stop All</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Department</th>
+          <th>Status</th>
+          <th>Tasks</th>
+          <th>CPU</th>
+          <th>Uptime</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">A1</div>
+              Alice Support
+            </div>
+          </td>
+          <td><span class="badge badge-primary">Customer Support</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--success);"></div>
+              <span class="status-running">Running</span>
+            </div>
+          </td>
+          <td>247 completed</td>
+          <td>45%</td>
+          <td>12h 34m</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" style="margin-right: 4px;">View</button>
+            <button class="btn btn-sm btn-danger">Stop</button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--success-soft); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">B1</div>
+              Bob Analytics
+            </div>
+          </td>
+          <td><span class="badge badge-info">Operations</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--success);"></div>
+              <span class="status-running">Running</span>
+            </div>
+          </td>
+          <td>189 completed</td>
+          <td>78%</td>
+          <td>8h 12m</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" style="margin-right: 4px;">View</button>
+            <button class="btn btn-sm btn-danger">Stop</button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--warning-soft); color: var(--warning); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">C1</div>
+              Charlie Sales
+            </div>
+          </td>
+          <td><span class="badge badge-success">Sales</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted);"></div>
+              <span class="status-stopped">Idle</span>
+            </div>
+          </td>
+          <td>34 completed</td>
+          <td>12%</td>
+          <td>15h 45m</td>
+          <td>
+            <button class="btn btn-sm" style="background: var(--success); color: white; margin-right: 4px;">Start</button>
+            <button class="btn btn-sm btn-secondary">View</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

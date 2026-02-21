@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-title">Domain Status</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Domain Health</div>
+    <div class="stat-value" style="color: var(--success)">98%</div>
+    <div class="stat-change" style="color: var(--success)">Excellent</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Deliverability Score</div>
+    <div class="stat-value" style="color: var(--success)">95</div>
+    <div class="stat-change" style="color: var(--success)">High</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">DNS Records</div>
+    <div class="stat-value" style="color: var(--success)">12/12</div>
+    <div class="stat-change" style="color: var(--success)">All valid</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Domain Configuration</h3>
+    <button class="btn btn-secondary">Refresh Status</button>
+  </div>
+  <div class="card-body">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+      <div>
+        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Primary Domain</h4>
+        <div style="background: var(--bg-tertiary); padding: 16px; border-radius: var(--radius); margin-bottom: 16px;">
+          <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">company.agenticmail.io</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Configured 45 days ago</div>
+        </div>
+      </div>
+      
+      <div>
+        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Delivery Statistics</h4>
+        <div style="background: var(--bg-tertiary); padding: 16px; border-radius: var(--radius);">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <span style="font-size: 12px; color: var(--text-muted);">Delivered</span>
+            <span style="font-size: 12px; font-weight: 600; color: var(--success);">98.5%</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+            <span style="font-size: 12px; color: var(--text-muted);">Bounced</span>
+            <span style="font-size: 12px; font-weight: 600; color: var(--warning);">1.2%</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="font-size: 12px; color: var(--text-muted);">Marked as Spam</span>
+            <span style="font-size: 12px; font-weight: 600; color: var(--danger);">0.3%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

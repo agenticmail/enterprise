@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-title">Skill Connections</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Active Connections</div>
+    <div class="stat-value">156</div>
+    <div class="stat-change" style="color: var(--success)">+8 this week</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Skill Networks</div>
+    <div class="stat-value">23</div>
+    <div class="stat-change" style="color: var(--success)">+2 new</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Connection Health</div>
+    <div class="stat-value" style="color: var(--success)">98%</div>
+    <div class="stat-change" style="color: var(--success)">Excellent</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Connection Map</h3>
+    <button class="btn btn-secondary">View Network</button>
+  </div>
+  <div class="card-body">
+    <div style="background: var(--bg-tertiary); border-radius: var(--radius); padding: 40px; text-align: center; margin-bottom: 24px;">
+      <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 16px;">
+        Interactive skill connection visualization would be displayed here
+      </div>
+      <button class="btn btn-secondary">Launch Network Viewer</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Active Connections</h3>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead>
+        <tr>
+          <th>Connection</th>
+          <th>Skill</th>
+          <th>Type</th>
+          <th>Usage</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Alice ↔ Bob</td>
+          <td>Data Analytics</td>
+          <td><span class="badge badge-primary">Bidirectional</span></td>
+          <td>847 calls</td>
+          <td><span class="badge badge-success">Active</span></td>
+        </tr>
+        <tr>
+          <td>Bob → Charlie</td>
+          <td>API Integration</td>
+          <td><span class="badge badge-info">Unidirectional</span></td>
+          <td>234 calls</td>
+          <td><span class="badge badge-success">Active</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

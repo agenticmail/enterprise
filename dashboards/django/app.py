@@ -78,6 +78,9 @@ from views import (
     dlp_view, guardrails_view, journal_view,
     messages_view, compliance_view,
     vault_view, skills_view,
+    # New pages
+    activity_view, approvals_view, community_skills_view, domain_status_view,
+    knowledge_view, knowledge_contributions_view, skill_connections_view, workforce_view,
 )
 
 urlpatterns = [
@@ -98,6 +101,15 @@ urlpatterns = [
     path('compliance', compliance_view),
     path('vault', vault_view),
     path('skills', skills_view),
+    # New pages
+    path('activity', activity_view),
+    path('approvals', approvals_view),
+    path('community-skills', community_skills_view),
+    path('domain-status', domain_status_view),
+    path('knowledge', knowledge_view),
+    path('knowledge-contributions', knowledge_contributions_view),
+    path('skill-connections', skill_connections_view),
+    path('workforce', workforce_view),
 ]
 
 # ─── WSGI Application ────────────────────────────────────

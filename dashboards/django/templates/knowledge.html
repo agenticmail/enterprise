@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="page-title">Knowledge Base</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Knowledge Items</div>
+    <div class="stat-value">1,247</div>
+    <div class="stat-change" style="color: var(--success)">+23 this week</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Categories</div>
+    <div class="stat-value">18</div>
+    <div class="stat-change" style="color: var(--text-muted)">No change</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Agent Queries</div>
+    <div class="stat-value">5,432</div>
+    <div class="stat-change" style="color: var(--success)">+15% this week</div>
+  </div>
+</div>
+
+<div style="display: flex; gap: 16px; margin-bottom: 24px;">
+  <input class="input" placeholder="Search knowledge base..." style="flex: 1;">
+  <select class="input" style="width: auto;">
+    <option>All Categories</option>
+    <option>Company Policies</option>
+    <option>Product Information</option>
+    <option>Customer Support</option>
+    <option>Technical Docs</option>
+  </select>
+  <button class="btn btn-primary">
+    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+      <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+    </svg>
+    Add Knowledge
+  </button>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Recent Knowledge</h3>
+    <div>
+      <button class="btn btn-secondary">Import</button>
+      <button class="btn btn-secondary" style="margin-left: 8px;">Export</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Type</th>
+          <th>Usage</th>
+          <th>Last Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div>
+              <div style="font-weight: 600;">Customer Refund Policy</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Complete guidelines for processing refunds</div>
+            </div>
+          </td>
+          <td><span class="badge badge-primary">Company Policies</span></td>
+          <td><span class="badge badge-info">Document</span></td>
+          <td>
+            <div style="font-size: 13px; font-weight: 600;">156</div>
+            <div style="font-size: 11px; color: var(--text-muted);">queries</div>
+          </td>
+          <td>2 days ago</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" style="margin-right: 4px;">Edit</button>
+            <button class="btn btn-sm btn-danger">Delete</button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div>
+              <div style="font-weight: 600;">Product Feature Matrix</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Comparison of features across all plans</div>
+            </div>
+          </td>
+          <td><span class="badge badge-success">Product Information</span></td>
+          <td><span class="badge badge-warning">Spreadsheet</span></td>
+          <td>
+            <div style="font-size: 13px; font-weight: 600;">89</div>
+            <div style="font-size: 11px; color: var(--text-muted);">queries</div>
+          </td>
+          <td>5 days ago</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" style="margin-right: 4px;">Edit</button>
+            <button class="btn btn-sm btn-danger">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

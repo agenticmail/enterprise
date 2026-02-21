@@ -16,6 +16,11 @@ from views.messages import messages_view
 from views.compliance import compliance_view
 from views.vault import vault_view
 from views.skills import skills_view
+# New pages
+from views.new_pages import (
+    activity_view, approvals_view, community_skills_view, domain_status_view,
+    knowledge_view, knowledge_contributions_view, skill_connections_view, workforce_view
+)
 
 __all__ = [
     'login_view',
@@ -35,4 +40,13 @@ __all__ = [
     'compliance_view',
     'vault_view',
     'skills_view',
+    # New pages
+    'activity_view',
+    'approvals_view',
+    'community_skills_view',
+    'domain_status_view',
+    'knowledge_view',
+    'knowledge_contributions_view',
+    'skill_connections_view',
+    'workforce_view',
 ]
