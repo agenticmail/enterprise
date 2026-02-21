@@ -26,25 +26,30 @@ func Layout(page string, user map[string]interface{}, content string) string {
 <body><div class="layout">
 <div class="sidebar"><div class="sh"><h2>🏢 <em>Agentic</em>Mail</h2><small>Enterprise · Go</small></div>
 <div class="nav"><div class="ns">Overview</div>%s
-<div class="ns">Manage</div>%s%s%s
-<div class="ns">Management</div>%s%s%s
-<div class="ns">Security</div>%s%s
-<div class="ns">System</div>%s%s%s%s</div>
+<div class="ns">Management</div>%s%s%s%s%s%s%s
+<div class="ns">Management</div>%s%s%s%s
+<div class="ns">Administration</div>%s%s%s%s%s%s%s</div>
 <div class="sf"><div style="color:var(--dim)">%s</div><div style="color:var(--muted);font-size:11px">%s</div><a href="/logout" style="color:var(--muted);font-size:11px;margin-top:6px;display:inline-block">Sign out</a></div></div>
 <div class="content">%s</div></div></body></html>`,
 		NavItem("/", "📊", "Dashboard", "dashboard", page),
 		NavItem("/agents", "🤖", "Agents", "agents", page),
-		NavItem("/users", "👥", "Users", "users", page),
-		NavItem("/api-keys", "🔑", "API Keys", "keys", page),
-		NavItem("/messages", "📬", "Messages", "messages", page),
+		NavItem("/skills", "🛠️", "Skills", "skills", page),
+		NavItem("/community-skills", "🏪", "Community Skills", "community-skills", page),
+		NavItem("/skill-connections", "🔗", "Skill Connections", "skill-connections", page),
+		NavItem("/knowledge", "📚", "Knowledge Bases", "knowledge", page),
+		NavItem("/knowledge-contributions", "📚", "Knowledge Hub", "knowledge-contributions", page),
+		NavItem("/approvals", "✅", "Approvals", "approvals", page),
+		NavItem("/workforce", "🕐", "Workforce", "workforce", page),
+		NavItem("/messages", "💬", "Messages", "messages", page),
 		NavItem("/guardrails", "🛡️", "Guardrails", "guardrails", page),
-		NavItem("/journal", "📓", "Journal", "journal", page),
+		NavItem("/journal", "📖", "Journal", "journal", page),
 		NavItem("/dlp", "🔒", "DLP", "dlp", page),
-		NavItem("/compliance", "📊", "Compliance", "compliance", page),
+		NavItem("/compliance", "📋", "Compliance", "compliance", page),
+		NavItem("/domain-status", "🛡️", "Domain", "domain-status", page),
+		NavItem("/users", "👥", "Users", "users", page),
+		NavItem("/vault", "🔐", "Vault", "vault", page),
 		NavItem("/audit", "📋", "Audit Log", "audit", page),
 		NavItem("/settings", "⚙️", "Settings", "settings", page),
-		NavItem("/vault", "🔐", "Vault", "vault", page),
-		NavItem("/skills", "⚡", "Skills", "skills", page),
 		Esc(userName), Esc(userEmail), content)
 }
 

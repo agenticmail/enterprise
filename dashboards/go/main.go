@@ -49,6 +49,14 @@ func main() {
 	mux.HandleFunc("/settings", middleware.RequireAuth(handlers.HandleSettings))
 	mux.HandleFunc("/vault", middleware.RequireAuth(handlers.HandleVault))
 	mux.HandleFunc("/skills", middleware.RequireAuth(handlers.HandleSkills))
+	mux.HandleFunc("/activity", middleware.RequireAuth(handlers.HandleActivity))
+	mux.HandleFunc("/approvals", middleware.RequireAuth(handlers.HandleApprovals))
+	mux.HandleFunc("/community-skills", middleware.RequireAuth(handlers.HandleCommunitySkills))
+	mux.HandleFunc("/domain-status", middleware.RequireAuth(handlers.HandleDomainStatus))
+	mux.HandleFunc("/knowledge", middleware.RequireAuth(handlers.HandleKnowledge))
+	mux.HandleFunc("/knowledge-contributions", middleware.RequireAuth(handlers.HandleKnowledgeContributions))
+	mux.HandleFunc("/skill-connections", middleware.RequireAuth(handlers.HandleSkillConnections))
+	mux.HandleFunc("/workforce", middleware.RequireAuth(handlers.HandleWorkforce))
 
 	port := os.Getenv("PORT")
 	if port == "" {
