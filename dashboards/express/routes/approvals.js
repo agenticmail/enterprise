@@ -1,0 +1,100 @@
+/**
+ * Approvals Routes — Pending approvals and approval history
+ */
+const express = require('express');
+const { requireAuth } = require('../middleware/auth');
+const { layout } = require('../views/layout');
+const router = express.Router();
+
+// Approvals page
+router.get('/', requireAuth, (req, res) => {
+  const content = `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Pending Approvals</div>
+        <div class="stat-value">3</div>
+        <div style="color: var(--warning); font-size: 12px; margin-top: 4px;">2 urgent</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Approved Today</div>
+        <div class="stat-value">12</div>
+        <div style="color: var(--success); font-size: 12px; margin-top: 4px;">+20% vs yesterday</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rejected Today</div>
+        <div class="stat-value">1</div>
+        <div style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Normal</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Pending Approvals</h3>
+        <button class="btn btn-primary">Review All</button>
+      </div>
+      <div class="card-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Request</th>
+              <th>Agent</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Requested</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <strong>Budget Allocation Request</strong><br>
+                <small style="color: var(--text-muted);">Requesting $5,000 for marketing campaign</small>
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">F</div>
+                  Frank
+                </div>
+              </td>
+              <td><span class="badge badge-primary">Financial</span></td>
+              <td><span class="badge badge-danger">High</span></td>
+              <td>1 hour ago</td>
+              <td>
+                <div style="display: flex; gap: 4px;">
+                  <button class="btn btn-sm btn-primary">Approve</button>
+                  <button class="btn btn-sm btn-danger">Reject</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <strong>External API Access</strong><br>
+                <small style="color: var(--text-muted);">Request access to CRM integration</small>
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--warning-soft); color: var(--warning); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">C</div>
+                  Charlie
+                </div>
+              </td>
+              <td><span class="badge badge-warning">Security</span></td>
+              <td><span class="badge badge-danger">High</span></td>
+              <td>3 hours ago</td>
+              <td>
+                <div style="display: flex; gap: 4px;">
+                  <button class="btn btn-sm btn-primary">Approve</button>
+                  <button class="btn btn-sm btn-danger">Reject</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  const html = layout('approvals', req.user, content, req.flash);
+  res.send(html);
+});
+
+module.exports = router;

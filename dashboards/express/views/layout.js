@@ -7,7 +7,7 @@ const { esc } = require('../utils/helpers');
 
 function layout(activePage, user, content, flash) {
   const nav = (href, icon, label, key) =>
-    `<a href="${href}" class="${activePage === key ? 'active' : ''}">
+    `<a href="${href}" class="nav-item ${activePage === key ? 'active' : ''}">
       ${icon} <span>${label}</span>
     </a>`;
 
@@ -26,38 +26,59 @@ function layout(activePage, user, content, flash) {
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    &#127970; AgenticMail Enterprise
-    <small>Admin Dashboard &middot; Express</small>
-  </div>
-  <nav class="sidebar-nav">
-    ${nav('/', '&#128202;', 'Dashboard', 'dashboard')}
-    ${nav('/agents', '&#129302;', 'Agents', 'agents')}
-    ${nav('/users', '&#128101;', 'Users', 'users')}
-    ${nav('/api-keys', '&#128273;', 'API Keys', 'keys')}
-    ${nav('/vault', '&#128274;', 'Vault', 'vault')}
-    ${nav('/skills', '&#9889;', 'Skills', 'skills')}
-    <div style="margin:12px 16px 4px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted)">Management</div>
-    ${nav('/messages', '&#9993;', 'Messages', 'messages')}
-    ${nav('/guardrails', '&#128737;', 'Guardrails', 'guardrails')}
-    ${nav('/journal', '&#128216;', 'Journal', 'journal')}
-    ${nav('/dlp', '&#128274;', 'DLP', 'dlp')}
-    ${nav('/compliance', '&#128203;', 'Compliance', 'compliance')}
-    ${nav('/audit', '&#128220;', 'Audit Log', 'audit')}
-    ${nav('/settings', '&#9881;&#65039;', 'Settings', 'settings')}
-  </nav>
-  <div class="sidebar-footer">
-    <div style="margin-bottom:6px">${esc(user?.email || user?.name || 'Admin')}</div>
-    <a href="/logout">Sign out</a>
-    &nbsp;&middot;&nbsp;
-    <button class="theme-toggle" title="Toggle dark mode">&#127763;</button>
-  </div>
-</aside>
-<main class="main">
-  ${flashHtml}
-  ${content}
-</main>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2>AgenticMail</h2>
+      <p>Enterprise Dashboard</p>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Overview</div>
+      ${nav('/', '📊', 'Dashboard', 'dashboard')}
+      
+      <div class="nav-section">Management</div>
+      ${nav('/agents', '🤖', 'Agents', 'agents')}
+      ${nav('/skills', '⚡', 'Skills', 'skills')}
+      ${nav('/community-skills', '🏪', 'Community Skills', 'community-skills')}
+      ${nav('/skill-connections', '🔗', 'Skill Connections', 'skill-connections')}
+      ${nav('/knowledge', '📚', 'Knowledge Bases', 'knowledge')}
+      ${nav('/knowledge-contributions', '🧠', 'Knowledge Hub', 'knowledge-contributions')}
+      ${nav('/approvals', '✅', 'Approvals', 'approvals')}
+      
+      <div class="nav-section">Management</div>
+      ${nav('/workforce', '⏰', 'Workforce', 'workforce')}
+      ${nav('/messages', '💬', 'Messages', 'messages')}
+      ${nav('/guardrails', '🛡️', 'Guardrails', 'guardrails')}
+      ${nav('/journal', '📝', 'Journal', 'journal')}
+      
+      <div class="nav-section">Administration</div>
+      ${nav('/dlp', '🔍', 'DLP', 'dlp')}
+      ${nav('/compliance', '✔️', 'Compliance', 'compliance')}
+      ${nav('/domain-status', '🛡️', 'Domain', 'domain-status')}
+      ${nav('/users', '👥', 'Users', 'users')}
+      ${nav('/vault', '🔐', 'Vault', 'vault')}
+      ${nav('/audit', '📋', 'Audit Log', 'audit')}
+      ${nav('/settings', '⚙️', 'Settings', 'settings')}
+    </nav>
+  </aside>
+  
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">AgenticMail Enterprise</div>
+      </div>
+      <div class="topbar-right">
+        <span>${esc(user?.email || user?.name || 'Admin')}</span>
+        <a href="/logout" class="btn btn-secondary btn-sm">Sign Out</a>
+        <button class="btn btn-secondary btn-sm theme-toggle" title="Toggle theme">🌙</button>
+      </div>
+    </div>
+    <div class="page-content">
+      ${flashHtml}
+      ${content}
+    </div>
+  </main>
+</div>
 <script>
 if(localStorage.getItem('dark')==='1') document.documentElement.setAttribute('data-theme','dark');
 document.querySelector('.theme-toggle')?.addEventListener('click',function(){

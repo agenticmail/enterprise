@@ -47,6 +47,14 @@ app.use(require('./routes/messages'));
 app.use(require('./routes/compliance'));
 app.use(require('./routes/vault'));
 app.use(require('./routes/skills'));
+app.use('/activity', require('./routes/activity'));
+app.use('/approvals', require('./routes/approvals'));
+app.use('/community-skills', require('./routes/community-skills'));
+app.use('/domain-status', require('./routes/domain-status'));
+app.use('/knowledge', require('./routes/knowledge'));
+app.use('/knowledge-contributions', require('./routes/knowledge-contributions'));
+app.use('/skill-connections', require('./routes/skill-connections'));
+app.use('/workforce', require('./routes/workforce'));
 
 // ─── Start ───────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;

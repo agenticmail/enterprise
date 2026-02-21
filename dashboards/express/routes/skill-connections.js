@@ -1,0 +1,86 @@
+/**
+ * Skill Connections Routes — Manage skill integrations and connections
+ */
+const express = require('express');
+const { requireAuth } = require('../middleware/auth');
+const { layout } = require('../views/layout');
+const router = express.Router();
+
+// Skill Connections page
+router.get('/', requireAuth, (req, res) => {
+  const content = `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Active Connections</div>
+        <div class="stat-value">14</div>
+        <div style="color: var(--success); font-size: 12px; margin-top: 4px;">All healthy</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Data Flows</div>
+        <div class="stat-value">267</div>
+        <div style="color: var(--success); font-size: 12px; margin-top: 4px;">+23 this week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Failed Connections</div>
+        <div class="stat-value">1</div>
+        <div style="color: var(--danger); font-size: 12px; margin-top: 4px;">Needs attention</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Skill Network</h3>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary">+ New Connection</button>
+          <button class="btn btn-secondary">View Map</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="background: var(--bg-tertiary); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 12px; color: var(--text-muted);">🔗</div>
+          <p style="color: var(--text-muted); font-size: 13px;">Interactive skill network visualization will be displayed here</p>
+          <p style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Showing connections between skills, data flows, and dependencies</p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+          <div style="border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h4 style="font-size: 14px; font-weight: 600;">Email → CRM Sync</h4>
+              <span class="badge badge-success">Active</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+              Automatically sync email interactions with CRM contact records
+            </p>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px;">
+              <span style="background: var(--accent-soft); color: var(--accent-text); padding: 2px 6px; border-radius: 4px;">Email Processing</span>
+              <span>→</span>
+              <span style="background: var(--success-soft); color: var(--success); padding: 2px 6px; border-radius: 4px;">CRM Integration</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted);">
+              Last sync: 2 mins ago • 47 records processed
+            </div>
+          </div>
+
+          <div style="border: 1px solid var(--danger); border-radius: var(--radius-lg); padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h4 style="font-size: 14px; font-weight: 600;">Slack → Notifications</h4>
+              <span class="badge badge-danger">Failed</span>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+              Send agent notifications to Slack channels
+            </p>
+            <div style="font-size: 11px; color: var(--danger); margin-bottom: 8px;">
+              Error: Invalid webhook URL
+            </div>
+            <button class="btn btn-sm btn-danger">Fix Connection</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const html = layout('skill-connections', req.user, content, req.flash);
+  res.send(html);
+});
+
+module.exports = router;
