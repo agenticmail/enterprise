@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Agents</div>
+        <div class="stat-value">23</div>
+        <div style="color: var(--success); font-size: 12px; margin-top: 4px;">+2 this month</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active Now</div>
+        <div class="stat-value">18</div>
+        <div style="color: var(--success); font-size: 12px; margin-top: 4px;">78% utilization</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Tasks Completed</div>
+        <div class="stat-value">1,847</div>
+        <div style="color: var(--success); font-size: 12px; margin-top: 4px;">+12% vs yesterday</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Agent Status</h3>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" class="input" placeholder="Search agents..." style="width: 200px;">
+            <select class="input" style="width: auto;">
+                <option>All Agents</option>
+                <option>Active</option>
+                <option>Idle</option>
+                <option>Offline</option>
+            </select>
+            <button class="btn btn-primary">Schedule Task</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <table>
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Status</th>
+                    <th>Current Task</th>
+                    <th>Workload</th>
+                    <th>Performance</th>
+                    <th>Next Available</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">A</div>
+                            <span style="font-weight: 500;">Alice</span>
+                        </div>
+                    </td>
+                    <td><span class="badge badge-success">Active</span></td>
+                    <td>
+                        <div style="font-size: 12px;">Processing customer inquiry</div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Started 15 mins ago</div>
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 40px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;">
+                                <div style="width: 75%; height: 100%; background: var(--warning);"></div>
+                            </div>
+                            <span style="font-size: 11px;">75%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="font-size: 12px; font-weight: 600; color: var(--success);">98.2%</div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Success rate</div>
+                    </td>
+                    <td>In 2 hours</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary">Reassign</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--success-soft); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">B</div>
+                            <span style="font-weight: 500;">Bob</span>
+                        </div>
+                    </td>
+                    <td><span class="badge badge-warning">Idle</span></td>
+                    <td>
+                        <div style="font-size: 12px; color: var(--text-muted);">Waiting for next task</div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Idle for 8 mins</div>
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 40px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;">
+                                <div style="width: 20%; height: 100%; background: var(--success);"></div>
+                            </div>
+                            <span style="font-size: 11px;">20%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="font-size: 12px; font-weight: 600; color: var(--success);">96.7%</div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Success rate</div>
+                    </td>
+                    <td>Available now</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary">Assign Task</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -34,6 +34,14 @@ from routes.messages import messages_bp
 from routes.compliance import compliance_bp
 from routes.vault import vault_bp
 from routes.skills import skills_bp
+from routes.activity import activity_bp
+from routes.approvals import approvals_bp
+from routes.community_skills import community_skills_bp
+from routes.domain_status import domain_status_bp
+from routes.knowledge import knowledge_bp
+from routes.knowledge_contributions import knowledge_contributions_bp
+from routes.skill_connections import skill_connections_bp
+from routes.workforce import workforce_bp
 
 
 def create_app():
@@ -55,6 +63,14 @@ def create_app():
     app.register_blueprint(compliance_bp)
     app.register_blueprint(vault_bp)
     app.register_blueprint(skills_bp)
+    app.register_blueprint(activity_bp)
+    app.register_blueprint(approvals_bp)
+    app.register_blueprint(community_skills_bp)
+    app.register_blueprint(domain_status_bp)
+    app.register_blueprint(knowledge_bp)
+    app.register_blueprint(knowledge_contributions_bp)
+    app.register_blueprint(skill_connections_bp)
+    app.register_blueprint(workforce_bp)
 
     # ─── Jinja2 Template Filters ──────────────────────────
     app.jinja_env.filters['badge'] = badge

@@ -7,78 +7,113 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <div class="sidebar">
-    <div class="sidebar-brand">
-      AgenticMail
-      <small>Enterprise &middot; Python</small>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>AgenticMail</h2>
+        <p>Enterprise Dashboard</p>
+      </div>
+      <nav class="nav">
+        <div class="nav-section">Overview</div>
+        <a href="{{ url_for('dashboard_bp.dashboard') }}" class="nav-item {{ 'active' if active_page == 'dashboard' }}">
+          <span>📊</span> <span>Dashboard</span>
+        </a>
+        
+        <div class="nav-section">Management</div>
+        <a href="{{ url_for('agents_bp.agents') }}" class="nav-item {{ 'active' if active_page == 'agents' }}">
+          <span>🤖</span> <span>Agents</span>
+        </a>
+        <a href="{{ url_for('skills_bp.skills') }}" class="nav-item {{ 'active' if active_page == 'skills' }}">
+          <span>⚡</span> <span>Skills</span>
+        </a>
+        <a href="{{ url_for('community_skills_bp.community_skills') }}" class="nav-item {{ 'active' if active_page == 'community_skills' }}">
+          <span>🏪</span> <span>Community Skills</span>
+        </a>
+        <a href="{{ url_for('skill_connections_bp.skill_connections') }}" class="nav-item {{ 'active' if active_page == 'skill_connections' }}">
+          <span>🔗</span> <span>Skill Connections</span>
+        </a>
+        <a href="{{ url_for('knowledge_bp.knowledge') }}" class="nav-item {{ 'active' if active_page == 'knowledge' }}">
+          <span>📚</span> <span>Knowledge Bases</span>
+        </a>
+        <a href="{{ url_for('knowledge_contributions_bp.knowledge_contributions') }}" class="nav-item {{ 'active' if active_page == 'knowledge_contributions' }}">
+          <span>🧠</span> <span>Knowledge Hub</span>
+        </a>
+        <a href="{{ url_for('approvals_bp.approvals') }}" class="nav-item {{ 'active' if active_page == 'approvals' }}">
+          <span>✅</span> <span>Approvals</span>
+        </a>
+        
+        <div class="nav-section">Management</div>
+        <a href="{{ url_for('workforce_bp.workforce') }}" class="nav-item {{ 'active' if active_page == 'workforce' }}">
+          <span>⏰</span> <span>Workforce</span>
+        </a>
+        <a href="{{ url_for('activity_bp.activity') }}" class="nav-item {{ 'active' if active_page == 'activity' }}">
+          <span>📊</span> <span>Activity</span>
+        </a>
+        <a href="{{ url_for('messages_bp.messages') }}" class="nav-item {{ 'active' if active_page == 'messages' }}">
+          <span>💬</span> <span>Messages</span>
+        </a>
+        <a href="{{ url_for('guardrails_bp.guardrails') }}" class="nav-item {{ 'active' if active_page == 'guardrails' }}">
+          <span>🛡️</span> <span>Guardrails</span>
+        </a>
+        <a href="{{ url_for('journal_bp.journal') }}" class="nav-item {{ 'active' if active_page == 'journal' }}">
+          <span>📝</span> <span>Journal</span>
+        </a>
+        
+        <div class="nav-section">Administration</div>
+        <a href="{{ url_for('dlp_bp.dlp') }}" class="nav-item {{ 'active' if active_page == 'dlp' }}">
+          <span>🔍</span> <span>DLP</span>
+        </a>
+        <a href="{{ url_for('compliance_bp.compliance') }}" class="nav-item {{ 'active' if active_page == 'compliance' }}">
+          <span>✔️</span> <span>Compliance</span>
+        </a>
+        <a href="{{ url_for('domain_status_bp.domain_status') }}" class="nav-item {{ 'active' if active_page == 'domain_status' }}">
+          <span>🛡️</span> <span>Domain</span>
+        </a>
+        <a href="{{ url_for('users_bp.users') }}" class="nav-item {{ 'active' if active_page == 'users' }}">
+          <span>👥</span> <span>Users</span>
+        </a>
+        <a href="{{ url_for('vault_bp.vault') }}" class="nav-item {{ 'active' if active_page == 'vault' }}">
+          <span>🔐</span> <span>Vault</span>
+        </a>
+        <a href="{{ url_for('audit_bp.audit') }}" class="nav-item {{ 'active' if active_page == 'audit' }}">
+          <span>📋</span> <span>Audit Log</span>
+        </a>
+        <a href="{{ url_for('settings_bp.settings') }}" class="nav-item {{ 'active' if active_page == 'settings' }}">
+          <span>⚙️</span> <span>Settings</span>
+        </a>
+      </nav>
     </div>
-    <nav class="sidebar-nav">
-      <a href="{{ url_for('dashboard_bp.dashboard') }}" class="{{ 'active' if active_page == 'dashboard' }}">
-        <span>Dashboard</span>
-      </a>
-      <a href="{{ url_for('agents_bp.agents') }}" class="{{ 'active' if active_page == 'agents' }}">
-        <span>Agents</span>
-      </a>
-      <a href="{{ url_for('users_bp.users') }}" class="{{ 'active' if active_page == 'users' }}">
-        <span>Users</span>
-      </a>
-      <a href="{{ url_for('api_keys_bp.api_keys') }}" class="{{ 'active' if active_page == 'api_keys' }}">
-        <span>API Keys</span>
-      </a>
-      <a href="{{ url_for('vault_bp.vault') }}" class="{{ 'active' if active_page == 'vault' }}">
-        <span>Vault</span>
-      </a>
-      <a href="{{ url_for('skills_bp.skills') }}" class="{{ 'active' if active_page == 'skills' }}">
-        <span>Skills</span>
-      </a>
-      <a href="{{ url_for('audit_bp.audit') }}" class="{{ 'active' if active_page == 'audit' }}">
-        <span>Audit Log</span>
-      </a>
-      <a href="{{ url_for('dlp_bp.dlp') }}" class="{{ 'active' if active_page == 'dlp' }}">
-        <span>DLP</span>
-      </a>
-      <a href="{{ url_for('compliance_bp.compliance') }}" class="{{ 'active' if active_page == 'compliance' }}">
-        <span>Compliance</span>
-      </a>
 
-      <div style="padding: 12px 16px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);">Management</div>
-      <a href="{{ url_for('messages_bp.messages') }}" class="{{ 'active' if active_page == 'messages' }}">
-        <span>Messages</span>
-      </a>
-      <a href="{{ url_for('guardrails_bp.guardrails') }}" class="{{ 'active' if active_page == 'guardrails' }}">
-        <span>Guardrails</span>
-      </a>
-      <a href="{{ url_for('journal_bp.journal') }}" class="{{ 'active' if active_page == 'journal' }}">
-        <span>Journal</span>
-      </a>
-      <a href="{{ url_for('settings_bp.settings') }}" class="{{ 'active' if active_page == 'settings' }}">
-        <span>Settings</span>
-      </a>
-    </nav>
-    <div class="sidebar-footer">
-      <div>{{ user.name }}</div>
-      <div style="color: var(--text-muted); font-size: 11px;">{{ user.email }}</div>
-      <a href="{{ url_for('auth_bp.logout') }}" style="margin-top: 6px; display: inline-block;">Sign out</a>
-    </div>
-  </div>
-
-  <div class="main">
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for m in messages %}
-          {% if 'Key created:' in m %}
-          <div class="key-banner">
-            Save this key now — it will not be shown again!
-            <code>{{ m.replace('Key created: ', '').replace(' — SAVE THIS NOW!', '') }}</code>
-          </div>
-          {% else %}
-          <div class="flash flash-success">{{ m }}</div>
+    <div class="main-content">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title">AgenticMail Enterprise</div>
+        </div>
+        <div class="topbar-right">
+          <span>{{ user.name or user.email }}</span>
+          <a href="{{ url_for('auth_bp.logout') }}" class="btn btn-secondary btn-sm">Sign Out</a>
+          <button class="btn btn-secondary btn-sm" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+        </div>
+      </div>
+      <div class="page-content">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for m in messages %}
+              {% if 'Key created:' in m %}
+              <div class="key-banner">
+                Save this key now — it will not be shown again!
+                <code>{{ m.replace('Key created: ', '').replace(' — SAVE THIS NOW!', '') }}</code>
+              </div>
+              {% else %}
+              <div class="flash flash-success">{{ m }}</div>
+              {% endif %}
+            {% endfor %}
           {% endif %}
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+        {% endwith %}
 
-    {% block content %}{% endblock %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
   </div>
 
   {% block scripts %}{% endblock %}
