@@ -13,7 +13,7 @@
 import { randomBytes } from 'crypto';
 
 const REGISTRY_BASE_URL = process.env.AGENTICMAIL_REGISTRY_URL
-  || 'https://registry.agenticmail.com/v1';
+  || 'https://agenticmail.io/enterprise/v1';
 
 // ─── Types ──────────────────────────────────────────────
 

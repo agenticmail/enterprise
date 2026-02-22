@@ -13,7 +13,7 @@
 import { randomBytes } from 'crypto';
 
 const REGISTRY_BASE_URL = process.env.AGENTICMAIL_REGISTRY_URL
-  || 'https://registry.agenticmail.com/v1';
+  || 'https://agenticmail.io/enterprise/v1';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -60,9 +60,9 @@ export async function promptRegistration(
 
   const spinner = ora('Generating deployment key...').start();
 
-  const { default: bcrypt } = await import('bcryptjs');
+  const { createHash } = await import('crypto');
   const plaintextKey = randomBytes(32).toString('hex'); // 64-char hex
-  const keyHash = await bcrypt.hash(plaintextKey, 12);
+  const keyHash = createHash('sha256').update(plaintextKey).digest('hex');
 
   spinner.succeed('Deployment key generated');
 
@@ -81,6 +81,7 @@ export async function promptRegistration(
       body: JSON.stringify({
         domain: domain.toLowerCase().trim(),
         keyHash,
+        sha256Hash: keyHash,
         orgName: companyName,
         contactEmail: adminEmail,
       }),
