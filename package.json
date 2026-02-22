@@ -1,10 +1,11 @@
 {
   "name": "@agenticmail/enterprise",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "AgenticMail Enterprise — cloud-hosted AI agent identity, email, auth & compliance for organizations",
   "type": "module",
   "bin": {
     "agenticmail-enterprise": "dist/cli.js",
+    "enterprise": "dist/cli.js",
     "agenticmail-registry": "dist/registry/cli.js"
   },
   "exports": {
