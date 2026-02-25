@@ -4694,6 +4694,7 @@ var _toolIconMap = {
   '\u2699': 'settings', '\u2699\uFE0F': 'settings',        // ⚙
   '\u25B2': 'triangleUp',                                    // ▲
   '\u25BC': 'triangleDown',                                  // ▼
+  '\uD83D\uDC41': 'eye', '\uD83D\uDC41\uFE0F': 'eye',     // 👁
 };
 function _mapToolIcon(emoji) {
   var name = _toolIconMap[emoji];

@@ -1031,6 +1031,12 @@ export function createAgentRoutes(opts: {
       icon: Emoji.biDirectional,
       tools: ['enterprise_text_diff', 'enterprise_json_diff', 'enterprise_spreadsheet_diff', 'enterprise_diff_summary'],
     },
+    {
+      id: 'visual-memory', name: 'Visual Memory', description: 'Persistent visual memory — capture screenshots, detect changes, recall visual history. Enterprise DB-backed with BM25F search.',
+      icon: Emoji.eye,
+      tools: ['vision_capture', 'vision_query', 'vision_compare', 'vision_diff', 'vision_similar',
+              'vision_track', 'vision_ocr', 'vision_health', 'vision_session_start', 'vision_session_end'],
+    },
   ];
 
   // ═══════════════════════════════════════════════════════════
