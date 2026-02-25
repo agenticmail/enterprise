@@ -67,6 +67,7 @@ export function createAllGoogleTools(config: GoogleToolsConfig, options?: ToolCr
   if (all || has('meetings'))         tools.push(...createMeetingTools(config, options));
   if (all || has('meetings'))         tools.push(...createMeetingVoiceTools({
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY,
+    elevenLabsKeyResolver: (options as any)?.elevenLabsKeyResolver,
     voiceId: (options as any)?.voiceConfig?.voiceId,
     voiceName: (options as any)?.voiceConfig?.voiceName,
     audioDevice: (options as any)?.voiceConfig?.audioDevice,

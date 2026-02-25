@@ -177,10 +177,25 @@ async function checkAudioSetup(): Promise<{
 
 
 export function createMeetingVoiceTools(
-  config: { elevenLabsApiKey?: string; voiceId?: string; voiceName?: string; audioDevice?: string },
+  config: {
+    elevenLabsApiKey?: string;
+    elevenLabsKeyResolver?: () => Promise<string | null>;
+    voiceId?: string;
+    voiceName?: string;
+    audioDevice?: string;
+  },
   _options?: ToolCreationOptions
 ): AnyAgentTool[] {
   const agentId = (_options as any)?.agentId || 'default';
+
+  /** Resolve ElevenLabs API key: env var → vault → null */
+  const getApiKey = async (): Promise<string | null> => {
+    if (config.elevenLabsApiKey) return config.elevenLabsApiKey;
+    if (config.elevenLabsKeyResolver) {
+      try { return await config.elevenLabsKeyResolver(); } catch { return null; }
+    }
+    return process.env.ELEVENLABS_API_KEY || null;
+  };
 
   return [
     // ─── Speak in Meeting ──────────────────────────────
@@ -206,9 +221,9 @@ Tips:
       },
       async execute(_id: string, params: any) {
         try {
-          const apiKey = config.elevenLabsApiKey || process.env.ELEVENLABS_API_KEY;
+          const apiKey = await getApiKey();
           if (!apiKey) {
-            return errorResult('ElevenLabs API key not configured. Set ELEVENLABS_API_KEY env var or configure in agent settings.');
+            return errorResult('ElevenLabs API key not configured. Add it in Dashboard → Settings → Integrations (key name: "elevenlabs"), or set ELEVENLABS_API_KEY env var.');
           }
 
           const text = params.text;
@@ -284,10 +299,10 @@ Tips:
       async execute(_id: string, _params: any) {
         try {
           const setup = await checkAudioSetup();
-          const apiKey = config.elevenLabsApiKey || process.env.ELEVENLABS_API_KEY;
+          const apiKey = await getApiKey();
 
           const issues: string[] = [];
-          if (!apiKey) issues.push('ElevenLabs API key not configured (set ELEVENLABS_API_KEY)');
+          if (!apiKey) issues.push('ElevenLabs API key not configured. Add it in Dashboard → Settings → Integrations (key name: "elevenlabs"), or set ELEVENLABS_API_KEY env var.');
           if (!setup.hasBlackHole && setup.platform === 'darwin') issues.push('BlackHole virtual audio not found (install: brew install blackhole-2ch)');
           if (!setup.hasSox && setup.platform === 'darwin') issues.push('sox not found (install: brew install sox) — needed to route audio to BlackHole');
 
@@ -331,8 +346,8 @@ Tips:
           const builtIn = Object.entries(DEFAULT_VOICES).map(([name, id]) => ({ name, id, source: 'built-in' }));
 
           if (params.includeCustom === 'true') {
-            const apiKey = config.elevenLabsApiKey || process.env.ELEVENLABS_API_KEY;
-            if (!apiKey) return jsonResult({ voices: builtIn, note: 'Set ELEVENLABS_API_KEY to see custom voices' });
+            const apiKey = await getApiKey();
+            if (!apiKey) return jsonResult({ voices: builtIn, note: 'Add ElevenLabs key in Dashboard → Settings → Integrations to see custom voices' });
 
             try {
               const res = await fetch(`${ELEVENLABS_BASE}/voices`, {

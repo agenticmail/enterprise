@@ -189,10 +189,11 @@ export class AgentRuntime {
     if (this.config.vault) {
       base.vault = this.config.vault;
     }
-    // Google Maps API key resolver (from vault integration)
+    // API key resolvers from vault
     if (this.config.getIntegrationKey) {
       const getKey = this.config.getIntegrationKey;
       base.mapsApiKeyResolver = () => getKey('google-maps');
+      base.elevenLabsKeyResolver = () => getKey('elevenlabs');
     }
     return base;
   }
