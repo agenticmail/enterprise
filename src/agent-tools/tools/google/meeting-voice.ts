@@ -112,18 +112,42 @@ async function playAudioToDevice(
         await exec(`sox "${audioPath}" -t coreaudio "${device}"`, { timeout: 30000 });
         return;
       } catch {
-        // Fallback: try afplay (plays to default output — user must set BlackHole as default)
         console.warn(`[meeting-voice] sox failed for device "${device}", falling back to afplay`);
       }
     }
-    // Default macOS playback
     await exec(`afplay "${audioPath}"`, { timeout: 30000 });
   } else if (process.platform === 'linux') {
-    // Linux: use paplay with PulseAudio sink
     if (device) {
-      await exec(`paplay --device="${device}" "${audioPath}"`, { timeout: 30000 });
+      // Try PulseAudio first, then ALSA
+      try {
+        await exec(`paplay --device="${device}" "${audioPath}"`, { timeout: 30000 });
+      } catch {
+        await exec(`aplay -D "${device}" "${audioPath}"`, { timeout: 30000 });
+      }
     } else {
-      await exec(`paplay "${audioPath}"`, { timeout: 30000 });
+      try {
+        await exec(`paplay "${audioPath}"`, { timeout: 30000 });
+      } catch {
+        await exec(`aplay "${audioPath}"`, { timeout: 30000 });
+      }
+    }
+  } else if (process.platform === 'win32') {
+    if (device) {
+      // sox on Windows can target specific audio devices
+      try {
+        await exec(`sox "${audioPath}" -t waveaudio "${device}"`, { timeout: 30000 });
+        return;
+      } catch {
+        console.warn(`[meeting-voice] sox device routing failed on Windows, using default playback`);
+      }
+    }
+    // PowerShell fallback: play through default device
+    // Use SoundPlayer for WAV or ffplay for mp3
+    try {
+      await exec(`powershell -Command "(New-Object System.Media.SoundPlayer '${audioPath}').PlaySync()"`, { timeout: 30000 });
+    } catch {
+      // Last resort: ffplay
+      await exec(`ffplay -nodisp -autoexit "${audioPath}"`, { timeout: 30000 });
     }
   } else {
     throw new Error(`Unsupported platform for audio playback: ${process.platform}`);
@@ -153,23 +177,35 @@ async function checkAudioSetup(): Promise<{
     try {
       const { stdout } = await exec('system_profiler SPAudioDataType 2>/dev/null');
       hasBlackHole = stdout.includes('BlackHole');
-      // Parse device names
       const lines = stdout.split('\n');
       for (const line of lines) {
         const match = line.match(/^\s+(BlackHole|Built-in|External|USB|Aggregate)/);
         if (match) devices.push(line.trim());
       }
     } catch {}
-
-    // Check for sox
     try { await exec('which sox'); hasSox = true; } catch {}
   } else if (platform === 'linux') {
-    // Check PulseAudio virtual sinks
+    // Check PulseAudio / PipeWire virtual sinks
     try {
       const { stdout } = await exec('pactl list short sinks 2>/dev/null');
       devices = stdout.split('\n').filter(Boolean);
-      hasBlackHole = devices.some(d => d.includes('virtual') || d.includes('null'));
+      hasBlackHole = devices.some(d => d.includes('virtual') || d.includes('null') || d.includes('pipewire'));
     } catch {}
+    try { await exec('which sox'); hasSox = true; } catch {}
+  } else if (platform === 'win32') {
+    // Check for VB-CABLE or other virtual audio
+    try {
+      const { stdout } = await exec('powershell -Command "Get-AudioDevice -List 2>$null | Select-Object -ExpandProperty Name"', { timeout: 10000 });
+      devices = stdout.split('\n').map(d => d.trim()).filter(Boolean);
+      hasBlackHole = devices.some(d => /cable|virtual|vb-audio/i.test(d));
+    } catch {
+      // Fallback: check via sox
+      try {
+        const { stdout } = await exec('sox --help 2>&1');
+        if (stdout.includes('waveaudio')) hasSox = true;
+      } catch {}
+    }
+    try { await exec('where sox'); hasSox = true; } catch {}
   }
 
   return { hasBlackHole, hasSox, devices, platform };
@@ -269,7 +305,7 @@ Tips:
               audioFile,
               audioSize: audioBuffer.length,
               playbackError: playErr.message,
-              hint: 'Audio file generated but playback failed. Check that BlackHole is installed (brew install blackhole-2ch) and sox is available (brew install sox). You can also manually play the file.',
+              hint: 'Audio file generated but playback failed. Run the meeting_audio_setup tool to diagnose. You can also manually play the file.',
             });
           }
 
@@ -303,8 +339,19 @@ Tips:
 
           const issues: string[] = [];
           if (!apiKey) issues.push('ElevenLabs API key not configured. Add it in Dashboard → Settings → Integrations (key name: "elevenlabs"), or set ELEVENLABS_API_KEY env var.');
-          if (!setup.hasBlackHole && setup.platform === 'darwin') issues.push('BlackHole virtual audio not found (install: brew install blackhole-2ch)');
-          if (!setup.hasSox && setup.platform === 'darwin') issues.push('sox not found (install: brew install sox) — needed to route audio to BlackHole');
+          if (!setup.hasBlackHole) {
+            if (setup.platform === 'darwin') issues.push('BlackHole virtual audio not found (install: brew install blackhole-2ch)');
+            else if (setup.platform === 'linux') issues.push('No virtual audio sink found (create one: pactl load-module module-null-sink sink_name=virtual)');
+            else if (setup.platform === 'win32') issues.push('No virtual audio cable found (install VB-CABLE from https://vb-audio.com/Cable/ or choco install vb-cable)');
+          }
+          if (!setup.hasSox) {
+            if (setup.platform === 'darwin') issues.push('sox not found (install: brew install sox)');
+            else if (setup.platform === 'linux') issues.push('sox not found (install: sudo apt install sox)');
+            else if (setup.platform === 'win32') issues.push('sox not found (install: choco install sox.portable or winget install sox.sox)');
+          }
+
+          const defaultDevice = setup.platform === 'darwin' ? 'BlackHole 2ch'
+            : setup.platform === 'win32' ? 'CABLE Input (VB-Audio Virtual Cable)' : 'virtual';
 
           return jsonResult({
             action: 'meeting_audio_setup',
@@ -316,13 +363,14 @@ Tips:
             hasSox: setup.hasSox,
             audioDevices: setup.devices,
             configuredVoice: config.voiceName || config.voiceId || 'rachel (default)',
-            configuredDevice: config.audioDevice || 'BlackHole 2ch (default)',
+            configuredDevice: config.audioDevice || `${defaultDevice} (default)`,
             availableVoices: Object.keys(DEFAULT_VOICES),
             setupInstructions: issues.length > 0 ? [
               'macOS: brew install blackhole-2ch sox',
-              'Linux: sudo apt install pulseaudio-utils sox',
-              'Then set ELEVENLABS_API_KEY in your agent environment',
-              'Optionally configure voice and audio device in agent settings',
+              'Linux: sudo apt install pulseaudio-utils sox && pactl load-module module-null-sink sink_name=virtual',
+              'Windows: choco install sox.portable vb-cable (or winget install sox.sox + VB-CABLE from vb-audio.com)',
+              'Then add ElevenLabs API key in Dashboard → Settings → Integrations',
+              'Optionally select a voice in agent profile → Personal Details → Voice',
             ] : ['All good — meeting voice is ready to use.'],
           });
         } catch (e: any) { return errorResult(e.message); }

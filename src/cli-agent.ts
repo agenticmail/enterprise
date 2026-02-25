@@ -29,106 +29,244 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 /**
  * Ensures all system-level packages the agent might ever need are installed.
  * Runs once at startup — idempotent, skips what's already present.
- * Covers: voice/TTS, audio routing, browser, media processing.
+ * Covers: voice/TTS, audio routing, browser, media processing, OCR.
+ *
+ * Supported platforms: macOS (brew), Linux (apt/yum/dnf/pacman/apk), Windows (winget/choco).
  */
 async function ensureSystemDependencies(): Promise<void> {
   const { exec: execCb } = await import('child_process');
   const { promisify } = await import('util');
   const exec = promisify(execCb);
-  const platform = process.platform;
-
-  const has = async (cmd: string): Promise<boolean> => {
-    try { await exec(`which ${cmd}`); return true; } catch { return false; }
-  };
+  const platform = process.platform; // darwin | linux | win32
 
   const installed: string[] = [];
   const failed: string[] = [];
 
-  const install = async (name: string, check: string, brewFormula: string, aptPkg?: string, cask?: boolean) => {
-    if (await has(check)) return;
+  // ─── Platform detection helpers ─────────────────────
+
+  const has = async (cmd: string): Promise<boolean> => {
     try {
-      if (platform === 'darwin') {
-        const cmd = cask ? `brew install --cask ${brewFormula}` : `brew install ${brewFormula}`;
-        await exec(cmd, { timeout: 120_000 });
-      } else if (platform === 'linux') {
-        const pkg = aptPkg || brewFormula;
-        // Try apt first, then brew as fallback
-        try {
-          await exec(`sudo apt-get install -y ${pkg}`, { timeout: 120_000 });
-        } catch {
-          await exec(`brew install ${brewFormula}`, { timeout: 120_000 });
-        }
+      if (platform === 'win32') {
+        await exec(`where ${cmd}`, { timeout: 5000 });
+      } else {
+        await exec(`which ${cmd}`, { timeout: 5000 });
       }
-      installed.push(name);
-    } catch (e: any) {
-      failed.push(`${name}: ${e.message?.split('\n')[0] || 'unknown error'}`);
-    }
+      return true;
+    } catch { return false; }
   };
 
-  const hasCask = async (name: string): Promise<boolean> => {
-    if (platform !== 'darwin') return false;
+  const fileExists = (p: string): boolean => { try { return existsSync(p); } catch { return false; } };
+
+  /** Detect which Linux package manager is available */
+  const detectLinuxPkgManager = async (): Promise<'apt' | 'dnf' | 'yum' | 'pacman' | 'apk' | 'zypper' | null> => {
+    for (const pm of ['apt-get', 'dnf', 'yum', 'pacman', 'apk', 'zypper'] as const) {
+      if (await has(pm)) {
+        const map: Record<string, 'apt' | 'dnf' | 'yum' | 'pacman' | 'apk' | 'zypper'> = {
+          'apt-get': 'apt', 'dnf': 'dnf', 'yum': 'yum', 'pacman': 'pacman', 'apk': 'apk', 'zypper': 'zypper'
+        };
+        return map[pm] || null;
+      }
+    }
+    return null;
+  };
+
+  /** Detect Windows package manager */
+  const detectWinPkgManager = async (): Promise<'winget' | 'choco' | 'scoop' | null> => {
+    for (const pm of ['winget', 'choco', 'scoop'] as const) {
+      if (await has(pm)) return pm;
+    }
+    return null;
+  };
+
+  const hasMacCask = async (name: string): Promise<boolean> => {
     try {
       const { stdout } = await exec(`brew list --cask ${name} 2>/dev/null`);
       return stdout.trim().length > 0;
     } catch { return false; }
   };
 
-  console.log('[deps] Checking system dependencies...');
+  // ─── Cross-platform install function ────────────────
 
-  // ─── Audio / Voice (meeting TTS) ────────────────────
-  await install('sox', 'sox', 'sox', 'sox');
-  await install('SwitchAudioSource', 'SwitchAudioSource', 'switchaudio-osx');
+  type PkgSpec = {
+    name: string;
+    check: string;                       // command or file path to check
+    checkIsFile?: boolean;               // if true, check path existence instead of `which`
+    brew?: string;                       // macOS brew formula
+    brewCask?: string;                   // macOS brew cask
+    apt?: string;                        // Debian/Ubuntu
+    dnf?: string;                        // Fedora/RHEL
+    pacman?: string;                     // Arch
+    apk?: string;                        // Alpine
+    zypper?: string;                     // openSUSE
+    winget?: string;                     // Windows winget ID
+    choco?: string;                      // Windows Chocolatey
+    scoop?: string;                      // Windows Scoop
+    onlyOn?: ('darwin' | 'linux' | 'win32')[];  // restrict to these platforms
+    sudoHint?: string;                   // message if install needs sudo/admin
+  };
 
-  // BlackHole virtual audio (macOS only, cask — needs sudo, may fail silently)
-  if (platform === 'darwin' && !(await hasCask('blackhole-2ch'))) {
+  const installPkg = async (spec: PkgSpec): Promise<void> => {
+    // Skip if restricted to specific platforms
+    if (spec.onlyOn && !spec.onlyOn.includes(platform as any)) return;
+
+    // Check if already present
+    const present = spec.checkIsFile
+      ? fileExists(spec.check)
+      : await has(spec.check);
+    if (present) return;
+
     try {
-      await exec('brew install --cask blackhole-2ch', { timeout: 120_000 });
-      installed.push('BlackHole-2ch');
-    } catch {
-      failed.push('BlackHole-2ch: requires sudo — run `brew install --cask blackhole-2ch` manually');
+      if (platform === 'darwin') {
+        if (spec.brewCask) {
+          if (await hasMacCask(spec.brewCask)) return;
+          await exec(`brew install --cask ${spec.brewCask}`, { timeout: 180_000 });
+        } else if (spec.brew) {
+          await exec(`brew install ${spec.brew}`, { timeout: 120_000 });
+        } else return;
+      } else if (platform === 'linux') {
+        const pm = await detectLinuxPkgManager();
+        if (!pm) { failed.push(`${spec.name}: no package manager found`); return; }
+        const pkg = (spec as any)[pm] || spec.apt; // fallback to apt name
+        if (!pkg) { failed.push(`${spec.name}: no package for ${pm}`); return; }
+        const cmds: Record<string, string> = {
+          apt:    `sudo apt-get update -qq && sudo apt-get install -y -qq ${pkg}`,
+          dnf:    `sudo dnf install -y -q ${pkg}`,
+          yum:    `sudo yum install -y -q ${pkg}`,
+          pacman: `sudo pacman -S --noconfirm ${pkg}`,
+          apk:    `sudo apk add --no-cache ${pkg}`,
+          zypper: `sudo zypper install -y -n ${pkg}`,
+        };
+        await exec(cmds[pm], { timeout: 120_000 });
+      } else if (platform === 'win32') {
+        const pm = await detectWinPkgManager();
+        if (!pm) { failed.push(`${spec.name}: no package manager (install winget, choco, or scoop)`); return; }
+        const pkg = (spec as any)[pm];
+        if (!pkg) { failed.push(`${spec.name}: no package for ${pm}`); return; }
+        const cmds: Record<string, string> = {
+          winget: `winget install --id ${pkg} --accept-source-agreements --accept-package-agreements -e`,
+          choco:  `choco install ${pkg} -y`,
+          scoop:  `scoop install ${pkg}`,
+        };
+        await exec(cmds[pm], { timeout: 180_000 });
+      }
+      installed.push(spec.name);
+    } catch (e: any) {
+      const hint = spec.sudoHint ? ` — ${spec.sudoHint}` : '';
+      failed.push(`${spec.name}: ${e.message?.split('\n')[0] || 'unknown error'}${hint}`);
     }
-  }
+  };
 
-  // PulseAudio tools (Linux only — for audio routing)
-  if (platform === 'linux') {
-    await install('pactl', 'pactl', 'pulseaudio', 'pulseaudio-utils');
-  }
+  console.log(`[deps] Checking system dependencies (${platform})...`);
 
-  // ─── Browser ────────────────────────────────────────
-  const chromePaths = [
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+  // ─── Define all packages ────────────────────────────
+
+  const packages: PkgSpec[] = [
+    // Audio / Voice (meeting TTS)
+    {
+      name: 'sox', check: 'sox',
+      brew: 'sox', apt: 'sox', dnf: 'sox', pacman: 'sox', apk: 'sox', zypper: 'sox',
+      winget: 'sox.sox', choco: 'sox.portable', scoop: 'sox',
+    },
+    {
+      name: 'SwitchAudioSource', check: 'SwitchAudioSource',
+      brew: 'switchaudio-osx',
+      onlyOn: ['darwin'],
+    },
+    {
+      name: 'BlackHole-2ch', check: '/Library/Audio/Plug-Ins/HAL/BlackHole2ch.driver',
+      checkIsFile: true, brewCask: 'blackhole-2ch',
+      onlyOn: ['darwin'],
+      sudoHint: 'run `brew install --cask blackhole-2ch` manually (requires sudo)',
+    },
+    {
+      name: 'PulseAudio', check: 'pactl',
+      apt: 'pulseaudio-utils', dnf: 'pulseaudio-utils', pacman: 'pulseaudio',
+      apk: 'pulseaudio-utils', zypper: 'pulseaudio-utils',
+      onlyOn: ['linux'],
+    },
+    // Windows virtual audio cable
+    {
+      name: 'VB-CABLE', check: 'C:\\Program Files\\VB\\CABLE\\vbcable.exe',
+      checkIsFile: true, choco: 'vb-cable',
+      onlyOn: ['win32'],
+      sudoHint: 'install VB-CABLE from https://vb-audio.com/Cable/ or `choco install vb-cable`',
+    },
+
+    // Browser
+    {
+      name: 'Google Chrome', check: platform === 'darwin'
+        ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        : platform === 'win32'
+          ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+          : '/usr/bin/google-chrome',
+      checkIsFile: true,
+      brewCask: 'google-chrome',
+      apt: 'google-chrome-stable', dnf: 'google-chrome-stable',
+      winget: 'Google.Chrome', choco: 'googlechrome', scoop: 'googlechrome',
+      sudoHint: 'install Chrome from https://www.google.com/chrome/',
+    },
+
+    // Media Processing
+    {
+      name: 'ffmpeg', check: 'ffmpeg',
+      brew: 'ffmpeg', apt: 'ffmpeg', dnf: 'ffmpeg', pacman: 'ffmpeg', apk: 'ffmpeg', zypper: 'ffmpeg',
+      winget: 'Gyan.FFmpeg', choco: 'ffmpeg', scoop: 'ffmpeg',
+    },
+
+    // OCR
+    {
+      name: 'tesseract', check: 'tesseract',
+      brew: 'tesseract', apt: 'tesseract-ocr', dnf: 'tesseract', pacman: 'tesseract', apk: 'tesseract-ocr', zypper: 'tesseract-ocr',
+      winget: 'UB-Mannheim.TesseractOCR', choco: 'tesseract', scoop: 'tesseract',
+    },
+
+    // NirCmd (Windows audio control — like SwitchAudioSource for Windows)
+    {
+      name: 'nircmd', check: 'nircmd',
+      choco: 'nircmd', scoop: 'nircmd',
+      onlyOn: ['win32'],
+    },
+
+    // SoX Windows (some winget/choco versions don't put sox on PATH)
+    // Already handled above via cross-platform sox entry
   ];
-  const hasChrome = chromePaths.some(p => { try { return existsSync(p); } catch { return false; } });
-  if (!hasChrome && platform === 'darwin') {
-    try {
-      await exec('brew install --cask google-chrome', { timeout: 180_000 });
-      installed.push('Google Chrome');
-    } catch {
-      failed.push('Google Chrome: requires sudo — run `brew install --cask google-chrome` manually');
-    }
+
+  // Install all packages
+  for (const pkg of packages) {
+    await installPkg(pkg);
   }
 
-  // ─── Media Processing ──────────────────────────────
-  await install('ffmpeg', 'ffmpeg', 'ffmpeg', 'ffmpeg');
-  await install('ffprobe', 'ffprobe', 'ffmpeg', 'ffmpeg'); // comes with ffmpeg
-
-  // ─── OCR ───────────────────────────────────────────
-  await install('tesseract', 'tesseract', 'tesseract', 'tesseract-ocr');
-
-  // ─── Playwright browsers (for Meet, browser tools) ─
+  // ─── Playwright browsers (all platforms) ────────────
   try {
-    const pwPath = require.resolve('playwright-core');
-    if (pwPath) {
-      const { stdout } = await exec('npx playwright install chromium --with-deps 2>&1', { timeout: 300_000 });
-      if (!installed.includes('playwright-chromium')) installed.push('playwright-chromium');
-    }
-  } catch {}
+    await exec('npx playwright install chromium --with-deps 2>&1', { timeout: 300_000 });
+    installed.push('playwright-chromium');
+  } catch (e: any) {
+    // Not fatal — Playwright may already be installed or not needed
+    try {
+      // Check if already installed
+      await exec('npx playwright install chromium 2>&1', { timeout: 120_000 });
+    } catch {}
+  }
+
+  // ─── Linux: add Chrome repo if apt-based and Chrome missing ─
+  if (platform === 'linux' && !fileExists('/usr/bin/google-chrome') && !fileExists('/usr/bin/google-chrome-stable')) {
+    try {
+      const pm = await detectLinuxPkgManager();
+      if (pm === 'apt') {
+        await exec(`
+          wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add - 2>/dev/null;
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list;
+          sudo apt-get update -qq && sudo apt-get install -y -qq google-chrome-stable
+        `, { timeout: 120_000 });
+        installed.push('Google Chrome (apt repo)');
+      }
+    } catch {}
+  }
 
   // ─── Summary ───────────────────────────────────────
   if (installed.length) console.log(`[deps] Installed: ${installed.join(', ')}`);
   if (failed.length) console.warn(`[deps] Could not auto-install: ${failed.join(' | ')}`);
-  if (!installed.length && !failed.length) console.log('[deps] All dependencies already installed');
+  if (!installed.length && !failed.length) console.log('[deps] All dependencies present');
 }
 
 export async function runAgent(_args: string[]) {
