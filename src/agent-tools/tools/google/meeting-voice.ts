@@ -81,14 +81,17 @@ class VoiceCapabilityManager {
     if (!setup.hasBlackHole) issues.push('No virtual audio device');
     if (!setup.hasSox) issues.push('sox not installed');
 
-    // Quick connectivity check: ping ElevenLabs (only if we have a key)
+    // Quick connectivity check: ping ElevenLabs using /voices (works with any valid key)
     if (apiKey) {
       try {
-        const res = await fetch(`${ELEVENLABS_BASE}/user`, {
+        const res = await fetch(`${ELEVENLABS_BASE}/voices?page_size=1`, {
           headers: { 'xi-api-key': apiKey },
           signal: AbortSignal.timeout(5000),
         });
-        if (!res.ok) issues.push(`ElevenLabs API error: ${res.status}`);
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          issues.push(`ElevenLabs API error: ${res.status} — ${body.slice(0, 100)}`);
+        }
       } catch (e: any) {
         issues.push(`ElevenLabs unreachable: ${e.message}`);
       }
@@ -363,16 +366,62 @@ async function checkAudioSetup(): Promise<{
   let devices: string[] = [];
 
   if (platform === 'darwin') {
-    // Check for BlackHole
+    // Check for BlackHole — multiple detection methods
     try {
       const { stdout } = await exec('system_profiler SPAudioDataType 2>/dev/null');
-      hasBlackHole = stdout.includes('BlackHole');
+      if (stdout.includes('BlackHole')) hasBlackHole = true;
       const lines = stdout.split('\n');
       for (const line of lines) {
-        const match = line.match(/^\s+(BlackHole|Built-in|External|USB|Aggregate)/);
+        const match = line.match(/^\s+(BlackHole|Built-in|External|USB|Aggregate|DELL|Mac mini)/);
         if (match) devices.push(line.trim());
       }
     } catch {}
+    // Fallback: check HAL plugin directory (works even if coreaudiod hasn't loaded it yet)
+    if (!hasBlackHole) {
+      try {
+        const { existsSync } = await import('fs');
+        if (existsSync('/Library/Audio/Plug-Ins/HAL/BlackHole2ch.driver')) {
+          hasBlackHole = true;
+          devices.push('BlackHole 2ch (driver installed, may need coreaudiod restart)');
+        }
+      } catch {}
+    }
+    // Fallback: check SwitchAudioSource
+    if (!hasBlackHole) {
+      try {
+        const { stdout } = await exec('SwitchAudioSource -a -t output 2>/dev/null');
+        if (stdout.includes('BlackHole')) {
+          hasBlackHole = true;
+          devices.push('BlackHole 2ch');
+        }
+      } catch {}
+    }
+    // If driver file exists but audio system doesn't see it, try to restart coreaudiod
+    if (!hasBlackHole) {
+      try {
+        const { existsSync } = await import('fs');
+        if (existsSync('/Library/Audio/Plug-Ins/HAL/BlackHole2ch.driver')) {
+          console.log('[audio] BlackHole driver installed but not loaded — attempting coreaudiod restart...');
+          try {
+            await exec('sudo launchctl kickstart -kp system/com.apple.audio.coreaudiod 2>/dev/null', { timeout: 10_000 });
+            // Wait for audio system to reinitialize
+            await new Promise(r => setTimeout(r, 3000));
+            // Re-check
+            try {
+              const { stdout } = await exec('SwitchAudioSource -a -t output 2>/dev/null');
+              if (stdout.includes('BlackHole')) {
+                hasBlackHole = true;
+                devices.push('BlackHole 2ch (loaded after coreaudiod restart)');
+                console.log('[audio] ✅ BlackHole now available after coreaudiod restart');
+              }
+            } catch {}
+          } catch {
+            // sudo not available — just note the driver is there
+            console.warn('[audio] BlackHole driver exists but coreaudiod restart needs sudo. Run: sudo launchctl kickstart -kp system/com.apple.audio.coreaudiod');
+          }
+        }
+      } catch {}
+    }
     try { await exec('which sox'); hasSox = true; } catch {}
   } else if (platform === 'linux') {
     // Check PulseAudio / PipeWire virtual sinks
