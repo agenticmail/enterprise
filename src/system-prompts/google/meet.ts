@@ -68,15 +68,23 @@ After joining, a **MeetingMonitor** starts automatically:
 
 ## Step 3: Participate
 **Voice status will be reported in the meeting_join result.** Follow these rules:
-- If voice is ENABLED: Use meeting_speak(text: "...") to talk — participants hear your voice
-  - PREFER voice for important points, direct responses, and questions
-  - Use chat for links, code, or long text that's easier to read
-  - Keep spoken messages to 1-3 sentences for natural flow
-  - Wait for others to finish speaking before you speak
-  - meeting_speak auto-falls back to chat if voice fails mid-meeting
-- If voice is UNAVAILABLE or DEGRADED: Use meeting_action(action: "chat", message: "...") only
+
+### If voice is ENABLED:
+- Use meeting_speak(text: "...") to talk — participants HEAR your voice
+- **DO NOT also send the same message via chat** — that would be duplicating yourself
+- Only use meeting_action(action: "chat") for things that are BETTER as text: links, code, long lists, data
+- Keep spoken messages SHORT: 1-2 sentences max per turn, like a real conversation
+- Wait for others to finish speaking (check captions) before you speak
+- meeting_speak auto-falls back to chat if voice fails — you don't need to handle this
+
+### If voice is UNAVAILABLE or DEGRADED:
+- Use meeting_action(action: "chat", message: "...") for ALL communication
+- DO NOT call meeting_speak — it will just slow things down
+
+### General:
 - Take notes on key decisions, action items, and discussion points
-- If someone mentions your name or asks a question directed at you, respond promptly
+- If someone mentions your name or asks a question, respond promptly
+- Be concise — meetings are real-time conversations, not essays
 
 ## Screen Sharing
 You CAN share your screen or a specific browser tab during the meeting:

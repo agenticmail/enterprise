@@ -241,13 +241,117 @@ function delay(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 /**
  * Generate speech audio from text using ElevenLabs
  */
+/**
+ * Generate speech and return full buffer (used for file save).
+ */
 async function generateSpeech(
   apiKey: string,
   text: string,
   voiceId: string,
   options?: { stability?: number; similarity?: number; model?: string }
 ): Promise<Buffer> {
-  const model = options?.model || 'eleven_turbo_v2_5'; // Fastest model for real-time
+  const res = await _fetchTTSStream(apiKey, text, voiceId, options);
+  const chunks: Uint8Array[] = [];
+  const reader = res.body!.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Stream TTS directly to audio device — near-zero latency.
+ * Pipes ElevenLabs stream → sox stdin → virtual audio device.
+ * Audio starts playing within ~200ms of first chunk.
+ */
+async function streamSpeechToDevice(
+  apiKey: string,
+  text: string,
+  voiceId: string,
+  device: string,
+  options?: { stability?: number; similarity?: number; model?: string }
+): Promise<{ audioSize: number; durationMs: number }> {
+  const { spawn } = await import('child_process');
+  const platform = process.platform;
+  const startTime = Date.now();
+
+  // Start sox/player process that reads from stdin
+  let playerArgs: string[];
+  let playerCmd: string;
+
+  if (platform === 'darwin') {
+    // sox reads mp3 from stdin, outputs to coreaudio device
+    playerCmd = 'sox';
+    playerArgs = ['-t', 'mp3', '-', '-t', 'coreaudio', device];
+  } else if (platform === 'linux') {
+    // paplay reads from stdin
+    playerCmd = 'paplay';
+    playerArgs = device ? ['--device=' + device, '--raw'] : ['--raw'];
+  } else if (platform === 'win32') {
+    playerCmd = 'sox';
+    playerArgs = ['-t', 'mp3', '-', '-t', 'waveaudio', device];
+  } else {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+
+  const player = spawn(playerCmd, playerArgs, {
+    stdio: ['pipe', 'ignore', 'pipe'],
+    timeout: 60_000,
+  });
+
+  // Fetch TTS stream
+  const res = await _fetchTTSStream(apiKey, text, voiceId, options);
+  const reader = res.body!.getReader();
+  let totalBytes = 0;
+
+  // Pipe stream chunks directly to sox stdin
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.length;
+      const canWrite = player.stdin!.write(Buffer.from(value));
+      if (!canWrite) {
+        // Backpressure — wait for drain
+        await new Promise<void>(resolve => player.stdin!.once('drain', resolve));
+      }
+    }
+    player.stdin!.end();
+  } catch (e: any) {
+    player.kill();
+    throw new Error(`Stream pipe failed: ${e.message}`);
+  }
+
+  // Wait for playback to finish
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      player.kill();
+      reject(new Error('Playback timed out'));
+    }, 60_000);
+    player.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code === 0 || code === null) resolve();
+      else reject(new Error(`Player exited with code ${code}`));
+    });
+    player.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+  });
+
+  return { audioSize: totalBytes, durationMs: Date.now() - startTime };
+}
+
+/** Internal: fetch the ElevenLabs TTS streaming response */
+async function _fetchTTSStream(
+  apiKey: string,
+  text: string,
+  voiceId: string,
+  options?: { stability?: number; similarity?: number; model?: string }
+): Promise<Response> {
+  const model = options?.model || 'eleven_turbo_v2_5';
   const url = `${ELEVENLABS_BASE}/text-to-speech/${voiceId}/stream`;
 
   const res = await fetch(url, {
@@ -266,7 +370,8 @@ async function generateSpeech(
         style: 0.0,
         use_speaker_boost: true,
       },
-      output_format: 'mp3_44100_128', // High quality MP3
+      output_format: 'mp3_44100_128',
+      optimize_streaming_latency: 3, // Max streaming optimization
     }),
   });
 
@@ -275,14 +380,7 @@ async function generateSpeech(
     throw new Error(`ElevenLabs API ${res.status}: ${err}`);
   }
 
-  const chunks: Uint8Array[] = [];
-  const reader = res.body!.getReader();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks);
+  return res;
 }
 
 /**
@@ -476,14 +574,14 @@ export function createMeetingVoiceTools(
     // ─── Speak in Meeting ──────────────────────────────
     {
       name: 'meeting_speak',
-      description: `Speak in a meeting by converting text to speech and playing it through the virtual microphone. The meeting participants will hear your voice. Use this after joining a meeting with meeting_join.
+      description: `Speak in a meeting using your voice. Participants will HEAR you through the virtual microphone. Audio streams in real-time (near-zero latency). Auto-falls back to meeting chat if voice fails.
 
-Requirements: ElevenLabs API key + BlackHole virtual audio driver (macOS) or PulseAudio virtual sink (Linux).
+IMPORTANT: When meeting_speak succeeds (status: "spoken"), DO NOT also send the same message via chat. That would duplicate your message. Only use meeting chat for links, code, or data that's better as text.
 
 Tips:
-- Keep messages concise (1-3 sentences) for natural conversation flow
-- Wait for others to finish speaking (check captions) before speaking
-- Use a warm, professional tone appropriate for the meeting context`,
+- Keep messages SHORT: 1-2 sentences per turn, like a real conversation
+- Wait for others to finish (check captions) before speaking
+- For long content, break it into multiple short meeting_speak calls`,
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -563,52 +661,52 @@ Tips:
             }
           }
 
-          // Generate speech (with timeout)
-          let audioBuffer: Buffer;
-          try {
-            const timeoutMs = Math.max(10_000, text.length * 100); // ~100ms per char, min 10s
-            audioBuffer = await Promise.race([
-              generateSpeech(apiKey, text, voiceId, { model: params.model }),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('TTS generation timed out')), timeoutMs)
-              ),
-            ]);
-          } catch (ttsErr: any) {
-            return fallbackToChat(`TTS failed: ${ttsErr.message}`);
-          }
-
-          // Save to temp file
-          const audioDir = path.join(os.tmpdir(), 'agenticmail-voice');
-          await fs.mkdir(audioDir, { recursive: true });
-          const audioFile = path.join(audioDir, `speak-${Date.now()}.mp3`);
-          await fs.writeFile(audioFile, audioBuffer);
-
-          // Play through virtual audio device (with timeout)
+          // ─── Stream TTS directly to audio device (near-zero latency) ───
           const device = config.audioDevice || status.audioDevice || 'BlackHole 2ch';
           try {
-            await Promise.race([
-              playAudioToDevice(audioFile, device),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Audio playback timed out')), 30_000)
-              ),
-            ]);
-          } catch (playErr: any) {
-            return fallbackToChat(`Playback failed: ${playErr.message}`);
-          }
+            const result = await streamSpeechToDevice(apiKey, text, voiceId, device, {
+              model: params.model,
+            });
 
-          // ─── Success! ──────────────────────────────────
-          vcm.recordSuccess(agentId);
-          return jsonResult({
-            action: 'meeting_speak',
-            status: 'spoken',
-            method: 'voice',
-            text,
-            voiceId,
-            voiceName: config.voiceName || Object.entries(DEFAULT_VOICES).find(([, id]) => id === voiceId)?.[0] || 'custom',
-            audioFile,
-            audioSize: audioBuffer.length,
-            durationEstimate: Math.round(text.length / 15) + 's',
-          });
+            // ─── Success! ──────────────────────────────────
+            vcm.recordSuccess(agentId);
+            return jsonResult({
+              action: 'meeting_speak',
+              status: 'spoken',
+              method: 'voice',
+              text,
+              voiceId,
+              voiceName: config.voiceName || Object.entries(DEFAULT_VOICES).find(([, id]) => id === voiceId)?.[0] || 'custom',
+              audioSize: result.audioSize,
+              durationMs: result.durationMs,
+              streaming: true,
+            });
+          } catch (streamErr: any) {
+            // Streaming failed — try file-based fallback before chat
+            console.warn(`[voice:${agentId}] Streaming failed (${streamErr.message}), trying file-based playback...`);
+            try {
+              const audioBuffer = await generateSpeech(apiKey, text, voiceId, { model: params.model });
+              const audioDir = path.join(os.tmpdir(), 'agenticmail-voice');
+              await fs.mkdir(audioDir, { recursive: true });
+              const audioFile = path.join(audioDir, `speak-${Date.now()}.mp3`);
+              await fs.writeFile(audioFile, audioBuffer);
+              await playAudioToDevice(audioFile, device);
+              vcm.recordSuccess(agentId);
+              return jsonResult({
+                action: 'meeting_speak',
+                status: 'spoken',
+                method: 'voice',
+                text,
+                voiceId,
+                voiceName: config.voiceName || Object.entries(DEFAULT_VOICES).find(([, id]) => id === voiceId)?.[0] || 'custom',
+                audioFile,
+                audioSize: audioBuffer.length,
+                streaming: false,
+              });
+            } catch (fileErr: any) {
+              return fallbackToChat(`Voice failed: ${streamErr.message}, file fallback: ${fileErr.message}`);
+            }
+          }
         } catch (e: any) { return errorResult(e.message); }
       },
     },
