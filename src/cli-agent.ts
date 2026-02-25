@@ -22,6 +22,115 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
+// ════════════════════════════════════════════════════════════
+// SYSTEM DEPENDENCY AUTO-INSTALLER
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Ensures all system-level packages the agent might ever need are installed.
+ * Runs once at startup — idempotent, skips what's already present.
+ * Covers: voice/TTS, audio routing, browser, media processing.
+ */
+async function ensureSystemDependencies(): Promise<void> {
+  const { exec: execCb } = await import('child_process');
+  const { promisify } = await import('util');
+  const exec = promisify(execCb);
+  const platform = process.platform;
+
+  const has = async (cmd: string): Promise<boolean> => {
+    try { await exec(`which ${cmd}`); return true; } catch { return false; }
+  };
+
+  const installed: string[] = [];
+  const failed: string[] = [];
+
+  const install = async (name: string, check: string, brewFormula: string, aptPkg?: string, cask?: boolean) => {
+    if (await has(check)) return;
+    try {
+      if (platform === 'darwin') {
+        const cmd = cask ? `brew install --cask ${brewFormula}` : `brew install ${brewFormula}`;
+        await exec(cmd, { timeout: 120_000 });
+      } else if (platform === 'linux') {
+        const pkg = aptPkg || brewFormula;
+        // Try apt first, then brew as fallback
+        try {
+          await exec(`sudo apt-get install -y ${pkg}`, { timeout: 120_000 });
+        } catch {
+          await exec(`brew install ${brewFormula}`, { timeout: 120_000 });
+        }
+      }
+      installed.push(name);
+    } catch (e: any) {
+      failed.push(`${name}: ${e.message?.split('\n')[0] || 'unknown error'}`);
+    }
+  };
+
+  const hasCask = async (name: string): Promise<boolean> => {
+    if (platform !== 'darwin') return false;
+    try {
+      const { stdout } = await exec(`brew list --cask ${name} 2>/dev/null`);
+      return stdout.trim().length > 0;
+    } catch { return false; }
+  };
+
+  console.log('[deps] Checking system dependencies...');
+
+  // ─── Audio / Voice (meeting TTS) ────────────────────
+  await install('sox', 'sox', 'sox', 'sox');
+  await install('SwitchAudioSource', 'SwitchAudioSource', 'switchaudio-osx');
+
+  // BlackHole virtual audio (macOS only, cask — needs sudo, may fail silently)
+  if (platform === 'darwin' && !(await hasCask('blackhole-2ch'))) {
+    try {
+      await exec('brew install --cask blackhole-2ch', { timeout: 120_000 });
+      installed.push('BlackHole-2ch');
+    } catch {
+      failed.push('BlackHole-2ch: requires sudo — run `brew install --cask blackhole-2ch` manually');
+    }
+  }
+
+  // PulseAudio tools (Linux only — for audio routing)
+  if (platform === 'linux') {
+    await install('pactl', 'pactl', 'pulseaudio', 'pulseaudio-utils');
+  }
+
+  // ─── Browser ────────────────────────────────────────
+  const chromePaths = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+  ];
+  const hasChrome = chromePaths.some(p => { try { return existsSync(p); } catch { return false; } });
+  if (!hasChrome && platform === 'darwin') {
+    try {
+      await exec('brew install --cask google-chrome', { timeout: 180_000 });
+      installed.push('Google Chrome');
+    } catch {
+      failed.push('Google Chrome: requires sudo — run `brew install --cask google-chrome` manually');
+    }
+  }
+
+  // ─── Media Processing ──────────────────────────────
+  await install('ffmpeg', 'ffmpeg', 'ffmpeg', 'ffmpeg');
+  await install('ffprobe', 'ffprobe', 'ffmpeg', 'ffmpeg'); // comes with ffmpeg
+
+  // ─── OCR ───────────────────────────────────────────
+  await install('tesseract', 'tesseract', 'tesseract', 'tesseract-ocr');
+
+  // ─── Playwright browsers (for Meet, browser tools) ─
+  try {
+    const pwPath = require.resolve('playwright-core');
+    if (pwPath) {
+      const { stdout } = await exec('npx playwright install chromium --with-deps 2>&1', { timeout: 300_000 });
+      if (!installed.includes('playwright-chromium')) installed.push('playwright-chromium');
+    }
+  } catch {}
+
+  // ─── Summary ───────────────────────────────────────
+  if (installed.length) console.log(`[deps] Installed: ${installed.join(', ')}`);
+  if (failed.length) console.warn(`[deps] Could not auto-install: ${failed.join(' | ')}`);
+  if (!installed.length && !failed.length) console.log('[deps] All dependencies already installed');
+}
+
 export async function runAgent(_args: string[]) {
   // Catch unhandled errors so they show in logs
   process.on('uncaughtException', (err) => { console.error('[FATAL] Uncaught exception:', err.message, err.stack?.slice(0, 500)); });
@@ -647,21 +756,8 @@ export async function runAgent(_args: string[]) {
     console.log(`   Health: http://localhost:${info.port}/health`);
     console.log(`   Runtime: http://localhost:${info.port}/api/runtime`);
 
-    // Check browser capabilities
-    import('node:fs').then(fsMod => {
-      const chromePaths = [
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      ];
-      const hasChrome = chromePaths.some(p => { try { return fsMod.existsSync(p); } catch { return false; } });
-      if (hasChrome) {
-        console.log('   Browser: ✅ Native Chrome available (optional — Playwright Chromium also works for Meet)');
-      } else {
-        console.log('   Browser: Playwright Chromium available (Google Meet ready)');
-        console.warn('   Install: brew install --cask google-chrome (macOS) or https://www.google.com/chrome/');
-      }
-    }).catch(() => {});
+    // Auto-install all system dependencies (voice, browser, audio, etc.)
+    ensureSystemDependencies().catch((e) => console.warn('[deps] Dependency check failed:', e.message));
 
     console.log('');
   });
