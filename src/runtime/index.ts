@@ -184,6 +184,15 @@ export class AgentRuntime {
         if (derived.length) base.enabledGoogleServices = derived;
       }
     }
+    // Pass vault for MCP skill bridge (Slack, GitHub, Jira, etc.)
+    if (this.config.vault) {
+      base.vault = this.config.vault;
+    }
+    // Google Maps API key resolver (from vault integration)
+    if (this.config.getIntegrationKey) {
+      const getKey = this.config.getIntegrationKey;
+      base.mapsApiKeyResolver = () => getKey('google-maps');
+    }
     return base;
   }
 

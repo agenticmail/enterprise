@@ -190,6 +190,16 @@ export async function runAgent(_args: string[]) {
       return m?.config || null;
     },
     agentMemoryManager: memoryManager,
+    vault,
+    getIntegrationKey: async (skillId: string, orgId?: string) => {
+      try {
+        const entries = await vault.getSecretsByOrg(orgId || 'default', 'skill_credential');
+        const entry = entries.find(e => e.name === `skill:${skillId}:access_token`);
+        if (!entry) return null;
+        const { decrypted } = await vault.getSecret(entry.id) || {};
+        return decrypted || null;
+      } catch { return null; }
+    },
     resumeOnStartup: false, // Disabled: zombie sessions exhaust Supabase pool on restart
   });
 

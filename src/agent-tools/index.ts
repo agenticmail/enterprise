@@ -359,12 +359,28 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     }
   }
 
+  // MCP skill adapter bridge — loads tools for integrations with vault credentials
+  var mcpBridgeTools: AnyAgentTool[] = [];
+  if ((options as any)?.vault) {
+    try {
+      var { createMcpBridgeTools } = await import('./tools/mcp-bridge.js');
+      mcpBridgeTools = await createMcpBridgeTools({
+        vault: (options as any).vault,
+        orgId: (options as any)?.orgId,
+        agentId: options?.agentId,
+      });
+    } catch (e: any) {
+      console.warn(`[tools] MCP bridge load failed: ${e.message}`);
+    }
+  }
+
   var enabledTools = rawTools
     .filter(function(t): t is AnyAgentTool { return t !== null; })
     .concat(enterpriseTools)
     .concat(agenticmailTools)
     .concat(workspaceTools)
-    .concat(enterpriseBrowserTools);
+    .concat(enterpriseBrowserTools)
+    .concat(mcpBridgeTools);
 
   // Wrap with middleware if configured
   if (options?.middleware) {

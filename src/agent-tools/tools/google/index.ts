@@ -17,6 +17,7 @@ export { createGoogleTasksTools } from './tasks.js';
 export { createGoogleChatTools } from './chat.js';
 export { createGoogleSlidesTools } from './slides.js';
 export { createGoogleFormsTools } from './forms.js';
+export { createGoogleMapsTools } from './maps.js';
 
 import type { AnyAgentTool, ToolCreationOptions } from '../../types.js';
 import type { TokenProvider } from '../oauth-token-provider.js';
@@ -33,6 +34,7 @@ import { createGoogleTasksTools } from './tasks.js';
 import { createGoogleChatTools } from './chat.js';
 import { createGoogleSlidesTools } from './slides.js';
 import { createGoogleFormsTools } from './forms.js';
+import { createGoogleMapsTools, type GoogleMapsConfig } from './maps.js';
 
 export interface GoogleToolsConfig {
   tokenProvider: TokenProvider;
@@ -72,5 +74,12 @@ export function createAllGoogleTools(config: GoogleToolsConfig, options?: ToolCr
   if (all || has('chat'))             tools.push(...createGoogleChatTools(config, options));
   if (all || has('slides'))           tools.push(...createGoogleSlidesTools(config, options));
   if (all || has('forms'))            tools.push(...createGoogleFormsTools(config, options));
+  if (all || core || has('maps')) {
+    const mapsKeyResolver = (options as any)?.mapsApiKeyResolver as (() => Promise<string> | string) | undefined;
+    if (mapsKeyResolver) {
+      tools.push(...createGoogleMapsTools({ getApiKey: mapsKeyResolver }));
+    }
+    // If no resolver, skip Maps tools (key not configured)
+  }
   return tools;
 }

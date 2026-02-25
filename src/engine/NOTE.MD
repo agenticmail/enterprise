@@ -46,4 +46,7 @@ All done. Here's what I built:
                                                                                                                                                  
  Ran pm2 save after stopping Fola — this persists the stopped state to the PM2 dump file. The dashboard's stop button only updates DB state but  
  doesn't call pm2 stop. That's a separate fix needed in the deployer (the local stop handler is a no-op).                                        
- connected | idle                                                                                                    
+ connected | idle                 
+
+
+ PLACESAPI = AIzaSyA4ei8Hkr9vMhweaqwLfdd4rdSKCKiK7is                                                                                   

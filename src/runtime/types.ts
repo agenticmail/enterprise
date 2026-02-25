@@ -132,6 +132,10 @@ export interface RuntimeConfig {
   onTokenRefresh?: (agentId: string, tokens: any) => void;
   /** Get full agent config (for enabledGoogleServices, etc.) */
   getAgentConfig?: (agentId: string) => any;
+  /** Resolve an integration API key from the vault by skill ID (e.g. 'google-maps') */
+  getIntegrationKey?: (skillId: string, orgId?: string) => Promise<string | null>;
+  /** SecureVault instance for MCP skill credential resolution */
+  vault?: any;
   /** Resume active sessions on startup (default: true) */
   resumeOnStartup?: boolean;
   /** Heartbeat interval in ms (default: 30000 = 30s) */

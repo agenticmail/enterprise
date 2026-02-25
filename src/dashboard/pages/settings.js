@@ -773,11 +773,9 @@ var INTEGRATIONS = [
   { skillId: 'slack-notifications', name: 'Slack', desc: 'Send and receive messages in Slack workspaces', authType: 'oauth', provider: 'slack' },
   { skillId: 'github-repos', name: 'GitHub', desc: 'PR reviews, issue management, CI/CD automation', authType: 'oauth', provider: 'github' },
   { skillId: 'discord-communication', name: 'Discord', desc: 'Bot integration for Discord servers', authType: 'token', tokenLabel: 'Bot Token' },
-  { skillId: 'microsoft-teams', name: 'Microsoft Teams', desc: 'Chat and collaboration via Microsoft 365', authType: 'oauth', provider: 'microsoft' },
   { skillId: 'jira-project-management', name: 'Jira', desc: 'Issue tracking and project management', authType: 'oauth', provider: 'atlassian' },
   { skillId: 'notion', name: 'Notion', desc: 'Knowledge base and documentation', authType: 'oauth', provider: 'notion' },
   { skillId: 'salesforce-crm', name: 'Salesforce', desc: 'CRM integration for sales and support agents', authType: 'oauth', provider: 'salesforce' },
-  { skillId: 'google-drive', name: 'Google Drive', desc: 'File storage and document collaboration', authType: 'oauth', provider: 'google' },
   { skillId: 'hubspot-crm', name: 'HubSpot', desc: 'Marketing, sales, and CRM platform', authType: 'oauth', provider: 'hubspot' },
   { skillId: 'zoom-meetings', name: 'Zoom', desc: 'Video meetings and webinars', authType: 'oauth', provider: 'zoom' },
   { skillId: 'dropbox-storage', name: 'Dropbox', desc: 'Cloud file storage and sharing', authType: 'oauth', provider: 'dropbox' },
@@ -786,6 +784,7 @@ var INTEGRATIONS = [
   { skillId: 'asana-tasks', name: 'Asana', desc: 'Task and project management', authType: 'oauth', provider: 'asana' },
   { skillId: 'confluence-wiki', name: 'Confluence', desc: 'Team wiki and documentation', authType: 'oauth', provider: 'atlassian' },
   { skillId: 'airtable-databases', name: 'Airtable', desc: 'Spreadsheet-database for structured data', authType: 'token', tokenLabel: 'API Key' },
+  { skillId: 'google-maps', name: 'Google Maps', desc: 'Places search, directions, distances, geocoding, and maps', authType: 'token', tokenLabel: 'Maps API Key' },
 ];
 
 function IntegrationsTab(props) {
