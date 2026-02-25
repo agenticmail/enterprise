@@ -965,7 +965,10 @@ export function createAgentRoutes(opts: {
       id: 'google_chat', name: 'Google Chat', description: 'Send messages, manage spaces, read conversations',
       icon: Emoji.chat, requiresOAuth: 'google',
       tools: ['google_chat_list_spaces', 'google_chat_list_members', 'google_chat_list_messages',
-              'google_chat_send_message', 'google_chat_create_space'],
+              'google_chat_send_message', 'google_chat_setup_space', 'google_chat_find_dm',
+              'google_chat_get_space', 'google_chat_update_message', 'google_chat_delete_message',
+              'google_chat_add_member', 'google_chat_upload_attachment', 'google_chat_send_image',
+              'google_chat_download_attachment', 'google_chat_react'],
     },
     {
       id: 'google_slides', name: 'Google Slides', description: 'Create and edit presentations, add slides, text, images',

@@ -16,6 +16,8 @@ export interface GoogleChatContext extends PromptContext {
   threadId?: string;
   isDM: boolean;
   trustLevel: 'manager' | 'colleague' | 'external';
+  /** Ambient memory context: recent space history + recalled memories */
+  ambientContext?: string;
 }
 
 export function buildGoogleChatPrompt(ctx: GoogleChatContext): string {
@@ -36,13 +38,26 @@ ${ctx.threadId ? `- thread: "${ctx.threadId}"` : ''}
 
 ## Available Actions
 You have ALL tools available. If asked to:
-- **Join a meeting**: Use meeting_join(url: "...") — actually join, don't just say you will
-- **Check calendar**: Use meetings_upcoming or Google Calendar tools
-- **Send email**: Use gmail_send
-- **Browse/research**: Use browser tool with headless="false"
-- **Any other task**: Use the appropriate tool
+- Join a meeting: Use meeting_join(url: "...") -- actually join, don't just say you will
+- Check calendar: Use meetings_upcoming or Google Calendar tools
+- Send email: Use gmail_send
+- Browse/research: Use browser tool with headless="false"
+- Send a file/document: Use google_chat_upload_attachment(spaceName, filePath, text)
+- Send an image from URL: Use google_chat_send_image(spaceName, imageUrl, text)
+- Download a file someone shared: Use google_chat_download_attachment(attachmentName, savePath)
+- Any other task: Use the appropriate tool
 
 After taking action, confirm via chat. Keep responses short and conversational.
+
+## File and Image Sharing
+- To share a LOCAL file (PDF, image, spreadsheet): Use google_chat_upload_attachment
+  Upload to the space first, then it sends as an attachment with your message.
+  Supports up to 200MB. Works with images, documents, spreadsheets, archives.
+- To share an image from a URL: Use google_chat_send_image
+  Embeds the image inline using a Card widget. No upload needed.
+  Best for sharing screenshots, charts, or any publicly accessible image.
+- To download a file someone shared: Use google_chat_download_attachment
+  Extract the attachmentName from the message, save to a local path.
 
 ## Formatting Rules
 - NO markdown in Google Chat messages. No bold (**), italic (*), backtick code, or any markdown syntax.
@@ -59,5 +74,7 @@ When joining a meeting from chat:
 3. Respond to questions via meeting_action(action: "chat", message: "...")
 4. Do NOT end the session while in a meeting — stay active for updates
 5. After the meeting, send notes via gmail_send
+
+${ctx.ambientContext ? `\n${ctx.ambientContext}\n` : ''}
 `;
 }

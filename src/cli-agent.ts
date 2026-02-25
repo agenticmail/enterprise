@@ -352,6 +352,53 @@ export async function runAgent(_args: string[]) {
       const agentName = agent.display_name || agent.name || 'Agent';
       const identity = agent.config?.identity;
 
+      // ─── Ambient Memory: fetch space context + recall relevant memories ───
+      let ambientContext = '';
+      try {
+        const { AmbientMemory } = await import('./engine/ambient-memory.js');
+        const ambient = new AmbientMemory({
+          agentId: AGENT_ID,
+          memoryManager: memoryManager,
+          engineDb,
+        });
+        const emailCfg = (config as any).emailConfig || {};
+        const getToken = async () => {
+          // Refresh token if needed
+          let token = emailCfg.oauthAccessToken;
+          if (emailCfg.oauthTokenExpiry && Date.now() > new Date(emailCfg.oauthTokenExpiry).getTime() - 60_000) {
+            try {
+              const res = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                  grant_type: 'refresh_token',
+                  refresh_token: emailCfg.oauthRefreshToken,
+                  client_id: emailCfg.oauthClientId,
+                  client_secret: emailCfg.oauthClientSecret,
+                }),
+              });
+              const data = await res.json() as any;
+              if (data.access_token) {
+                token = data.access_token;
+                emailCfg.oauthAccessToken = token;
+              }
+            } catch {}
+          }
+          return token;
+        };
+        ambientContext = await ambient.buildSessionContext(
+          ctx.messageText,
+          ctx.spaceId,
+          ctx.spaceName,
+          getToken,
+        );
+        if (ambientContext) {
+          console.log(`[chat] Ambient memory: ${ambientContext.length} chars of context injected`);
+        }
+      } catch (err: any) {
+        console.warn(`[chat] Ambient memory error (non-fatal): ${err.message}`);
+      }
+
       const { buildGoogleChatPrompt, buildScheduleInfo } = await import('./system-prompts/google/index.js');
       const systemPrompt = buildGoogleChatPrompt({
         agent: { name: agentName, role: identity?.role || 'professional', personality: identity?.personality },
@@ -364,6 +411,7 @@ export async function runAgent(_args: string[]) {
         threadId: ctx.threadId,
         isDM: ctx.isDM,
         trustLevel,
+        ambientContext,
       });
 
       const session = await runtime.spawnSession({

@@ -21,6 +21,8 @@
  * Docs: https://developers.google.com/workspace/chat/api/reference/rest/v1
  */
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { AnyAgentTool, ToolCreationOptions } from '../../types.js';
 import type { GoogleToolsConfig } from './index.js';
 import { jsonResult, errorResult } from '../../common.js';
@@ -457,6 +459,258 @@ The calling user is automatically added — do NOT include them in members.`,
       },
     },
 
+    // ─── Upload & Send Attachment ─────────────────────────
+    {
+      name: 'google_chat_upload_attachment',
+      description: `Upload a file (image, document, PDF, etc.) to a Google Chat space and optionally send it as a message. Supports files up to 200 MB.
+
+Usage:
+- To send an image: provide filePath to a local file + optional message text
+- To send a document: provide filePath to any supported file type
+- The file is first uploaded to the space, then sent as a message attachment
+
+Supported: images (png, jpg, gif, webp), documents (pdf, docx, xlsx, pptx, csv, txt), archives (zip), and more.
+Blocked file types: exe, bat, cmd, com, vbs, js (and others blocked by Google Chat).`,
+      category: 'communication' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          spaceName: { type: 'string', description: 'Space resource name (e.g. "spaces/AAAAxyz...")' },
+          filePath: { type: 'string', description: 'Local file path to upload' },
+          text: { type: 'string', description: 'Optional message text to accompany the attachment' },
+          threadKey: { type: 'string', description: 'Thread key to send in a specific thread' },
+          threadName: { type: 'string', description: 'Thread resource name to reply to an existing thread' },
+        },
+        required: ['spaceName', 'filePath'],
+      },
+      async execute(_id: string, input: any) {
+        try {
+          const token = await tp.getAccessToken();
+          const filePath = input.filePath;
+
+          // Read the file
+          let fileBuffer: Buffer;
+          try {
+            fileBuffer = await fs.readFile(filePath);
+          } catch (e: any) {
+            return errorResult(`Cannot read file: ${filePath} — ${e.message}`);
+          }
+
+          const filename = path.basename(filePath);
+          const ext = path.extname(filePath).toLowerCase();
+          const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+
+          // Step 1: Upload the file to the space using Google's multipart upload protocol
+          // Ref: https://developers.google.com/workspace/chat/api/reference/rest/v1/media/upload
+          const boundary = 'ChatUpload' + Date.now();
+          const metadataJson = JSON.stringify({ filename });
+
+          // Build RFC 2046 multipart/related body using Buffer.concat for reliable binary handling
+          const CRLF = '\r\n';
+          const preamble = `--${boundary}${CRLF}Content-Type: application/json; charset=UTF-8${CRLF}${CRLF}${metadataJson}${CRLF}--${boundary}${CRLF}Content-Type: ${mimeType}${CRLF}${CRLF}`;
+          const epilogue = `${CRLF}--${boundary}--`;
+
+          const body = Buffer.concat([
+            Buffer.from(preamble, 'utf-8'),
+            fileBuffer,
+            Buffer.from(epilogue, 'utf-8'),
+          ]);
+
+          const uploadUrl = `https://chat.googleapis.com/upload/v1/${input.spaceName}/attachments:upload?uploadType=multipart`;
+          const uploadRes = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': `multipart/related; boundary=${boundary}`,
+              'Content-Length': String(body.length),
+            },
+            body,
+          });
+
+          if (!uploadRes.ok) {
+            const errText = await uploadRes.text();
+            console.log(`[google-chat] Upload failed (${uploadRes.status}): boundary=${boundary}, bodyLen=${body.length}, file=${filename} (${mimeType}, ${fileBuffer.length}b), url=${uploadUrl}`);
+            console.log(`[google-chat] Upload error body: ${errText.substring(0, 500)}`);
+            return errorResult(`Upload failed (${uploadRes.status}): ${errText}`);
+          }
+
+          const uploadResult = await uploadRes.json();
+          console.log(`[google-chat] Upload success:`, JSON.stringify(uploadResult));
+          const attachmentDataRef = uploadResult.attachmentDataRef;
+
+          if (!attachmentDataRef) {
+            return errorResult('Upload succeeded but no attachmentDataRef returned');
+          }
+
+          // Step 2: Send message with the uploaded attachment
+          // Pass the full upload result as the attachment (matches Python SDK pattern)
+          const msgBody: any = {
+            text: input.text || '',
+            attachment: [uploadResult],
+          };
+
+          if (input.threadName || input.threadKey) {
+            msgBody.thread = {};
+            if (input.threadName) msgBody.thread.name = input.threadName;
+            if (input.threadKey) msgBody.thread.threadKey = input.threadKey;
+          }
+
+          const query: Record<string, string> = {};
+          if (input.threadKey) query.messageReplyOption = 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD';
+
+          const msgResult = await chatApi(token, `/${input.spaceName}/messages`, {
+            method: 'POST',
+            body: msgBody,
+            query,
+          });
+
+          return jsonResult({
+            sent: true,
+            messageName: msgResult.name,
+            filename,
+            mimeType,
+            fileSize: fileBuffer.length,
+            createTime: msgResult.createTime,
+            threadName: msgResult.thread?.name,
+          });
+        } catch (e: any) {
+          return errorResult(e.message);
+        }
+      },
+    },
+
+    // ─── Send Image from URL ────────────────────────────
+    {
+      name: 'google_chat_send_image',
+      description: `Send a message with an inline image from a URL to a Google Chat space. The image is embedded directly in the message using a Card with an image widget — no upload needed. Works with any publicly accessible image URL.`,
+      category: 'communication' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          spaceName: { type: 'string', description: 'Space resource name (e.g. "spaces/AAAAxyz...")' },
+          imageUrl: { type: 'string', description: 'Public URL of the image to display' },
+          text: { type: 'string', description: 'Optional text message above the image' },
+          title: { type: 'string', description: 'Optional card title/header' },
+          subtitle: { type: 'string', description: 'Optional card subtitle' },
+          linkUrl: { type: 'string', description: 'Optional URL the image links to when clicked' },
+          threadKey: { type: 'string', description: 'Thread key' },
+          threadName: { type: 'string', description: 'Thread resource name' },
+        },
+        required: ['spaceName', 'imageUrl'],
+      },
+      async execute(_id: string, input: any) {
+        try {
+          const token = await tp.getAccessToken();
+
+          const body: any = {};
+          if (input.text) body.text = input.text;
+
+          // Build Card v2 with image
+          const imageWidget: any = {
+            image: {
+              imageUrl: input.imageUrl,
+              altText: input.title || 'Image',
+            },
+          };
+          if (input.linkUrl) {
+            imageWidget.image.onClick = {
+              openLink: { url: input.linkUrl },
+            };
+          }
+
+          const card: any = {
+            sections: [{ widgets: [imageWidget] }],
+          };
+
+          if (input.title || input.subtitle) {
+            card.header = {};
+            if (input.title) card.header.title = input.title;
+            if (input.subtitle) card.header.subtitle = input.subtitle;
+          }
+
+          body.cardsV2 = [{ cardId: 'img_' + Date.now(), card }];
+
+          if (input.threadName || input.threadKey) {
+            body.thread = {};
+            if (input.threadName) body.thread.name = input.threadName;
+            if (input.threadKey) body.thread.threadKey = input.threadKey;
+          }
+
+          const query: Record<string, string> = {};
+          if (input.threadKey) query.messageReplyOption = 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD';
+
+          const result = await chatApi(token, `/${input.spaceName}/messages`, {
+            method: 'POST',
+            body,
+            query,
+          });
+
+          return jsonResult({
+            sent: true,
+            messageName: result.name,
+            imageUrl: input.imageUrl,
+            createTime: result.createTime,
+            threadName: result.thread?.name,
+          });
+        } catch (e: any) {
+          return errorResult(e.message);
+        }
+      },
+    },
+
+    // ─── Download Attachment ─────────────────────────────
+    {
+      name: 'google_chat_download_attachment',
+      description: 'Download a file attachment from a Google Chat message. Saves the file locally.',
+      category: 'communication' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          attachmentName: { type: 'string', description: 'Attachment resource name from a message (e.g. "spaces/AAAA/messages/BBBB/attachments/CCCC")' },
+          savePath: { type: 'string', description: 'Local path to save the downloaded file (e.g. "/tmp/report.pdf")' },
+        },
+        required: ['attachmentName', 'savePath'],
+      },
+      async execute(_id: string, input: any) {
+        try {
+          const token = await tp.getAccessToken();
+
+          // Get attachment metadata to find the download URI
+          const attachment = await chatApi(token, `/${input.attachmentName}`);
+          const downloadUri = attachment.attachmentDataRef?.resourceName;
+
+          if (!downloadUri) {
+            return errorResult('Attachment has no downloadable data reference');
+          }
+
+          // Download the media content
+          const mediaUrl = `${CHAT_BASE}/media/${downloadUri}?alt=media`;
+          const res = await fetch(mediaUrl, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!res.ok) {
+            return errorResult(`Download failed (${res.status}): ${await res.text()}`);
+          }
+
+          const buffer = Buffer.from(await res.arrayBuffer());
+          const dir = path.dirname(input.savePath);
+          await fs.mkdir(dir, { recursive: true });
+          await fs.writeFile(input.savePath, buffer);
+
+          return jsonResult({
+            downloaded: true,
+            savePath: input.savePath,
+            size: buffer.length,
+            contentType: attachment.contentType || res.headers.get('content-type'),
+            filename: attachment.contentName || path.basename(input.savePath),
+          });
+        } catch (e: any) {
+          return errorResult(e.message);
+        }
+      },
+    },
+
     // ─── React to Message ───────────────────────────────
     {
       name: 'google_chat_react',
@@ -485,3 +739,20 @@ The calling user is automatically added — do NOT include them in members.`,
     },
   ];
 }
+
+// ─── MIME Type Map ──────────────────────────────────────
+
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+  '.bmp': 'image/bmp', '.ico': 'image/x-icon',
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.csv': 'text/csv', '.txt': 'text/plain', '.json': 'application/json',
+  '.xml': 'application/xml', '.html': 'text/html', '.htm': 'text/html',
+  '.zip': 'application/zip', '.gz': 'application/gzip', '.tar': 'application/x-tar',
+  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+};
