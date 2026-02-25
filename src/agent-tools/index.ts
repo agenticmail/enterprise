@@ -162,6 +162,8 @@ import { createAllGoogleTools } from './tools/google/index.js';
 import { createTokenProvider } from './tools/oauth-token-provider.js';
 import type { OAuthTokens, TokenProvider } from './tools/oauth-token-provider.js';
 import { createMeetingLifecycleTools } from './tools/meeting-lifecycle.js';
+import { createVisualMemoryTools } from './tools/visual-memory/index.js';
+import { initVisualStorage } from './tools/visual-memory/storage.js';
 import { detectCapabilities } from '../runtime/environment.js';
 
 import type { AgentMemoryManager } from '../engine/agent-memory.js';
@@ -172,6 +174,8 @@ export interface AllToolsOptions extends ToolCreationOptions {
   agenticmailManager?: AgenticMailManagerRef;
   /** Agent memory manager for persistent DB-backed memory */
   agentMemoryManager?: AgentMemoryManager;
+  /** Engine database for direct table access (visual memory, etc.) */
+  engineDb?: any;
   /** Organization ID for memory scoping */
   orgId?: string;
   /** OAuth token provider for Google/Microsoft API tools */
@@ -288,6 +292,14 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     orgId: options?.orgId,
   } as MemoryToolOptions);
   rawTools = rawTools.concat(memoryTools as any);
+
+  // Visual memory tools (enterprise DB-backed, integrated with AgentMemoryManager)
+  // Initialize storage with centralized DB + memory manager (not local files)
+  if ((options as any)?.engineDb) {
+    initVisualStorage((options as any).engineDb, options?.agentMemoryManager);
+  }
+  var visualMemoryTools = createVisualMemoryTools(options || {});
+  rawTools = rawTools.concat(visualMemoryTools as any);
 
   // Enterprise tools (7 skills)
   var enterpriseTools: AnyAgentTool[] = [

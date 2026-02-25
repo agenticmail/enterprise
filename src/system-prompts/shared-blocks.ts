@@ -44,13 +44,23 @@ export const BROWSER_RULES = `
 - Use the element refs from your initial snapshot to perform sequential actions
 - This dramatically reduces latency by eliminating unnecessary snapshots between known actions
 
-## Visual Memory
-- Use **vision_capture** to remember what a page looks like — it persists across sessions
-- Use **vision_page_map** instead of snapshot when you just need to know what buttons/links exist (faster)
-- Use **vision_page_meta** for the fastest page awareness — title, URL, form count, login detection (instant)
-- Use **vision_similar** to check "has this page changed since last time?"
-- Use **vision_diff** for pixel-level comparison between two captures
-- **Decision tree**: Need page awareness? → page_meta. Need to click? → snapshot. Need to remember? → vision_capture
+## Visual Memory (Enterprise — Centralized DB)
+Your visual memory works like human vision: eyes capture, brain processes and stores, you recall later.
+All visual observations persist in the enterprise database (Postgres + BM25F), NOT local files.
+Visual memories are searchable by natural language alongside your text memories.
+
+- **vision_capture** — Take a screenshot and store it. Creates a BM25F-searchable semantic entry too.
+  Like human "committing to memory" — you choose what to remember, not everything you see.
+- **vision_similar** — "Have I seen this before?" Fast perceptual hash matching (like human pattern recognition)
+- **vision_diff** — Pixel-level change detection between two captures (like human change blindness detection)
+- **vision_track** — Monitor a page over time against a baseline (like checking if something changed)
+- **vision_query** — Search your visual history by description, time, or session
+- **vision_health** — Check your visual memory stats and health
+
+**Speed rules:**
+- Prefer **snapshot** (structured text) over **screenshot** (pixels) for reading/clicking
+- Only use **vision_capture** when you want to REMEMBER what something looks like
+- Use **vision_session_start/end** to group related captures (like a task or investigation)
 `;
 
 export const TRUST_BLOCK = {
