@@ -67,6 +67,11 @@ export {
 } from './lib/resilience.js';
 export type { RetryOptions, CircuitBreakerOptions, RateLimiterOptions, HealthCheckOptions } from './lib/resilience.js';
 
+// AgenticMail Enterprise (embedded email for agents)
+export { AgenticMailManager } from './agenticmail/index.js';
+export type { AgentEmailIdentity, EmailProvider, IEmailProvider } from './agenticmail/index.js';
+export { createEmailProvider, MicrosoftEmailProvider, GoogleEmailProvider } from './agenticmail/index.js';
+
 // Agent Runtime (standalone agent execution)
 export { AgentRuntime, createAgentRuntime } from './runtime/index.js';
 export type { AgentConfig, SessionState, StreamEvent, RuntimeConfig, ModelConfig, SpawnOptions } from './runtime/types.js';

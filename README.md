@@ -2,7 +2,7 @@
 
 **AI Agent Identity, Email & Workforce Platform for Organizations**
 
-Deploy, manage, and govern AI agents as first-class employees — each with their own email address, skills, permissions, memory, and lifecycle. Built on [AgenticMail](https://agenticmail.io) + [OpenClaw](https://openclaw.ai).
+Deploy, manage, and govern AI agents as first-class employees — each with their own email address, skills, permissions, memory, and lifecycle. Built on [AgenticMail](https://agenticmail.io) + [AgenticMail](https://agenticmail.ai).
 
 ```bash
 npx @agenticmail/enterprise
@@ -401,7 +401,7 @@ The engine is the core of Enterprise — 25+ modules that power agent governance
 
 ## Agent Runtime
 
-Full standalone agent execution runtime — run agents entirely in-process without OpenClaw:
+Full standalone agent execution runtime — run agents entirely in-process without AgenticMail:
 
 ```typescript
 import { createAgentRuntime } from '@agenticmail/enterprise';
@@ -428,7 +428,7 @@ const session = await runtime.spawnSession({
 - **Email Channel** — Bi-directional email communication
 - **Follow-Up Scheduler** — Schedule agent follow-ups and reminders
 - **Budget Gates** — Cost check before every LLM call
-- **Gateway Integration** — Register as OpenClaw plugin for hybrid deployments
+- **Gateway Integration** — Register as AgenticMail plugin for hybrid deployments
 - **Heartbeat** — Stale session detection and cleanup
 - **SSE Streaming** — Real-time event streaming for dashboard
 
@@ -802,4 +802,4 @@ MIT — See [LICENSE](./LICENSE)
 
 ---
 
-Built by [AgenticMail](https://agenticmail.io) · [GitHub](https://github.com/agenticmail/enterprise) · [OpenClaw](https://openclaw.ai)
+Built by [AgenticMail](https://agenticmail.io) · [GitHub](https://github.com/agenticmail/enterprise) · [AgenticMail](https://agenticmail.ai)

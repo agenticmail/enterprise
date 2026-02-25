@@ -745,9 +745,9 @@ export class PolicyImporter {
       for (const r of rows) {
         this.jobs.set(r.id, {
           id: r.id, orgId: r.org_id, format: r.format, status: r.status,
-          progress: JSON.parse(r.progress || '{}'),
-          errors: JSON.parse(r.errors || '[]'),
-          policyIds: JSON.parse(r.policy_ids || '[]'),
+          progress: typeof r.progress === "string" ? JSON.parse(r.progress || "{}") : (r.progress || {}),
+          errors: typeof r.errors === "string" ? JSON.parse(r.errors || "[]") : (r.errors || []),
+          policyIds: typeof r.policy_ids === "string" ? JSON.parse(r.policy_ids || "[]") : (r.policy_ids || []),
           createdBy: r.created_by, createdAt: r.created_at,
           completedAt: r.completed_at || undefined,
         });

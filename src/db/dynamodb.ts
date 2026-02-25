@@ -19,12 +19,10 @@ let ddbDocLib: any;
 
 async function getDdb() {
   if (!ddbLib) {
-    try {
-      ddbLib = await import('@aws-sdk/client-dynamodb');
-      ddbDocLib = await import('@aws-sdk/lib-dynamodb');
-    } catch {
-      throw new Error('DynamoDB drivers not found. Install: npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb');
-    }
+    const { resolveDriver } = await import('./resolve-driver.js');
+    const errMsg = 'DynamoDB drivers not found. Install: npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb';
+    ddbLib = await resolveDriver('@aws-sdk/client-dynamodb', errMsg);
+    ddbDocLib = await resolveDriver('@aws-sdk/lib-dynamodb', errMsg);
   }
   return { ddbLib, ddbDocLib };
 }

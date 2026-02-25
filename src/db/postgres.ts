@@ -18,14 +18,11 @@ let pg: any;
 
 async function getPg() {
   if (!pg) {
-    try {
-      pg = await import('pg');
-    } catch {
-      throw new Error(
-        'PostgreSQL driver not found. Install it: npm install pg\n' +
-        'For Supabase/Neon/CockroachDB, the same pg driver works.'
-      );
-    }
+    const { resolveDriver } = await import('./resolve-driver.js');
+    pg = await resolveDriver('pg',
+      'PostgreSQL driver not found. Install it: npm install pg\n' +
+      'For Supabase/Neon/CockroachDB, the same pg driver works.'
+    );
   }
   return pg;
 }
@@ -33,8 +30,10 @@ async function getPg() {
 export class PostgresAdapter extends DatabaseAdapter {
   readonly type = 'postgres' as const;
   private pool: any = null;
+  private ended = false;
 
   async connect(config: DatabaseConfig): Promise<void> {
+    this.ended = false;
     const { Pool } = await getPg();
     this.pool = new Pool({
       connectionString: config.connectionString,
@@ -44,8 +43,9 @@ export class PostgresAdapter extends DatabaseAdapter {
       user: config.username,
       password: config.password,
       ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-      max: 20,
+      max: 15,
       idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 15000,
     });
     // Test connection
     const client = await this.pool.connect();
@@ -53,26 +53,37 @@ export class PostgresAdapter extends DatabaseAdapter {
   }
 
   async disconnect(): Promise<void> {
-    if (this.pool) await this.pool.end();
+    this.ended = true;
+    if (this.pool) {
+      try { await this.pool.end(); } catch {}
+    }
   }
 
   isConnected(): boolean {
-    return this.pool !== null;
+    return this.pool !== null && !this.ended;
   }
 
   // ─── Engine Integration ──────────────────────────────────
 
   getEngineDB() {
-    if (!this.pool) return null;
+    if (!this.pool || this.ended) return null;
     const pool = this.pool;
+    const self = this;
+    // Convert ? placeholders to $1, $2, ... for pg driver
+    const pgSql = (sql: string) => {
+      let i = 0;
+      return sql.replace(/\?/g, () => `$${++i}`);
+    };
     return {
-      run: async (sql: string, params?: any[]) => { await pool.query(sql, params); },
+      run: async (sql: string, params?: any[]) => { if (self.ended) return; await pool.query(pgSql(sql), params); },
       get: async <T = any>(sql: string, params?: any[]): Promise<T | undefined> => {
-        const result = await pool.query(sql, params);
+        if (self.ended) return undefined;
+        const result = await pool.query(pgSql(sql), params);
         return result.rows[0] as T | undefined;
       },
       all: async <T = any>(sql: string, params?: any[]): Promise<T[]> => {
-        const result = await pool.query(sql, params);
+        if (self.ended) return [];
+        const result = await pool.query(pgSql(sql), params);
         return result.rows as T[];
       },
     };
@@ -95,6 +106,17 @@ export class PostgresAdapter extends DatabaseAdapter {
         INSERT INTO retention_policy (id) VALUES ('default')
         ON CONFLICT (id) DO NOTHING
       `);
+      // Add org_id column if missing
+      await client.query(`
+        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS org_id TEXT
+      `).catch(() => {});
+      await client.query(`
+        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS cf_api_token TEXT;
+        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS cf_account_id TEXT;
+      `).catch(() => {});
+      await client.query(`
+        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS org_email_config JSONB;
+      `).catch(() => {});
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -114,11 +136,17 @@ export class PostgresAdapter extends DatabaseAdapter {
   }
 
   async updateSettings(updates: Partial<CompanySettings>): Promise<CompanySettings> {
+    // Ensure default row exists first
+    await this.pool.query(
+      `INSERT INTO company_settings (id, name, subdomain) VALUES ('default', '', '')
+       ON CONFLICT (id) DO NOTHING`
+    );
+
     const fields: string[] = [];
     const values: any[] = [];
     let i = 1;
     const map: Record<string, string> = {
-      name: 'name', domain: 'domain', subdomain: 'subdomain',
+      name: 'name', orgId: 'org_id', domain: 'domain', subdomain: 'subdomain',
       smtpHost: 'smtp_host', smtpPort: 'smtp_port', smtpUser: 'smtp_user',
       smtpPass: 'smtp_pass', dkimPrivateKey: 'dkim_private_key',
       logoUrl: 'logo_url', primaryColor: 'primary_color', plan: 'plan',
@@ -128,6 +156,9 @@ export class PostgresAdapter extends DatabaseAdapter {
       domainVerifiedAt: 'domain_verified_at',
       domainRegisteredAt: 'domain_registered_at',
       domainStatus: 'domain_status',
+      cfApiToken: 'cf_api_token',
+      cfAccountId: 'cf_account_id',
+      signatureTemplate: 'signature_template',
     };
     for (const [key, col] of Object.entries(map)) {
       if ((updates as any)[key] !== undefined) {
@@ -154,6 +185,11 @@ export class PostgresAdapter extends DatabaseAdapter {
     if (updates.modelPricingConfig !== undefined) {
       fields.push(`model_pricing_config = $${i}`);
       values.push(JSON.stringify(updates.modelPricingConfig));
+      i++;
+    }
+    if (updates.orgEmailConfig !== undefined) {
+      fields.push(`org_email_config = $${i}`);
+      values.push(JSON.stringify(updates.orgEmailConfig));
       i++;
     }
     fields.push(`updated_at = NOW()`);
@@ -340,7 +376,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     return {
       events: rows.map((r: any) => ({
         id: r.id, timestamp: r.timestamp, actor: r.actor, actorType: r.actor_type,
-        action: r.action, resource: r.resource, details: JSON.parse(r.details || '{}'), ip: r.ip,
+        action: r.action, resource: r.resource, details: typeof r.details === 'string' ? JSON.parse(r.details || '{}') : (r.details || {}), ip: r.ip,
       })),
       total,
     };
@@ -369,7 +405,7 @@ export class PostgresAdapter extends DatabaseAdapter {
   async validateApiKey(plaintext: string): Promise<ApiKey | null> {
     const keyHash = createHash('sha256').update(plaintext).digest('hex');
     const { rows } = await this.pool.query(
-      'SELECT * FROM api_keys WHERE key_hash = $1 AND revoked = 0',
+      'SELECT * FROM api_keys WHERE key_hash = $1 AND (revoked IS NULL OR revoked = FALSE)',
       [keyHash]
     );
     if (!rows[0]) return null;
@@ -381,16 +417,16 @@ export class PostgresAdapter extends DatabaseAdapter {
   }
 
   async listApiKeys(opts?: { createdBy?: string }): Promise<ApiKey[]> {
-    let q = 'SELECT * FROM api_keys';
+    let q = 'SELECT * FROM api_keys WHERE (revoked IS NULL OR revoked = 0)';
     const params: any[] = [];
-    if (opts?.createdBy) { q += ' WHERE created_by = $1'; params.push(opts.createdBy); }
+    if (opts?.createdBy) { q += ' AND created_by = $' + (params.length + 1); params.push(opts.createdBy); }
     q += ' ORDER BY created_at DESC';
     const { rows } = await this.pool.query(q, params);
     return rows.map((r: any) => this.mapApiKey(r));
   }
 
   async revokeApiKey(id: string): Promise<void> {
-    await this.pool.query('UPDATE api_keys SET revoked = 1 WHERE id = $1', [id]);
+    await this.pool.query('UPDATE api_keys SET revoked = TRUE WHERE id = $1', [id]);
   }
 
   // ─── Rules ───────────────────────────────────────────────
@@ -445,7 +481,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     return {
       enabled: !!rows[0].enabled,
       retainDays: rows[0].retain_days,
-      excludeTags: JSON.parse(rows[0].exclude_tags || '[]'),
+      excludeTags: typeof rows[0].exclude_tags === 'string' ? JSON.parse(rows[0].exclude_tags || '[]') : (rows[0].exclude_tags || []),
       archiveFirst: !!rows[0].archive_first,
     };
   }
@@ -518,7 +554,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
   private mapSettings(r: any): CompanySettings {
     return {
-      id: r.id, name: r.name, domain: r.domain, subdomain: r.subdomain,
+      id: r.id, orgId: r.org_id || undefined, name: r.name, domain: r.domain, subdomain: r.subdomain,
       smtpHost: r.smtp_host, smtpPort: r.smtp_port, smtpUser: r.smtp_user, smtpPass: r.smtp_pass,
       dkimPrivateKey: r.dkim_private_key, logoUrl: r.logo_url, primaryColor: r.primary_color,
       ssoConfig: r.sso_config ? (typeof r.sso_config === 'string' ? JSON.parse(r.sso_config) : r.sso_config) : undefined,
@@ -532,6 +568,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       domainVerifiedAt: r.domain_verified_at || undefined,
       domainRegisteredAt: r.domain_registered_at || undefined,
       domainStatus: r.domain_status || 'unregistered',
-    };
+      cfApiToken: r.cf_api_token || undefined,
+      cfAccountId: r.cf_account_id || undefined,
+      orgEmailConfig: r.org_email_config ? (typeof r.org_email_config === 'string' ? JSON.parse(r.org_email_config) : r.org_email_config) : undefined,
+      signatureTemplate: r.signature_template || undefined,
+    } as any;
   }
 }

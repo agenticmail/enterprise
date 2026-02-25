@@ -11,6 +11,11 @@ import type { AppEnv } from '../types/hono-env.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 import { validate, requireRole, ValidationError } from '../middleware/index.js';
 import { PROVIDER_REGISTRY, type ProviderDef, type CustomProviderDef } from '../runtime/providers.js';
+import { deployToFly, getAppStatus, destroyApp, type FlyConfig, type AppConfig } from '../deploy/fly.js';
+import { SecureVault } from '../engine/vault.js';
+
+// Shared vault instance for encrypting/decrypting provider API keys
+const vault = new SecureVault();
 
 export function createAdminRoutes(db: DatabaseAdapter) {
   const api = new Hono<AppEnv>();
@@ -106,6 +111,163 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
     await db.deleteAgent(c.req.param('id'));
     return c.json({ ok: true });
+  });
+
+  // ─── Agent Deployment ─────────────────────────────────
+
+  api.post('/agents/:id/deploy', requireRole('admin'), async (c) => {
+    const agentId = c.req.param('id');
+    const agent = await db.getAgent(agentId);
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+
+    const body = await c.req.json();
+    const targetType = body.targetType || 'fly';
+    const config = body.config || {};
+
+    // Get deployment credentials
+    const settings = await db.getSettings();
+    const pricingConfig = (settings as any)?.modelPricingConfig || {};
+    const providerApiKeys = pricingConfig.providerApiKeys || {};
+
+    if (targetType === 'fly') {
+      // Get Fly.io API token from deploy credentials or config
+      let flyToken = config.flyApiToken || process.env.FLY_API_TOKEN;
+      if (!flyToken && body.credentialId) {
+        // Look up stored credential
+        try {
+          const creds = await (db as any).query?.('SELECT config FROM deploy_credentials WHERE id = $1', [body.credentialId]);
+          if (creds?.rows?.[0]?.config) {
+            const credConfig = typeof creds.rows[0].config === 'string' ? JSON.parse(creds.rows[0].config) : creds.rows[0].config;
+            flyToken = credConfig.apiToken;
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (!flyToken) {
+        return c.json({ error: 'Fly.io API token required. Add it in Settings → Deployments or pass flyApiToken in config.' }, 400);
+      }
+
+      const flyConfig: FlyConfig = {
+        apiToken: flyToken,
+        org: config.flyOrg || 'personal',
+        image: config.image || 'node:22-slim',
+        regions: config.regions || ['iad'],
+      };
+
+      const agentName = (agent as any).name || agentId;
+      const appConfig: AppConfig = {
+        subdomain: agentName.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        dbType: 'postgres',
+        dbConnectionString: process.env.DATABASE_URL || '',
+        jwtSecret: process.env.JWT_SECRET || 'agent-' + agentId,
+        smtpHost: (settings as any)?.smtpHost,
+        smtpPort: (settings as any)?.smtpPort,
+        smtpUser: (settings as any)?.smtpUser,
+        smtpPass: (settings as any)?.smtpPass,
+        memoryMb: config.memoryMb || 256,
+        cpuKind: config.cpuKind || 'shared',
+        cpus: config.cpus || 1,
+      };
+
+      try {
+        const result = await deployToFly(appConfig, flyConfig);
+
+        // Update agent record with deployment info (stored in metadata)
+        const existingAgent = await db.getAgent(agentId);
+        const existingMeta = (existingAgent as any)?.metadata || {};
+        await db.updateAgent(agentId, {
+          status: result.status === 'started' ? 'active' : 'error',
+          metadata: {
+            ...existingMeta,
+            deployment: {
+              target: 'fly',
+              appName: result.appName,
+              url: result.url,
+              region: result.region,
+              machineId: result.machineId,
+              deployedAt: new Date().toISOString(),
+              deployedBy: body.deployedBy || 'dashboard',
+              status: result.status,
+            },
+          },
+        } as any);
+
+        return c.json({
+          success: result.status === 'started',
+          deployment: result,
+        });
+      } catch (err: any) {
+        return c.json({ error: 'Deployment failed: ' + err.message }, 500);
+      }
+    }
+
+    if (targetType === 'local') {
+      const existingAgent = await db.getAgent(agentId);
+      const existingMeta = (existingAgent as any)?.metadata || {};
+      await db.updateAgent(agentId, {
+        status: 'active',
+        metadata: {
+          ...existingMeta,
+          deployment: {
+            target: 'local',
+            url: `http://localhost:${3000 + Math.floor(Math.random() * 1000)}`,
+            deployedAt: new Date().toISOString(),
+            deployedBy: body.deployedBy || 'dashboard',
+            status: 'started',
+          },
+        },
+      } as any);
+      return c.json({ success: true, deployment: { status: 'started', target: 'local' } });
+    }
+
+    return c.json({ error: 'Unsupported deploy target: ' + targetType + '. Supported: fly, docker, vps, local' }, 400);
+  });
+
+  // Get deployment status
+  api.get('/agents/:id/deploy', requireRole('admin'), async (c) => {
+    const agent = await db.getAgent(c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+
+    const meta = (agent as any).metadata || {};
+    const info = meta.deployment;
+    if (!info) return c.json({ deployed: false });
+
+    if (info.target === 'fly' && info.appName) {
+      const flyToken = process.env.FLY_API_TOKEN;
+      if (flyToken) {
+        try {
+          const status = await getAppStatus(info.appName, { apiToken: flyToken });
+          return c.json({ deployed: true, ...info, live: status });
+        } catch { /* fall through */ }
+      }
+    }
+
+    return c.json({ deployed: true, ...info });
+  });
+
+  // Destroy deployment
+  api.delete('/agents/:id/deploy', requireRole('admin'), async (c) => {
+    const agent = await db.getAgent(c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+
+    const meta = (agent as any).metadata || {};
+    const info = meta.deployment;
+    if (!info) return c.json({ error: 'Agent not deployed' }, 400);
+
+    if (info.target === 'fly' && info.appName) {
+      const flyToken = process.env.FLY_API_TOKEN;
+      if (flyToken) {
+        try {
+          await destroyApp(info.appName, { apiToken: flyToken });
+        } catch (err: any) {
+          return c.json({ error: 'Failed to destroy: ' + err.message }, 500);
+        }
+      }
+    }
+
+    delete meta.deployment;
+    await db.updateAgent(c.req.param('id'), { status: 'inactive', metadata: meta } as any);
+    return c.json({ ok: true, message: 'Deployment destroyed' });
   });
 
   // ─── Users ──────────────────────────────────────────
@@ -309,7 +471,10 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       { field: 'smtpUser', type: 'string', maxLength: 253 },
       { field: 'smtpPass', type: 'string', maxLength: 253 },
       { field: 'dkimPrivateKey', type: 'string' },
+      { field: 'cfApiToken', type: 'string', maxLength: 500 },
+      { field: 'cfAccountId', type: 'string', maxLength: 100 },
       { field: 'plan', type: 'string', maxLength: 32 },
+      { field: 'signatureTemplate', type: 'string', maxLength: 10000 },
     ]);
 
     const settings = await db.updateSettings(body);
@@ -442,6 +607,49 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
   });
 
+  // ─── Organization Email Config ─────────────────────
+
+  api.get('/settings/org-email', requireRole('admin'), async (c) => {
+    const settings = await db.getSettings();
+    const cfg = settings?.orgEmailConfig;
+    if (!cfg) return c.json({ configured: false });
+    return c.json({
+      configured: cfg.configured || false,
+      provider: cfg.provider,
+      label: cfg.label,
+      oauthClientId: cfg.oauthClientId,
+      oauthTenantId: cfg.oauthTenantId,
+    });
+  });
+
+  api.put('/settings/org-email', requireRole('admin'), async (c) => {
+    const body = await c.req.json();
+    const { provider, oauthClientId, oauthClientSecret, oauthTenantId } = body;
+    if (!provider || !['google', 'microsoft'].includes(provider)) {
+      return c.json({ error: 'provider must be "google" or "microsoft"' }, 400);
+    }
+    if (!oauthClientId || !oauthClientSecret) {
+      return c.json({ error: 'oauthClientId and oauthClientSecret are required' }, 400);
+    }
+    const label = provider === 'google' ? 'Google Workspace' : 'Microsoft 365';
+    const orgEmailConfig = {
+      provider,
+      oauthClientId,
+      oauthClientSecret,
+      oauthTenantId: provider === 'microsoft' ? (oauthTenantId || 'common') : undefined,
+      oauthRedirectUri: '', // Will be set per-agent at OAuth time
+      configured: true,
+      label,
+    };
+    await db.updateSettings({ orgEmailConfig } as any);
+    return c.json({ success: true, orgEmailConfig: { configured: true, provider, label, oauthClientId, oauthTenantId: orgEmailConfig.oauthTenantId } });
+  });
+
+  api.delete('/settings/org-email', requireRole('admin'), async (c) => {
+    await db.updateSettings({ orgEmailConfig: null } as any);
+    return c.json({ success: true });
+  });
+
   // ─── Tool Security Config ─────────────────────────
 
   api.get('/settings/tool-security', requireRole('admin'), async (c) => {
@@ -569,8 +777,11 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   // ─── Provider Management ─────────────────────────────
 
   api.get('/providers', requireRole('admin'), async (c) => {
+    var settings = await db.getSettings();
+    var pricingConfig = (settings as any)?.modelPricingConfig;
+    var savedApiKeys = pricingConfig?.providerApiKeys || {};
     var builtIn = Object.values(PROVIDER_REGISTRY).map(function(p) {
-      var configured = !p.requiresApiKey || (p.envKey && !!process.env[p.envKey]);
+      var configured = !p.requiresApiKey || !!savedApiKeys[p.id];
       return {
         id: p.id,
         name: p.name,
@@ -584,8 +795,6 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       };
     });
 
-    var settings = await db.getSettings();
-    var pricingConfig = (settings as any)?.modelPricingConfig;
     var customProviders = pricingConfig?.customProviders || [];
     var custom = customProviders.map(function(p: any) {
       return { ...p, configured: true, source: 'custom' as const };
@@ -627,6 +836,28 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
     await db.updateSettings({ modelPricingConfig: config } as any);
     return c.json({ ok: true, provider: body });
+  });
+
+  // ─── Provider API Key Management ────────────────────────
+  api.post('/providers/:id/api-key', requireRole('admin'), async (c) => {
+    var id = c.req.param('id');
+    var provider = PROVIDER_REGISTRY[id];
+    if (!provider) {
+      return c.json({ error: 'Unknown provider' }, 404);
+    }
+    var body = await c.req.json();
+    if (!body.apiKey || typeof body.apiKey !== 'string' || body.apiKey.trim().length < 5) {
+      return c.json({ error: 'Valid API key required' }, 400);
+    }
+
+    // Store API key encrypted via vault
+    var settings = await db.getSettings();
+    var config = (settings as any)?.modelPricingConfig || { models: [], currency: 'USD' };
+    config.providerApiKeys = config.providerApiKeys || {};
+    config.providerApiKeys[id] = vault.encrypt(body.apiKey.trim());
+    await db.updateSettings({ modelPricingConfig: config } as any);
+
+    return c.json({ ok: true, message: 'API key saved for ' + provider.name });
   });
 
   api.put('/providers/:id', requireRole('admin'), async (c) => {

@@ -81,7 +81,7 @@ async function main() {
       tool.toolId,
       tool.description,
       tool.inputSchema,
-      async ({ arguments: args }: { arguments: Record<string, unknown> }) => {
+      async (args: any) => {
         const result = await tool.handler(args as Record<string, any>);
         return {
           content: [{ type: 'text' as const, text: result.content }],

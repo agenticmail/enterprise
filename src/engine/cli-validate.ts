@@ -1,5 +1,5 @@
 /**
- * CLI: agenticmail-enterprise validate <path>
+ * CLI: npx @agenticmail/enterprise validate <path>
  *
  * Validates an agenticmail-skill.json manifest against the full spec.
  * Checks for duplicate tool IDs against the builtin catalog and
@@ -64,9 +64,9 @@ export async function runValidate(args: string[]) {
     const target = pathArgs[0];
     if (!target) {
       if (jsonMode) {
-        console.log(JSON.stringify({ error: 'No path specified. Usage: agenticmail-enterprise validate <path> [--all] [--json]' }));
+        console.log(JSON.stringify({ error: 'No path specified. Usage: npx @agenticmail/enterprise validate <path> [--all] [--json]' }));
       } else {
-        console.log(`${chalk.bold('Usage:')} agenticmail-enterprise validate <path>`);
+        console.log(`${chalk.bold('Usage:')} npx @agenticmail/enterprise validate <path>`);
         console.log('');
         console.log('  <path>    Path to a skill directory or agenticmail-skill.json file');
         console.log('  --all     Validate all skills in community-skills/');

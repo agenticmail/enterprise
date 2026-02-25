@@ -11,7 +11,7 @@
  */
 
 import type { ToolDefinition, SkillCategory, RiskLevel, SideEffect } from './skills.js';
-import { M365_TOOLS as M365_SKILL_TOOLS, GWS_TOOLS as GWS_SKILL_TOOLS, ENTERPRISE_UTILITY_TOOLS } from './skills/index.js';
+import { M365_TOOLS as M365_SKILL_TOOLS, GWS_TOOLS as GWS_SKILL_TOOLS, ENTERPRISE_UTILITY_TOOLS, AGENTICMAIL_TOOLS as AGENTICMAIL_SKILL_TOOLS } from './skills/index.js';
 
 // ─── Core Platform Tools ────────────────────────────────
 

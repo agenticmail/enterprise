@@ -1,5 +1,5 @@
 /**
- * CLI: agenticmail-enterprise submit-skill <path>
+ * CLI: npx @agenticmail/enterprise submit-skill <path>
  *
  * Automates the GitHub PR submission flow for a community skill.
  * Uses the `gh` CLI to fork, branch, commit, push, and open a PR.
@@ -18,7 +18,7 @@ export async function runSubmitSkill(args: string[]) {
 
   const target = args.filter(a => !a.startsWith('--'))[0];
   if (!target) {
-    console.log(`${chalk.bold('Usage:')} agenticmail-enterprise submit-skill <path-to-skill-dir>`);
+    console.log(`${chalk.bold('Usage:')} npx @agenticmail/enterprise submit-skill <path-to-skill-dir>`);
     process.exit(1);
     return;
   }
@@ -172,7 +172,7 @@ ${toolsList}
 
 ### Validation
 
-- [x] Manifest passes \`agenticmail-enterprise validate\`
+- [x] Manifest passes \`npx @agenticmail/enterprise validate\`
 - [x] All required fields present
 - [x] No duplicate tool IDs
 ${manifest.tags ? `\n**Tags:** ${manifest.tags.join(', ')}` : ''}`;

@@ -18,7 +18,7 @@ let mongoMod: any;
 async function getMongo() {
   if (!mongoMod) {
     try {
-      mongoMod = await import('mongodb');
+      const { resolveDriver } = await import("./resolve-driver.js"); mongoMod = await resolveDriver("mongodb", "MongoDB driver not found. Install it: npm install mongodb");
     } catch {
       throw new Error('MongoDB driver not found. Install: npm install mongodb');
     }

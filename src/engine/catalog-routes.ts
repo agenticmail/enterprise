@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import type { PermissionEngine, SkillSuite } from './skills.js';
 import type { SkillDefinition } from './skills.js';
 import type { AgentConfigGenerator, AgentConfig } from './agent-config.js';
+import type { AgentLifecycleManager } from './lifecycle.js';
 
 interface PresetProfile {
   name: string;
@@ -28,8 +29,14 @@ export function createCatalogRoutes(opts: {
   configGen: AgentConfigGenerator;
   soulLib: SoulLibrary;
   suites?: SkillSuite[];
+  lifecycle?: AgentLifecycleManager;
 }) {
-  const { skills, presets, permissions, configGen, soulLib, suites = [] } = opts;
+  const { skills, presets, permissions, configGen, soulLib, suites = [], lifecycle } = opts;
+
+  /** Resolve org ID from Hono context or body. */
+  function resolveOrgId(c: any, body: any): string {
+    return body?.orgId || c.get?.('orgId') || c.req?.header('x-org-id') || 'default';
+  }
   const router = new Hono();
 
   // ─── Skills Catalog ─────────────────────────────────────
@@ -93,20 +100,40 @@ export function createCatalogRoutes(opts: {
   router.put('/profiles/:agentId', async (c) => {
     const agentId = c.req.param('agentId');
     const profile = await c.req.json();
+    const orgId = resolveOrgId(c, profile);
     profile.id = profile.id || agentId;
     profile.updatedAt = new Date().toISOString();
     if (!profile.createdAt) profile.createdAt = profile.updatedAt;
-    permissions.setProfile(agentId, profile);
+    permissions.setProfile(agentId, profile, orgId);
+    // Also persist permissionProfileId into agent config
+    if (lifecycle) {
+      const agent = lifecycle.getAgent(agentId);
+      if (agent) {
+        agent.config.permissionProfileId = profile.id;
+        agent.permissionProfileId = profile.id;
+        lifecycle.saveAgent(agentId).catch(() => {});
+      }
+    }
     return c.json({ success: true, profile });
   });
 
   router.post('/profiles/:agentId/apply-preset', async (c) => {
     const agentId = c.req.param('agentId');
     const { presetName } = await c.req.json();
+    const orgId = resolveOrgId(c, {});
     const preset = presets.find(p => p.name === presetName);
     if (!preset) return c.json({ error: 'Preset not found' }, 404);
     const profile = { ...preset, id: agentId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    permissions.setProfile(agentId, profile as any);
+    permissions.setProfile(agentId, profile as any, orgId);
+    // Also persist permissionProfileId into agent config
+    if (lifecycle) {
+      const agent = lifecycle.getAgent(agentId);
+      if (agent) {
+        agent.config.permissionProfileId = agentId;
+        agent.permissionProfileId = agentId;
+        lifecycle.saveAgent(agentId).catch(() => {});
+      }
+    }
     return c.json({ success: true, profile });
   });
 

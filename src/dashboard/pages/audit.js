@@ -1,33 +1,51 @@
-import { h, useState, useEffect, Fragment, useApp, apiCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
 
-export function AuditPage() {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
-  const [filter, setFilter] = useState('');
+var PAGE_SIZE = 50;
 
-  useEffect(() => {
-    apiCall('/audit?limit=200').then(d => { var arr = d.events || d.entries || d.logs || d; setLogs(Array.isArray(arr) ? arr : []); setLoading(false); }).catch(() => setLoading(false));
+export function AuditPage() {
+  var [logs, setLogs] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [selected, setSelected] = useState(null);
+  var [filter, setFilter] = useState('');
+  var [page, setPage] = useState(0);
+  var [total, setTotal] = useState(0);
+  var [hasMore, setHasMore] = useState(false);
+
+  var loadPage = useCallback(function(p) {
+    setLoading(true);
+    var offset = p * PAGE_SIZE;
+    apiCall('/audit?limit=' + PAGE_SIZE + '&offset=' + offset)
+      .then(function(d) {
+        var arr = d.events || d.entries || d.logs || d;
+        arr = Array.isArray(arr) ? arr : [];
+        setLogs(arr);
+        setTotal(d.total || arr.length);
+        setHasMore(arr.length >= PAGE_SIZE);
+        setLoading(false);
+      })
+      .catch(function() { setLoading(false); });
   }, []);
 
-  // Extract display name: prefer email from details, fall back to actor ID
-  const actorDisplay = (l) => {
+  useEffect(function() { loadPage(0); }, []);
+
+  var goPage = function(p) { setPage(p); loadPage(p); };
+
+  var actorDisplay = function(l) {
     if (l.details && l.details.email) return l.details.email;
     if (l.actorType === 'system') return 'System';
     return l.actor || l.userId || l.user || '-';
   };
 
-  // Extract role badge from details
-  const actorRole = (l) => {
+  var actorRole = function(l) {
     if (l.details && l.details.role) return l.details.role;
     return l.actorType || null;
   };
 
-  const filtered = filter
-    ? logs.filter(l => {
-        const s = filter.toLowerCase();
+  var filtered = filter
+    ? logs.filter(function(l) {
+        var s = filter.toLowerCase();
         return (l.action || '').toLowerCase().includes(s)
           || actorDisplay(l).toLowerCase().includes(s)
           || (l.resource || '').toLowerCase().includes(s)
@@ -35,9 +53,9 @@ export function AuditPage() {
       })
     : logs;
 
-  const actionColor = (action) => {
+  var actionColor = function(action) {
     if (!action) return 'badge-neutral';
-    const a = action.toLowerCase();
+    var a = action.toLowerCase();
     if (a.includes('create') || a.includes('add')) return 'badge-success';
     if (a.includes('delete') || a.includes('remove') || a.includes('revoke')) return 'badge-danger';
     if (a.includes('update') || a.includes('edit') || a.includes('patch')) return 'badge-warning';
@@ -45,7 +63,7 @@ export function AuditPage() {
     return 'badge-neutral';
   };
 
-  const roleColor = (role) => {
+  var roleColor = function(role) {
     if (!role) return 'badge-neutral';
     if (role === 'owner') return 'badge-danger';
     if (role === 'admin') return 'badge-warning';
@@ -53,11 +71,12 @@ export function AuditPage() {
     return 'badge-neutral';
   };
 
-  // Friendly resource display: "/api/agents/abc123" → "agents/abc123"
-  const resourceDisplay = (r) => {
+  var resourceDisplay = function(r) {
     if (!r) return '-';
     return r.replace(/^\/api\//, '').replace(/^\//, '');
   };
+
+  var totalPages = Math.max(1, Math.ceil((total || (hasMore ? (page + 2) * PAGE_SIZE : (page + 1) * PAGE_SIZE)) / PAGE_SIZE));
 
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
@@ -66,11 +85,11 @@ export function AuditPage() {
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Complete record of all administrative actions and changes')
       ),
       h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-        h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, filtered.length + ' entries'),
+        total > 0 && h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, total + ' total'),
         h('input', {
           className: 'input', placeholder: 'Filter by action, user, target...',
           style: { width: 260, fontSize: 13 },
-          value: filter, onChange: e => setFilter(e.target.value)
+          value: filter, onChange: function(e) { setFilter(e.target.value); }
         })
       )
     ),
@@ -88,11 +107,11 @@ export function AuditPage() {
               h('th', null, 'IP'),
               h('th', { style: { width: 40 } })
             )),
-            h('tbody', null, filtered.map((l, i) =>
-              h('tr', {
+            h('tbody', null, filtered.map(function(l, i) {
+              return h('tr', {
                 key: i,
                 style: { cursor: 'pointer' },
-                onClick: () => setSelected(l),
+                onClick: function() { setSelected(l); },
                 title: 'Click to view details'
               },
                 h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } },
@@ -105,17 +124,36 @@ export function AuditPage() {
                   resourceDisplay(l.resource)
                 ),
                 h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, l.ip || '-'),
-                h('td', null, h('button', { className: 'btn btn-ghost btn-icon', style: { padding: 4, fontSize: 14, color: 'var(--text-muted)' }, onClick: e => { e.stopPropagation(); setSelected(l); } }, '\u203A'))
-              )
-            ))
+                h('td', null, h('button', { className: 'btn btn-ghost btn-icon', style: { padding: 4, fontSize: 14, color: 'var(--text-muted)' }, onClick: function(e) { e.stopPropagation(); setSelected(l); } }, '\u203A'))
+              );
+            }))
           )
+      ),
+
+      // Pagination
+      (hasMore || page > 0) && h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid var(--border)', fontSize: 13 } },
+        h('span', { style: { color: 'var(--text-muted)' } },
+          'Showing ' + (page * PAGE_SIZE + 1) + '–' + (page * PAGE_SIZE + filtered.length) + (total ? ' of ' + total : '')
+        ),
+        h('div', { style: { display: 'flex', gap: 4 } },
+          h('button', {
+            className: 'btn btn-secondary btn-sm',
+            disabled: page === 0,
+            onClick: function() { goPage(page - 1); }
+          }, '\u2190 Previous'),
+          h('span', { style: { padding: '4px 12px', fontSize: 12, color: 'var(--text-secondary)' } }, 'Page ' + (page + 1)),
+          h('button', {
+            className: 'btn btn-secondary btn-sm',
+            disabled: !hasMore,
+            onClick: function() { goPage(page + 1); }
+          }, 'Next \u2192')
+        )
       )
     ),
 
-    // ─── Detail Modal ──────────────────────────────
     selected && h(DetailModal, {
       title: 'Audit Entry',
-      onClose: () => setSelected(null),
+      onClose: function() { setSelected(null); },
       data: {
         timestamp: selected.timestamp,
         action: selected.action,

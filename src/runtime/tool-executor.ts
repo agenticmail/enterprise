@@ -179,6 +179,12 @@ async function executeWithTimeout<T>(
 // ─── Result Formatting ──────────────────────────────────
 
 function formatToolResult(result: ToolResult): string {
+  // Handle tools that return { output: '...' } instead of { content: [...] }
+  var anyResult = result as any;
+  if ((!result.content || result.content.length === 0) && anyResult.output) {
+    return String(anyResult.output);
+  }
+
   if (!result.content || result.content.length === 0) {
     return '(no output)';
   }

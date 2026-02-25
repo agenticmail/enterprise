@@ -10,6 +10,19 @@
 import type { AgentConfig, DeploymentTarget, DeploymentStatus } from './agent-config.js';
 import { AgentConfigGenerator } from './agent-config.js';
 
+/**
+ * Derive PM2 process name from agent config.
+ * Uses config.deployment.config.local?.pm2Name if set,
+ * otherwise derives from agent name: "Fola Olatunji" → "fola-agent"
+ */
+function getPm2Name(config: AgentConfig): string {
+  const local = (config.deployment?.config as any)?.local;
+  if (local?.pm2Name) return local.pm2Name;
+  // Derive: first word of name, lowercased, + "-agent"
+  const slug = config.name.split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9-]/g, '');
+  return `${slug}-agent`;
+}
+
 // ─── Types ──────────────────────────────────────────────
 
 export interface DeploymentEvent {
@@ -97,6 +110,9 @@ export class DeploymentEngine {
         case 'railway':
           result = await this.deployRailway(config, emit);
           break;
+        case 'local':
+          result = await this.deployLocal(config, emit);
+          break;
         default:
           throw new Error(`Unsupported deployment target: ${config.deployment.target}`);
       }
@@ -123,7 +139,9 @@ export class DeploymentEngine {
       case 'vps':
         return this.execSSH(config, `sudo systemctl stop agenticmail-${config.name}`);
       case 'fly':
-        return this.execCommand(`fly apps destroy agenticmail-${config.name} --yes`);
+        return this.flyMachineAction(config, 'stop');
+      case 'local':
+        return this.execCommand(`pm2 stop ${getPm2Name(config)}`);
       default:
         return { success: false, message: `Cannot stop: unsupported target ${config.deployment.target}` };
     }
@@ -139,7 +157,9 @@ export class DeploymentEngine {
       case 'vps':
         return this.execSSH(config, `sudo systemctl restart agenticmail-${config.name}`);
       case 'fly':
-        return this.execCommand(`fly apps restart agenticmail-${config.name}`);
+        return this.flyMachineAction(config, 'restart');
+      case 'local':
+        return this.execCommand(`pm2 restart ${getPm2Name(config)}`);
       default:
         return { success: false, message: `Cannot restart: unsupported target ${config.deployment.target}` };
     }
@@ -164,6 +184,8 @@ export class DeploymentEngine {
           return await this.getVPSStatus(config, base);
         case 'fly':
           return await this.getCloudStatus(config, base);
+        case 'local':
+          return await this.getPm2Status(config, base);
         default:
           return base;
       }
@@ -182,7 +204,9 @@ export class DeploymentEngine {
       case 'vps':
         return (await this.execSSH(config, `journalctl -u agenticmail-${config.name} --no-pager -n ${lines}`)).message;
       case 'fly':
-        return (await this.execCommand(`fly logs -a agenticmail-${config.name} -n ${lines}`)).message;
+        return `Logs available at: https://fly.io/apps/${config.deployment.config.cloud?.appName || 'unknown'}/monitoring`;
+      case 'local':
+        return (await this.execCommand(`pm2 logs ${getPm2Name(config)} --lines ${lines} --nostream 2>&1`)).message;
       default:
         return 'Log streaming not supported for this target';
     }
@@ -346,67 +370,229 @@ export class DeploymentEngine {
 
   // ─── Fly.io Deployment ────────────────────────────────
 
+  /**
+   * Local deployment — agent runs as a PM2 process on the same machine.
+   * Restarts the PM2 process (or starts it if stopped).
+   */
+  private async deployLocal(config: AgentConfig, emit: (phase: DeploymentPhase, status: DeploymentEvent['status'], msg: string, details?: any) => void): Promise<DeploymentResult> {
+    const pm2Name = getPm2Name(config);
+
+    emit('provision', 'started', `Checking PM2 process "${pm2Name}"...`);
+
+    // Check if PM2 process exists
+    const list = await this.execCommand(`pm2 jlist 2>/dev/null`);
+    let processExists = false;
+    if (list.success) {
+      try {
+        const procs = JSON.parse(list.message);
+        processExists = procs.some((p: any) => p.name === pm2Name);
+      } catch {}
+    }
+
+    if (!processExists) {
+      emit('provision', 'failed', `PM2 process "${pm2Name}" not found. Create it first with: pm2 start ...`);
+      return { success: false, events: [], error: `PM2 process "${pm2Name}" not registered` };
+    }
+    emit('provision', 'completed', `PM2 process "${pm2Name}" found`);
+
+    emit('start', 'started', `Restarting ${pm2Name}...`);
+    const result = await this.execCommand(`pm2 restart ${pm2Name}`);
+    if (!result.success) {
+      emit('start', 'failed', `PM2 restart failed: ${result.message}`);
+      return { success: false, events: [], error: result.message };
+    }
+    emit('start', 'completed', `${pm2Name} restarted`);
+
+    // Health check: wait for process to be "online"
+    emit('healthcheck', 'started', 'Checking process health...');
+    await new Promise(r => setTimeout(r, 3000));
+    const status = await this.execCommand(`pm2 jlist 2>/dev/null`);
+    let healthy = false;
+    if (status.success) {
+      try {
+        const procs = JSON.parse(status.message);
+        const proc = procs.find((p: any) => p.name === pm2Name);
+        healthy = proc?.pm2_env?.status === 'online';
+      } catch {}
+    }
+
+    if (healthy) {
+      emit('healthcheck', 'completed', 'Process is online');
+      emit('complete', 'completed', `${pm2Name} deployed successfully`);
+    } else {
+      emit('healthcheck', 'failed', 'Process not online after restart');
+    }
+
+    return { success: healthy, events: [] };
+  }
+
+  /**
+   * Deploy agent to Fly.io using the Machines API (HTTP).
+   * No flyctl CLI needed — works from inside containers.
+   *
+   * Flow:
+   * 1. Create app (if it doesn't exist)
+   * 2. Create a Machine with the @agenticmail/enterprise Docker image
+   * 3. Set secrets (API keys, DB URL, etc.)
+   * 4. Wait for machine to start
+   */
   private async deployFly(config: AgentConfig, emit: Function): Promise<DeploymentResult> {
     const cloud = config.deployment.config.cloud;
-    if (!cloud || cloud.provider !== 'fly') throw new Error('Fly.io config missing');
+    if (!cloud) throw new Error('Fly.io config missing');
 
-    const appName = cloud.appName || `agenticmail-${config.name}`;
+    const apiToken = cloud.apiToken;
+    if (!apiToken) throw new Error('Fly.io API token is required');
 
-    emit('provision', 'started', `Creating Fly.io app ${appName}...`);
-    await this.execCommand(`fly apps create ${appName} --org personal`, { FLY_API_TOKEN: cloud.apiToken });
-    emit('provision', 'completed', `App ${appName} created`);
+    // Reuse previously stored app/machine IDs for redeploy
+    const appName = cloud.appName || (config.deployment.config as any).flyAppName || `am-agent-${config.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 30)}`;
+    const region = cloud.region || 'iad';
+    const size = cloud.size || 'shared-cpu-1x';
+    const FLY_API = 'https://api.machines.dev/v1';
 
-    // Generate Dockerfile
-    emit('configure', 'started', 'Generating Dockerfile...');
-    const dockerfile = this.generateDockerfile(config);
-    const workspace = this.configGen.generateWorkspace(config);
+    // Fly.io tokens: FlyV1 tokens use their own prefix, others use Bearer
+    const authHeader = apiToken.startsWith('FlyV1 ') || apiToken.startsWith('fm2_') ? apiToken.startsWith('FlyV1 ') ? apiToken : `FlyV1 ${apiToken}` : `Bearer ${apiToken}`;
 
-    // Write temp build context
-    const buildDir = `/tmp/agenticmail-build-${config.name}`;
-    await this.execCommand(`mkdir -p ${buildDir}/workspace`);
-    await this.writeFile(`${buildDir}/Dockerfile`, dockerfile);
-    for (const [file, content] of Object.entries(workspace)) {
-      await this.writeFile(`${buildDir}/workspace/${file}`, content);
+    const flyFetch = async (path: string, method: string = 'GET', body?: any): Promise<any> => {
+      const res = await fetch(`${FLY_API}${path}`, {
+        method,
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (!res.ok) throw new Error(`Fly API ${method} ${path}: ${res.status} — ${data.error || text}`);
+      return data;
+    };
+
+    // 1. Create app (ignore "already exists" errors)
+    emit('provision', 'started', `Creating Fly.io app "${appName}"...`);
+    try {
+      // Fly.io org_slug must be a Fly org slug (e.g. 'personal', 'ope-olatunji'), not an internal org ID
+      // If no valid org slug provided, auto-detect from token by listing apps
+      let flyOrg = (cloud.org && cloud.org.length < 40 && /^[a-z0-9-]+$/.test(cloud.org)) ? cloud.org : '';
+      if (!flyOrg) {
+        try {
+          const orgsRes = await flyFetch('/apps?org_slug=personal');
+          if (orgsRes?.apps?.length > 0 && orgsRes.apps[0].organization?.slug) {
+            flyOrg = orgsRes.apps[0].organization.slug;
+          }
+        } catch {}
+        if (!flyOrg) flyOrg = 'personal';
+      }
+      await flyFetch('/apps', 'POST', {
+        app_name: appName,
+        org_slug: flyOrg,
+      });
+      emit('provision', 'completed', `App "${appName}" created`);
+    } catch (e: any) {
+      if (e.message.includes('already exists') || e.message.includes('already been taken')) {
+        emit('provision', 'completed', `App "${appName}" already exists, reusing`);
+      } else {
+        throw e;
+      }
     }
 
-    // Write fly.toml
-    const flyToml = `
-app = "${appName}"
-primary_region = "${cloud.region || 'iad'}"
+    // 2. Build environment variables — agent reads config from shared DB
+    emit('configure', 'started', 'Preparing agent configuration...');
+    const env: Record<string, string> = {
+      NODE_ENV: 'production',
+      AGENTICMAIL_AGENT_ID: config.id,
+      AGENTICMAIL_AGENT_NAME: config.displayName || config.name,
+      AGENTICMAIL_MODEL: `${config.model?.provider || 'anthropic'}/${config.model?.modelId || 'claude-sonnet-4-20250514'}`,
+      PORT: '3000',
+    };
+    if (config.model?.thinkingLevel) env.AGENTICMAIL_THINKING = config.model.thinkingLevel;
+    // Pass shared DB credentials so agent connects to the same enterprise DB
+    if (process.env.DATABASE_URL) env.DATABASE_URL = process.env.DATABASE_URL;
+    if (process.env.JWT_SECRET) env.JWT_SECRET = process.env.JWT_SECRET;
+    emit('configure', 'completed', 'Configuration ready');
 
-[build]
-  dockerfile = "Dockerfile"
+    // 3. Check for existing machines — update if found, create if not
+    emit('install', 'started', 'Deploying machine...');
+    const existingMachines = await flyFetch(`/apps/${appName}/machines`);
+    const machineConfig = {
+      image: 'node:22-slim',
+      env,
+      services: [{
+        ports: [
+          { port: 443, handlers: ['tls', 'http'] },
+          { port: 80, handlers: ['http'], force_https: true },
+        ],
+        protocol: 'tcp',
+        internal_port: 3000,
+      }],
+      guest: {
+        cpu_kind: size.includes('performance') ? 'performance' : 'shared',
+        cpus: size.includes('2x') ? 2 : 1,
+        memory_mb: size.includes('2x') ? 1024 : 512,
+      },
+      init: {
+        cmd: ['sh', '-c', 'rm -rf /root/.npm && mkdir -p /tmp/agent && cd /tmp/agent && npm init -y > /dev/null 2>&1 && npm install --no-save @agenticmail/enterprise openai pg && npx @agenticmail/enterprise agent'],
+      },
+      auto_destroy: false,
+      restart: { policy: 'always' },
+    };
 
-[http_service]
-  internal_port = 3000
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 1
+    let machineId: string;
+    // Filter to only non-destroyed machines
+    const liveMachines = (existingMachines || []).filter((m: any) => m.state !== 'destroyed');
+    if (liveMachines.length > 0) {
+      // Reuse existing machine — stop it first if running, then update
+      const existing = liveMachines[0];
+      machineId = existing.id;
+      emit('install', 'started', `Reusing existing machine ${machineId} (state: ${existing.state})...`);
+      if (existing.state === 'started' || existing.state === 'running') {
+        try {
+          await flyFetch(`/apps/${appName}/machines/${machineId}/stop`, 'POST');
+          await flyFetch(`/apps/${appName}/machines/${machineId}/wait?state=stopped&timeout=30`);
+        } catch { /* may already be stopped */ }
+      }
+      await flyFetch(`/apps/${appName}/machines/${machineId}`, 'POST', {
+        config: machineConfig,
+        region,
+      });
+      emit('install', 'completed', `Machine ${machineId} updated and restarting`);
+    } else {
+      // Create new machine
+      const machine = await flyFetch(`/apps/${appName}/machines`, 'POST', {
+        name: `agent-${config.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 20)}`,
+        region,
+        config: machineConfig,
+      });
+      machineId = machine.id;
+      emit('install', 'completed', `Machine ${machineId} created in ${region}`);
+    }
 
-[[vm]]
-  size = "${cloud.size || 'shared-cpu-1x'}"
-  memory = "512mb"
-`;
-    await this.writeFile(`${buildDir}/fly.toml`, flyToml);
-    emit('configure', 'completed', 'Build context ready');
+    // 4. Wait for machine to start
+    emit('start', 'started', 'Waiting for machine to start...');
+    try {
+      await flyFetch(`/apps/${appName}/machines/${machineId}/wait?state=started&timeout=60`);
+      emit('start', 'completed', 'Machine is running');
+    } catch {
+      emit('start', 'completed', 'Machine starting (health check pending)');
+    }
 
-    // Deploy
-    emit('install', 'started', 'Deploying to Fly.io (building + pushing)...');
-    const deployResult = await this.execCommand(`cd ${buildDir} && fly deploy --now`, { FLY_API_TOKEN: cloud.apiToken });
-    emit('install', deployResult.success ? 'completed' : 'failed', deployResult.message);
-
-    // Cleanup
-    await this.execCommand(`rm -rf ${buildDir}`);
+    // Store deployment metadata — persists app/machine IDs for redeployment
+    config.deployment.config.cloud = {
+      ...cloud,
+      provider: 'fly',
+      appName,
+      region,
+      size,
+    };
+    (config.deployment.config as any).flyAppName = appName;
+    (config.deployment.config as any).flyMachineId = machineId;
+    (config.deployment.config as any).deployedAt = new Date().toISOString();
 
     const url = cloud.customDomain || `https://${appName}.fly.dev`;
-
-    if (deployResult.success) {
-      emit('complete', 'completed', `Agent live at ${url}`);
-    }
+    emit('complete', 'completed', `Agent live at ${url}`);
 
     return {
-      success: deployResult.success,
+      success: true,
       url,
       appId: appName,
       events: [],
@@ -492,28 +678,109 @@ primary_region = "${cloud.region || 'iad'}"
 
   private async getCloudStatus(config: AgentConfig, base: LiveAgentStatus): Promise<LiveAgentStatus> {
     const cloud = config.deployment.config.cloud;
-    if (!cloud) return base;
+    if (!cloud || !cloud.apiToken) return base;
 
-    const appName = cloud.appName || `agenticmail-${config.name}`;
-    const result = await this.execCommand(`fly status -a ${appName} --json`, { FLY_API_TOKEN: cloud.apiToken });
-
-    if (!result.success) return { ...base, status: 'error' };
+    const appName = cloud.appName || `am-agent-${config.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 30)}`;
+    const FLY_API = 'https://api.machines.dev/v1';
+    const t = cloud.apiToken;
+    const auth = t.startsWith('FlyV1 ') ? t : t.startsWith('fm2_') ? `FlyV1 ${t}` : `Bearer ${t}`;
 
     try {
-      const status = JSON.parse(result.message);
+      const res = await fetch(`${FLY_API}/apps/${appName}/machines`, {
+        headers: { 'Authorization': auth },
+      });
+      if (!res.ok) return { ...base, status: 'error', healthStatus: 'unhealthy' };
+
+      const machines = await res.json() as any[];
+      if (machines.length === 0) return { ...base, status: 'stopped' };
+
+      const machine = machines[0];
+      const state = machine.state;
+      const isRunning = state === 'started' || state === 'replacing';
+
       return {
         ...base,
-        status: status.Deployed ? 'running' : 'stopped',
-        healthStatus: status.Deployed ? 'healthy' : 'unhealthy',
+        status: isRunning ? 'running' : state === 'stopped' ? 'stopped' : 'error',
+        healthStatus: isRunning ? 'healthy' : 'unhealthy',
         endpoint: `https://${appName}.fly.dev`,
-        version: status.Version?.toString(),
+        version: machine.image_ref?.tag,
+        uptime: machine.created_at ? Math.floor((Date.now() - new Date(machine.created_at).getTime()) / 1000) : undefined,
       };
     } catch {
-      return { ...base, status: 'error' };
+      return { ...base, status: 'error', healthStatus: 'unhealthy' };
+    }
+  }
+
+  private async getPm2Status(config: AgentConfig, base: LiveAgentStatus): Promise<LiveAgentStatus> {
+    const pm2Name = getPm2Name(config);
+    const result = await this.execCommand(`pm2 jlist 2>/dev/null`);
+    if (!result.success) return { ...base, status: 'error', healthStatus: 'unhealthy' };
+
+    try {
+      const procs = JSON.parse(result.message);
+      const proc = procs.find((p: any) => p.name === pm2Name);
+      if (!proc) return { ...base, status: 'not-deployed', healthStatus: 'unknown' };
+
+      const status = proc.pm2_env?.status;
+      const isOnline = status === 'online';
+      const uptime = isOnline && proc.pm2_env?.pm_uptime
+        ? Math.floor((Date.now() - proc.pm2_env.pm_uptime) / 1000)
+        : 0;
+
+      return {
+        ...base,
+        status: isOnline ? 'running' : status === 'stopped' ? 'stopped' : 'error',
+        healthStatus: isOnline ? 'healthy' : 'unhealthy',
+        uptime,
+        lastHealthCheck: new Date().toISOString(),
+        metrics: {
+          cpuPercent: proc.monit?.cpu || 0,
+          memoryMb: Math.round((proc.monit?.memory || 0) / 1024 / 1024),
+          toolCallsToday: 0,
+          activeSessionCount: 0,
+          errorRate: 0,
+        },
+        version: proc.pm2_env?.version || undefined,
+      };
+    } catch {
+      return { ...base, status: 'error', healthStatus: 'unhealthy' };
     }
   }
 
   // ─── Helpers ──────────────────────────────────────────
+
+  /** Stop or restart a Fly.io machine via the Machines API */
+  private async flyMachineAction(config: AgentConfig, action: 'stop' | 'restart'): Promise<{ success: boolean; message: string }> {
+    const cloud = config.deployment.config.cloud;
+    if (!cloud || !cloud.apiToken) return { success: false, message: 'Fly.io config missing' };
+
+    const appName = cloud.appName || `am-agent-${config.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 30)}`;
+    const FLY_API = 'https://api.machines.dev/v1';
+    const t = cloud.apiToken;
+    const auth = t.startsWith('FlyV1 ') ? t : t.startsWith('fm2_') ? `FlyV1 ${t}` : `Bearer ${t}`;
+
+    try {
+      const res = await fetch(`${FLY_API}/apps/${appName}/machines`, {
+        headers: { 'Authorization': auth },
+      });
+      if (!res.ok) return { success: false, message: `Failed to list machines: ${res.status}` };
+      const machines = await res.json() as any[];
+      if (machines.length === 0) return { success: false, message: 'No machines found' };
+
+      const machineId = machines[0].id;
+      const actionRes = await fetch(`${FLY_API}/apps/${appName}/machines/${machineId}/${action}`, {
+        method: 'POST',
+        headers: { 'Authorization': auth },
+      });
+      if (!actionRes.ok) {
+        const err = await actionRes.text();
+        return { success: false, message: `${action} failed: ${err}` };
+      }
+      return { success: true, message: `Machine ${machineId} ${action}ed` };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  }
 
   private validateConfig(config: AgentConfig) {
     if (!config.name) throw new Error('Agent name is required');

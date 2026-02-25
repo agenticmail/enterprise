@@ -209,6 +209,7 @@ CREATE INDEX IF NOT EXISTS idx_approval_policies_org ON approval_policies(org_id
  * Postgres-compatible version (uses JSONB instead of JSON, SERIAL, etc.)
  */
 export const ENGINE_TABLES_POSTGRES = ENGINE_TABLES
+  .replace(/\bBLOB\b/g, 'BYTEA')
   .replace(/JSON/g, 'JSONB')
   .replace(/INTEGER NOT NULL DEFAULT 0/g, 'INTEGER NOT NULL DEFAULT 0')
   .replace(/datetime\('now'\)/g, "NOW()")
@@ -1232,6 +1233,78 @@ CREATE INDEX idx_agent_followups_agent ON agent_followups(agent_id);
     mysql: `ALTER TABLE company_settings ADD COLUMN model_pricing_config TEXT DEFAULT '{}';`,
     nosql: async () => {},
   },
+  {
+    version: 17,
+    name: 'fix_version_column_type',
+    sql: `SELECT 1;`, // SQLite already uses INTEGER, no fix needed
+    postgres: `SELECT 1`,
+    mysql: `SELECT 1;`,
+    nosql: async () => {},
+  },
+  {
+    version: 18,
+    name: 'knowledge_contribution_bases',
+    sql: `
+CREATE TABLE IF NOT EXISTS knowledge_contribution_bases (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  role TEXT NOT NULL DEFAULT 'general',
+  data JSON NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_kc_bases_org ON knowledge_contribution_bases(org_id);
+
+CREATE TABLE IF NOT EXISTS knowledge_contribution_entries (
+  id TEXT PRIMARY KEY,
+  base_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  source_agent_id TEXT NOT NULL,
+  category TEXT,
+  data JSON NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (base_id) REFERENCES knowledge_contribution_bases(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_kc_entries_base ON knowledge_contribution_entries(base_id);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS knowledge_contribution_bases (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  role TEXT NOT NULL DEFAULT 'general',
+  data JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_kc_bases_org ON knowledge_contribution_bases(org_id);
+
+CREATE TABLE IF NOT EXISTS knowledge_contribution_entries (
+  id TEXT PRIMARY KEY,
+  base_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  source_agent_id TEXT NOT NULL,
+  category TEXT,
+  data JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  FOREIGN KEY (base_id) REFERENCES knowledge_contribution_bases(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_kc_entries_base ON knowledge_contribution_entries(base_id);
+    `,
+    mysql: `SELECT 1;`,
+    nosql: async () => {},
+  },
+  {
+    version: 19,
+    name: 'signature_template',
+    sql: `ALTER TABLE company_settings ADD COLUMN signature_template TEXT;`,
+    postgres: `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS signature_template TEXT;`,
+    mysql: `ALTER TABLE company_settings ADD COLUMN signature_template TEXT;`,
+    nosql: async () => {},
+  },
 ];
 
 // ─── Dynamic Table Definitions ─────────────────────────
@@ -1262,10 +1335,13 @@ export interface DynamicTableDef {
  */
 export function sqliteToPostgres(sql: string): string {
   return sql
+    .replace(/\bBLOB\b/g, 'BYTEA')
     .replace(/JSON/g, 'JSONB')
     .replace(/datetime\('now'\)/g, "NOW()")
-    .replace(/INTEGER NOT NULL DEFAULT 1(?!\d)/g, 'BOOLEAN NOT NULL DEFAULT TRUE')
-    .replace(/INTEGER NOT NULL DEFAULT 0(?!\d)/g, 'INTEGER NOT NULL DEFAULT 0');
+    // Only convert INTEGER→BOOLEAN for known boolean column names (enabled, revoked, enforce_*, auto_*, is_*, active)
+    // NOT for version, count, or other numeric columns that happen to default to 1
+    .replace(/((?:enabled|revoked|enforce_\w+|auto_\w+|is_\w+|active)\s+)INTEGER NOT NULL DEFAULT 1(?!\d)/g, '$1BOOLEAN NOT NULL DEFAULT TRUE')
+    .replace(/((?:enabled|revoked|enforce_\w+|auto_\w+|is_\w+|active)\s+)INTEGER NOT NULL DEFAULT 0(?!\d)/g, '$1BOOLEAN NOT NULL DEFAULT FALSE');
 }
 
 /**

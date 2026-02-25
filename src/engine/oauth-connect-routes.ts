@@ -68,7 +68,7 @@ async function findVaultEntryByName(
 
 // ─── Route Factory ──────────────────────────────────────
 
-export function createOAuthConnectRoutes(vault: SecureVault) {
+export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any) {
   const router = new Hono();
 
   // ─── GET /authorize/:skillId — Start OAuth flow ─────
@@ -82,14 +82,13 @@ export function createOAuthConnectRoutes(vault: SecureVault) {
 
       // Resolve provider
       const providerKey = SKILL_PROVIDER_MAP[skillId];
-      if (providerKey === undefined) {
-        return c.json({ error: `Unknown skill: ${skillId}` }, 404);
-      }
-      if (providerKey === null) {
-        return c.json(
-          { error: `Skill "${skillId}" does not use OAuth. Configure it with an API key or bot token instead.` },
-          400,
-        );
+      if (providerKey === undefined || providerKey === null) {
+        // Skill doesn't use OAuth — instruct client to use token-based auth (POST /authorize/:skillId)
+        return c.json({
+          error: `Skill "${skillId}" uses API key authentication, not OAuth. Use the token input to save your API key.`,
+          authType: 'token',
+          skillId,
+        }, 200);
       }
 
       const provider: OAuthProviderDefinition | undefined =
@@ -149,6 +148,34 @@ export function createOAuthConnectRoutes(vault: SecureVault) {
     }
   });
 
+  // ─── POST /authorize/:skillId — Save API key/token directly ─────
+
+  router.post('/authorize/:skillId', async (c) => {
+    try {
+      const skillId = c.req.param('skillId');
+      const orgId = c.req.query('orgId') || 'default';
+      const { token } = await c.req.json();
+
+      if (!token || typeof token !== 'string' || !token.trim()) {
+        return c.json({ error: 'A non-empty token value is required' }, 400);
+      }
+
+      // Store as access_token in vault (same format as OAuth tokens)
+      await vault.storeSecret(
+        orgId,
+        `skill:${skillId}:access_token`,
+        'skill_credential',
+        token.trim(),
+        { provider: 'api_key', manualEntry: true },
+        'dashboard',
+      );
+
+      return c.json({ success: true, skillId, connected: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
   // ─── GET /callback — Handle OAuth redirect ───────────
 
   router.get('/callback', async (c) => {
@@ -168,9 +195,19 @@ export function createOAuthConnectRoutes(vault: SecureVault) {
         return c.html(oauthResultPage(false, 'Missing code or state parameter'));
       }
 
-      // Validate state
+      // Validate state — check skill OAuth states first, then agent email OAuth
       const pending = pendingOAuthStates.get(state);
       if (!pending) {
+        // Check if state is an agent ID (agent email OAuth flow)
+        if (lifecycle) {
+          const managed = lifecycle.getAgent(state);
+          console.log(`[OAuth callback] state=${state}, lifecycle exists=${!!lifecycle}, agent found=${!!managed}, emailStatus=${managed?.config?.emailConfig?.status}`);
+          if (managed?.config?.emailConfig?.status === 'awaiting_oauth' || managed?.config?.emailConfig?.status === 'connected') {
+            return await handleAgentEmailOAuthCallback(c, state, code, managed, lifecycle);
+          }
+        } else {
+          console.log(`[OAuth callback] state=${state}, lifecycle is null/undefined`);
+        }
         return c.html(oauthResultPage(false, 'Invalid or expired OAuth state'));
       }
 
@@ -309,6 +346,100 @@ export function createOAuthConnectRoutes(vault: SecureVault) {
   });
 
   return router;
+}
+
+// ─── Agent Email OAuth Callback Handler ─────────────────
+
+async function handleAgentEmailOAuthCallback(c: any, agentId: string, code: string, managed: any, lifecycle: any) {
+  const emailConfig = managed.config.emailConfig;
+  try {
+    if (emailConfig.oauthProvider === 'microsoft') {
+      const tokenRes = await fetch(`https://login.microsoftonline.com/${emailConfig.oauthTenantId || 'common'}/oauth2/v2.0/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: emailConfig.oauthClientId,
+          client_secret: emailConfig.oauthClientSecret,
+          code,
+          redirect_uri: emailConfig.oauthRedirectUri,
+          grant_type: 'authorization_code',
+          scope: emailConfig.oauthScopes.join(' '),
+        }),
+      });
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        return c.html(oauthResultPage(false, `Microsoft token exchange failed: ${errText}`));
+      }
+      const tokens = await tokenRes.json() as any;
+      emailConfig.oauthAccessToken = tokens.access_token;
+      if (tokens.refresh_token) {
+        emailConfig.oauthRefreshToken = tokens.refresh_token;
+      }
+      emailConfig.oauthTokenExpiry = new Date(Date.now() + (tokens.expires_in * 1000)).toISOString();
+
+      // Get user email from Graph
+      try {
+        const profileRes = await fetch('https://graph.microsoft.com/v1.0/me?$select=mail,displayName', {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+        });
+        if (profileRes.ok) {
+          const profile = await profileRes.json() as any;
+          if (profile.mail) emailConfig.email = profile.mail;
+        }
+      } catch {}
+
+    } else if (emailConfig.oauthProvider === 'google') {
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: emailConfig.oauthClientId,
+          client_secret: emailConfig.oauthClientSecret,
+          code,
+          redirect_uri: emailConfig.oauthRedirectUri,
+          grant_type: 'authorization_code',
+        }),
+      });
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text();
+        return c.html(oauthResultPage(false, `Google token exchange failed: ${errText}`));
+      }
+      const tokens = await tokenRes.json() as any;
+      emailConfig.oauthAccessToken = tokens.access_token;
+      // Only overwrite refresh_token if Google returned one (re-auth may not include it)
+      if (tokens.refresh_token) {
+        emailConfig.oauthRefreshToken = tokens.refresh_token;
+      }
+      emailConfig.oauthTokenExpiry = tokens.expires_in
+        ? new Date(Date.now() + (tokens.expires_in * 1000)).toISOString()
+        : undefined;
+
+      // Get user email from Google
+      try {
+        const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${tokens.access_token}` },
+        });
+        if (profileRes.ok) {
+          const profile = await profileRes.json() as any;
+          if (profile.email) emailConfig.email = profile.email;
+        }
+      } catch {}
+
+    } else {
+      return c.html(oauthResultPage(false, `Unknown OAuth provider: ${emailConfig.oauthProvider}`));
+    }
+
+    emailConfig.status = 'connected';
+    emailConfig.configured = true;
+    delete emailConfig.oauthAuthUrl;
+    managed.config.emailConfig = emailConfig;
+    managed.updatedAt = new Date().toISOString();
+    await lifecycle.saveAgent(agentId);
+
+    return c.html(oauthResultPage(true, `Email connected via ${emailConfig.oauthProvider === 'google' ? 'Google' : 'Microsoft'} OAuth`));
+  } catch (e: any) {
+    return c.html(oauthResultPage(false, e.message || 'OAuth token exchange failed'));
+  }
 }
 
 // ─── HTML Callback Page ─────────────────────────────────

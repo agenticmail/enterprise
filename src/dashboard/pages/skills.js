@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 
@@ -52,7 +52,7 @@ export function SkillsPage() {
   // Load installed skills + statuses
   var loadInstalled = useCallback(function() {
     setInstalledLoading(true);
-    engineCall('/community/installed?orgId=default')
+    engineCall('/community/installed?orgId=' + getOrgId())
       .then(function(d) {
         var items = d.installed || [];
         setInstalled(items);
@@ -159,7 +159,7 @@ export function SkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/' + (enable ? 'enable' : 'disable'), {
         method: 'PUT',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('Skill ' + (enable ? 'enabled' : 'disabled'), 'success');
       loadInstalled();
@@ -177,7 +177,7 @@ export function SkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/uninstall', {
         method: 'DELETE',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('Skill uninstalled', 'success');
       loadInstalled();
@@ -209,6 +209,18 @@ export function SkillsPage() {
       setConfigSkill(null);
     } catch (e) { toast(e.message || 'Save failed', 'error'); }
     setConfigSaving(false);
+  };
+
+  // Install a builtin skill
+  var installBuiltinSkill = async function(skillId) {
+    try {
+      await engineCall('/community/skills/' + skillId + '/install', {
+        method: 'POST',
+        body: JSON.stringify({ orgId: getOrgId() })
+      });
+      toast('Skill installed', 'success');
+      loadInstalled();
+    } catch (e) { toast(e.message || 'Install failed', 'error'); }
   };
 
   // Computed
@@ -246,11 +258,17 @@ export function SkillsPage() {
         return h('div', { key: cat, style: { marginBottom: 24 } },
           h('h3', { style: { fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 10 } }, cat.replace(/-/g, ' ')),
           h('div', { className: 'skill-grid' }, list.map(function(s) {
+            var isInstalled = installed.some(function(i) { return i.skillId === s.id; });
             return h('div', { key: s.id, className: 'skill-card' },
               h('div', { className: 'skill-cat' }, s.category || cat),
               h('div', { className: 'skill-name' }, s.name),
               h('div', { className: 'skill-desc' }, s.description),
-              s.tools && h('div', { style: { marginTop: 6, fontSize: 11, color: 'var(--text-muted)' } }, s.tools.length + ' tools')
+              h('div', { style: { marginTop: 8, display: 'flex', gap: 6, alignItems: 'center' } },
+                h('span', {
+                  style: { fontSize: 11, padding: '2px 8px', borderRadius: 12, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 600 }
+                }, '\u2713 Built-in'),
+                s.tools && s.tools.length > 0 && h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, s.tools.length + ' tools available')
+              )
             );
           }))
         );

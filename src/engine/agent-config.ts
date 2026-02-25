@@ -106,6 +106,37 @@ export interface AgentConfig {
     };
   };
 
+  // Email config (OAuth/IMAP credentials — flexible shape, varies by provider)
+  emailConfig?: Record<string, any> | null;
+
+  // Browser config (CDP, Browserless, Browserbase, Steel, local — flexible shape)
+  browserConfig?: Record<string, any>;
+
+  // Tool access toggles (category -> enabled)
+  toolAccess?: Record<string, boolean>;
+
+  // Tool restrictions
+  toolRestrictions?: Record<string, any>;
+
+  // Enabled Google services
+  enabledGoogleServices?: string[];
+
+  // Timezone
+  timezone?: string;
+
+  // Work hours — agent only processes messages during these hours
+  // Messages from manager bypass this restriction
+  workHours?: {
+    enabled: boolean;
+    start: string;   // "09:00" (24h format)
+    end: string;     // "17:00"
+    days?: number[];  // 0=Sun, 1=Mon..6=Sat. Default: [1,2,3,4,5] (Mon-Fri)
+    timezone?: string; // Override agent timezone for work hours
+  };
+
+  // Reporting
+  managerEmail?: string;                  // Manager/supervisor email — agent sends welcome email + reports here
+
   // Permission profile
   permissionProfileId: string;
 
@@ -161,7 +192,10 @@ export interface DeploymentConfig {
     apiToken: string;
     appName?: string;                     // Auto-generated if not set
     customDomain?: string;
+    org?: string;                         // Organization/team for Fly.io etc.
   };
+
+  deployedAt?: string;
 }
 
 export type DeploymentStatus =
@@ -198,7 +232,7 @@ export class AgentConfigGenerator {
   generateGatewayConfig(config: AgentConfig): GatewayConfig {
     const channels: Record<string, any> = {};
 
-    for (const ch of config.channels.enabled) {
+    for (const ch of (config.channels?.enabled || [])) {
       if (!ch.enabled) continue;
       channels[ch.type] = ch.config;
     }
@@ -209,10 +243,10 @@ export class AgentConfigGenerator {
       temperature: config.model.temperature,
       maxTokens: config.model.maxTokens,
       channels,
-      heartbeat: config.heartbeat.enabled ? {
+      heartbeat: config.heartbeat?.enabled ? {
         intervalMinutes: config.heartbeat.intervalMinutes,
       } : undefined,
-      workspace: config.workspace.workingDirectory,
+      workspace: config.workspace?.workingDirectory,
     };
   }
 
@@ -227,7 +261,7 @@ export class AgentConfigGenerator {
     // Inject standard vars
     env['AGENTICMAIL_MODEL'] = `${config.model.provider}/${config.model.modelId}`;
     env['AGENTICMAIL_THINKING'] = config.model.thinkingLevel;
-    if (config.email.enabled && config.email.address) {
+    if (config.email?.enabled && config.email.address) {
       env['AGENTICMAIL_EMAIL'] = config.email.address;
     }
 
@@ -559,9 +593,9 @@ ${customInstructions}
   }
 
   private generateHeartbeat(config: AgentConfig): string {
-    if (!config.heartbeat.enabled) return '# HEARTBEAT.md\n# Heartbeat disabled\n';
+    if (!config.heartbeat?.enabled) return '# HEARTBEAT.md\n# Heartbeat disabled\n';
 
-    const checks = config.heartbeat.checks.map(c => `- Check ${c}`).join('\n');
+    const checks = (config.heartbeat.checks || []).map(c => `- Check ${c}`).join('\n');
     return `# HEARTBEAT.md
 
 ## Periodic Checks

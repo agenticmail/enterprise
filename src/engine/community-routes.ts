@@ -87,41 +87,68 @@ export function createCommunityRoutes(registry: CommunitySkillRegistry) {
   });
 
   router.post('/skills/:id/install', async (c) => {
-    const { orgId, config } = await c.req.json().catch(() => ({ orgId: 'default', config: {} }));
-    const userId = c.req.header('X-User-Id') || 'admin';
-    const installed = await registry.install(orgId || 'default', c.req.param('id'), userId, config);
-    return c.json({ installed }, 201);
+    try {
+      const { orgId, config } = await c.req.json().catch(() => ({ orgId: 'default', config: {} }));
+      const userId = c.req.header('X-User-Id') || 'admin';
+      const installed = await registry.install(orgId || 'default', c.req.param('id'), userId, config);
+      return c.json({ installed }, 201);
+    } catch (e: any) {
+      const msg = e?.message || 'Install failed';
+      const status = msg.includes('not found') ? 404 : 500;
+      return c.json({ error: msg }, status);
+    }
   });
 
   router.delete('/skills/:id/uninstall', async (c) => {
-    const orgId = c.req.query('orgId') || 'default';
-    await registry.uninstall(orgId, c.req.param('id'));
-    return c.json({ ok: true });
+    try {
+      const body = await c.req.json().catch(() => ({} as any));
+      const orgId = body.orgId || c.req.query('orgId') || 'default';
+      await registry.uninstall(orgId, c.req.param('id'));
+      return c.json({ ok: true });
+    } catch (e: any) {
+      return c.json({ error: e?.message || 'Uninstall failed' }, 404);
+    }
   });
 
   router.put('/skills/:id/enable', async (c) => {
-    const { orgId } = await c.req.json().catch(() => ({ orgId: 'default' }));
-    await registry.enable(orgId || 'default', c.req.param('id'));
-    return c.json({ ok: true });
+    try {
+      const { orgId } = await c.req.json().catch(() => ({ orgId: 'default' }));
+      await registry.enable(orgId || 'default', c.req.param('id'));
+      return c.json({ ok: true });
+    } catch (e: any) {
+      return c.json({ error: e?.message || 'Enable failed' }, 404);
+    }
   });
 
   router.put('/skills/:id/disable', async (c) => {
-    const { orgId } = await c.req.json().catch(() => ({ orgId: 'default' }));
-    await registry.disable(orgId || 'default', c.req.param('id'));
-    return c.json({ ok: true });
+    try {
+      const { orgId } = await c.req.json().catch(() => ({ orgId: 'default' }));
+      await registry.disable(orgId || 'default', c.req.param('id'));
+      return c.json({ ok: true });
+    } catch (e: any) {
+      return c.json({ error: e?.message || 'Disable failed' }, 404);
+    }
   });
 
   router.put('/skills/:id/config', async (c) => {
-    const { orgId, config } = await c.req.json();
-    if (!config) return c.json({ error: 'config required' }, 400);
-    await registry.updateConfig(orgId || 'default', c.req.param('id'), config);
-    return c.json({ ok: true });
+    try {
+      const { orgId, config } = await c.req.json();
+      if (!config) return c.json({ error: 'config required' }, 400);
+      await registry.updateConfig(orgId || 'default', c.req.param('id'), config);
+      return c.json({ ok: true });
+    } catch (e: any) {
+      return c.json({ error: e?.message || 'Config update failed' }, 404);
+    }
   });
 
   router.post('/skills/:id/upgrade', async (c) => {
-    const { orgId } = await c.req.json().catch(() => ({ orgId: 'default' }));
-    const installed = await registry.upgrade(orgId || 'default', c.req.param('id'));
-    return c.json({ installed });
+    try {
+      const { orgId } = await c.req.json().catch(() => ({ orgId: 'default' }));
+      const installed = await registry.upgrade(orgId || 'default', c.req.param('id'));
+      return c.json({ installed });
+    } catch (e: any) {
+      return c.json({ error: e?.message || 'Upgrade failed' }, 404);
+    }
   });
 
   // ─── Admin / Publishing ──────────────────────────────

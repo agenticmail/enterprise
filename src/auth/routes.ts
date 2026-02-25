@@ -284,7 +284,6 @@ export function createAuthRoutes(
 
       const hasUsers = stats.totalUsers > 0;
       const hasCompanyName = !!(settings?.name && settings.name !== '' && settings.name !== 'My Company');
-      const hasSmtp = !!(settings?.smtpHost);
       const hasAgents = stats.totalAgents > 0;
 
       return c.json({
@@ -293,7 +292,6 @@ export function createAuthRoutes(
         checklist: {
           adminCreated: hasUsers,
           companyConfigured: hasCompanyName,
-          emailConfigured: hasSmtp,
           agentCreated: hasAgents,
         },
       });
@@ -436,6 +434,23 @@ export function createAuthRoutes(
 
       // Notify server that setup is complete (flips the dashboard latch)
       opts?.onBootstrap?.();
+
+      // Auto-install required SDKs in background (non-blocking)
+      (async () => {
+        try {
+          const { execSync } = await import('child_process');
+          const cwd = process.cwd();
+          const deps = ['@anthropic-ai/sdk', 'openai', 'elevenlabs'];
+          const missing = deps.filter(d => { try { require.resolve(d); return false; } catch { return true; } });
+          if (missing.length > 0) {
+            console.log(`[setup] Auto-installing SDKs: ${missing.join(', ')}...`);
+            execSync(`npm install --no-save ${missing.join(' ')}`, { cwd, timeout: 120000, stdio: 'pipe' });
+            console.log(`[setup] ✅ SDKs installed: ${missing.join(', ')}`);
+          }
+        } catch (e: any) {
+          console.error(`[setup] SDK install failed (non-fatal): ${e.message}`);
+        }
+      })();
 
       return c.json({
         token,

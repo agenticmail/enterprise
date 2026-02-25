@@ -91,8 +91,8 @@ export class ActionJournal {
       this.entries = rows.map((r: any) => ({
         id: r.id, orgId: r.org_id, agentId: r.agent_id, sessionId: r.session_id,
         toolId: r.tool_id, toolName: r.tool_name, actionType: r.action_type,
-        forwardData: JSON.parse(r.forward_data),
-        reverseData: r.reverse_data ? JSON.parse(r.reverse_data) : undefined,
+        forwardData: typeof r.forward_data === "string" ? JSON.parse(r.forward_data) : (r.forward_data || {}),
+        reverseData: r.reverse_data ? (typeof r.reverse_data === "string" ? JSON.parse(r.reverse_data) : r.reverse_data) : undefined,
         reversible: !!r.reversible, reversed: !!r.reversed,
         reversedAt: r.reversed_at, reversedBy: r.reversed_by,
         createdAt: r.created_at,

@@ -14,6 +14,10 @@
  *   → Provision           (setup/provision.ts)
  */
 
+import { execSync } from 'child_process';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { promptCompanyInfo } from './company.js';
 import { promptDatabase } from './database.js';
 import { promptDeployment } from './deployment.js';
@@ -33,6 +37,68 @@ export type { DeployTarget, DeploymentSelection } from './deployment.js';
 export type { DomainSelection } from './domain.js';
 export type { RegistrationSelection } from './registration.js';
 export type { ProvisionConfig, ProvisionResult } from './provision.js';
+
+// ─── DB Driver Requirements ──────────────────────
+
+const DB_DRIVER_MAP: Record<string, string[]> = {
+  postgres:    ['pg'],
+  supabase:    ['pg'],
+  neon:        ['pg'],
+  cockroachdb: ['pg'],
+  mysql:       ['mysql2'],
+  planetscale: ['mysql2'],
+  mongodb:     ['mongodb'],
+  sqlite:      ['better-sqlite3'],
+  turso:       ['@libsql/client'],
+  dynamodb:    ['@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb'],
+};
+
+async function ensureDbDriver(dbType: string, ora: any, chalk: any): Promise<void> {
+  const packages = DB_DRIVER_MAP[dbType];
+  if (!packages?.length) return;
+
+  // Check if any packages are missing
+  const missing: string[] = [];
+  for (const pkg of packages) {
+    let found = false;
+    // Try ESM import
+    try { await import(pkg); found = true; } catch {}
+    // Try CJS require from cwd
+    if (!found) {
+      try {
+        const req = createRequire(join(process.cwd(), 'index.js'));
+        req.resolve(pkg);
+        found = true;
+      } catch {}
+    }
+    // Try CJS require from global
+    if (!found) {
+      try {
+        const globalPrefix = execSync('npm prefix -g', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+        const req = createRequire(join(globalPrefix, 'lib', 'node_modules', '.package-lock.json'));
+        req.resolve(pkg);
+        found = true;
+      } catch {}
+    }
+    if (!found) missing.push(pkg);
+  }
+  if (!missing.length) return;
+
+  const spinner = ora(`Installing database driver: ${missing.join(', ')}...`).start();
+  try {
+    // Install in cwd so createRequire(cwd) can find it
+    execSync(`npm install --no-save ${missing.join(' ')}`, {
+      stdio: 'pipe',
+      timeout: 120_000,
+      cwd: process.cwd(),
+    });
+    spinner.succeed(`Database driver installed: ${missing.join(', ')}`);
+  } catch (err: any) {
+    spinner.fail(`Failed to install ${missing.join(', ')}`);
+    console.error(chalk.red(`\n  Run manually: npm install ${missing.join(' ')}\n`));
+    process.exit(1);
+  }
+}
 
 /**
  * Run the full interactive setup wizard.
@@ -71,6 +137,9 @@ export async function runSetupWizard(): Promise<void> {
     company.companyName,
     company.adminEmail,
   );
+
+  // ─── Install DB driver if needed ───────────────
+  await ensureDbDriver(database.type, ora, chalk);
 
   // ─── Provision ───────────────────────────────────
   console.log('');

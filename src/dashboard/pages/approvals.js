@@ -1,4 +1,4 @@
-import { h, useState, useEffect, Fragment, useApp, engineCall, showConfirm, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge } from '../components/utils.js';
+import { h, useState, useEffect, Fragment, useApp, engineCall, showConfirm, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
 export function ApprovalsPage() {
@@ -12,7 +12,7 @@ export function ApprovalsPage() {
   const load = () => {
     engineCall('/approvals/pending').then(d => setPending(d.requests || [])).catch(() => {});
     engineCall('/approvals/history?limit=50').then(d => setHistory(d.requests || [])).catch(() => {});
-    engineCall('/agents?orgId=default').then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(() => { load(); }, []);
 

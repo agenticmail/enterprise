@@ -5,6 +5,25 @@ export { h, useState, useEffect, useCallback, useRef, Fragment, createContext, u
 
 export function useApp() { return useContext(AppContext); }
 
+// Org ID — set from server settings after setup wizard, cached in localStorage
+var _orgIdLoaded = false;
+export function getOrgId() {
+  var id = localStorage.getItem('em_org_id');
+  if (!id && !_orgIdLoaded) {
+    _orgIdLoaded = true;
+    // Fetch from server settings (async, will update on next call)
+    apiCall('/settings').then(function(s) {
+      if (s && s.orgId) {
+        localStorage.setItem('em_org_id', s.orgId);
+      }
+    }).catch(function() {});
+  }
+  return id || 'default';
+}
+export function setOrgId(id) {
+  if (id) localStorage.setItem('em_org_id', id);
+}
+
 // Derive accent color variants from a hex color
 export function applyBrandColor(hex) {
   if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;

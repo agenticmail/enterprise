@@ -78,6 +78,7 @@ export interface SearchResult {
   document: KBDocument;
   score: number;                    // Similarity score 0-1
   highlight?: string;               // Relevant excerpt with match highlighted
+  content?: string;                 // Convenience: chunk.content
 }
 
 // ─── Knowledge Base Engine ──────────────────────────────
@@ -88,6 +89,12 @@ export class KnowledgeBaseEngine {
   private knowledgeBases = new Map<string, KnowledgeBase>();
   private embeddings = new Map<string, number[]>();  // chunkId → embedding
   private engineDb?: EngineDatabase;
+  private apiKeys: Record<string, string> = {};
+
+  /** Set API keys (loaded from database) for embedding providers */
+  setApiKeys(keys: Record<string, string>) {
+    this.apiKeys = keys;
+  }
 
   /**
    * Set the database adapter and load existing knowledge bases from DB
@@ -236,15 +243,27 @@ export class KnowledgeBaseEngine {
   /**
    * Search across knowledge bases for an agent
    */
+  /**
+   * List all knowledge bases accessible to a given agent
+   */
+  async listForAgent(agentId: string): Promise<KnowledgeBase[]> {
+    return Array.from(this.knowledgeBases.values()).filter(kb => {
+      const ids = Array.isArray(kb.agentIds) ? kb.agentIds : [];
+      return ids.includes(agentId) || ids.length === 0;
+    });
+  }
+
   async search(agentId: string, query: string, opts?: {
     kbIds?: string[];
     maxResults?: number;
     minScore?: number;
+    limit?: number;
   }): Promise<SearchResult[]> {
     // Find all KBs this agent has access to
     const kbs = Array.from(this.knowledgeBases.values()).filter(kb => {
       if (opts?.kbIds?.length) return opts.kbIds.includes(kb.id);
-      return kb.agentIds.includes(agentId) || kb.agentIds.length === 0; // Empty = all agents
+      const ids = Array.isArray(kb.agentIds) ? kb.agentIds : [];
+      return ids.includes(agentId) || ids.length === 0; // Empty = all agents
     });
 
     if (kbs.length === 0) return [];
@@ -329,9 +348,10 @@ export class KnowledgeBaseEngine {
   }
 
   getKnowledgeBasesForAgent(agentId: string): KnowledgeBase[] {
-    return Array.from(this.knowledgeBases.values()).filter(kb =>
-      kb.agentIds.includes(agentId) || kb.agentIds.length === 0
-    );
+    return Array.from(this.knowledgeBases.values()).filter(kb => {
+      const ids = Array.isArray(kb.agentIds) ? kb.agentIds : [];
+      return ids.includes(agentId) || ids.length === 0;
+    });
   }
 
   deleteDocument(kbId: string, docId: string): boolean {
@@ -464,7 +484,7 @@ export class KnowledgeBaseEngine {
 
   private async generateEmbeddings(chunks: KBChunk[], config: KBConfig) {
     if (config.embeddingProvider === 'openai') {
-      const apiKey = process.env.OPENAI_API_KEY;
+      const apiKey = this.apiKeys.openai || this.apiKeys['openai-official'];
       if (!apiKey) return; // Skip if no API key
 
       // Batch embeddings (OpenAI supports up to 2048 inputs)
@@ -496,7 +516,7 @@ export class KnowledgeBaseEngine {
   private async getEmbedding(text: string, config: KBConfig): Promise<number[] | null> {
     if (config.embeddingProvider !== 'openai') return null;
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = this.apiKeys.openai || this.apiKeys['openai-official'];
     if (!apiKey) return null;
 
     try {

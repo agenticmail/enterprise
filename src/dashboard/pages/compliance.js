@@ -1,4 +1,4 @@
-import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge } from '../components/utils.js';
+import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
 export function CompliancePage() {
@@ -6,13 +6,13 @@ export function CompliancePage() {
   const [reports, setReports] = useState([]);
   const [tab, setTab] = useState('reports');
   const [generating, setGenerating] = useState(false);
-  const [form, setForm] = useState({ type: 'soc2', orgId: 'default', agentId: '', from: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0], to: new Date().toISOString().split('T')[0] });
+  const [form, setForm] = useState({ type: 'soc2', orgId: getOrgId(), agentId: '', from: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0], to: new Date().toISOString().split('T')[0] });
 
   const [agents, setAgents] = useState([]);
 
   const load = () => {
-    engineCall('/compliance/reports?orgId=default').then(d => setReports(d.reports || [])).catch(() => {});
-    engineCall('/agents?orgId=default').then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/compliance/reports?orgId=' + getOrgId()).then(d => setReports(d.reports || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(load, []);
 

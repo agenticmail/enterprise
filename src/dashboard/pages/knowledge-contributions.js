@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 
@@ -25,9 +25,20 @@ export function KnowledgeContributionsPage() {
   var [editSchedule, setEditSchedule] = useState(null);
 
   var loadBases = useCallback(function() {
-    engineCall('/knowledge-contribution/bases?orgId=default')
-      .then(function(d) { setBases(d.bases || d.knowledgeBases || []); })
-      .catch(function() {});
+    Promise.all([
+      engineCall('/knowledge-contribution/bases?orgId=' + getOrgId()).catch(function() { return { bases: [] }; }),
+      engineCall('/knowledge-bases').catch(function() { return { knowledgeBases: [] }; })
+    ]).then(function(results) {
+      var contribBases = results[0].bases || [];
+      var mainBases = (results[1].knowledgeBases || []).map(function(kb) {
+        return { id: kb.id, orgId: getOrgId(), name: kb.name, description: kb.description, role: 'general', categories: [], contributorCount: 0, entryCount: kb.stats ? kb.stats.documentCount || 0 : 0, createdAt: kb.createdAt, updatedAt: kb.updatedAt, _source: 'main' };
+      });
+      // Merge: contribution bases first, then main bases not already in contribution
+      var ids = {};
+      contribBases.forEach(function(b) { ids[b.id] = true; });
+      var merged = contribBases.concat(mainBases.filter(function(b) { return !ids[b.id]; }));
+      setBases(merged);
+    });
   }, []);
 
   var loadRoles = useCallback(function() {
@@ -37,19 +48,19 @@ export function KnowledgeContributionsPage() {
   }, []);
 
   var loadStats = useCallback(function() {
-    engineCall('/knowledge-contribution/stats?orgId=default')
+    engineCall('/knowledge-contribution/stats?orgId=' + getOrgId())
       .then(function(d) { setStats(d || {}); })
       .catch(function() {});
   }, []);
 
   var loadContributions = useCallback(function() {
-    engineCall('/knowledge-contribution/contributions?orgId=default')
+    engineCall('/knowledge-contribution/contributions?orgId=' + getOrgId())
       .then(function(d) { setContributions(d.contributions || d.cycles || []); })
       .catch(function() {});
   }, []);
 
   var loadSchedules = useCallback(function() {
-    engineCall('/knowledge-contribution/schedules?orgId=default')
+    engineCall('/knowledge-contribution/schedules?orgId=' + getOrgId())
       .then(function(d) { setSchedules(d.schedules || []); })
       .catch(function() {});
   }, []);
@@ -70,8 +81,8 @@ export function KnowledgeContributionsPage() {
     if (entryFilters.status) params.set('status', entryFilters.status);
     if (entryFilters.minQuality) params.set('minQuality', entryFilters.minQuality);
     engineCall('/knowledge-contribution/bases/' + baseId + '/entries?' + params.toString())
-      .then(function(d) { setBaseEntries(d.entries || []); })
-      .catch(function() {});
+      .then(function(d) { setBaseEntries(Array.isArray(d.entries) ? d.entries : []); })
+      .catch(function() { setBaseEntries([]); });
   }, [entryFilters]);
 
   useEffect(function() {
@@ -83,7 +94,7 @@ export function KnowledgeContributionsPage() {
     try {
       await engineCall('/knowledge-contribution/bases', {
         method: 'POST',
-        body: JSON.stringify({ name: baseForm.name, description: baseForm.description, role: baseForm.role, orgId: 'default' })
+        body: JSON.stringify({ name: baseForm.name, description: baseForm.description, role: baseForm.role, orgId: getOrgId() })
       });
       toast('Knowledge base created', 'success');
       setShowCreateBase(false);
@@ -134,7 +145,7 @@ export function KnowledgeContributionsPage() {
     try {
       await engineCall('/knowledge-contribution/contribute/' + triggerAgent, {
         method: 'POST',
-        body: JSON.stringify({ targetBaseId: triggerBase || undefined, orgId: 'default' })
+        body: JSON.stringify({ targetBaseId: triggerBase || undefined, orgId: getOrgId() })
       });
       toast('Contribution triggered', 'success');
       setShowTrigger(false);
@@ -155,7 +166,7 @@ export function KnowledgeContributionsPage() {
           frequency: scheduleForm.frequency,
           dayOfWeek: scheduleForm.dayOfWeek,
           minConfidence: parseFloat(scheduleForm.minConfidence) || 0.7,
-          orgId: 'default'
+          orgId: getOrgId()
         })
       });
       toast('Schedule created', 'success');
@@ -282,7 +293,7 @@ export function KnowledgeContributionsPage() {
   var renderBaseDetail = function() {
     var categories = [];
     var catSet = {};
-    baseEntries.forEach(function(e) {
+    (Array.isArray(baseEntries) ? baseEntries : []).forEach(function(e) {
       if (e.category && !catSet[e.category]) {
         catSet[e.category] = true;
         categories.push(e.category);

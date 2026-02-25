@@ -64,7 +64,7 @@ export class StorageManager {
           id: r.id,
           orgId: r.org_id,
           storageType: r.storage_type,
-          config: JSON.parse(r.config || '{}'),
+          config: typeof r.config === 'string' ? JSON.parse(r.config || '{}') : (r.config || {}),
           vaultCredentialId: r.vault_credential_id || undefined,
           enabled: !!r.enabled,
           createdBy: r.created_by,
@@ -233,7 +233,7 @@ export class StorageManager {
     return rows.map((r: any) => ({
       id: r.id, orgId: r.org_id, storageKey: r.storage_key, originalName: r.original_name,
       contentType: r.content_type, size: r.size, relatedType: r.related_type,
-      relatedId: r.related_id, metadata: JSON.parse(r.metadata || '{}'),
+      relatedId: r.related_id, metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata || "{}") : (r.metadata || {}),
       createdBy: r.created_by, createdAt: r.created_at,
     }));
   }

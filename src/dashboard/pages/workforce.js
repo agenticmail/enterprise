@@ -1,5 +1,6 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { TimezoneSelect } from '../components/timezones.js';
 
 export function WorkforcePage() {
   const { toast } = useApp();
@@ -42,7 +43,7 @@ export function WorkforcePage() {
       setSchedules(schedulesRes.schedules || []);
       setBudgetData(budgetRes);
       setClockRecords(recordsRes.records || []);
-      engineCall('/agents?orgId=default').then(d => setAgents(d.agents || [])).catch(() => {});
+      engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
     } catch (err) { toast('Failed to load workforce data', 'error'); }
     setLoading(false);
   };
@@ -275,14 +276,27 @@ export function WorkforcePage() {
               ? h('tr', null, h('td', { colSpan: 5, style: { textAlign: 'center', color: 'var(--text-muted)', padding: 40 } }, 'No agents found'))
               : status.agents.map(a => h('tr', { key: a.agentId },
                 h('td', null, renderAgentBadge(a.agentId || a.id, agentData)),
-                h('td', null, statusBadge(a.status)),
+                h('td', null, statusBadge(a.clockStatus || a.status)),
                 h('td', null, a.schedule
-                  ? (a.schedule.type || 'Standard') + ': ' + (a.schedule.start || '-') + ' - ' + (a.schedule.end || '-')
+                  ? h(Fragment, null,
+                      schedTypeBadge(a.schedule.scheduleType || a.schedule.type || 'standard'),
+                      ' ',
+                      a.schedule.scheduleType === 'standard' && a.schedule.config?.standardHours
+                        ? (a.schedule.config.standardHours.start || '09:00') + ' - ' + (a.schedule.config.standardHours.end || '17:00')
+                        : a.schedule.scheduleType === 'shift' && a.schedule.config?.shifts?.length
+                          ? a.schedule.config.shifts[0].start + ' - ' + a.schedule.config.shifts[0].end
+                          : (a.schedule.start || '-') + ' - ' + (a.schedule.end || '-')
+                    )
                   : h('span', { style: { color: 'var(--text-muted)' } }, 'None')),
-                h('td', null, a.nextEvent ? formatTime(a.nextEvent) : '-'),
+                h('td', null, a.nextEvent
+                  ? h(Fragment, null,
+                      h('span', { className: 'badge', style: { background: a.nextEvent.type === 'clock_in' ? 'var(--success)' : 'var(--warning)', color: '#fff', marginRight: 4 } }, a.nextEvent.type === 'clock_in' ? 'Clock In' : 'Clock Out'),
+                      formatTime(a.nextEvent.at)
+                    )
+                  : '-'),
                 h('td', { style: { display: 'flex', gap: 4 } },
-                  a.status !== 'clocked_in' && h('button', { className: 'btn btn-ghost btn-sm', onClick: () => handleClockIn(a.agentId) }, I.play(), ' Clock In'),
-                  a.status === 'clocked_in' && h('button', { className: 'btn btn-ghost btn-sm', onClick: () => handleClockOut(a.agentId) }, I.pause(), ' Clock Out')
+                  (a.clockStatus || a.status) !== 'clocked_in' && h('button', { className: 'btn btn-ghost btn-sm', onClick: () => handleClockIn(a.agentId || a.id) }, I.play(), ' Clock In'),
+                  (a.clockStatus || a.status) === 'clocked_in' && h('button', { className: 'btn btn-ghost btn-sm', onClick: () => handleClockOut(a.agentId || a.id) }, I.pause(), ' Clock Out')
                 )
               ))
           )
@@ -525,7 +539,7 @@ export function WorkforcePage() {
           // Timezone
           h('div', { className: 'form-group' },
             h('label', { className: 'form-label' }, 'Timezone'),
-            h('input', { className: 'input', value: schedForm.timezone, onChange: e => setSchedForm({ ...schedForm, timezone: e.target.value }), placeholder: 'UTC' })
+            TimezoneSelect(h, schedForm.timezone, e => setSchedForm({ ...schedForm, timezone: e.target.value }))
           ),
           // Toggles
           h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },

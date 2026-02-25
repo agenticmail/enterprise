@@ -19,7 +19,7 @@ let Database: any;
 async function getSqlite() {
   if (!Database) {
     try {
-      const mod = await import('better-sqlite3');
+      const { resolveDriver } = await import("./resolve-driver.js"); const mod = await resolveDriver("better-sqlite3", "SQLite driver not found. Install it: npm install better-sqlite3");
       Database = mod.default;
     } catch {
       throw new Error('SQLite driver not found. Install it: npm install better-sqlite3');

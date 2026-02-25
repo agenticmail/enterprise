@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, applyBrandColor, showConfirm } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, applyBrandColor, showConfirm, setOrgId, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { TagInput } from '../components/tag-input.js';
@@ -48,9 +48,19 @@ export function SettingsPage() {
   var newProvider = _newProvider[0]; var setNewProvider = _newProvider[1];
   var _discoverResults = useState({});
   var discoverResults = _discoverResults[0]; var setDiscoverResults = _discoverResults[1];
+  var _apiKeyModal = useState(null); // { providerId, providerName, isUpdate }
+  var apiKeyModal = _apiKeyModal[0]; var setApiKeyModal = _apiKeyModal[1];
+  var _apiKeyInput = useState('');
+  var apiKeyInput = _apiKeyInput[0]; var setApiKeyInput = _apiKeyInput[1];
+
+  // Org Email Config
+  var _orgEmail = useState({ configured: false, provider: '', oauthClientId: '', oauthClientSecret: '', oauthTenantId: 'common', label: '' });
+  var orgEmail = _orgEmail[0]; var setOrgEmail = _orgEmail[1];
+  var _orgEmailSaving = useState(false);
+  var orgEmailSaving = _orgEmailSaving[0]; var setOrgEmailSaving = _orgEmailSaving[1];
 
   useEffect(() => {
-    apiCall('/settings').then(d => { const s = d.settings || d || {}; setSettings(s); if (s.primaryColor) applyBrandColor(s.primaryColor); }).catch(() => {});
+    apiCall('/settings').then(d => { const s = d.settings || d || {}; setSettings(s); if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
     apiCall('/api-keys').then(d => setApiKeys(d.keys || [])).catch(() => {});
     apiCall('/settings/sso').then(d => {
       const sso = d.ssoConfig || {};
@@ -61,7 +71,10 @@ export function SettingsPage() {
         oidcClientId: sso.oidc?.clientId || '', oidcClientSecret: sso.oidc?.clientSecret || '', oidcDiscoveryUrl: sso.oidc?.discoveryUrl || '',
       }));
     }).catch(() => {});
-    engineCall('/deploy-credentials?orgId=default').then(d => setDeployCreds(d.credentials || [])).catch(() => {});
+    engineCall('/deploy-credentials?orgId=' + getOrgId()).then(d => setDeployCreds(d.credentials || [])).catch(() => {});
+    apiCall('/settings/org-email').then(d => {
+      if (d.configured) setOrgEmail({ configured: true, provider: d.provider, oauthClientId: d.oauthClientId || '', oauthClientSecret: '', oauthTenantId: d.oauthTenantId || 'common', label: d.label || '' });
+    }).catch(() => {});
     apiCall('/settings/tool-security').then(d => {
       var cfg = d.toolSecurityConfig || {};
       setToolSec({
@@ -102,6 +115,29 @@ export function SettingsPage() {
 
   const saveSetting = async (key, value) => {
     try { await apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ [key]: value }) }); toast('Settings saved', 'success'); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const saveOrgEmail = async () => {
+    if (!orgEmail.provider) { toast('Select a provider', 'error'); return; }
+    if (!orgEmail.oauthClientId) { toast('Enter Client ID', 'error'); return; }
+    if (!orgEmail.oauthClientSecret) { toast('Enter Client Secret', 'error'); return; }
+    setOrgEmailSaving(true);
+    try {
+      var result = await apiCall('/settings/org-email', { method: 'PUT', body: JSON.stringify({ provider: orgEmail.provider, oauthClientId: orgEmail.oauthClientId, oauthClientSecret: orgEmail.oauthClientSecret, oauthTenantId: orgEmail.oauthTenantId }) });
+      setOrgEmail(function(prev) { return Object.assign({}, prev, { configured: true, label: result.orgEmailConfig?.label || prev.label, oauthClientSecret: '' }); });
+      toast('Organization email configuration saved', 'success');
+    } catch (e) { toast(e.message, 'error'); }
+    setOrgEmailSaving(false);
+  };
+
+  const removeOrgEmail = async () => {
+    var ok = await showConfirm({ title: 'Remove Organization Email', message: 'Agents using this org-level config will need to be individually configured.', danger: true, confirmText: 'Remove' });
+    if (!ok) return;
+    try {
+      await apiCall('/settings/org-email', { method: 'DELETE' });
+      setOrgEmail({ configured: false, provider: '', oauthClientId: '', oauthClientSecret: '', oauthTenantId: 'common', label: '' });
+      toast('Organization email configuration removed', 'success');
+    } catch (e) { toast(e.message, 'error'); }
   };
 
   const saveSaml = async () => {
@@ -146,11 +182,11 @@ export function SettingsPage() {
 
   const createDeployCred = async () => {
     try {
-      await engineCall('/deploy-credentials', { method: 'POST', body: JSON.stringify({ orgId: 'default', name: deployForm.name, targetType: deployForm.targetType, config: deployForm.config }) });
+      await engineCall('/deploy-credentials', { method: 'POST', body: JSON.stringify({ orgId: getOrgId(), name: deployForm.name, targetType: deployForm.targetType, config: deployForm.config }) });
       toast('Credential created', 'success');
       setShowDeployModal(false);
       setDeployForm({ name: '', targetType: 'docker', config: {} });
-      engineCall('/deploy-credentials?orgId=default').then(d => setDeployCreds(d.credentials || [])).catch(() => {});
+      engineCall('/deploy-credentials?orgId=' + getOrgId()).then(d => setDeployCreds(d.credentials || [])).catch(() => {});
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -170,8 +206,8 @@ export function SettingsPage() {
       SETTINGS_HELP[tab] && h(HelpButton, { label: SETTINGS_HELP[tab].label }, SETTINGS_HELP[tab].content())
     ),
     h('div', { className: 'tabs' },
-      ['general', 'api-keys', 'authentication', 'email', 'deployments', 'security', 'network', 'pricing', 'integrations'].map(t =>
-        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'api-keys': 'API Keys', authentication: 'Authentication', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall', pricing: 'Model Pricing', integrations: 'Integrations' }[t])
+      ['general', 'llm-providers', 'api-keys', 'authentication', 'email', 'deployments', 'security', 'network', 'pricing', 'integrations'].map(t =>
+        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'llm-providers': 'LLM Providers', 'api-keys': 'API Keys', authentication: 'Authentication', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall', pricing: 'Model Pricing', integrations: 'Integrations' }[t])
       )
     ),
 
@@ -220,49 +256,149 @@ export function SettingsPage() {
           h('button', { className: 'btn btn-primary', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ name: settings.name, domain: settings.domain, subdomain: settings.subdomain, logoUrl: settings.logoUrl, primaryColor: settings.primaryColor, plan: settings.plan }) }).then(d => { setSettings(d); toast('Settings saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Changes')
         )
       ),
+
+      // ─── Email Signature Template ─────────────────────
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'SMTP Configuration')),
+        h('div', { className: 'card-header' },
+          h('h3', null, 'Email Signature Template'),
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 } }, 'Applied to all agents')
+        ),
         h('div', { className: 'card-body' },
-          h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Configure outbound email delivery. Leave blank to use the default AgenticMail relay.'),
-          h('div', { style: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 } },
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'SMTP Host'),
-              h('input', { className: 'input', value: settings.smtpHost || '', onChange: e => setSettings(s => ({ ...s, smtpHost: e.target.value })), placeholder: 'smtp.gmail.com' })
-            ),
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'SMTP Port'),
-              h('input', { className: 'input', type: 'number', value: settings.smtpPort || '', onChange: e => setSettings(s => ({ ...s, smtpPort: e.target.value })), placeholder: '587' })
-            )
-          ),
-          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'SMTP Username'),
-              h('input', { className: 'input', value: settings.smtpUser || '', onChange: e => setSettings(s => ({ ...s, smtpUser: e.target.value })), placeholder: 'you@gmail.com' })
-            ),
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'SMTP Password'),
-              h('input', { className: 'input', type: 'password', value: settings.smtpPass || '', onChange: e => setSettings(s => ({ ...s, smtpPass: e.target.value })), placeholder: 'App password' })
-            )
-          ),
+          h('p', { style: { fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 } }, 'Define an HTML signature template that agents will use in their Gmail accounts. Use {{name}}, {{role}}, {{email}}, {{phone}}, {{company}} as placeholders.'),
           h('div', { className: 'form-group' },
-            h('label', { className: 'form-label' }, 'DKIM Private Key'),
-            h('textarea', { className: 'input', value: settings.dkimPrivateKey || '', onChange: e => setSettings(s => ({ ...s, dkimPrivateKey: e.target.value })), placeholder: '-----BEGIN RSA PRIVATE KEY-----', rows: 3, style: { fontFamily: 'var(--font-mono)', fontSize: 11 } }),
-            h('p', { className: 'form-help' }, 'Optional. Used for email authentication (DKIM signing).')
+            h('label', { className: 'form-label' }, 'Signature HTML Template'),
+            h('textarea', {
+              className: 'input',
+              value: settings.signatureTemplate || '',
+              onChange: function(e) { setSettings(function(s) { return Object.assign({}, s, { signatureTemplate: e.target.value }); }); },
+              placeholder: '<table cellpadding="0" cellspacing="0" style="font-family: Arial, sans-serif; font-size: 13px; color: #333;">\n  <tr>\n    <td style="padding-right: 15px; border-right: 2px solid #6366f1;">\n      <img src="{{logo}}" width="60" alt="{{company}}">\n    </td>\n    <td style="padding-left: 15px;">\n      <b style="font-size: 14px;">{{name}}</b><br>\n      <span style="color: #6366f1;">{{role}}</span><br>\n      <span style="color: #888;">{{email}}</span><br>\n      <span style="color: #888;">{{company}}</span>\n    </td>\n  </tr>\n</table>',
+              rows: 12,
+              style: { fontFamily: 'var(--font-mono)', fontSize: 12, resize: 'vertical' }
+            })
           ),
-          h('button', { className: 'btn btn-primary', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ smtpHost: settings.smtpHost || null, smtpPort: settings.smtpPort ? Number(settings.smtpPort) : null, smtpUser: settings.smtpUser || null, smtpPass: settings.smtpPass || null, dkimPrivateKey: settings.dkimPrivateKey || null }) }).then(d => { setSettings(d); toast('SMTP settings saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save SMTP Settings')
+          h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 } },
+            h('span', { className: 'badge', style: { fontSize: 11 } }, '{{name}}'),
+            h('span', { className: 'badge', style: { fontSize: 11 } }, '{{role}}'),
+            h('span', { className: 'badge', style: { fontSize: 11 } }, '{{email}}'),
+            h('span', { className: 'badge', style: { fontSize: 11 } }, '{{phone}}'),
+            h('span', { className: 'badge', style: { fontSize: 11 } }, '{{company}}'),
+            h('span', { className: 'badge', style: { fontSize: 11 } }, '{{logo}}')
+          ),
+          settings.signatureTemplate && h('div', { style: { marginBottom: 16 } },
+            h('label', { className: 'form-label' }, 'Preview'),
+            h('div', {
+              style: { background: 'white', padding: 16, borderRadius: 'var(--radius)', border: '1px solid var(--border)', color: '#333' },
+              dangerouslySetInnerHTML: {
+                __html: (settings.signatureTemplate || '')
+                  .replace(/\{\{name\}\}/g, 'Jane Smith')
+                  .replace(/\{\{role\}\}/g, 'Customer Support Lead')
+                  .replace(/\{\{email\}\}/g, 'jane@company.com')
+                  .replace(/\{\{phone\}\}/g, '+1 (555) 123-4567')
+                  .replace(/\{\{company\}\}/g, settings.name || 'Your Company')
+                  .replace(/\{\{logo\}\}/g, settings.logoUrl || 'https://placehold.co/60x60?text=Logo')
+              }
+            })
+          ),
+          h('button', {
+            className: 'btn btn-primary',
+            onClick: function() {
+              apiCall('/settings', {
+                method: 'PATCH',
+                body: JSON.stringify({ signatureTemplate: settings.signatureTemplate })
+              }).then(function() { toast('Signature template saved', 'success'); }).catch(function(e) { toast(e.message, 'error'); });
+            }
+          }, 'Save Signature Template')
+        )
+      ),
+
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' },
+          h('h3', null, 'Organization Email'),
+          orgEmail.configured && h('span', { className: 'badge badge-success', style: { marginLeft: 8 } }, orgEmail.label || 'Configured')
+        ),
+        h('div', { className: 'card-body' },
+          h('p', { style: { fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 } }, 'Set up a shared OAuth application for all agents. Each agent will still authorize individually with their own account, but they\'ll use the same Client ID and Secret.'),
+
+          // Provider selector
+          h('div', { style: { display: 'flex', gap: 12, marginBottom: 16 } },
+            h('div', {
+              onClick: function() { setOrgEmail(function(p) { return Object.assign({}, p, { provider: 'google' }); }); },
+              style: { flex: 1, padding: '16px 12px', border: '2px solid ' + (orgEmail.provider === 'google' ? 'var(--accent)' : 'var(--border)'), borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'center', background: orgEmail.provider === 'google' ? 'var(--accent-soft)' : 'var(--bg-primary)' }
+            },
+              h('div', { style: { fontSize: 20, marginBottom: 4 } }, '\uD83D\uDD35'),
+              h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'Google Workspace'),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Gmail API OAuth')
+            ),
+            h('div', {
+              onClick: function() { setOrgEmail(function(p) { return Object.assign({}, p, { provider: 'microsoft' }); }); },
+              style: { flex: 1, padding: '16px 12px', border: '2px solid ' + (orgEmail.provider === 'microsoft' ? 'var(--accent)' : 'var(--border)'), borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'center', background: orgEmail.provider === 'microsoft' ? 'var(--accent-soft)' : 'var(--bg-primary)' }
+            },
+              h('div', { style: { fontSize: 20, marginBottom: 4 } }, '\uD83C\uDFE2'),
+              h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'Microsoft 365'),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Azure AD / Entra ID')
+            )
+          ),
+
+          // Setup instructions
+          orgEmail.provider && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft)', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)' } },
+            h('strong', { style: { color: 'var(--accent)' } }, 'Setup Instructions:'), h('br'),
+            orgEmail.provider === 'google'
+              ? h(Fragment, null,
+                  '1. Go to ', h('a', { href: 'https://console.cloud.google.com/apis/credentials', target: '_blank', style: { color: 'var(--accent)' } }, 'Google Cloud Console \u2192 Credentials'), h('br'),
+                  '2. Create an OAuth 2.0 Client ID (Web application) \u2192 add redirect URI: ', h('code', { style: { background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3, fontSize: 11 } }, window.location.origin + '/api/engine/oauth/callback'), h('br'),
+                  '3. Enable the Gmail API in your project', h('br'),
+                  '4. Copy the Client ID and Client Secret below'
+                )
+              : h(Fragment, null,
+                  '1. Go to ', h('a', { href: 'https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade', target: '_blank', style: { color: 'var(--accent)' } }, 'Azure Portal \u2192 App Registrations'), h('br'),
+                  '2. Click "New Registration" \u2192 set redirect URI to: ', h('code', { style: { background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3, fontSize: 11 } }, window.location.origin + '/api/engine/oauth/callback'), h('br'),
+                  '3. Copy the Client ID and create a Client Secret below'
+                )
+          ),
+
+          // Credentials form
+          orgEmail.provider && h(Fragment, null,
+            h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 } },
+              h('div', null,
+                h('label', { className: 'form-label' }, 'OAuth Client ID *'),
+                h('input', { className: 'input', value: orgEmail.oauthClientId, placeholder: orgEmail.provider === 'google' ? 'xxxx.apps.googleusercontent.com' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', onChange: function(e) { setOrgEmail(function(p) { return Object.assign({}, p, { oauthClientId: e.target.value }); }); } })
+              ),
+              h('div', null,
+                h('label', { className: 'form-label' }, 'Client Secret *'),
+                h('input', { className: 'input', type: 'password', value: orgEmail.oauthClientSecret, placeholder: orgEmail.configured ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022 (saved)' : 'Enter client secret', onChange: function(e) { setOrgEmail(function(p) { return Object.assign({}, p, { oauthClientSecret: e.target.value }); }); } })
+              )
+            ),
+            orgEmail.provider === 'microsoft' && h('div', { style: { marginBottom: 12 } },
+              h('label', { className: 'form-label' }, 'Tenant ID'),
+              h('input', { className: 'input', style: { maxWidth: 400 }, value: orgEmail.oauthTenantId, placeholder: 'common', onChange: function(e) { setOrgEmail(function(p) { return Object.assign({}, p, { oauthTenantId: e.target.value }); }); } }),
+              h('p', { className: 'form-help' }, 'Use "common" for multi-tenant or your specific tenant ID')
+            ),
+            h('div', { style: { display: 'flex', gap: 8 } },
+              h('button', { className: 'btn btn-primary', disabled: orgEmailSaving, onClick: saveOrgEmail }, orgEmailSaving ? 'Saving...' : (orgEmail.configured ? 'Update Configuration' : 'Save Configuration')),
+              orgEmail.configured && h('button', { className: 'btn btn-danger', onClick: removeOrgEmail }, 'Remove')
+            )
+          ),
+
+          // Info about per-agent auth
+          orgEmail.configured && h('div', { style: { marginTop: 16, padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-muted)' } },
+            '\u2139\uFE0F Each agent still needs to individually authorize via their Email tab. This org config provides the shared OAuth app credentials so agents don\'t need to enter Client ID/Secret individually.'
+          )
         )
       ),
       h('div', { className: 'card', style: { marginTop: 16 } },
         h('div', { className: 'card-header' }, h('h3', null, 'Info')),
         h('div', { className: 'card-body' },
           h('div', { style: { display: 'grid', gridTemplateColumns: '140px 1fr', gap: '6px 16px', fontSize: 13 } },
-            h('span', { style: { color: 'var(--text-muted)' } }, 'Organization ID'), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, settings.id || '-'),
+            h('span', { style: { color: 'var(--text-muted)' } }, 'Organization ID'), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, settings.orgId || settings.id || '-'),
+            h('span', { style: { color: 'var(--text-muted)' } }, 'Version'), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, window.__ENTERPRISE_VERSION__ || settings.version || '-'),
             h('span', { style: { color: 'var(--text-muted)' } }, 'Created'), h('span', null, settings.createdAt ? new Date(settings.createdAt).toLocaleString() : '-'),
             h('span', { style: { color: 'var(--text-muted)' } }, 'Last Updated'), h('span', null, settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : '-')
           )
         )
       )
     ),
+
+    tab === 'llm-providers' && h(LLMProvidersTab, { toast: toast }),
 
     tab === 'api-keys' && h(Fragment, null,
       newKeyPlaintext && h(Modal, { title: 'API Key Created', onClose: () => setNewKeyPlaintext(null) },
@@ -379,41 +515,73 @@ export function SettingsPage() {
       )
     ),
 
-    tab === 'email' && h('div', { className: 'card' },
-      h('div', { className: 'card-header' }, h('h3', null, 'Email & Domain Configuration')),
-      h('div', { className: 'card-body' },
-        h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 } }, 'Configure how agents send and receive email. Choose between a relay (Gmail/Outlook forwarding) or a custom domain with full DKIM/SPF/DMARC.'),
-        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
-          h('div', { className: 'preset-card', style: { cursor: 'default' } },
-            h('h4', null, 'Gmail / Outlook Relay'),
-            h('p', { style: { marginBottom: 12 } }, 'Easy setup. Agents send from yourname+agent@gmail.com. Best for getting started.'),
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'Email Address'),
-              h('input', { className: 'input', value: settings.relayEmail || '', onChange: e => setSettings(s => ({ ...s, relayEmail: e.target.value })), placeholder: 'you@gmail.com' })
+    tab === 'email' && h('div', null,
+      // Saved configurations summary
+      (settings.smtpUser || settings.cfApiToken) && h('div', { className: 'card', style: { marginBottom: 16 } },
+        h('div', { className: 'card-header' }, h('h3', null, 'Active Email Configuration')),
+        h('div', { className: 'card-body' },
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            settings.smtpUser && h('div', { style: { padding: 12, background: 'var(--bg-success, rgba(34,197,94,0.08))', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+                h('span', { style: { color: '#22c55e', fontSize: 18 } }, '\u2713'),
+                h('strong', null, 'Relay Configured')
+              ),
+              h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
+                h('div', null, 'Host: ', h('code', null, settings.smtpHost || 'smtp.gmail.com')),
+                h('div', null, 'User: ', h('code', null, settings.smtpUser)),
+                h('div', null, 'Password: ', h('code', null, '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'))
+              )
             ),
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'App Password'),
-              h('input', { className: 'input', type: 'password', value: settings.relayPassword || '', onChange: e => setSettings(s => ({ ...s, relayPassword: e.target.value })), placeholder: 'xxxx xxxx xxxx xxxx' }),
-              h('p', { className: 'form-help' }, h('a', { href: 'https://myaccount.google.com/apppasswords', target: '_blank' }, 'Get app password from Google'))
+            settings.cfApiToken && h('div', { style: { padding: 12, background: 'var(--bg-success, rgba(34,197,94,0.08))', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+                h('span', { style: { color: '#22c55e', fontSize: 18 } }, '\u2713'),
+                h('strong', null, 'Custom Domain Configured')
+              ),
+              h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
+                h('div', null, 'Domain: ', h('code', null, settings.domain || 'Not set')),
+                h('div', null, 'CF Token: ', h('code', null, (settings.cfApiToken || '').slice(0, 8) + '\u2022\u2022\u2022\u2022')),
+                h('div', null, 'CF Account: ', h('code', null, settings.cfAccountId || 'Not set'))
+              )
+            )
+          )
+        )
+      ),
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, h('h3', null, 'Email & Domain Configuration')),
+        h('div', { className: 'card-body' },
+          h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 } }, 'Configure how agents send and receive email. Choose between a relay (Gmail/Outlook forwarding) or a custom domain with full DKIM/SPF/DMARC.'),
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            h('div', { className: 'preset-card', style: { cursor: 'default' } },
+              h('h4', null, 'Gmail / Outlook Relay'),
+              h('p', { style: { marginBottom: 12 } }, 'Easy setup. Agents send from yourname+agent@gmail.com. Best for getting started.'),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'Email Address'),
+                h('input', { className: 'input', value: settings.smtpUser || '', onChange: e => setSettings(s => ({ ...s, smtpUser: e.target.value })), placeholder: 'you@gmail.com' })
+              ),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'App Password'),
+                h('input', { className: 'input', type: 'password', value: settings.smtpPass || '', onChange: e => setSettings(s => ({ ...s, smtpPass: e.target.value })), placeholder: 'xxxx xxxx xxxx xxxx' }),
+                h('p', { className: 'form-help' }, h('a', { href: 'https://myaccount.google.com/apppasswords', target: '_blank' }, 'Get app password from Google'))
+              ),
+              h('button', { className: 'btn btn-primary btn-sm', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ smtpHost: 'smtp.gmail.com', smtpPort: 587, smtpUser: settings.smtpUser || null, smtpPass: settings.smtpPass || null }) }).then(d => { setSettings(s => ({ ...s, ...d })); toast('Relay config saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Relay Config')
             ),
-            h('button', { className: 'btn btn-primary btn-sm', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ smtpHost: 'smtp.gmail.com', smtpPort: 587, smtpUser: settings.relayEmail || null, smtpPass: settings.relayPassword || null }) }).then(d => { setSettings(s => ({ ...s, ...d })); toast('Relay config saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Relay Config')
-          ),
-          h('div', { className: 'preset-card', style: { cursor: 'default' } },
-            h('h4', null, 'Custom Domain'),
-            h('p', { style: { marginBottom: 12 } }, 'Professional setup. Agents send from agent@yourdomain.com with full email authentication.'),
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'Domain'),
-              h('input', { className: 'input', value: settings.emailDomain || '', onChange: e => setSettings(s => ({ ...s, emailDomain: e.target.value })), placeholder: 'yourdomain.com' })
-            ),
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'Cloudflare API Token'),
-              h('input', { className: 'input', type: 'password', value: settings.cfApiToken || '', onChange: e => setSettings(s => ({ ...s, cfApiToken: e.target.value })), placeholder: 'Your Cloudflare API token' })
-            ),
-            h('div', { className: 'form-group' },
-              h('label', { className: 'form-label' }, 'Cloudflare Account ID'),
-              h('input', { className: 'input', value: settings.cfAccountId || '', onChange: e => setSettings(s => ({ ...s, cfAccountId: e.target.value })), placeholder: 'Account ID' })
-            ),
-            h('button', { className: 'btn btn-primary btn-sm', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ domain: settings.emailDomain || null, cfApiToken: settings.cfApiToken || null, cfAccountId: settings.cfAccountId || null }) }).then(d => { setSettings(s => ({ ...s, ...d })); toast('Domain config saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Domain Config')
+            h('div', { className: 'preset-card', style: { cursor: 'default' } },
+              h('h4', null, 'Custom Domain'),
+              h('p', { style: { marginBottom: 12 } }, 'Professional setup. Agents send from agent@yourdomain.com with full email authentication.'),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'Domain'),
+                h('input', { className: 'input', value: settings.domain || '', onChange: e => setSettings(s => ({ ...s, domain: e.target.value })), placeholder: 'yourdomain.com' })
+              ),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'Cloudflare API Token'),
+                h('input', { className: 'input', type: 'password', value: settings.cfApiToken || '', onChange: e => setSettings(s => ({ ...s, cfApiToken: e.target.value })), placeholder: 'Your Cloudflare API token' })
+              ),
+              h('div', { className: 'form-group' },
+                h('label', { className: 'form-label' }, 'Cloudflare Account ID'),
+                h('input', { className: 'input', value: settings.cfAccountId || '', onChange: e => setSettings(s => ({ ...s, cfAccountId: e.target.value })), placeholder: 'Account ID' })
+              ),
+              h('button', { className: 'btn btn-primary btn-sm', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ domain: settings.domain || null, cfApiToken: settings.cfApiToken || null, cfAccountId: settings.cfAccountId || null }) }).then(d => { setSettings(s => ({ ...s, ...d })); toast('Domain config saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Domain Config')
+            )
           )
         )
       )
@@ -558,6 +726,10 @@ export function SettingsPage() {
       setNewProvider: setNewProvider,
       discoverResults: discoverResults,
       setDiscoverResults: setDiscoverResults,
+      apiKeyModal: apiKeyModal,
+      setApiKeyModal: setApiKeyModal,
+      apiKeyInput: apiKeyInput,
+      setApiKeyInput: setApiKeyInput,
       onSave: function() {
         setPricingSaving(true);
         apiCall('/settings/model-pricing', { method: 'PUT', body: JSON.stringify(pricing) }).then(function(d) {
@@ -631,7 +803,7 @@ function IntegrationsTab(props) {
 
   var loadStatuses = useCallback(function() {
     var promises = INTEGRATIONS.map(function(int) {
-      return engineCall('/oauth/status/' + int.skillId + '?orgId=default')
+      return engineCall('/oauth/status/' + int.skillId + '?orgId=' + getOrgId())
         .then(function(d) { return { skillId: int.skillId, connected: d.connected, expiresAt: d.expiresAt }; })
         .catch(function() { return { skillId: int.skillId, connected: false }; });
     });
@@ -652,7 +824,7 @@ function IntegrationsTab(props) {
       return;
     }
     setActionLoading(int.skillId);
-    engineCall('/oauth/authorize/' + int.skillId + '?orgId=default')
+    engineCall('/oauth/authorize/' + int.skillId + '?orgId=' + getOrgId())
       .then(function(d) {
         if (d.authorizationUrl) {
           var popup = window.open(d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
@@ -680,7 +852,7 @@ function IntegrationsTab(props) {
       .then(function(ok) {
         if (!ok) return;
         setActionLoading(int.skillId);
-        engineCall('/oauth/disconnect/' + int.skillId + '?orgId=default', { method: 'DELETE' })
+        engineCall('/oauth/disconnect/' + int.skillId + '?orgId=' + getOrgId() + '', { method: 'DELETE' })
           .then(function() { toast(int.name + ' disconnected', 'success'); loadStatuses(); })
           .catch(function(e) { toast('Failed: ' + e.message, 'error'); })
           .finally(function() { setActionLoading(null); });
@@ -690,7 +862,7 @@ function IntegrationsTab(props) {
   var handleSaveToken = function() {
     if (!tokenModal || !tokenValue.trim()) return;
     setActionLoading(tokenModal.skillId);
-    engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=default', {
+    engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId() + '', {
       method: 'POST',
       body: JSON.stringify({ token: tokenValue.trim() })
     })
@@ -1225,6 +1397,124 @@ function NetworkFirewallTab(props) {
 // PROVIDERS SECTION
 // ═══════════════════════════════════════════════════════════
 
+function LLMProvidersTab(props) {
+  var toast = props.toast;
+  var _providers = useState([]);
+  var providers = _providers[0]; var setProviders = _providers[1];
+  var _apiKeyInputs = useState({});
+  var apiKeyInputs = _apiKeyInputs[0]; var setApiKeyInputs = _apiKeyInputs[1];
+  var _saving = useState({});
+  var saving = _saving[0]; var setSaving = _saving[1];
+
+  useEffect(function() {
+    apiCall('/providers').then(function(d) { setProviders(d.providers || []); }).catch(function() {});
+  }, []);
+
+  var saveKey = async function(providerId, providerName) {
+    var key = (apiKeyInputs[providerId] || '').trim();
+    if (!key || key.length < 5) { toast('API key too short', 'error'); return; }
+    setSaving(function(s) { return Object.assign({}, s, { [providerId]: true }); });
+    try {
+      await apiCall('/providers/' + providerId + '/api-key', { method: 'POST', body: JSON.stringify({ apiKey: key }) });
+      toast(providerName + ' API key saved', 'success');
+      setApiKeyInputs(function(s) { return Object.assign({}, s, { [providerId]: '' }); });
+      // Refresh providers to update "configured" status
+      apiCall('/providers').then(function(d) { setProviders(d.providers || []); }).catch(function() {});
+    } catch (err) { toast('Failed: ' + err.message, 'error'); }
+    setSaving(function(s) { return Object.assign({}, s, { [providerId]: false }); });
+  };
+
+  var builtIn = providers.filter(function(p) { return p.source === 'built-in'; });
+  var custom = providers.filter(function(p) { return p.source === 'custom'; });
+  var configured = builtIn.filter(function(p) { return p.configured; });
+  var notConfigured = builtIn.filter(function(p) { return !p.configured && p.requiresApiKey; });
+
+  var providerMeta = {
+    anthropic: { desc: 'Claude Opus 4, Sonnet 4, Haiku — best for agentic tasks, tool use, extended thinking', placeholder: 'sk-ant-api03-...' },
+    openai: { desc: 'GPT-4o, o1, o3 — strong general-purpose, vision, function calling', placeholder: 'sk-proj-...' },
+    xai: { desc: 'Grok-4, Grok-3 — fast, strong reasoning', placeholder: 'xai-...' },
+    google: { desc: 'Gemini 2.5 Pro, Flash — multimodal, large context window', placeholder: 'AI...' },
+    deepseek: { desc: 'DeepSeek V3/R1 — cost-effective reasoning', placeholder: 'sk-...' },
+    mistral: { desc: 'Mistral Large, Codestral — fast European models', placeholder: '' },
+    groq: { desc: 'Ultra-fast inference — Llama, Mixtral, Gemma', placeholder: 'gsk_...' },
+    together: { desc: 'Open-source model hosting — Llama, Qwen, Mixtral', placeholder: '' },
+    openrouter: { desc: 'Multi-provider router — access 100+ models via one API key', placeholder: 'sk-or-...' },
+  };
+
+  return h(Fragment, null,
+    h('div', { className: 'card', style: { marginBottom: 16 } },
+      h('div', { className: 'card-header' }, h('h3', null, 'Connected Providers')),
+      h('div', { className: 'card-body' },
+        configured.length === 0
+          ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No providers connected yet. Add an API key below to get started.')
+          : configured.map(function(p) {
+              var meta = providerMeta[p.id] || {};
+              return h('div', { key: p.id, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--border)' } },
+                h('div', null,
+                  h('span', { style: { fontWeight: 600, fontSize: 14 } }, p.name),
+                  h('span', { style: { marginLeft: 8, color: 'var(--success, #22c55e)', fontSize: 12 } }, '\u2713 Connected'),
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, meta.desc || '')
+                ),
+                h('button', {
+                  className: 'btn btn-ghost btn-sm',
+                  onClick: function() { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: s[p.id] === null ? '' : null }); }); }
+                }, apiKeyInputs[p.id] === null ? 'Cancel' : 'Update Key'),
+                typeof apiKeyInputs[p.id] === 'string' && apiKeyInputs[p.id] !== null && h('div', { style: { display: 'flex', gap: 8, marginLeft: 8 } },
+                  h('input', { className: 'input', type: 'password', value: apiKeyInputs[p.id], onChange: function(e) { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: e.target.value }); }); }, placeholder: meta.placeholder || 'New API key', style: { width: 240, fontSize: 13 } }),
+                  h('button', { className: 'btn btn-primary btn-sm', disabled: saving[p.id], onClick: function() { saveKey(p.id, p.name); } }, saving[p.id] ? '...' : 'Save')
+                )
+              );
+            })
+      )
+    ),
+
+    h('div', { className: 'card', style: { marginBottom: 16 } },
+      h('div', { className: 'card-header' }, h('h3', null, 'Add Provider')),
+      h('div', { className: 'card-body' },
+        notConfigured.length === 0
+          ? h('div', { style: { padding: 16, textAlign: 'center', color: 'var(--text-muted)' } }, 'All built-in providers are configured.')
+          : notConfigured.map(function(p) {
+              var meta = providerMeta[p.id] || {};
+              return h('div', { key: p.id, style: { padding: '12px 0', borderBottom: '1px solid var(--border)' } },
+                h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } },
+                  h('div', null,
+                    h('span', { style: { fontWeight: 600, fontSize: 14 } }, p.name),
+                    p.isLocal && h('span', { className: 'badge badge-neutral', style: { marginLeft: 8, fontSize: 11 } }, 'Local'),
+                    h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, meta.desc || '')
+                  )
+                ),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('input', { className: 'input', type: 'password', value: apiKeyInputs[p.id] || '', onChange: function(e) { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: e.target.value }); }); }, placeholder: meta.placeholder || 'Paste API key', style: { flex: 1, fontSize: 13 } }),
+                  h('button', { className: 'btn btn-primary btn-sm', disabled: saving[p.id] || !(apiKeyInputs[p.id] || '').trim(), onClick: function() { saveKey(p.id, p.name); } }, saving[p.id] ? 'Saving...' : 'Connect')
+                )
+              );
+            })
+      )
+    ),
+
+    // Local providers (no key needed)
+    builtIn.filter(function(p) { return !p.requiresApiKey; }).length > 0 && h('div', { className: 'card' },
+      h('div', { className: 'card-header' }, h('h3', null, 'Local Providers (No API Key)')),
+      h('div', { className: 'card-body' },
+        builtIn.filter(function(p) { return !p.requiresApiKey; }).map(function(p) {
+          return h('div', { key: p.id, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' } },
+            h('div', null,
+              h('span', { style: { fontWeight: 600, fontSize: 14 } }, p.name),
+              h('span', { className: 'badge badge-success', style: { marginLeft: 8, fontSize: 11 } }, 'Ready'),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, p.baseUrl)
+            )
+          );
+        })
+      )
+    ),
+
+    h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 12 } },
+      'API keys are stored encrypted in your database. They are loaded into memory at agent startup. ',
+      'For custom or self-hosted providers, use the Model Pricing tab to add custom endpoints.'
+    )
+  );
+}
+
 function ProvidersSection(props) {
   var providers = props.providers || [];
   var toast = props.toast;
@@ -1310,20 +1600,45 @@ function ProvidersSection(props) {
             }, isConfigured ? 'Connected' : 'Not Configured')
           ),
           isLocal && p.baseUrl && h('div', { style: { fontSize: 12, color: '#6b7280', marginBottom: 8, wordBreak: 'break-all' } }, p.baseUrl),
+          !isLocal && !p.isCustom && p.requiresApiKey && h('div', { style: { marginTop: 8 } },
+            isConfigured
+              ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 } },
+                  h('span', { style: { color: 'var(--success, #16a34a)' } }, '✓ API key configured via environment'),
+                  h('button', { className: 'btn btn-sm btn-ghost', style: { padding: '2px 8px', fontSize: 11 }, onClick: function() {
+                    props.setApiKeyInput('');
+                    props.setApiKeyModal({ providerId: p.id, providerName: p.name, isUpdate: true });
+                  }}, 'Update Key')
+                )
+              : h('div', null,
+                  h('button', { className: 'btn btn-sm btn-primary', onClick: function() {
+                    props.setApiKeyInput('');
+                    props.setApiKeyModal({ providerId: p.id, providerName: p.name, isUpdate: false });
+                  }}, '🔑 Add API Key')
+                )
+          ),
           h('div', { style: { display: 'flex', gap: 6, marginTop: 8 } },
-            isLocal && h('button', {
+            (isLocal || isConfigured) && h('button', {
               className: 'btn btn-sm',
               disabled: discovering[p.id],
               onClick: function() { handleDiscover(p.id); },
-            }, discovering[p.id] ? 'Discovering...' : 'Discover Models'),
+            }, discovering[p.id] ? 'Discovering...' : (isLocal ? 'Discover Models' : 'List Models')),
             p.isCustom && h('button', {
               className: 'btn btn-sm btn-danger',
               style: { padding: '2px 8px', fontSize: 12 },
               onClick: function() { handleDeleteProvider(p.id); },
             }, I.trash())
           ),
+          // Show default models for cloud providers that have them
+          !discovered && p.defaultModels && p.defaultModels.length > 0 && h('div', { style: { marginTop: 8, fontSize: 12 } },
+            h('div', { style: { fontWeight: 600, marginBottom: 4, color: 'var(--text-secondary)' } }, 'Available Models (' + p.defaultModels.length + ')'),
+            h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
+              p.defaultModels.map(function(mid) {
+                return h('span', { key: mid, className: 'badge badge-neutral', style: { fontSize: 11 } }, mid);
+              })
+            )
+          ),
           discovered && discovered.length > 0 && h('div', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 12 } },
-            h('div', { style: { fontWeight: 600, marginBottom: 4 } }, 'Discovered Models (' + discovered.length + ')'),
+            h('div', { style: { fontWeight: 600, marginBottom: 4 } }, 'Models (' + discovered.length + ')'),
             h('div', { style: { maxHeight: 120, overflow: 'auto' } },
               discovered.map(function(m) {
                 var modelName = typeof m === 'string' ? m : (m.id || m.name || m.model);
@@ -1377,6 +1692,52 @@ function ProvidersSection(props) {
         h('button', { className: 'btn', onClick: function() { props.setShowAddProvider(false); } }, 'Cancel'),
         h('button', { className: 'btn btn-primary', onClick: handleAddProvider }, 'Add Provider')
       )
+    ),
+
+    // API Key Modal
+    props.apiKeyModal && h(Modal, {
+      title: (props.apiKeyModal.isUpdate ? 'Update' : 'Add') + ' API Key — ' + props.apiKeyModal.providerName,
+      onClose: function() { props.setApiKeyModal(null); props.setApiKeyInput(''); },
+    },
+      h('div', { style: { marginBottom: 16 } },
+        h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px 0', lineHeight: 1.5 } },
+          props.apiKeyModal.isUpdate
+            ? 'Enter a new API key to replace the current one for ' + props.apiKeyModal.providerName + '.'
+            : 'Enter your ' + props.apiKeyModal.providerName + ' API key to enable this provider.'
+        ),
+        h('label', { className: 'form-label' }, 'API Key'),
+        h('input', {
+          className: 'input',
+          type: 'password',
+          placeholder: 'sk-...',
+          value: props.apiKeyInput,
+          autoFocus: true,
+          onChange: function(e) { props.setApiKeyInput(e.target.value); },
+          onKeyDown: function(e) {
+            if (e.key === 'Enter' && props.apiKeyInput.trim()) {
+              var m = props.apiKeyModal;
+              apiCall('/providers/' + m.providerId + '/api-key', { method: 'POST', body: JSON.stringify({ apiKey: props.apiKeyInput.trim() }) })
+                .then(function() { toast((m.isUpdate ? 'API key updated' : 'API key saved') + ' for ' + m.providerName + '!', 'success'); props.setApiKeyModal(null); props.setApiKeyInput(''); window.location.reload(); })
+                .catch(function(e) { toast(e.message || 'Failed to save', 'error'); });
+            }
+          },
+          style: { fontSize: 14, fontFamily: 'var(--font-mono, monospace)' },
+        }),
+        h('p', { className: 'form-help', style: { marginTop: 6 } }, 'Your key is stored encrypted and never exposed in the dashboard.')
+      ),
+      h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+        h('button', { className: 'btn', onClick: function() { props.setApiKeyModal(null); props.setApiKeyInput(''); } }, 'Cancel'),
+        h('button', {
+          className: 'btn btn-primary',
+          disabled: !props.apiKeyInput.trim(),
+          onClick: function() {
+            var m = props.apiKeyModal;
+            apiCall('/providers/' + m.providerId + '/api-key', { method: 'POST', body: JSON.stringify({ apiKey: props.apiKeyInput.trim() }) })
+              .then(function() { toast((m.isUpdate ? 'API key updated' : 'API key saved') + ' for ' + m.providerName + '!', 'success'); props.setApiKeyModal(null); props.setApiKeyInput(''); window.location.reload(); })
+              .catch(function(e) { toast(e.message || 'Failed to save', 'error'); });
+          }
+        }, props.apiKeyModal.isUpdate ? 'Update Key' : 'Save Key')
+      )
     )
   );
 }
@@ -1410,6 +1771,10 @@ function ModelPricingTab(props) {
       discoverResults: props.discoverResults,
       setDiscoverResults: props.setDiscoverResults,
       toast: props.toast,
+      apiKeyModal: props.apiKeyModal,
+      setApiKeyModal: props.setApiKeyModal,
+      apiKeyInput: props.apiKeyInput,
+      setApiKeyInput: props.setApiKeyInput,
     }),
 
     // Divider

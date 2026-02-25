@@ -17,7 +17,7 @@
  *
  * const runtime = createAgentRuntime({
  *   engineDb: db,
- *   apiKeys: { anthropic: process.env.ANTHROPIC_API_KEY },
+ *   apiKeys: { anthropic: "<from-database>" },
  * });
  *
  * await runtime.start();
@@ -100,7 +100,7 @@ var DEFAULT_MODEL: ModelConfig = {
 // ─── Constants ───────────────────────────────────────────
 
 var DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;       // 30s
-var DEFAULT_STALE_SESSION_TIMEOUT_MS = 5 * 60_000; // 5 min
+var DEFAULT_STALE_SESSION_TIMEOUT_MS = 15 * 60_000; // 15 min — agents do real work (meetings, browser, etc.)
 var DEFAULT_SSE_KEEPALIVE_MS = 15_000;              // 15s
 
 // ─── Agent Runtime ───────────────────────────────────────
@@ -113,6 +113,13 @@ export class AgentRuntime {
   private emailChannel: EmailChannel | null = null;
   private gatewayApp: Hono | null = null;
   private activeSessions = new Map<string, AbortController>();
+  private sessionCompleteCallbacks = new Map<string, Array<(result: any) => void>>();
+  /** Sessions that should NOT complete even when the LLM returns end_turn (e.g., meeting monitor active) */
+  private keepAliveSessions = new Set<string>();
+  /** Sessions with an agent loop currently executing (LLM call in flight) */
+  private loopRunning = new Set<string>();
+  /** Queued messages for sessions whose loop is currently running — prevents concurrent loops */
+  private pendingMessages = new Map<string, string[]>();
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private staleCheckTimer: NodeJS.Timeout | null = null;
   private sseKeepaliveTimer: NodeJS.Timeout | null = null;
@@ -129,6 +136,55 @@ export class AgentRuntime {
         }
       },
     });
+  }
+
+  /** Build tool options for a given agent, including OAuth email config if available */
+  private buildToolOptions(agentId: string, sessionId?: string): any {
+    const self = this;
+    const base: any = {
+      agentId,
+      workspaceDir: process.cwd(),
+      agenticmailManager: this.config.agenticmailManager,
+      agentMemoryManager: this.config.agentMemoryManager,
+      orgId: 'default', // TODO: resolve from agent's org
+      runtimeRef: {
+        sendMessage: (sid: string, message: string) => self.sendMessage(sid, message),
+        getCurrentSessionId: () => sessionId,
+        setKeepAlive: (sid: string, keepAlive: boolean) => self.setKeepAlive(sid, keepAlive),
+      },
+    };
+    if (this.config.getEmailConfig) {
+      const ec = this.config.getEmailConfig(agentId);
+      if (ec?.oauthAccessToken) {
+        base.emailConfig = ec;
+        if (this.config.onTokenRefresh) {
+          const onRefresh = this.config.onTokenRefresh;
+          base.onTokenRefresh = (tokens: any) => onRefresh(agentId, tokens);
+        }
+      }
+    }
+    // Pass enabledGoogleServices from agent config
+    // Auto-derive from skills array if enabledGoogleServices is not explicitly set
+    if (this.config.getAgentConfig) {
+      const agentConfig = this.config.getAgentConfig(agentId);
+      if (agentConfig?.enabledGoogleServices?.length) {
+        base.enabledGoogleServices = agentConfig.enabledGoogleServices;
+      } else if (agentConfig?.skills?.length) {
+        // Map gws-* skills to Google service names
+        const skillToService: Record<string, string> = {
+          'gws-gmail': 'gmail', 'gws-calendar': 'calendar', 'gws-drive': 'drive',
+          'gws-tasks': 'tasks', 'gws-docs': 'docs', 'gws-sheets': 'sheets',
+          'gws-contacts': 'contacts', 'gws-chat': 'chat', 'gws-slides': 'slides',
+          'gws-forms': 'forms', 'gws-meet': 'meetings',
+        };
+        const derived = agentConfig.skills
+          .filter((s: string) => s.startsWith('gws-'))
+          .map((s: string) => skillToService[s])
+          .filter(Boolean);
+        if (derived.length) base.enabledGoogleServices = derived;
+      }
+    }
+    return base;
   }
 
   /**
@@ -236,12 +292,14 @@ export class AgentRuntime {
     var session = await this.sessionManager!.createSession(agentId, orgId, opts.parentSessionId);
 
     // Build agent config
-    var tools = opts.tools || createAllTools({
-      agentId,
-      workspaceDir: process.cwd(),
-    });
+    var tools = opts.tools || await createAllTools(this.buildToolOptions(agentId, session.id));
 
-    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId);
+    // Inject persistent memory context into system prompt
+    var memoryContext = '';
+    if (this.config.agentMemoryManager) {
+      try { memoryContext = await this.config.agentMemoryManager.generateMemoryContext(agentId); } catch {}
+    }
+    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext);
 
     var agentConfig: AgentConfig = {
       agentId,
@@ -273,25 +331,53 @@ export class AgentRuntime {
     if (!session) throw new Error(`Session not found: ${sessionId}`);
     if (session.status !== 'active') throw new Error(`Session is not active: ${session.status}`);
 
-    // Append user message
+    // Append user message to DB immediately (always persisted)
     await this.sessionManager!.appendMessage(sessionId, { role: 'user', content: message });
 
-    // Resume the agent loop with the new message
+    // If a loop is already running for this session, queue the message instead of starting
+    // a concurrent loop. The running loop will pick up queued messages when it finishes its turn.
+    if (this.loopRunning.has(sessionId)) {
+      var queue = this.pendingMessages.get(sessionId);
+      if (!queue) { queue = []; this.pendingMessages.set(sessionId, queue); }
+      queue.push(message);
+      console.log(`[runtime] Session ${sessionId} loop active — queued message (${queue.length} pending)`);
+      return;
+    }
+
+    // Re-fetch session to get messages INCLUDING the newly appended user message
+    var updatedSession = await this.sessionManager!.getSession(sessionId);
+    var messages = updatedSession?.messages || [...session.messages, { role: 'user' as const, content: message }];
+
+    // Resume the agent loop with the updated messages
     var model = this.config.defaultModel || DEFAULT_MODEL;
     var apiKey = this.resolveApiKey(model.provider);
     if (!apiKey) throw new Error(`No API key for provider: ${model.provider}`);
 
-    var tools = createAllTools({ agentId: session.agentId, workspaceDir: process.cwd() });
+    var tools = await createAllTools(this.buildToolOptions(session.agentId, sessionId));
+
+    var memoryContext = '';
+    if (this.config.agentMemoryManager) {
+      try { memoryContext = await this.config.agentMemoryManager.generateMemoryContext(session.agentId); } catch {}
+    }
 
     var agentConfig: AgentConfig = {
       agentId: session.agentId,
       orgId: session.orgId,
       model,
-      systemPrompt: buildDefaultSystemPrompt(session.agentId),
+      systemPrompt: buildDefaultSystemPrompt(session.agentId, memoryContext),
       tools,
     };
 
-    this.runSessionLoop(sessionId, agentConfig, session.messages, apiKey);
+    this.runSessionLoop(sessionId, agentConfig, messages, apiKey);
+  }
+
+  /**
+   * Register a callback for when a session completes (or fails).
+   */
+  onSessionComplete(sessionId: string, callback: (result: any) => void): void {
+    var existing = this.sessionCompleteCallbacks.get(sessionId);
+    if (!existing) { existing = []; this.sessionCompleteCallbacks.set(sessionId, existing); }
+    existing.push(callback);
   }
 
   /**
@@ -411,6 +497,25 @@ export class AgentRuntime {
   }
 
   /**
+   * Mark a session as "keep alive" — prevents it from completing when the LLM returns end_turn.
+   * Used by MeetingMonitor to keep meeting sessions alive for incoming caption/chat updates.
+   * The session stays in 'active' status and waits for the next sendMessage() call.
+   */
+  setKeepAlive(sessionId: string, keepAlive: boolean): void {
+    if (keepAlive) {
+      this.keepAliveSessions.add(sessionId);
+      console.log(`[runtime] Session ${sessionId} marked as keep-alive`);
+    } else {
+      this.keepAliveSessions.delete(sessionId);
+      console.log(`[runtime] Session ${sessionId} keep-alive removed`);
+    }
+  }
+
+  isKeepAlive(sessionId: string): boolean {
+    return this.keepAliveSessions.has(sessionId);
+  }
+
+  /**
    * Stop the runtime.
    */
   async stop(): Promise<void> {
@@ -448,6 +553,9 @@ export class AgentRuntime {
     isResume?: boolean,
   ): void {
     var self = this;
+
+    // Mark loop as running to prevent concurrent loops from sendMessage
+    this.loopRunning.add(sessionId);
 
     // Create hooks
     var hooks = createRuntimeHooks({
@@ -511,13 +619,57 @@ export class AgentRuntime {
           },
         });
 
-        // Final save
+        // Save messages and token count
+        await self.sessionManager!.replaceMessages(sessionId, result.messages);
+
+        // Check keep-alive: if active, DON'T complete — wait for next sendMessage()
+        if (self.keepAliveSessions.has(sessionId)) {
+          // Keep session in 'active' status — just save progress
+          await self.sessionManager!.touchSession(sessionId, {
+            tokenCount: result.tokenCount,
+            turnCount: result.turnCount,
+          });
+
+          // Clear loop-running flag BEFORE checking queue
+          self.loopRunning.delete(sessionId);
+
+          // Drain any messages that arrived while the loop was running
+          var queued = self.pendingMessages.get(sessionId);
+          if (queued && queued.length > 0) {
+            self.pendingMessages.delete(sessionId);
+            console.log(`[runtime] Session ${sessionId} keep-alive loop done — draining ${queued.length} queued message(s)`);
+            // result.messages was already saved via replaceMessages above, which overwrote
+            // the queued user messages that were appended during the loop. Re-append them now.
+            for (var qm of queued) {
+              await self.sessionManager!.appendMessage(sessionId, { role: 'user', content: qm });
+            }
+            // Re-fetch to get the complete history ending with user message(s)
+            var freshSession = await self.sessionManager!.getSession(sessionId);
+            var freshMessages = freshSession?.messages || [...result.messages, ...queued.map(function(q) { return { role: 'user' as const, content: q }; })];
+            // Verify conversation ends with a user message
+            var lastMsg = freshMessages[freshMessages.length - 1];
+            if (lastMsg && lastMsg.role !== 'user') {
+              // Safety: append a nudge so the LLM has a user message to respond to
+              var nudge = { role: 'user' as const, content: '[System] You have new messages above. Please respond.' };
+              freshMessages.push(nudge);
+              await self.sessionManager!.appendMessage(sessionId, nudge);
+            }
+            // Restart the loop with the accumulated messages
+            self.runSessionLoop(sessionId, agentConfig, freshMessages, apiKey);
+          } else {
+            console.log(`[runtime] Session ${sessionId} finished LLM turn but is keep-alive — staying active for incoming messages`);
+          }
+          // Don't delete from activeSessions, don't fire completion callbacks
+          // The next sendMessage() call will restart the loop
+          return;
+        }
+
+        // Normal completion
         await self.sessionManager!.updateSession(sessionId, {
           status: result.status,
           tokenCount: result.tokenCount,
           turnCount: result.turnCount,
         });
-        await self.sessionManager!.replaceMessages(sessionId, result.messages);
 
         // Clean up sub-agents
         var cancelledChildren = self.subAgentManager.cancelAll(sessionId);
@@ -528,12 +680,26 @@ export class AgentRuntime {
         // Notify hooks of session end
         await hooks.onSessionEnd(sessionId, agentConfig.agentId, agentConfig.orgId);
 
+        // Fire completion callbacks
+        var cbs = self.sessionCompleteCallbacks.get(sessionId);
+        if (cbs) { for (var cb of cbs) { try { cb(result); } catch {} } self.sessionCompleteCallbacks.delete(sessionId); }
+
       } catch (err: any) {
         console.error(`[runtime] Session ${sessionId} error: ${err.message}`);
+        self.loopRunning.delete(sessionId);
+        self.pendingMessages.delete(sessionId);
         await self.sessionManager!.updateSession(sessionId, { status: 'failed' }).catch(function() {});
         emitSessionEvent(sessionId, { type: 'error', message: err.message });
+        // Fire completion callbacks with failed status
+        var cbs2 = self.sessionCompleteCallbacks.get(sessionId);
+        if (cbs2) { for (var cb2 of cbs2) { try { cb2({ status: 'failed', error: err.message }); } catch {} } self.sessionCompleteCallbacks.delete(sessionId); }
       } finally {
-        self.activeSessions.delete(sessionId);
+        // Only remove from activeSessions if NOT keep-alive
+        if (!self.keepAliveSessions.has(sessionId)) {
+          self.loopRunning.delete(sessionId);
+          self.pendingMessages.delete(sessionId);
+          self.activeSessions.delete(sessionId);
+        }
       }
     })();
   }
@@ -572,13 +738,18 @@ export class AgentRuntime {
             continue;
           }
 
-          var tools = createAllTools({ agentId: session.agentId, workspaceDir: process.cwd() });
+          var tools = await createAllTools(this.buildToolOptions(session.agentId, session.id));
+
+          var mc = '';
+          if (this.config.agentMemoryManager) {
+            try { mc = await this.config.agentMemoryManager.generateMemoryContext(session.agentId); } catch {}
+          }
 
           var agentConfig: AgentConfig = {
             agentId: session.agentId,
             orgId: session.orgId,
             model,
-            systemPrompt: buildDefaultSystemPrompt(session.agentId),
+            systemPrompt: buildDefaultSystemPrompt(session.agentId, mc),
             tools,
           };
 
@@ -661,8 +832,8 @@ export function createAgentRuntime(config: RuntimeConfig): AgentRuntime {
 
 // ─── Default System Prompt ───────────────────────────────
 
-function buildDefaultSystemPrompt(agentId: string): string {
-  return `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
+function buildDefaultSystemPrompt(agentId: string, memoryContext?: string): string {
+  var base = `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
 
 You have access to a comprehensive set of tools for completing tasks. Use them effectively.
 
@@ -674,6 +845,15 @@ Guidelines:
 - Respect organization policies and permissions
 - Keep responses concise unless detail is requested
 - For long tasks, work systematically and report progress
+- ACTIVELY USE YOUR MEMORY: After corrections, lessons, or insights, call memory_reflect to record them
+- Before complex tasks, call memory_context to recall relevant knowledge
+- Your memory persists across conversations — it's how you grow as an expert
 
 Current time: ${new Date().toISOString()}`;
+
+  if (memoryContext) {
+    base += '\n\n' + memoryContext;
+  }
+
+  return base;
 }

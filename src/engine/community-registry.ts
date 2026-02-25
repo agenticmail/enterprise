@@ -36,6 +36,7 @@ export interface CommunitySkillManifest {
   configSchema?: Record<string, any>;
   minEngineVersion?: string;
   homepage?: string;
+  authHelp?: string | { provider: string; url: string; description: string };
 }
 
 export interface IndexedCommunitySkill extends CommunitySkillManifest {
@@ -210,6 +211,21 @@ export class CommunitySkillRegistry {
     return inst;
   }
 
+  /** Resolve installed skill from memory cache, falling back to DB */
+  private async resolveInstalled(orgId: string, skillId: string): Promise<InstalledCommunitySkill | null> {
+    const id = `${orgId}:${skillId}`;
+    let inst = this.installed.get(id) || null;
+    if (!inst && this.engineDb) {
+      const rows = await this.engineDb.getInstalledSkillsByOrg(orgId);
+      const found = rows.find((r: any) => r.skillId === skillId || r.skill_id === skillId);
+      if (found) {
+        inst = found;
+        this.installed.set(id, inst!);
+      }
+    }
+    return inst;
+  }
+
   async uninstall(orgId: string, skillId: string): Promise<void> {
     const id = `${orgId}:${skillId}`;
     this.installed.delete(id);
@@ -217,8 +233,7 @@ export class CommunitySkillRegistry {
   }
 
   async enable(orgId: string, skillId: string): Promise<void> {
-    const id = `${orgId}:${skillId}`;
-    const inst = this.installed.get(id);
+    const inst = await this.resolveInstalled(orgId, skillId);
     if (!inst) throw new Error('Skill not installed');
     inst.enabled = true;
     inst.updatedAt = new Date().toISOString();
@@ -229,8 +244,7 @@ export class CommunitySkillRegistry {
   }
 
   async disable(orgId: string, skillId: string): Promise<void> {
-    const id = `${orgId}:${skillId}`;
-    const inst = this.installed.get(id);
+    const inst = await this.resolveInstalled(orgId, skillId);
     if (!inst) throw new Error('Skill not installed');
     inst.enabled = false;
     inst.updatedAt = new Date().toISOString();
@@ -238,8 +252,7 @@ export class CommunitySkillRegistry {
   }
 
   async updateConfig(orgId: string, skillId: string, config: Record<string, any>): Promise<void> {
-    const id = `${orgId}:${skillId}`;
-    const inst = this.installed.get(id);
+    const inst = await this.resolveInstalled(orgId, skillId);
     if (!inst) throw new Error('Skill not installed');
     inst.config = { ...inst.config, ...config };
     inst.updatedAt = new Date().toISOString();
@@ -247,8 +260,7 @@ export class CommunitySkillRegistry {
   }
 
   async upgrade(orgId: string, skillId: string): Promise<InstalledCommunitySkill> {
-    const id = `${orgId}:${skillId}`;
-    const inst = this.installed.get(id);
+    const inst = await this.resolveInstalled(orgId, skillId);
     if (!inst) throw new Error('Skill not installed');
 
     const skill = this.index.get(skillId);
@@ -591,7 +603,7 @@ export class CommunitySkillRegistry {
       description: skill.description,
       category: (skill.category || 'custom') as any,
       risk: (skill.risk || 'medium') as any,
-      tools: skill.tools.map(t => ({
+      tools: (Array.isArray(skill.tools) ? skill.tools : []).map(t => ({
         id: t.id,
         name: t.name,
         description: t.description,
@@ -1304,6 +1316,7 @@ export class CommunitySkillRegistry {
         risk: 'medium',
         icon: 'https://cdn.simpleicons.org/intercom/6AFDEF',
         tags: ['intercom', 'support', 'messaging', 'customer-success'],
+        authHelp: { provider: 'Intercom', url: 'https://developers.intercom.com/docs/build-an-integration/getting-started/', description: 'Create an Intercom app at developers.intercom.com, then copy the Access Token from the Authentication section.' },
         tools: [
           { id: 'intercom_reply_conversation', name: 'Reply to Conversation', description: 'Send a reply in an Intercom conversation' },
           { id: 'intercom_create_contact', name: 'Create Contact', description: 'Create a new lead or user contact' },
@@ -1323,6 +1336,7 @@ export class CommunitySkillRegistry {
         risk: 'medium',
         icon: 'https://cdn.simpleicons.org/zendesk/03363D',
         tags: ['zendesk', 'support', 'tickets', 'helpdesk'],
+        authHelp: { provider: 'Zendesk', url: 'https://support.zendesk.com/hc/en-us/articles/4408889192858-Generating-a-new-API-token', description: 'Go to Zendesk Admin > Apps and Integrations > APIs > Zendesk API, then generate an API token.' },
         tools: [
           { id: 'zendesk_create_ticket', name: 'Create Ticket', description: 'Create a new support ticket' },
           { id: 'zendesk_update_ticket', name: 'Update Ticket', description: 'Update ticket status, priority, or assignee' },

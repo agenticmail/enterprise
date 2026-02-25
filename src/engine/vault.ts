@@ -11,6 +11,11 @@
 import { createHash, randomBytes, createCipheriv, createDecipheriv, pbkdf2Sync } from 'crypto';
 import type { EngineDatabase } from './db-adapter.js';
 
+function safeJsonParse(val: string | null | undefined, fallback: any = {}): any {
+  if (!val) return fallback;
+  try { return JSON.parse(val); } catch { return fallback; }
+}
+
 // ─── Types ──────────────────────────────────────────────
 
 export interface VaultConfig {
@@ -113,7 +118,7 @@ export class SecureVault {
           name: r.name,
           category: r.category,
           encryptedValue: r.encrypted_value,
-          metadata: JSON.parse(r.metadata || '{}'),
+          metadata: safeJsonParse(r.metadata),
           createdBy: r.created_by,
           createdAt: r.created_at,
           updatedAt: r.updated_at,
@@ -415,7 +420,7 @@ export class SecureVault {
       const rows = await this.engineDb.query<any>('SELECT * FROM deploy_credentials');
 
       for (const row of rows) {
-        const config = JSON.parse(row.config || '{}');
+        const config = safeJsonParse(row.config);
 
         // Skip already-encrypted configs
         if (config._encrypted) continue;
@@ -514,7 +519,7 @@ export class SecureVault {
         action: r.action,
         actor: r.actor,
         ip: r.ip || undefined,
-        metadata: JSON.parse(r.metadata || '{}'),
+        metadata: safeJsonParse(r.metadata),
         createdAt: r.created_at,
       }));
     } catch {

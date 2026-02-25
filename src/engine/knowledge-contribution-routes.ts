@@ -302,6 +302,19 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
     }
   });
 
+  // Alias: dashboard calls /contributions, which maps to /cycles
+  router.get('/contributions', async (c) => {
+    try {
+      const orgId = c.req.query('orgId') || undefined;
+      const agentId = c.req.query('agentId') || undefined;
+      const limit = parseInt(c.req.query('limit') || '50');
+      const cycles = await manager.listCycles({ orgId, agentId, limit });
+      return c.json({ contributions: cycles, cycles });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   router.post('/run-due', async (c) => {
     try {
       const userId = c.req.header('X-User-Id') || 'admin';

@@ -199,21 +199,18 @@ export function resolveApiKeyForProvider(
   apiKeys?: Record<string, string>,
   customProviders?: CustomProviderDef[],
 ): string | undefined {
-  // 1. Explicit config
+  // 1. Explicit config (from DB-loaded apiKeys)
   if (apiKeys && apiKeys[providerName]) return apiKeys[providerName];
 
   // 2. Resolve provider definition
   var def = resolveProvider(providerName, customProviders);
   if (!def) return undefined;
 
-  // 3. Env var lookup
-  var envKey = 'envKey' in def ? (def as ProviderDef).envKey : (def as CustomProviderDef).apiKeyEnvVar;
-  if (envKey && process.env[envKey]) return process.env[envKey];
-
-  // 4. Local providers don't need keys
+  // 3. Local providers don't need keys
   var requiresKey = 'requiresApiKey' in def ? (def as ProviderDef).requiresApiKey : !!(def as CustomProviderDef).apiKeyEnvVar;
   if (!requiresKey) return '';
 
+  // No env var fallback — all keys come from database
   return undefined;
 }
 

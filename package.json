@@ -1,6 +1,6 @@
 {
   "name": "@agenticmail/enterprise",
-  "version": "0.5.3",
+  "version": "0.5.185",
   "description": "AgenticMail Enterprise — cloud-hosted AI agent identity, email, auth & compliance for organizations",
   "type": "module",
   "bin": {
@@ -16,7 +16,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/cli.ts src/registry/cli.ts --format esm --external better-sqlite3 --external mongodb --external mysql2 --external @libsql/client --external @aws-sdk/client-dynamodb --external @aws-sdk/lib-dynamodb --external @aws-sdk/client-s3 --external @aws-sdk/s3-request-presigner --external @google-cloud/storage --external @azure/storage-blob --external @mozilla/readability --external linkedom --external postgres && mkdir -p dist/dashboard/components dist/dashboard/pages dist/dashboard/vendor dist/dashboard/assets dist/registry && cp src/dashboard/index.html dist/dashboard/ && cp src/dashboard/app.js dist/dashboard/ && cp src/dashboard/components/*.js dist/dashboard/components/ && cp src/dashboard/pages/*.js dist/dashboard/pages/ && cp src/dashboard/vendor/*.js dist/dashboard/vendor/ && cp -r src/dashboard/assets/* dist/dashboard/assets/ && cp src/engine/soul-templates.json dist/",
+    "build": "tsup src/index.ts src/cli.ts src/registry/cli.ts --format esm --external better-sqlite3 --external mongodb --external mysql2 --external @libsql/client --external @aws-sdk/client-dynamodb --external @aws-sdk/lib-dynamodb --external @aws-sdk/client-s3 --external @aws-sdk/s3-request-presigner --external @google-cloud/storage --external @azure/storage-blob --external @mozilla/readability --external imapflow --external nodemailer --external linkedom --external postgres --external playwright-core --external ws --external express && mkdir -p dist/dashboard/components dist/dashboard/pages dist/dashboard/vendor dist/dashboard/assets dist/registry && cp src/dashboard/index.html dist/dashboard/ && cp src/dashboard/app.js dist/dashboard/ && cp src/dashboard/components/*.js dist/dashboard/components/ && cp src/dashboard/pages/*.js dist/dashboard/pages/ && cp src/dashboard/vendor/*.js dist/dashboard/vendor/ && cp -r src/dashboard/assets/* dist/dashboard/assets/ && cp src/engine/soul-templates.json dist/",
     "dev": "npm run build && node --watch start-live.mjs",
     "rebuild": "npm run build && pm2 restart enterprise"
   },
@@ -40,23 +40,11 @@
     "url": "https://github.com/agenticmail/enterprise/issues"
   },
   "license": "MIT",
-  "peerDependencies": {
-    "@agenticmail/api": ">=0.5.0",
-    "@agenticmail/core": ">=0.5.0",
-    "agenticmail": ">=0.5.0"
-  },
-  "peerDependenciesMeta": {
-    "agenticmail": {
-      "optional": true
-    },
-    "@agenticmail/api": {
-      "optional": true
-    }
-  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.73.0",
     "@hono/node-server": "^1.19.9",
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@sinclair/typebox": "^0.34.48",
     "bcryptjs": "^2.4.3",
     "chalk": "^5.0.0",
     "hono": "^4.0.0",
@@ -64,13 +52,31 @@
     "jose": "^5.0.0",
     "nanoid": "^5.0.0",
     "openai": "^4.77.0",
-    "ora": "^8.0.0"
+    "ora": "^8.0.0",
+    "playwright": "^1.58.2"
   },
   "devDependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@types/bcryptjs": "^2.4.0",
+    "@types/express": "^5.0.6",
     "@types/inquirer": "^9.0.0",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^7.0.11",
+    "@types/ws": "^8.18.1",
+    "linkedom": "^0.18.12",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "playwright-core": ">=1.40.0",
+    "ws": ">=8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright-core": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
   }
 }

@@ -91,23 +91,97 @@ export async function promptRegistration(
     const data = await res.json().catch(() => ({})) as any;
 
     if (res.status === 409) {
-      spinner.fail('Domain already registered');
+      spinner.info('Domain already registered — verifying ownership');
       console.log('');
       console.log(chalk.yellow('  This domain is already registered and verified.'));
-      console.log(chalk.dim('  If this is your domain, use: agenticmail-enterprise recover'));
-      console.log('');
+      console.log(chalk.dim('  Enter your deployment key to prove ownership and continue.\n'));
 
-      const { continueAnyway } = await inquirer.prompt([{
-        type: 'confirm',
-        name: 'continueAnyway',
-        message: 'Continue setup without registration?',
-        default: true,
+      const { deploymentKey } = await inquirer.prompt([{
+        type: 'password',
+        name: 'deploymentKey',
+        message: 'Deployment key:',
+        mask: '*',
+        validate: (v: string) => v.length === 64 || 'Deployment key should be 64 hex characters',
       }]);
 
-      if (continueAnyway) {
-        return { registered: false, verificationStatus: 'skipped' };
+      // Recover via registry — this re-registers with a new challenge
+      const recoverSpinner = ora('Verifying deployment key...').start();
+      try {
+        const recoverRes = await fetch(`${registryUrl}/domains/recover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            domain: domain!.toLowerCase().trim(),
+            deploymentKey,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        });
+
+        const recoverData = await recoverRes.json().catch(() => ({})) as any;
+
+        if (recoverRes.status === 403) {
+          recoverSpinner.fail('Invalid deployment key');
+          console.log('');
+          console.log(chalk.red('  The deployment key does not match this domain.'));
+          console.log('');
+
+          const { continueAnyway } = await inquirer.prompt([{
+            type: 'confirm',
+            name: 'continueAnyway',
+            message: 'Continue setup without registration?',
+            default: true,
+          }]);
+
+          if (continueAnyway) {
+            return { registered: false, verificationStatus: 'skipped' };
+          }
+          process.exit(1);
+        }
+
+        if (!recoverRes.ok) {
+          throw new Error(recoverData.error || `HTTP ${recoverRes.status}`);
+        }
+
+        recoverSpinner.succeed('Ownership verified — domain recovered');
+
+        // Now verify DNS with the new challenge
+        registrationId = recoverData.registrationId;
+        dnsChallenge = recoverData.dnsChallenge;
+
+        // Auto-verify DNS since they already own the domain
+        const verifyRes = await fetch(`${registryUrl}/domains/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: domain!.toLowerCase().trim() }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const verifyData = await verifyRes.json().catch(() => ({})) as any;
+
+        // Re-hash the provided key for local storage
+        const { createHash } = await import('crypto');
+        const localKeyHash = createHash('sha256').update(deploymentKey).digest('hex');
+
+        return {
+          registered: true,
+          deploymentKeyHash: localKeyHash,
+          dnsChallenge,
+          registrationId,
+          verificationStatus: verifyData?.verified ? 'verified' : 'pending_dns',
+        };
+      } catch (err: any) {
+        recoverSpinner.fail(`Recovery failed: ${err.message}`);
+        const { continueAnyway } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'continueAnyway',
+          message: 'Continue setup without registration?',
+          default: true,
+        }]);
+
+        if (continueAnyway) {
+          return { registered: false, verificationStatus: 'skipped' };
+        }
+        process.exit(1);
       }
-      process.exit(1);
     }
 
     if (!res.ok) {
@@ -121,7 +195,7 @@ export async function promptRegistration(
     spinner.warn('Registry unavailable');
     console.log('');
     console.log(chalk.yellow(`  Could not reach registry: ${err.message}`));
-    console.log(chalk.dim('  You can register later with: agenticmail-enterprise verify-domain'));
+    console.log(chalk.dim('  You can register later with: npx @agenticmail/enterprise verify-domain'));
     console.log('');
 
     const { continueAnyway } = await inquirer.prompt([{
@@ -209,11 +283,11 @@ export async function promptRegistration(
         await new Promise(r => setTimeout(r, 10_000));
       } else {
         spinner.info('DNS record not found yet');
-        console.log(chalk.dim('  Run later: agenticmail-enterprise verify-domain'));
+        console.log(chalk.dim('  Run later: npx @agenticmail/enterprise verify-domain'));
       }
     }
   } else {
-    console.log(chalk.dim('  Run when ready: agenticmail-enterprise verify-domain'));
+    console.log(chalk.dim('  Run when ready: npx @agenticmail/enterprise verify-domain'));
   }
 
   console.log('');

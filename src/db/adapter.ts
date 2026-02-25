@@ -175,6 +175,7 @@ export interface SsoConfig {
 
 export interface CompanySettings {
   id: string;
+  orgId?: string;
   name: string;
   domain?: string;
   subdomain: string;       // <subdomain>.agenticmail.io
@@ -194,11 +195,25 @@ export interface CompanySettings {
   domainVerifiedAt?: string;
   domainRegisteredAt?: string;
   domainStatus?: 'unregistered' | 'pending_dns' | 'verified' | 'failed';
+  cfApiToken?: string;
+  cfAccountId?: string;
   toolSecurityConfig?: Record<string, any>;
   firewallConfig?: FirewallConfig;
   modelPricingConfig?: ModelPricingConfig;
+  orgEmailConfig?: OrgEmailConfig;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface OrgEmailConfig {
+  provider: 'google' | 'microsoft';
+  oauthClientId: string;
+  oauthClientSecret: string;
+  oauthTenantId?: string; // Microsoft only
+  oauthRedirectUri?: string;
+  oauthScopes?: string[];
+  configured: boolean;
+  label?: string; // e.g. "Google Workspace" or "Microsoft 365"
 }
 
 export interface FirewallConfig {
@@ -263,6 +278,7 @@ export interface ModelPricingConfig {
   defaultProvider?: string;
   currency?: string;  // default 'USD'
   updatedAt?: string;
+  providerApiKeys?: Record<string, string>;
   customProviders?: Array<{
     id: string;
     name: string;

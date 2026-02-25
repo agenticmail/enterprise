@@ -203,12 +203,13 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
     async recordLLMUsage(agentId, orgId, usage): Promise<void> {
       try {
         var { lifecycle } = await import('../engine/routes.js');
+        console.log(`[hooks] recordLLMUsage: agent=${agentId}, input=${usage.inputTokens}, output=${usage.outputTokens}`);
         await lifecycle.recordLLMUsage(agentId, {
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           costUsd: usage.costUsd,
         });
-      } catch { /* non-blocking */ }
+      } catch (recordErr: any) { console.log(`[hooks] recordLLMUsage error: ${recordErr.message}`); }
 
       // Also record as activity event
       try {
@@ -322,13 +323,13 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
               parameters: ctx.parameters,
               reason: `Agent ${ctx.agentId} requests approval for ${ctx.toolName}`,
             });
-            if (approval.status === 'denied' || approval.status === 'expired') {
+            if (approval && (approval.status === 'denied' || approval.status === 'expired')) {
               result.allowed = false;
               result.reason = approval.status === 'expired'
                 ? 'Approval request expired'
                 : `Denied: ${approval.decision?.reason || 'No reason'}`;
             }
-            result.approvalId = approval.id;
+            if (approval) result.approvalId = approval.id;
           } catch { /* non-blocking — if approvals fail, allow */ }
         }
 
@@ -437,19 +438,21 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
 
     // ─── Context Compaction ─────────────────────────
     async onContextCompaction(sessionId, agentId, summary): Promise<void> {
-      // Flush learnings to agent memory
+      // Save compaction summary to persistent agent memory
       try {
         var { memoryManager } = await import('../engine/routes.js');
         await memoryManager.createMemory({
           agentId,
           orgId: deps.orgId,
           category: 'session_learning',
-          title: `Session learning (${new Date().toISOString()})`,
-          content: summary.slice(0, 2000),
+          title: `Context compaction — session ${sessionId || 'unknown'} (${new Date().toISOString()})`,
+          content: summary.slice(0, 10_000), // Keep up to 10K chars of summary
           source: 'context_compaction',
-          importance: 'low',
+          importance: 'high', // High importance — this is the agent's working memory
         });
-      } catch { /* non-blocking */ }
+      } catch (err: any) {
+        console.warn(`[hooks] Failed to persist compaction summary: ${err?.message}`);
+      }
     },
   };
 }

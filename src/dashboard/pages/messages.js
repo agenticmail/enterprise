@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge } from '../components/utils.js';
+import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
 export function MessagesPage() {
@@ -9,19 +9,19 @@ export function MessagesPage() {
   const [mainTab, setMainTab] = useState('messages');
   const [subTab, setSubTab] = useState('all');
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ orgId: 'default', fromAgentId: '', toAgentId: '', subject: '', content: '', priority: 'normal' });
+  const [form, setForm] = useState({ orgId: getOrgId(), fromAgentId: '', toAgentId: '', subject: '', content: '', priority: 'normal' });
   const [selectedNode, setSelectedNode] = useState(null);
   const [nodePositions, setNodePositions] = useState([]);
   const svgRef = useRef(null);
 
   const loadMessages = () => {
-    engineCall('/messages?orgId=default&limit=100').then(d => setMessages(d.messages || [])).catch(() => {});
+    engineCall('/messages?orgId=' + getOrgId() + '&limit=100').then(d => setMessages(d.messages || [])).catch(() => {});
   };
   const loadAgents = () => {
-    engineCall('/agents?orgId=default').then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   const loadTopology = () => {
-    engineCall('/messages/topology?orgId=default').then(d => setTopology(d.topology || null)).catch(() => {});
+    engineCall('/messages/topology?orgId=' + getOrgId()).then(d => setTopology(d.topology || null)).catch(() => {});
   };
   useEffect(() => { loadMessages(); loadAgents(); loadTopology(); }, []);
 

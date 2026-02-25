@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
 export function CommunitySkillsPage() {
@@ -37,7 +37,7 @@ export function CommunitySkillsPage() {
     engineCall('/community/skills?' + params.toString())
       .then(d => { setSkills(d.skills || []); setTotal(d.total || 0); })
       .catch(() => {});
-    engineCall('/community/installed?orgId=default')
+    engineCall('/community/installed?orgId=' + getOrgId())
       .then(d => setInstalled(d.installed || []))
       .catch(() => {});
     engineCall('/community/skills/featured')
@@ -52,16 +52,16 @@ export function CommunitySkillsPage() {
   }, [filters]);
 
   var loadUpdates = useCallback(function() {
-    engineCall('/skill-updates/config?orgId=default')
+    engineCall('/skill-updates/config?orgId=' + getOrgId())
       .then(function(d) { setUpdateConfig(d.config || d || { autoUpdate: false, checkInterval: 'daily', maxRiskLevel: 'medium' }); })
       .catch(function() {});
-    engineCall('/skill-updates/available?orgId=default')
+    engineCall('/skill-updates/available?orgId=' + getOrgId())
       .then(function(d) { setAvailableUpdates(d.updates || []); })
       .catch(function() {});
-    engineCall('/skill-updates/history?orgId=default')
+    engineCall('/skill-updates/history?orgId=' + getOrgId())
       .then(function(d) { setUpdateHistory(d.history || d.updates || []); })
       .catch(function() {});
-    engineCall('/skill-updates/stats?orgId=default')
+    engineCall('/skill-updates/stats?orgId=' + getOrgId())
       .then(function(d) { setUpdateStats(d || {}); })
       .catch(function() {});
   }, []);
@@ -87,7 +87,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/install', {
         method: 'POST',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('Skill installed', 'success');
       load();
@@ -98,7 +98,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/uninstall', {
         method: 'DELETE',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('Skill uninstalled', 'success');
       load();
@@ -109,7 +109,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/' + (enable ? 'enable' : 'disable'), {
         method: 'PUT',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('Skill ' + (enable ? 'enabled' : 'disabled'), 'success');
       load();
@@ -166,7 +166,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/skill-updates/check', {
         method: 'POST',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('Update check complete', 'success');
       loadUpdates();
@@ -179,7 +179,7 @@ export function CommunitySkillsPage() {
       await engineCall('/skill-updates/config', {
         method: 'PUT',
         body: JSON.stringify({
-          orgId: 'default',
+          orgId: getOrgId(),
           autoUpdate: updateConfig.autoUpdate,
           checkInterval: updateConfig.checkInterval,
           maxRiskLevel: updateConfig.maxRiskLevel
@@ -210,7 +210,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/skill-updates/apply-all', {
         method: 'POST',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('All updates applied', 'success');
       loadUpdates();

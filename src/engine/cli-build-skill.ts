@@ -1,5 +1,5 @@
 /**
- * CLI: agenticmail-enterprise build-skill
+ * CLI: npx @agenticmail/enterprise build-skill
  *
  * Interactive AI-assisted skill scaffolding. Prompts for the target
  * application/service, generates a valid agenticmail-skill.json manifest,
@@ -162,7 +162,7 @@ export async function runBuildSkill(_args: string[]) {
     const { runSubmitSkill } = await import('./cli-submit-skill.js');
     await runSubmitSkill([outDir]);
   } else {
-    console.log(chalk.dim('\n  To submit later: agenticmail-enterprise submit-skill ' + answers.outputDir));
+    console.log(chalk.dim('\n  To submit later: npx @agenticmail/enterprise submit-skill ' + answers.outputDir));
   }
 }
 

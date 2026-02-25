@@ -39,7 +39,7 @@ function truncateOutput(output: string, maxBytes: number): { text: string; trunc
 }
 
 function buildSanitizedEnv(sandboxed: boolean): Record<string, string | undefined> {
-  var env = { ...process.env, TERM: 'dumb' };
+  var env: Record<string, string | undefined> = { ...process.env, TERM: 'dumb' };
   if (sandboxed) {
     for (var key of SENSITIVE_ENV_VARS) {
       delete env[key];

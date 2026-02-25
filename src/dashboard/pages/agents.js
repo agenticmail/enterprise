@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, DEPLOY_PHASES, DEPLOY_PHASE_LABELS, showConfirm } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, DEPLOY_PHASES, DEPLOY_PHASE_LABELS, showConfirm, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { CULTURES, LANGUAGES, PersonaForm } from '../components/persona-fields.js';
 
@@ -16,7 +16,7 @@ export function DeployModal({ agentId, agentConfig, onClose, onDeployed, toast }
   const [error, setError] = useState('');
 
   useEffect(() => {
-    engineCall('/deploy-credentials?orgId=default').then(d => setCredentials(d.credentials || [])).catch(() => {});
+    engineCall('/deploy-credentials?orgId=' + getOrgId()).then(d => setCredentials(d.credentials || [])).catch(() => {});
   }, []);
 
   const targets = [
@@ -31,7 +31,7 @@ export function DeployModal({ agentId, agentConfig, onClose, onDeployed, toast }
   const doDeploy = async () => {
     setError(''); setLoading(true);
     try {
-      await engineCall('/agents/' + agentId + '/deploy', { method: 'POST', body: JSON.stringify({ targetType: targetType, credentialId: selectedCred || undefined, config: config, deployedBy: 'dashboard' }) });
+      await apiCall('/agents/' + agentId + '/deploy', { method: 'POST', body: JSON.stringify({ targetType: targetType, credentialId: selectedCred || undefined, config: config, deployedBy: 'dashboard' }) });
       if (toast) toast('Deployment started', 'success');
       if (onDeployed) onDeployed();
       onClose();
@@ -233,7 +233,7 @@ export function DeploymentProgress({ agentId, onComplete }) {
 export function CreateAgentWizard({ onClose, onCreated, toast }) {
   const [step, setStep] = useState(0);
   const steps = ['Role', 'Basics', 'Persona', 'Skills', 'Permissions', 'Deployment', 'Review'];
-  const [form, setForm] = useState({ name: '', email: '', role: 'assistant', description: '', personality: '', skills: [], preset: null, customTools: { allowed: [], blocked: [] }, deployTarget: 'docker', knowledgeBases: [], provider: 'anthropic', model: 'claude-sonnet-4-20250514', approvalRequired: true, soulId: null, avatar: null, gender: '', dateOfBirth: '', maritalStatus: '', culturalBackground: '', language: 'en-us', autoOnboard: true, maxRiskLevel: 'medium', blockedSideEffects: ['runs-code', 'deletes-data', 'financial', 'controls-device'], approvalForRiskLevels: ['high', 'critical'], approvalForSideEffects: ['sends-email', 'sends-message'], rateLimits: { toolCallsPerMinute: 30, toolCallsPerHour: 500, toolCallsPerDay: 5000, externalActionsPerHour: 50 }, constraints: { maxConcurrentTasks: 5, maxSessionDurationMinutes: 480, sandboxMode: false }, traits: { communication: 'direct', detail: 'detail-oriented', energy: 'calm', humor: 'warm', formality: 'adaptive', empathy: 'moderate', patience: 'patient', creativity: 'creative' } });
+  const [form, setForm] = useState({ name: '', email: '', role: 'assistant', description: '', personality: '', skills: [], preset: null, customTools: { allowed: [], blocked: [] }, deployTarget: 'fly', knowledgeBases: [], provider: '', model: '', approvalRequired: true, soulId: null, avatar: null, gender: '', dateOfBirth: '', maritalStatus: '', culturalBackground: '', language: 'en-us', autoOnboard: true, maxRiskLevel: 'medium', blockedSideEffects: ['runs-code', 'deletes-data', 'financial', 'controls-device'], approvalForRiskLevels: ['high', 'critical'], approvalForSideEffects: ['sends-email', 'sends-message'], rateLimits: { toolCallsPerMinute: 30, toolCallsPerHour: 500, toolCallsPerDay: 5000, externalActionsPerHour: 50 }, constraints: { maxConcurrentTasks: 5, maxSessionDurationMinutes: 480, sandboxMode: false }, traits: { communication: 'direct', detail: 'detail-oriented', energy: 'calm', humor: 'warm', formality: 'adaptive', empathy: 'moderate', patience: 'patient', creativity: 'creative' } });
   const [allSkills, setAllSkills] = useState({});
   const [providers, setProviders] = useState([]);
   const [providerModels, setProviderModels] = useState([]);
@@ -244,17 +244,67 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
   const [selectedSoul, setSelectedSoul] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+
+  // Load draft from localStorage on mount
+  useEffect(function() {
+    try {
+      var draft = localStorage.getItem('em_agent_draft');
+      if (draft) {
+        var parsed = JSON.parse(draft);
+        setForm(function(f) { return Object.assign({}, f, parsed); });
+        if (parsed._step) setStep(parsed._step);
+      }
+    } catch {}
+  }, []);
+
+  // Save draft function
+  var saveDraft = useCallback(function() {
+    try {
+      localStorage.setItem('em_agent_draft', JSON.stringify(Object.assign({}, form, { _step: step })));
+      setDraftSaved(true);
+      setTimeout(function() { setDraftSaved(false); }, 2000);
+    } catch {}
+  }, [form, step]);
+
+  // Auto-save draft on step change
+  useEffect(function() {
+    if (form.name) {
+      try { localStorage.setItem('em_agent_draft', JSON.stringify(Object.assign({}, form, { _step: step }))); } catch {}
+    }
+  }, [step]);
+
+  // Clear draft after successful creation
+  var clearDraft = function() { try { localStorage.removeItem('em_agent_draft'); } catch {} };
+  const [setupChecked, setSetupChecked] = useState(false);
 
   useEffect(() => {
     engineCall('/skills/by-category').then(d => setAllSkills(d.categories || {})).catch(() => {});
     engineCall('/profiles/presets').then(d => setPresets(d.presets || [])).catch(() => {});
     engineCall('/souls/by-category').then(d => { setSoulCategories(d.categories || {}); setSoulMeta(d.categoryMeta || {}); }).catch(() => {});
-    apiCall('/providers').then(function(d) { setProviders(d.providers || []); }).catch(function() {});
+    apiCall('/providers').then(function(d) {
+      var provList = d.providers || [];
+      setProviders(provList);
+      var configuredProviders = provList.filter(function(p) { return p.configured; });
+      if (configuredProviders.length === 0) { setShowSetupGuide(true); }
+      else {
+        // Auto-select first configured provider if none set
+        setForm(function(f) {
+          if (!f.provider) {
+            return Object.assign({}, f, { provider: configuredProviders[0].id });
+          }
+          return f;
+        });
+      }
+      setSetupChecked(true);
+    }).catch(function() { setShowSetupGuide(true); setSetupChecked(true); });
   }, []);
 
   // Fetch models when provider changes
   useEffect(function() {
-    var p = form.provider || 'anthropic';
+    var p = form.provider;
+    if (!p) return;
     apiCall('/providers/' + p + '/models').then(function(d) {
       var models = d.models || [];
       setProviderModels(models);
@@ -392,13 +442,18 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
     setLoading(true);
     try {
       const result = await engineCall('/bridge/agents', { method: 'POST', body: JSON.stringify({
-        orgId: 'default',
+        orgId: getOrgId(),
         name: form.name,
         displayName: form.name,
         email: form.email || form.name.toLowerCase().replace(/\s+/g, '.') + '@agenticmail.local',
         role: form.role,
+        description: form.description || '',
+        soulId: form.soulId || null,
         model: { provider: form.provider || 'anthropic', modelId: form.model === 'custom' ? (form.customModelId || form.model) : form.model },
         deployment: { target: form.deployTarget },
+        deployTarget: form.deployTarget,
+        skills: form.skills || [],
+        knowledgeBases: form.knowledgeBases || [],
         presetName: form.preset || undefined,
         permissions: {
           maxRiskLevel: form.maxRiskLevel,
@@ -420,6 +475,8 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
           maritalStatus: form.maritalStatus || undefined,
           culturalBackground: form.culturalBackground || undefined,
           language: form.language,
+          personality: form.personality || undefined,
+          description: form.description || undefined,
           traits: form.traits,
         },
       }) });
@@ -428,7 +485,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
 
       if (form.autoOnboard && agentId) {
         try {
-          await engineCall('/onboarding/initiate/' + agentId, { method: 'POST', body: JSON.stringify({ orgId: 'default' }) });
+          await engineCall('/onboarding/initiate/' + agentId, { method: 'POST', body: JSON.stringify({ orgId: getOrgId() }) });
           toast('Agent "' + form.name + '" created and onboarding started', 'success');
         } catch (e) {
           toast('Agent created but onboarding failed: ' + e.message, 'warning');
@@ -437,6 +494,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
         toast('Agent "' + form.name + '" created successfully', 'success');
       }
 
+      clearDraft();
       onCreated();
       onClose();
     } catch (err) { toast(err.message, 'error'); }
@@ -451,6 +509,59 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
   const lastStep = steps.length - 1;
 
   const stepIcons = ['soul', 'basics', 'skills', 'perms', 'deploy', 'review'];
+
+  // ─── Setup Guide Modal ───────────────────────────────────
+  if (showSetupGuide) {
+    return h('div', { className: 'modal-overlay', onClick: e => { if (e.target === e.currentTarget) onClose(); } },
+      h('div', { className: 'modal', style: { maxWidth: 600 } },
+        h('div', { className: 'modal-header' },
+          h('div', null,
+            h('h2', null, '⚡ Setup Required'),
+            h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0', fontWeight: 400 } }, 'Complete these steps before creating your first agent')
+          ),
+          h('button', { className: 'btn btn-ghost btn-icon', onClick: onClose }, I.x())
+        ),
+        h('div', { className: 'modal-body', style: { padding: '24px' } },
+          h('p', { style: { marginBottom: 20, color: 'var(--text-secondary)', lineHeight: 1.6 } },
+            'Your agents need an LLM provider (like Anthropic or OpenAI) to think and act. Set up at least one provider with an API key before creating agents.'
+          ),
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+            h('div', { style: { padding: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 } },
+                h('div', { style: { width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 } }, '1'),
+                h('strong', null, 'Add an LLM Provider API Key')
+              ),
+              h('p', { style: { margin: 0, color: 'var(--text-muted)', fontSize: 13, paddingLeft: 40, lineHeight: 1.5 } },
+                'Go to Settings → LLM Providers and add your API key for at least one provider. Recommended: Anthropic (Claude) or OpenAI (GPT).'
+              )
+            ),
+            h('div', { style: { padding: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 } },
+                h('div', { style: { width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 } }, '2'),
+                h('strong', null, 'Configure Email Domain (Optional)')
+              ),
+              h('p', { style: { margin: 0, color: 'var(--text-muted)', fontSize: 13, paddingLeft: 40, lineHeight: 1.5 } },
+                'Set up your email domain in Settings → Domain so agents can send and receive emails as agent@yourdomain.com.'
+              )
+            ),
+            h('div', { style: { padding: 16, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', background: 'var(--bg-secondary)' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 } },
+                h('div', { style: { width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 } }, '3'),
+                h('strong', null, 'Set Security Policies (Optional)')
+              ),
+              h('p', { style: { margin: 0, color: 'var(--text-muted)', fontSize: 13, paddingLeft: 40, lineHeight: 1.5 } },
+                'Review Settings → Guardrails to set tool approval policies, rate limits, and data loss prevention rules.'
+              )
+            )
+          ),
+          h('div', { style: { display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' } },
+            h('button', { className: 'btn btn-ghost', onClick: function() { setShowSetupGuide(false); } }, 'Skip for Now'),
+            h('a', { href: '#/settings', className: 'btn btn-primary', onClick: function() { onClose(); } }, 'Go to Settings')
+          )
+        )
+      )
+    );
+  }
 
   return h('div', { className: 'modal-overlay', onClick: e => { if (e.target === e.currentTarget) onClose(); } },
     h('div', { className: 'modal modal-xl' },
@@ -653,7 +764,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
                 h('div', { className: 'form-group' },
                   h('label', { className: 'form-label' }, 'Email Address'),
                   h('input', { className: 'input', value: form.email, onChange: e => set('email', e.target.value), placeholder: form.name ? form.name.toLowerCase().replace(/\s+/g, '.') + '@yourdomain.com' : 'first.last@yourdomain.com' }),
-                  h('p', { className: 'form-help' }, 'Leave blank for auto-generated from their name')
+                  h('p', { className: 'form-help' }, 'The email address created for this agent in your email system. Configure credentials in the Email tab after creation.')
                 )
               ),
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
@@ -669,14 +780,14 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
                     value: form.provider || 'anthropic',
                     onChange: function(e) { setForm(Object.assign({}, form, { provider: e.target.value })); },
                   },
-                    providers.length > 0
+                    providers.length > 0 && providers.some(function(p) { return p.configured; })
                       ? providers.filter(function(p) { return p.configured; }).map(function(p) {
                           return h('option', { key: p.id, value: p.id }, p.name + (p.isLocal ? ' (Local)' : ''));
                         })
                       : [
-                          h('option', { value: 'anthropic' }, 'Anthropic'),
-                          h('option', { value: 'openai' }, 'OpenAI'),
-                          h('option', { value: 'google' }, 'Google'),
+                          h('option', { value: 'anthropic' }, 'Anthropic (Claude)'),
+                          h('option', { value: 'openai' }, 'OpenAI (GPT)'),
+                          h('option', { value: 'google' }, 'Google (Gemini)'),
                           h('option', { value: 'deepseek' }, 'DeepSeek'),
                           h('option', { value: 'xai' }, 'xAI (Grok)'),
                           h('option', { value: 'mistral' }, 'Mistral'),
@@ -911,10 +1022,10 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
               h('h3', { style: { fontSize: 15, fontWeight: 700, marginBottom: 4 } }, 'Deployment Target'),
               h('p', { style: { color: 'var(--text-secondary)', marginBottom: 16, fontSize: 13 } }, 'Choose where and how this agent will run.'),
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
-                ['docker', 'vps', 'local'].map(t =>
+                ['fly', 'docker', 'railway', 'vps', 'local'].map(t =>
                   h('div', { key: t, className: 'preset-card' + (form.deployTarget === t ? ' selected' : ''), onClick: () => set('deployTarget', t), style: { padding: '16px 18px' } },
-                    h('h4', { style: { marginBottom: 6 } }, { docker: 'Docker Container', vps: 'VPS / Dedicated Server', local: 'Local Machine' }[t]),
-                    h('p', null, { docker: 'Run in an isolated Docker container with resource limits. Recommended for production.', vps: 'Deploy to a VPS or dedicated server via SSH. Full control over the environment.', local: 'Run on the current machine. Best for development and testing.' }[t])
+                    h('h4', { style: { marginBottom: 6 } }, { fly: 'Fly.io', docker: 'Docker Container', railway: 'Railway', vps: 'VPS / Dedicated Server', local: 'Local Machine' }[t]),
+                    h('p', null, { fly: 'Deploy to Fly.io with auto-scaling, TLS, and health checks. Recommended for production.', docker: 'Run in an isolated Docker container with resource limits.', railway: 'Deploy to Railway with zero-config builds and auto-deploys.', vps: 'Deploy to a VPS or dedicated server via SSH. Full control.', local: 'Run on the current machine. Best for development and testing.' }[t])
                   )
                 )
               )
@@ -971,7 +1082,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
                     h('span', { style: { color: 'var(--text-muted)' } }, 'Approvals'), h('span', null, form.approvalRequired ? 'Required (risk: ' + form.approvalForRiskLevels.join(', ') + ')' : 'Not required'),
                     h('span', { style: { color: 'var(--text-muted)' } }, 'Rate Limits'), h('span', null, form.rateLimits.toolCallsPerMinute + '/min, ' + form.rateLimits.toolCallsPerHour + '/hr, ' + form.rateLimits.toolCallsPerDay + '/day'),
                     h('span', { style: { color: 'var(--text-muted)' } }, 'Constraints'), h('span', null, form.constraints.maxConcurrentTasks + ' tasks, ' + form.constraints.maxSessionDurationMinutes + 'min max' + (form.constraints.sandboxMode ? ', sandbox' : '')),
-                    h('span', { style: { color: 'var(--text-muted)' } }, 'Deployment'), h('span', null, { docker: 'Docker Container', vps: 'VPS / Dedicated Server', local: 'Local Machine' }[form.deployTarget]),
+                    h('span', { style: { color: 'var(--text-muted)' } }, 'Deployment'), h('span', null, { fly: 'Fly.io', docker: 'Docker Container', railway: 'Railway', vps: 'VPS / Dedicated Server', local: 'Local Machine' }[form.deployTarget] || form.deployTarget),
                     h('span', { style: { color: 'var(--text-muted)' } }, 'Onboarding'), h('span', null, form.autoOnboard ? h('span', { className: 'badge badge-success' }, 'Auto-start') : h('span', { className: 'badge badge-neutral' }, 'Manual'))
                   )
                 )
@@ -998,6 +1109,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
       h('div', { className: 'modal-footer' },
         step > 0 && h('button', { className: 'btn btn-secondary', onClick: () => setStep(step - 1) }, 'Back'),
         step === 0 && !form.soulId && h('button', { className: 'btn btn-ghost', onClick: () => setStep(1) }, 'Skip — Configure Manually'),
+        h('button', { className: 'btn btn-ghost', onClick: saveDraft, style: { fontSize: 12 } }, draftSaved ? '\u2713 Draft Saved' : 'Save Draft'),
         h('div', { style: { flex: 1 } }),
         step < lastStep && h('button', { className: 'btn btn-primary', disabled: !canNext(), onClick: () => setStep(step + 1) }, 'Next'),
         step === lastStep && h('button', { className: 'btn btn-primary', disabled: loading, onClick: doCreate }, loading ? 'Creating...' : 'Create Agent')

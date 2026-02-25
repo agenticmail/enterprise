@@ -59,6 +59,40 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
     return c.json({ context });
   });
 
+  // Update knowledge base name/description
+  router.put('/knowledge-bases/:id', async (c) => {
+    const id = c.req.param('id');
+    const kb = knowledgeBase.getKnowledgeBase(id);
+    if (!kb) return c.json({ error: 'Knowledge base not found' }, 404);
+    const body = await c.req.json();
+    if (body.name !== undefined) (kb as any).name = body.name;
+    if (body.description !== undefined) (kb as any).description = body.description;
+    (kb as any).updatedAt = new Date().toISOString();
+    // Persist to DB if engine supports it
+    if ((knowledgeBase as any).db) {
+      try {
+        await (knowledgeBase as any).db.execute(
+          'UPDATE knowledge_bases SET name = $1, description = $2, updated_at = $3 WHERE id = $4',
+          [kb.name, kb.description, (kb as any).updatedAt, id]
+        );
+      } catch { /* in-memory only fallback */ }
+    }
+    return c.json({ knowledgeBase: kb });
+  });
+
+  // Get chunks for a specific document
+  router.get('/knowledge-bases/:kbId/documents/:docId/chunks', (c) => {
+    const kbId = c.req.param('kbId');
+    const docId = c.req.param('docId');
+    const kb = knowledgeBase.getKnowledgeBase(kbId);
+    if (!kb) return c.json({ error: 'Knowledge base not found' }, 404);
+    // Find the document and return its chunks
+    const doc = kb.documents?.find((d: any) => d.id === docId);
+    if (!doc) return c.json({ error: 'Document not found' }, 404);
+    const docChunks = (doc.chunks || []).slice().sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
+    return c.json({ chunks: docChunks, total: docChunks.length });
+  });
+
   router.delete('/knowledge-bases/:id', (c) => {
     const ok = knowledgeBase.deleteKnowledgeBase(c.req.param('id'));
     return ok ? c.json({ success: true }) : c.json({ error: 'Not found' }, 404);

@@ -120,12 +120,17 @@ function convertToAnthropicMessages(messages: AgentMessage[]): any[] {
       if (typeof msg.content === 'string') {
         if (msg.content) content.push({ type: 'text', text: msg.content });
       } else if (Array.isArray(msg.content)) {
-        content = msg.content as any[];
+        // Strip thinking blocks — they require signatures for multi-turn and it's
+        // safer to omit them than to track signatures through the conversation
+        content = (msg.content as any[]).filter((b: any) => b.type !== 'thinking');
       }
-      // Append tool_use blocks from tool_calls
+      // Append tool_use blocks from tool_calls (only if not already in content)
       if (msg.tool_calls) {
+        var existingToolIds = new Set(content.filter((b: any) => b.type === 'tool_use').map((b: any) => b.id));
         for (var tc of msg.tool_calls) {
-          content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
+          if (!existingToolIds.has(tc.id)) {
+            content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
+          }
         }
       }
       if (content.length > 0) {
@@ -153,7 +158,7 @@ function extractSystemPrompt(messages: AgentMessage[]): string {
 }
 
 async function callAnthropic(
-  config: { modelId: string; apiKey: string; thinkingLevel?: string },
+  config: { modelId: string; apiKey: string; thinkingLevel?: string; authMode?: 'api-key' | 'token'; baseUrl?: string },
   messages: AgentMessage[],
   tools: ToolDefinition[],
   options: LLMCallOptions,
@@ -170,7 +175,32 @@ async function callAnthropic(
     );
   }
 
-  var client = new Anthropic({ apiKey: config.apiKey });
+  // Support two auth modes:
+  // - "api-key" (default): Uses x-api-key header (standard Anthropic API key: sk-ant-...)
+  // - "token": Uses Authorization: Bearer header (Anthropic Max plan token, OAuth tokens, proxy tokens)
+  // Detect OAuth tokens (sk-ant-oat01-*) — these need Bearer auth + special beta headers
+  var isOAuthToken = config.apiKey?.includes('sk-ant-oat') || false;
+  var useTokenAuth = config.authMode === 'token' || isOAuthToken;
+
+  var clientOpts: Record<string, any> = {};
+  if (useTokenAuth) {
+    // Bearer token mode — used by Anthropic OAuth tokens (sk-ant-oat01-*) and proxies
+    // OAuth tokens require the oauth-2025-04-20 beta flag and Claude Code identity headers
+    clientOpts.apiKey = null;
+    clientOpts.authToken = config.apiKey;
+    clientOpts.defaultHeaders = {
+      'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20',
+      'user-agent': 'claude-cli/1.0.0 (external, cli)',
+      'x-app': 'cli',
+    };
+  } else {
+    // Standard API key mode (default)
+    clientOpts.apiKey = config.apiKey;
+  }
+  if (config.baseUrl) {
+    clientOpts.baseURL = config.baseUrl;
+  }
+  var client = new Anthropic(clientOpts);
   var systemPrompt = extractSystemPrompt(messages);
   var anthropicMessages = convertToAnthropicMessages(messages);
 
@@ -194,10 +224,15 @@ async function callAnthropic(
   // Extended thinking support
   if (config.thinkingLevel && config.thinkingLevel !== 'off') {
     var budgetMap: Record<string, number> = { low: 2048, medium: 8192, high: 16384 };
+    var budgetTokens = budgetMap[config.thinkingLevel] || 8192;
     requestBody.thinking = {
       type: 'enabled',
-      budget_tokens: budgetMap[config.thinkingLevel] || 8192,
+      budget_tokens: budgetTokens,
     };
+    // max_tokens must be strictly greater than budget_tokens
+    if (requestBody.max_tokens <= budgetTokens) {
+      requestBody.max_tokens = budgetTokens + 4096;
+    }
     // Thinking requires temperature = 1
     requestBody.temperature = 1;
   }
@@ -365,6 +400,7 @@ async function callOpenAICompatible(
     temperature: options.temperature,
     messages: openaiMessages,
     stream: true,
+    stream_options: { include_usage: true },
   };
 
   if (tools.length > 0) {
@@ -955,6 +991,7 @@ export async function callLLM(
     thinkingLevel?: string;
     baseUrl?: string;
     headers?: Record<string, string>;
+    authMode?: 'api-key' | 'token';
   },
   messages: AgentMessage[],
   tools: ToolDefinition[],
@@ -975,7 +1012,7 @@ export async function callLLM(
     switch (apiType) {
       case 'anthropic':
         return callAnthropic(
-          { modelId: config.modelId, apiKey: config.apiKey, thinkingLevel: config.thinkingLevel },
+          { modelId: config.modelId, apiKey: config.apiKey, thinkingLevel: config.thinkingLevel, authMode: config.authMode, baseUrl: baseURL },
           messages, tools, options, onEvent,
         );
 

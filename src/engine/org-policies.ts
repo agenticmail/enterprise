@@ -118,8 +118,8 @@ export class OrgPolicyEngine {
           priority: r.priority,
           version: r.version,
           enforcement: r.enforcement as PolicyEnforcement,
-          appliesTo: JSON.parse(r.applies_to || '["*"]'),
-          tags: JSON.parse(r.tags || '[]'),
+          appliesTo: typeof r.applies_to === 'string' ? JSON.parse(r.applies_to || '["*"]') : (r.applies_to || ['*']),
+          tags: typeof r.tags === 'string' ? JSON.parse(r.tags || '[]') : (r.tags || []),
           enabled: !!r.enabled,
           createdBy: r.created_by,
           createdAt: r.created_at,
@@ -231,6 +231,11 @@ export class OrgPolicyEngine {
     return Array.from(this.policies.values())
       .filter((p) => p.orgId === orgId && p.category === category)
       .sort((a, b) => b.priority - a.priority);
+  }
+
+  /** Alias for getPoliciesForAgent */
+  getAgentPolicies(agentId: string, orgId: string): OrgPolicy[] {
+    return this.getPoliciesForAgent(orgId, agentId);
   }
 
   getPoliciesForAgent(orgId: string, agentId: string): OrgPolicy[] {

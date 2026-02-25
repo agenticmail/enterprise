@@ -8,6 +8,14 @@
  */
 
 import type { ManagedAgent, AgentState, StateTransition, AgentUsage, LifecycleEvent } from './lifecycle.js';
+
+/** Safe JSON parse — returns fallback on malformed data instead of throwing */
+function sj(val: any, fallback: any = {}): any {
+  if (val == null) return fallback;
+  if (typeof val === 'object') return val; // Postgres JSON/JSONB returns parsed objects
+  if (typeof val !== 'string') return fallback;
+  try { return JSON.parse(val); } catch { return fallback; }
+}
 import type { AgentPermissionProfile } from './skills.js';
 import type { Organization, OrgPlan } from './tenant.js';
 import type { ApprovalRequest, ApprovalPolicy } from './approvals.js';
@@ -96,6 +104,25 @@ export class EngineDatabase {
       count++;
     }
 
+    // Post-migration: fix version columns that were incorrectly created as BOOLEAN on Postgres
+    if (this.dialect === 'postgres') {
+      try {
+        const boolVersionCols = await this.db.all<any>(
+          `SELECT table_name FROM information_schema.columns WHERE column_name = 'version' AND data_type = 'boolean' AND table_schema = 'public'`
+        );
+        for (const row of boolVersionCols) {
+          try {
+            await this.db.run(`ALTER TABLE ${row.table_name} ALTER COLUMN version DROP DEFAULT`);
+            await this.db.run(`ALTER TABLE ${row.table_name} ALTER COLUMN version TYPE INTEGER USING CASE WHEN version THEN 1 ELSE 0 END`);
+            await this.db.run(`ALTER TABLE ${row.table_name} ALTER COLUMN version SET DEFAULT 1`);
+            console.log(`[engine] Fixed version column type on ${row.table_name}: BOOLEAN → INTEGER`);
+          } catch (e: any) {
+            console.error(`[engine] Failed to fix version column on ${row.table_name}:`, e.message);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
     return { applied: count, total: MIGRATIONS.length };
   }
 
@@ -158,6 +185,11 @@ export class EngineDatabase {
     return this.db.run(sql, params);
   }
 
+  /** Alias for execute() — used by SessionManager and other components */
+  async run(sql: string, params?: any[]): Promise<void> {
+    return this.db.run(sql, params);
+  }
+
   /**
    * List all dynamic (ext_*) tables currently in the database.
    */
@@ -205,7 +237,6 @@ export class EngineDatabase {
         state = excluded.state,
         config = excluded.config,
         health = excluded.health,
-        usage = excluded.usage,
         permission_profile_id = excluded.permission_profile_id,
         version = excluded.version,
         last_deployed_at = excluded.last_deployed_at,
@@ -280,7 +311,7 @@ export class EngineDatabase {
   async upsertPermissionProfile(orgId: string, profile: AgentPermissionProfile): Promise<void> {
     await this.db.run(`
       INSERT INTO permission_profiles (id, org_id, name, description, config, is_preset, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+      VALUES (?, ?, ?, ?, ?, false, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name, description = excluded.description,
         config = excluded.config, updated_at = excluded.updated_at
@@ -292,12 +323,17 @@ export class EngineDatabase {
 
   async getPermissionProfile(id: string): Promise<AgentPermissionProfile | null> {
     const row = await this.db.get<any>('SELECT * FROM permission_profiles WHERE id = ?', [id]);
-    return row ? JSON.parse(row.config) : null;
+    return row ? sj(row.config) : null;
   }
 
   async getPermissionProfilesByOrg(orgId: string): Promise<AgentPermissionProfile[]> {
     const rows = await this.db.all<any>('SELECT config FROM permission_profiles WHERE org_id = ? ORDER BY name', [orgId]);
-    return rows.map(r => JSON.parse(r.config));
+    return rows.map(r => sj(r.config));
+  }
+
+  async getAllPermissionProfiles(): Promise<AgentPermissionProfile[]> {
+    const rows = await this.db.all<any>('SELECT config FROM permission_profiles ORDER BY name');
+    return rows.map(r => sj(r.config));
   }
 
   async deletePermissionProfile(id: string): Promise<void> {
@@ -365,8 +401,8 @@ export class EngineDatabase {
     if (!row) return null;
     const kb: any = {
       id: row.id, orgId: row.org_id, name: row.name, description: row.description,
-      agentIds: JSON.parse(row.agent_ids), config: JSON.parse(row.config),
-      stats: JSON.parse(row.stats), createdAt: row.created_at, updatedAt: row.updated_at,
+      agentIds: sj(row.agent_ids), config: sj(row.config),
+      stats: sj(row.stats), createdAt: row.created_at, updatedAt: row.updated_at,
       documents: [],
     };
     // Load documents
@@ -378,8 +414,8 @@ export class EngineDatabase {
     const rows = await this.db.all<any>('SELECT * FROM knowledge_bases WHERE org_id = ? ORDER BY name', [orgId]);
     return rows.map(r => ({
       id: r.id, orgId: r.org_id, name: r.name, description: r.description,
-      agentIds: JSON.parse(r.agent_ids), config: JSON.parse(r.config),
-      stats: JSON.parse(r.stats), createdAt: r.created_at, updatedAt: r.updated_at,
+      agentIds: sj(r.agent_ids), config: sj(r.config),
+      stats: sj(r.stats), createdAt: r.created_at, updatedAt: r.updated_at,
       documents: [], // Loaded on demand
     }));
   }
@@ -422,13 +458,13 @@ export class EngineDatabase {
       result.push({
         id: d.id, knowledgeBaseId: d.knowledge_base_id, name: d.name,
         sourceType: d.source_type, sourceUrl: d.source_url, mimeType: d.mime_type,
-        size: d.size, metadata: JSON.parse(d.metadata), status: d.status, error: d.error,
+        size: d.size, metadata: sj(d.metadata), status: d.status, error: d.error,
         createdAt: d.created_at, updatedAt: d.updated_at,
         chunks: chunks.map((c: any) => ({
           id: c.id, documentId: c.document_id, content: c.content,
           tokenCount: c.token_count, position: c.position,
           embedding: c.embedding ? Array.from(new Float32Array(c.embedding)) : undefined,
-          metadata: JSON.parse(c.metadata),
+          metadata: sj(c.metadata),
         })),
       });
     }
@@ -473,10 +509,10 @@ export class EngineDatabase {
     const rows = await this.db.all<any>(`SELECT * FROM tool_calls ${where} ORDER BY created_at DESC LIMIT ?`, params);
     return rows.map(r => ({
       id: r.id, agentId: r.agent_id, orgId: r.org_id, sessionId: r.session_id,
-      toolId: r.tool_id, toolName: r.tool_name, parameters: JSON.parse(r.parameters || '{}'),
-      result: r.result ? JSON.parse(r.result) : undefined,
-      timing: JSON.parse(r.timing), cost: r.cost ? JSON.parse(r.cost) : undefined,
-      permission: JSON.parse(r.permission),
+      toolId: r.tool_id, toolName: r.tool_name, parameters: sj(r.parameters || '{}'),
+      result: r.result ? sj(r.result) : undefined,
+      timing: sj(r.timing), cost: r.cost ? sj(r.cost) : undefined,
+      permission: sj(r.permission),
     }));
   }
 
@@ -501,7 +537,7 @@ export class EngineDatabase {
     const rows = await this.db.all<any>(`SELECT * FROM activity_events ${where} ORDER BY created_at DESC LIMIT ?`, params);
     return rows.map(r => ({
       id: r.id, agentId: r.agent_id, orgId: r.org_id, sessionId: r.session_id,
-      type: r.type, data: JSON.parse(r.data), timestamp: r.created_at,
+      type: r.type, data: sj(r.data), timestamp: r.created_at,
     }));
   }
 
@@ -526,7 +562,7 @@ export class EngineDatabase {
     return rows.map(r => ({
       id: r.id, agentId: r.agent_id, sessionId: r.session_id, role: r.role,
       content: r.content, channel: r.channel, tokenCount: r.token_count,
-      toolCalls: r.tool_calls ? JSON.parse(r.tool_calls) : undefined, timestamp: r.created_at,
+      toolCalls: r.tool_calls ? sj(r.tool_calls) : undefined, timestamp: r.created_at,
     }));
   }
 
@@ -564,9 +600,9 @@ export class EngineDatabase {
     return rows.map(r => ({
       id: r.id, agentId: r.agent_id, agentName: r.agent_name, toolId: r.tool_id,
       toolName: r.tool_name, reason: r.reason, riskLevel: r.risk_level,
-      sideEffects: JSON.parse(r.side_effects), parameters: r.parameters ? JSON.parse(r.parameters) : undefined,
+      sideEffects: sj(r.side_effects), parameters: r.parameters ? sj(r.parameters) : undefined,
       context: r.context, status: r.status,
-      decision: r.decision ? JSON.parse(r.decision) : undefined,
+      decision: r.decision ? sj(r.decision) : undefined,
       createdAt: r.created_at, expiresAt: r.expires_at,
     }));
   }
@@ -594,18 +630,18 @@ export class EngineDatabase {
     const rows = await this.db.all<any>('SELECT * FROM approval_policies WHERE org_id = ? ORDER BY name', [orgId]);
     return rows.map(r => ({
       id: r.id, name: r.name, description: r.description,
-      triggers: JSON.parse(r.triggers), approvers: JSON.parse(r.approvers),
-      timeout: JSON.parse(r.timeout), notify: JSON.parse(r.notify),
+      triggers: sj(r.triggers), approvers: sj(r.approvers),
+      timeout: sj(r.timeout), notify: sj(r.notify),
       enabled: !!r.enabled,
     }));
   }
 
   async getAllApprovalPolicies(): Promise<ApprovalPolicy[]> {
-    const rows = await this.db.all<any>('SELECT * FROM approval_policies WHERE enabled = 1 ORDER BY name');
+    const rows = await this.db.all<any>('SELECT * FROM approval_policies WHERE enabled = TRUE ORDER BY name');
     return rows.map(r => ({
       id: r.id, name: r.name, description: r.description,
-      triggers: JSON.parse(r.triggers), approvers: JSON.parse(r.approvers),
-      timeout: JSON.parse(r.timeout), notify: JSON.parse(r.notify),
+      triggers: sj(r.triggers), approvers: sj(r.approvers),
+      timeout: sj(r.timeout), notify: sj(r.notify),
       enabled: !!r.enabled,
     }));
   }
@@ -646,7 +682,7 @@ export class EngineDatabase {
   }
 
   async getSsoIntegrationByType(orgId: string, providerType: string): Promise<any | null> {
-    const row = await this.db.get<any>('SELECT * FROM sso_integrations WHERE org_id = ? AND provider_type = ? AND enabled = 1', [orgId, providerType]);
+    const row = await this.db.get<any>('SELECT * FROM sso_integrations WHERE org_id = ? AND provider_type = ? AND enabled = TRUE', [orgId, providerType]);
     return row ? this.rowToSso(row) : null;
   }
 
@@ -657,7 +693,7 @@ export class EngineDatabase {
   private rowToSso(row: any) {
     return {
       id: row.id, orgId: row.org_id, providerType: row.provider_type,
-      name: row.name, enabled: !!row.enabled, config: JSON.parse(row.config),
+      name: row.name, enabled: !!row.enabled, config: sj(row.config),
       metadataUrl: row.metadata_url, createdAt: row.created_at, updatedAt: row.updated_at,
     };
   }
@@ -739,7 +775,7 @@ export class EngineDatabase {
   private rowToDeployCred(row: any) {
     return {
       id: row.id, orgId: row.org_id, name: row.name, targetType: row.target_type,
-      config: JSON.parse(row.config), createdBy: row.created_by,
+      config: sj(row.config), createdBy: row.created_by,
       createdAt: row.created_at, updatedAt: row.updated_at,
     };
   }
@@ -977,8 +1013,8 @@ export class EngineDatabase {
       id: row.id, name: row.name, description: row.description, version: row.version,
       author: row.author, repository: row.repository, license: row.license,
       category: row.category, risk: row.risk, icon: row.icon,
-      tags: JSON.parse(row.tags || '[]'), tools: JSON.parse(row.tools || '[]'),
-      configSchema: JSON.parse(row.config_schema || '{}'),
+      tags: sj(row.tags || '[]'), tools: sj(row.tools || '[]'),
+      configSchema: sj(row.config_schema || '{}'),
       minEngineVersion: row.min_engine_version, homepage: row.homepage,
       downloads: row.downloads, rating: row.rating, ratingCount: row.rating_count,
       verified: !!row.verified, featured: !!row.featured,
@@ -989,26 +1025,32 @@ export class EngineDatabase {
   private rowToInstalledSkill(row: any) {
     return {
       id: row.id, orgId: row.org_id, skillId: row.skill_id, version: row.version,
-      enabled: !!row.enabled, config: JSON.parse(row.config || '{}'),
+      enabled: !!row.enabled, config: sj(row.config || '{}'),
       installedBy: row.installed_by, installedAt: row.installed_at, updatedAt: row.updated_at,
     };
   }
 
   private rowToManagedAgent(row: any): ManagedAgent {
-    return {
+    const config = sj(row.config);
+    const agent: ManagedAgent = {
       id: row.id,
       orgId: row.org_id,
-      config: JSON.parse(row.config),
+      config,
       state: row.state,
       stateHistory: [], // Loaded separately via getStateHistory
-      health: JSON.parse(row.health || '{}'),
-      usage: JSON.parse(row.usage || '{}'),
+      health: sj(row.health || '{}'),
+      usage: sj(row.usage || '{}'),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastDeployedAt: row.last_deployed_at,
       lastHealthCheckAt: row.last_health_check_at,
       version: row.version,
     };
+    // Restore budgetConfig from config JSON
+    if ((config as any)?.budgetConfig) {
+      agent.budgetConfig = (config as any).budgetConfig;
+    }
+    return agent;
   }
 
   private rowToOrg(row: any): Organization {
@@ -1017,12 +1059,12 @@ export class EngineDatabase {
       name: row.name,
       slug: row.slug,
       plan: row.plan as OrgPlan,
-      limits: JSON.parse(row.limits || '{}'),
-      usage: JSON.parse(row.usage || '{}'),
-      settings: JSON.parse(row.settings || '{}'),
-      ssoConfig: row.sso_config ? JSON.parse(row.sso_config) : undefined,
-      allowedDomains: JSON.parse(row.allowed_domains || '[]'),
-      billing: row.billing ? JSON.parse(row.billing) : undefined,
+      limits: sj(row.limits || '{}'),
+      usage: sj(row.usage || '{}'),
+      settings: sj(row.settings || '{}'),
+      ssoConfig: row.sso_config ? sj(row.sso_config) : undefined,
+      allowedDomains: sj(row.allowed_domains || '[]'),
+      billing: row.billing ? sj(row.billing) : undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

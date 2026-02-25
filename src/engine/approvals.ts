@@ -103,6 +103,7 @@ export interface EscalationState {
 
 import type { EngineDatabase } from './db-adapter.js';
 
+function sj(v: string|null|undefined, fb: any = {}): any { if(!v) return fb; try { return JSON.parse(v); } catch { return fb; } }
 export class ApprovalEngine {
   private requests = new Map<string, ApprovalRequest>();
   private policies: ApprovalPolicy[] = [];
@@ -142,11 +143,11 @@ export class ApprovalEngine {
 
       // Load escalation chains
       try {
-        const chains = await this.engineDb.query<any>('SELECT * FROM escalation_chains WHERE enabled = 1');
+        const chains = await this.engineDb.query<any>('SELECT * FROM escalation_chains WHERE enabled = TRUE');
         for (const r of chains) {
           this.escalationChains.set(r.id, {
             id: r.id, orgId: r.org_id, name: r.name, description: r.description,
-            levels: JSON.parse(r.levels), fallbackAction: r.fallback_action,
+            levels: sj(r.levels), fallbackAction: r.fallback_action,
             enabled: !!r.enabled, createdAt: r.created_at, updatedAt: r.updated_at,
           });
         }
@@ -230,6 +231,35 @@ export class ApprovalEngine {
   /**
    * Check if a tool call needs approval and create a request if so
    */
+  /** Create an approval request and wait for the decision */
+  async createAndWait(opts: {
+    agentId: string;
+    agentName?: string;
+    toolId: string;
+    toolName?: string;
+    riskLevel?: string;
+    sideEffects?: string[];
+    parameters?: Record<string, any>;
+    context?: string;
+    reason?: string;
+    orgId?: string;
+    timeoutMs?: number;
+  }): Promise<ApprovalRequest | null> {
+    const req = await this.requestApproval({
+      agentId: opts.agentId,
+      agentName: opts.agentName || opts.agentId,
+      toolId: opts.toolId,
+      toolName: opts.toolName || opts.toolId,
+      riskLevel: opts.riskLevel || 'medium',
+      sideEffects: opts.sideEffects || [],
+      parameters: opts.parameters,
+      context: opts.context,
+      orgId: opts.orgId,
+    });
+    if (!req) return null;
+    return this.waitForDecision(req.id, opts.timeoutMs);
+  }
+
   async requestApproval(opts: {
     agentId: string;
     agentName: string;

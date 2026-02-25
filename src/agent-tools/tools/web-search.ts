@@ -120,8 +120,8 @@ function resolveGrokApiKey(search?: WebSearchConfig): string | undefined {
   var grok = search?.grok;
   var fromConfig = normalizeSecretInput(grok?.apiKey);
   if (fromConfig) return fromConfig;
-  var fromEnv = normalizeSecretInput(process.env.XAI_API_KEY);
-  return fromEnv || undefined;
+  // No env var fallback — API keys come from database via config
+  return undefined;
 }
 
 function resolveGrokModel(search?: WebSearchConfig): string {

@@ -73,7 +73,7 @@ export class DLPEngine {
   private async loadFromDb(): Promise<void> {
     if (!this.engineDb) return;
     try {
-      const rows = await this.engineDb.query<any>('SELECT * FROM dlp_rules WHERE enabled = 1');
+      const rows = await this.engineDb.query<any>('SELECT * FROM dlp_rules WHERE enabled = TRUE');
       for (const r of rows) {
         this.rules.set(r.id, {
           id: r.id, orgId: r.org_id, name: r.name, description: r.description,
@@ -114,9 +114,14 @@ export class DLPEngine {
 
   // ─── Scanning ──────────────────────────────────────
 
-  scanParameters(orgId: string, agentId: string, toolId: string, params: Record<string, any>): DLPScanResult {
+  scanParameters(optsOrOrgId: string | { orgId: string; agentId: string; toolId: string; parameters?: Record<string, any> }, agentId?: string, toolId?: string, params?: Record<string, any>): DLPScanResult {
+    if (typeof optsOrOrgId === 'object') {
+      const o = optsOrOrgId;
+      return this.scanParameters(o.orgId, o.agentId, o.toolId, o.parameters || {});
+    }
+    const orgId = optsOrOrgId;
     const rules = this.getApplicableRules(orgId, 'parameters');
-    return this.scan(orgId, agentId, toolId, params, rules, 'outbound');
+    return this.scan(orgId, agentId!, toolId!, params || {}, rules, 'outbound');
   }
 
   scanResults(orgId: string, agentId: string, toolId: string, result: any): DLPScanResult {

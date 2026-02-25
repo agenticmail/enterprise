@@ -12,12 +12,12 @@
  *
  * Usage:
  *   npx @agenticmail/enterprise
- *   agenticmail-enterprise validate ./community-skills/my-skill/
- *   agenticmail-enterprise validate --all
- *   agenticmail-enterprise build-skill
- *   agenticmail-enterprise submit-skill ./community-skills/my-skill/
- *   agenticmail-enterprise recover --domain agents.agenticmail.io
- *   agenticmail-enterprise verify-domain
+ *   npx @agenticmail/enterprise validate ./community-skills/my-skill/
+ *   npx @agenticmail/enterprise validate --all
+ *   npx @agenticmail/enterprise build-skill
+ *   npx @agenticmail/enterprise submit-skill ./community-skills/my-skill/
+ *   npx @agenticmail/enterprise recover --domain agents.agenticmail.io
+ *   npx @agenticmail/enterprise verify-domain
  */
 
 const args = process.argv.slice(2);
@@ -60,16 +60,24 @@ Commands:
   verify-domain           Check DNS verification for your domain
 
 Domain Registration:
-  agenticmail-enterprise recover --domain agents.agenticmail.io --key <hex>
-  agenticmail-enterprise verify-domain
-  agenticmail-enterprise verify-domain --domain agents.agenticmail.io
+  npx @agenticmail/enterprise recover --domain agents.agenticmail.io --key <hex>
+  npx @agenticmail/enterprise verify-domain
+  npx @agenticmail/enterprise verify-domain --domain agents.agenticmail.io
 
 Skill Development:
-  agenticmail-enterprise validate ./community-skills/github-issues/
-  agenticmail-enterprise validate --all
-  agenticmail-enterprise build-skill
-  agenticmail-enterprise submit-skill ./community-skills/my-skill/
+  npx @agenticmail/enterprise validate ./community-skills/github-issues/
+  npx @agenticmail/enterprise validate --all
+  npx @agenticmail/enterprise build-skill
+  npx @agenticmail/enterprise submit-skill ./community-skills/my-skill/
 `);
+    break;
+
+  case 'serve':
+    import('./cli-serve.js').then(m => m.runServe(args.slice(1))).catch(fatal);
+    break;
+
+  case 'agent':
+    import('./cli-agent.js').then(m => m.runAgent(args.slice(1))).catch(fatal);
     break;
 
   case 'setup':

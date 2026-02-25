@@ -313,20 +313,22 @@ export class SessionManager {
 
     return (rows || []).map(function(row: any) {
       var content: any;
-      try {
-        content = JSON.parse(row.content);
-      } catch {
+      if (typeof row.content === 'object' && row.content !== null) {
         content = row.content;
+      } else {
+        try { content = JSON.parse(row.content); } catch { content = row.content; }
       }
 
       var toolCalls: any;
       if (row.tool_calls) {
-        try { toolCalls = JSON.parse(row.tool_calls); } catch {}
+        toolCalls = typeof row.tool_calls === 'object' ? row.tool_calls : undefined;
+        if (!toolCalls) { try { toolCalls = JSON.parse(row.tool_calls); } catch {} }
       }
 
       var toolResults: any;
       if (row.tool_results) {
-        try { toolResults = JSON.parse(row.tool_results); } catch {}
+        toolResults = typeof row.tool_results === 'object' ? row.tool_results : undefined;
+        if (!toolResults) { try { toolResults = JSON.parse(row.tool_results); } catch {} }
       }
 
       return {

@@ -1,4 +1,4 @@
-import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge } from '../components/utils.js';
+import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
 export function DLPPage() {
@@ -7,16 +7,16 @@ export function DLPPage() {
   const [violations, setViolations] = useState([]);
   const [tab, setTab] = useState('rules');
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: '', orgId: 'default', patternType: 'regex', pattern: '', action: 'block', appliesTo: 'both', severity: 'high', enabled: true });
+  const [form, setForm] = useState({ name: '', orgId: getOrgId(), patternType: 'regex', pattern: '', action: 'block', appliesTo: 'both', severity: 'high', enabled: true });
   const [testContent, setTestContent] = useState('');
   const [testResults, setTestResults] = useState(null);
 
   const [agents, setAgents] = useState([]);
 
   const load = () => {
-    engineCall('/dlp/rules?orgId=default').then(d => setRules(d.rules || [])).catch(() => {});
-    engineCall('/dlp/violations?orgId=default&limit=100').then(d => setViolations(d.violations || [])).catch(() => {});
-    engineCall('/agents?orgId=default').then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/dlp/rules?orgId=' + getOrgId()).then(d => setRules(d.rules || [])).catch(() => {});
+    engineCall('/dlp/violations?orgId=' + getOrgId() + '&limit=100').then(d => setViolations(d.violations || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(load, []);
 
@@ -31,7 +31,7 @@ export function DLPPage() {
   };
   const testScan = async () => {
     if (!testContent) return;
-    try { const r = await engineCall('/dlp/scan', { method: 'POST', body: JSON.stringify({ orgId: 'default', content: testContent }) }); setTestResults(r); } catch (e) { toast(e.message, 'error'); }
+    try { const r = await engineCall('/dlp/scan', { method: 'POST', body: JSON.stringify({ orgId: getOrgId(), content: testContent }) }); setTestResults(r); } catch (e) { toast(e.message, 'error'); }
   };
 
   const severityColor = (s) => s === 'critical' ? 'var(--danger)' : s === 'high' ? 'var(--warning)' : s === 'medium' ? 'var(--info)' : 'var(--text-muted)';

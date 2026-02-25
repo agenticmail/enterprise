@@ -55,6 +55,7 @@ export interface KnowledgeEntry {
   baseId: string;
   orgId: string;
   categoryId: string;
+  category?: string;
   title: string;
   content: string;
   summary: string;
@@ -339,8 +340,68 @@ export class KnowledgeContributionManager {
   /** Contributor tracking: baseId -> Set of agent IDs that contributed */
   private baseContributors = new Map<string, Set<string>>();
 
+  private db?: any; // DatabaseAdapter
+
   constructor(opts?: { memoryCallback?: MemoryCallback }) {
     this.memoryCallback = opts?.memoryCallback;
+  }
+
+  async setDb(db: any): Promise<void> {
+    this.db = db;
+    // Load persisted bases
+    try {
+      const rows = await db.all('SELECT * FROM knowledge_contribution_bases ORDER BY created_at');
+      for (const row of rows || []) {
+        const data = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {});
+        const base: KnowledgeBase = {
+          id: row.id,
+          orgId: row.org_id,
+          name: row.name,
+          description: row.description,
+          role: row.role as KnowledgeRole,
+          categories: data.categories || [],
+          contributorCount: data.contributorCount || 0,
+          entryCount: data.entryCount || 0,
+          lastContributionAt: data.lastContributionAt || row.updated_at,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+        this.bases.set(base.id, base);
+      }
+      // Load entries
+      const entryRows = await db.all('SELECT * FROM knowledge_contribution_entries ORDER BY created_at');
+      for (const row of entryRows || []) {
+        const data = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {});
+        const entry: KnowledgeEntry = { id: row.id, baseId: row.base_id, sourceAgentId: row.source_agent_id, category: row.category, ...data, createdAt: row.created_at };
+        this.entries.set(entry.id, entry);
+        this.indexEntryAdd(entry);
+      }
+    } catch (e) {
+      // Table may not exist yet (pre-migration)
+    }
+  }
+
+  private async persistBase(base: KnowledgeBase): Promise<void> {
+    if (!this.db) return;
+    const data = JSON.stringify({ categories: base.categories, contributorCount: base.contributorCount, entryCount: base.entryCount, lastContributionAt: base.lastContributionAt });
+    await this.db.run(
+      `INSERT INTO knowledge_contribution_bases (id, org_id, name, description, role, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, data=excluded.data, updated_at=excluded.updated_at`,
+      [base.id, base.orgId, base.name, base.description || '', base.role, data, base.createdAt, base.updatedAt]
+    );
+  }
+
+  private async persistEntry(entry: KnowledgeEntry): Promise<void> {
+    if (!this.db) return;
+    const { id, baseId, sourceAgentId, category, createdAt, ...rest } = entry;
+    await this.db.run(
+      `INSERT INTO knowledge_contribution_entries (id, base_id, org_id, source_agent_id, category, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data`,
+      [id, baseId, this.bases.get(baseId)?.orgId || '', sourceAgentId, category || '', JSON.stringify(rest), createdAt]
+    );
+  }
+
+  private async deleteBaseFromDb(baseId: string): Promise<void> {
+    if (!this.db) return;
+    await this.db.run('DELETE FROM knowledge_contribution_bases WHERE id = ?', [baseId]);
   }
 
   // ─── Index Helpers ──────────────────────────────────
@@ -443,6 +504,7 @@ export class KnowledgeContributionManager {
     };
 
     this.bases.set(base.id, base);
+    this.persistBase(base).catch(() => {});
     return base;
   }
 
@@ -498,6 +560,7 @@ export class KnowledgeContributionManager {
     }
 
     this.bases.delete(baseId);
+    this.deleteBaseFromDb(baseId).catch(() => {});
   }
 
   // ─── Roles ──────────────────────────────────────────
@@ -613,6 +676,8 @@ export class KnowledgeContributionManager {
     category.entryCount = this.getEntriesForBase(opts.baseId)
       .filter(e => e.categoryId === opts.categoryId).length;
 
+    this.persistEntry(entry).catch(() => {});
+    this.persistBase(base).catch(() => {});
     return entry;
   }
 

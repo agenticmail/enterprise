@@ -19,7 +19,7 @@ let mysql2: any;
 async function getMysql() {
   if (!mysql2) {
     try {
-      mysql2 = await import('mysql2/promise' as any);
+      const { resolveDriver } = await import("./resolve-driver.js"); mysql2 = await resolveDriver("mysql2/promise", "MySQL driver not found. Install it: npm install mysql2");
     } catch {
       throw new Error(
         'MySQL driver not found. Install it: npm install mysql2\n' +

@@ -1,4 +1,4 @@
-import { h, useState, useEffect, Fragment, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge } from '../components/utils.js';
+import { h, useState, useEffect, Fragment, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 
 export function ActivityPage() {
   const [events, setEvents] = useState([]);
@@ -10,7 +10,7 @@ export function ActivityPage() {
   useEffect(() => {
     engineCall('/activity/events?limit=100').then(d => setEvents(d.events || [])).catch(() => {});
     engineCall('/activity/tool-calls?limit=100').then(d => setToolCalls(d.toolCalls || [])).catch(() => {});
-    engineCall('/agents?orgId=default').then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
   }, []);
 
   const emailMap = buildAgentEmailMap(agents);

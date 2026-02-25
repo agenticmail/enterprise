@@ -118,11 +118,11 @@ export class GuardrailEngine {
   private async loadFromDb(): Promise<void> {
     if (!this.engineDb) return;
     try {
-      const rules = await this.engineDb.query<any>('SELECT * FROM anomaly_rules WHERE enabled = 1');
+      const rules = await this.engineDb.query<any>('SELECT * FROM anomaly_rules WHERE enabled = TRUE');
       for (const r of rules) {
         this.anomalyRules.set(r.id, {
           id: r.id, orgId: r.org_id, name: r.name, description: r.description,
-          ruleType: r.rule_type, config: JSON.parse(r.config),
+          ruleType: r.rule_type, config: typeof r.config === "string" ? JSON.parse(r.config) : (r.config || {}),
           action: r.action, enabled: !!r.enabled,
           createdAt: r.created_at, updatedAt: r.updated_at,
         });
@@ -143,7 +143,7 @@ export class GuardrailEngine {
 
     // Load extended guardrail rules
     try {
-      const gRules = await this.engineDb.query<any>('SELECT * FROM guardrail_rules WHERE enabled = 1');
+      const gRules = await this.engineDb.query<any>('SELECT * FROM guardrail_rules WHERE enabled = TRUE');
       for (const r of gRules) {
         this.guardrailRules.set(r.id, {
           id: r.id, orgId: r.org_id, name: r.name, description: r.description,
@@ -185,9 +185,13 @@ export class GuardrailEngine {
     return this.pausedAgents.has(agentId);
   }
 
-  getAgentStatus(agentId: string): { paused: boolean; recentInterventions: InterventionRecord[] } {
+  /** Alias for getAgentStatus */
+  getStatus(agentId: string) { return this.getAgentStatus(agentId); }
+
+  getAgentStatus(agentId: string): { paused: boolean; offDuty?: boolean; recentInterventions: InterventionRecord[] } {
     return {
       paused: this.pausedAgents.has(agentId),
+      offDuty: false,
       recentInterventions: this.interventions.filter(i => i.agentId === agentId).slice(0, 10),
     };
   }

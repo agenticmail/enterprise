@@ -1,5 +1,5 @@
 // ─── Imports ─────────────────────────────────────────────
-import { h, useState, useEffect, useCallback, useRef, Fragment, AppContext, useApp, apiCall, authCall, engineCall, applyBrandColor } from './components/utils.js';
+import { h, useState, useEffect, useCallback, useRef, Fragment, AppContext, useApp, apiCall, authCall, engineCall, applyBrandColor, setOrgId } from './components/utils.js';
 import { I } from './components/icons.js';
 import { ErrorBoundary } from './components/error-boundary.js';
 import { Modal } from './components/modal.js';
@@ -113,7 +113,7 @@ function App() {
   useEffect(() => {
     if (!authed) return;
     engineCall('/approvals/pending').then(d => setPendingCount((d.requests || []).length)).catch(() => {});
-    apiCall('/settings').then(d => { const s = d.settings || d || {}; if (s.primaryColor) applyBrandColor(s.primaryColor); }).catch(() => {});
+    apiCall('/settings').then(d => { const s = d.settings || d || {}; if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
   }, [authed]);
 
   const logout = useCallback(() => { authCall('/logout', { method: 'POST' }).catch(() => {}).finally(() => { setAuthed(false); setUser(null); }); }, []);

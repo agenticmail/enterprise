@@ -43,7 +43,8 @@ export type ActivityType =
   | 'warning'               // Non-fatal issue
   | 'heartbeat'             // Periodic check-in
   | 'memory_write'          // Agent wrote to memory
-  | 'budget_alert';         // Approaching or exceeding budget
+  | 'budget_alert'          // Approaching or exceeding budget
+  | 'llm_call';             // LLM API call
 
 export interface ToolCallRecord {
   id: string;

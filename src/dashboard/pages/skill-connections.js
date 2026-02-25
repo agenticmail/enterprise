@@ -2,6 +2,32 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall } fro
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 
+// Auth help: where to get API keys/tokens for each skill
+var AUTH_HELP = {
+  'intercom-support': { provider: 'Intercom', url: 'https://developers.intercom.com/docs/build-an-integration/getting-started/', steps: 'Create an Intercom app at developers.intercom.com, then copy the Access Token from Authentication.' },
+  'zendesk-tickets': { provider: 'Zendesk', url: 'https://support.zendesk.com/hc/en-us/articles/4408889192858', steps: 'Go to Zendesk Admin > Apps & Integrations > APIs > Zendesk API, then generate an API token.' },
+  'github-issues': { provider: 'GitHub', url: 'https://github.com/settings/tokens', steps: 'Go to GitHub Settings > Developer Settings > Personal Access Tokens > Generate new token. Select repo and issues scopes.' },
+  'github-actions': { provider: 'GitHub', url: 'https://github.com/settings/tokens', steps: 'Generate a Personal Access Token with workflow and actions:read scopes.' },
+  'slack-notifications': { provider: 'Slack', url: 'https://api.slack.com/apps', steps: 'Create a Slack app at api.slack.com/apps, install to workspace, copy the Bot User OAuth Token (xoxb-...).' },
+  'jira-integration': { provider: 'Atlassian', url: 'https://id.atlassian.com/manage-profile/security/api-tokens', steps: 'Go to Atlassian account > Security > API tokens > Create API token. Use with your email as username.' },
+  'stripe-billing': { provider: 'Stripe', url: 'https://dashboard.stripe.com/apikeys', steps: 'Go to Stripe Dashboard > Developers > API keys. Copy the Secret key (sk_live_... or sk_test_...).' },
+  'notion-sync': { provider: 'Notion', url: 'https://www.notion.so/my-integrations', steps: 'Create an integration at notion.so/my-integrations. Copy the Internal Integration Secret. Share pages with the integration.' },
+  'salesforce-crm': { provider: 'Salesforce', url: 'https://help.salesforce.com/s/articleView?id=sf.connected_app_create_api_integration.htm', steps: 'Create a Connected App in Salesforce Setup. Use OAuth 2.0 client credentials flow. Copy Consumer Key and Secret.' },
+  'hubspot-crm': { provider: 'HubSpot', url: 'https://developers.hubspot.com/docs/api/private-apps', steps: 'Go to HubSpot Settings > Integrations > Private Apps > Create. Select required scopes and copy the access token.' },
+  'twilio-sms': { provider: 'Twilio', url: 'https://console.twilio.com/', steps: 'Sign up at twilio.com. Copy Account SID and Auth Token from the Console dashboard. Get a phone number for SMS.' },
+  'sendgrid-email': { provider: 'SendGrid', url: 'https://app.sendgrid.com/settings/api_keys', steps: 'Go to SendGrid Settings > API Keys > Create API Key. Select Full Access or restricted permissions.' },
+  'google-workspace': { provider: 'Google', url: 'https://console.cloud.google.com/apis/credentials', steps: 'Create a project in Google Cloud Console. Enable required APIs. Create OAuth 2.0 credentials or a Service Account key.' },
+  'shopify-store': { provider: 'Shopify', url: 'https://partners.shopify.com/', steps: 'Create a custom app in your Shopify admin > Settings > Apps. Copy the Admin API access token.' },
+  'openai-models': { provider: 'OpenAI', url: 'https://platform.openai.com/api-keys', steps: 'Go to platform.openai.com > API Keys > Create new secret key. Copy it immediately — it won\'t be shown again.' },
+  'anthropic-models': { provider: 'Anthropic', url: 'https://console.anthropic.com/settings/keys', steps: 'Go to console.anthropic.com > Settings > API Keys > Create Key.' },
+};
+
+function getAuthHelp(skillId) {
+  if (AUTH_HELP[skillId]) return AUTH_HELP[skillId];
+  // Fallback: check if skill manifest has authHelp
+  return null;
+}
+
 export function SkillConnectionsPage() {
   const { toast } = useApp();
   const [installed, setInstalled] = useState([]);
@@ -374,6 +400,19 @@ export function SkillConnectionsPage() {
             )
           ),
 
+          // Auth help info (show when not connected)
+          !status.connected && (function() {
+            var help = getAuthHelp(skill.skillId) || (meta.authHelp ? meta.authHelp : null);
+            if (!help) return null;
+            return h('div', {
+              style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: 6, borderLeft: '3px solid var(--primary)' }
+            },
+              h('div', { style: { fontWeight: 600, marginBottom: 4, fontSize: 11, textTransform: 'uppercase', color: 'var(--primary)' } }, 'How to connect'),
+              h('div', { style: { lineHeight: 1.5, marginBottom: 6 } }, help.steps || help.description),
+              help.url && h('a', { href: help.url, target: '_blank', rel: 'noopener', style: { color: 'var(--primary)', fontSize: 12, textDecoration: 'none' } }, 'Get credentials at ' + (help.provider || 'provider') + ' \u2192')
+            );
+          })(),
+
           // Action buttons
           h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 'auto' } },
             // Connect / Disconnect
@@ -415,6 +454,18 @@ export function SkillConnectionsPage() {
         ? h('div', { style: { textAlign: 'center', padding: 24, color: 'var(--text-muted)' } }, 'Loading configuration schema...')
         : configSchema && Object.keys(configSchema).length > 0
           ? h('div', null,
+              // Show auth help in modal too
+              (function() {
+                var help = getAuthHelp(configSkill.skillId) || (configSkill.skill?.authHelp || configSkill.manifest?.authHelp);
+                if (!help) return null;
+                return h('div', {
+                  style: { marginBottom: 16, padding: '12px 14px', background: 'var(--bg-tertiary)', borderRadius: 8, borderLeft: '3px solid var(--primary)' }
+                },
+                  h('div', { style: { fontWeight: 600, marginBottom: 4, fontSize: 12, color: 'var(--primary)' } }, 'Where to get credentials'),
+                  h('div', { style: { fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)', marginBottom: 6 } }, help.steps || help.description),
+                  help.url && h('a', { href: help.url, target: '_blank', rel: 'noopener', style: { color: 'var(--primary)', fontSize: 13 } }, 'Open ' + (help.provider || 'provider') + ' developer portal \u2192')
+                );
+              })(),
               h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 } },
                 'Configure the settings for this skill. Fields marked with * are required.'
               ),

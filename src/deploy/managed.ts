@@ -81,6 +81,7 @@ export function generateEnvFile(opts: {
   dbType: string;
   dbConnectionString: string;
   jwtSecret: string;
+  vaultKey: string;
   smtpUser?: string;
   smtpPass?: string;
 }): string {
@@ -92,6 +93,7 @@ export function generateEnvFile(opts: {
     `DATABASE_TYPE=${opts.dbType}`,
     `DATABASE_URL=${opts.dbConnectionString}`,
     `JWT_SECRET=${opts.jwtSecret}`,
+    `AGENTICMAIL_VAULT_KEY=${opts.vaultKey}`,
   ];
   if (opts.smtpUser) lines.push(`SMTP_USER=${opts.smtpUser}`);
   if (opts.smtpPass) lines.push(`SMTP_PASS=${opts.smtpPass}`);

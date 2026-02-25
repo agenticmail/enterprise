@@ -1,4 +1,4 @@
-import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge } from '../components/utils.js';
+import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
 export function JournalPage() {
@@ -10,9 +10,9 @@ export function JournalPage() {
   const [agents, setAgents] = useState([]);
 
   const load = () => {
-    engineCall('/journal?orgId=default&limit=50').then(d => { setEntries(d.entries || []); setTotal(d.total || 0); }).catch(() => {});
+    engineCall('/journal?orgId=' + getOrgId() + '&limit=50').then(d => { setEntries(d.entries || []); setTotal(d.total || 0); }).catch(() => {});
     engineCall('/journal/stats/default').then(d => setStats(d)).catch(() => {});
-    engineCall('/agents?orgId=default').then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(load, []);
 

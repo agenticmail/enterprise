@@ -130,7 +130,15 @@ export function createOnboardingRoutes(onboarding: OnboardingManager) {
     try {
       const agentId = c.req.param('agentId');
       const onboarded = await onboarding.isOnboarded(agentId);
-      return c.json({ agentId, onboarded });
+      const progress = onboarding.getProgress(agentId);
+      return c.json({
+        agentId,
+        onboarded,
+        status: progress.overallStatus,
+        totalPolicies: progress.totalPolicies,
+        acknowledgedPolicies: progress.acknowledgedPolicies,
+        pendingPolicies: progress.pendingPolicies,
+      });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }

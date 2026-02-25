@@ -6,8 +6,17 @@
  * after all prompts are collected.
  */
 
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import type { DatabaseAdapter } from '../db/adapter.js';
+
+/** Generate a unique 10-char org ID like "BKSID30HKS" */
+function generateOrgId(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(10);
+  let id = '';
+  for (let i = 0; i < 10; i++) id += chars[bytes[i] % chars.length];
+  return id;
+}
 import type { CompanyInfo } from './company.js';
 import type { DatabaseSelection } from './database.js';
 import type { DeployTarget } from './deployment.js';
@@ -38,6 +47,7 @@ export async function provision(
 ): Promise<ProvisionResult> {
   const spinner = ora('Connecting to database...').start();
   const jwtSecret = randomUUID() + randomUUID();
+  const vaultKey = randomUUID() + randomUUID();
 
   try {
     // ─── Database ──────────────────────────────────
@@ -72,12 +82,14 @@ export async function provision(
 
     // ─── Company Settings ──────────────────────────
     spinner.start('Creating company...');
+    const orgId = generateOrgId();
     await db.updateSettings({
       name: config.company.companyName,
       subdomain: config.company.subdomain,
       domain: config.domain.customDomain,
-    });
-    spinner.succeed('Company created');
+      orgId,
+    } as any);
+    spinner.succeed(`Company created (org: ${orgId})`);
 
     // ─── Domain Registration ─────────────────────────
     if (config.registration?.registered) {
@@ -117,7 +129,7 @@ export async function provision(
     spinner.succeed('Admin account created');
 
     // ─── Deploy ────────────────────────────────────
-    const result = await deploy(config, db, jwtSecret, spinner, chalk);
+    const result = await deploy(config, db, jwtSecret, vaultKey, spinner, chalk);
 
     return {
       success: true,
@@ -148,6 +160,7 @@ async function deploy(
   config: ProvisionConfig,
   db: DatabaseAdapter,
   jwtSecret: string,
+  vaultKey: string,
   spinner: any,
   chalk: any,
 ): Promise<DeployResult> {
@@ -178,6 +191,7 @@ async function deploy(
       dbType: database.type,
       dbConnectionString: database.connectionString || '',
       jwtSecret,
+      vaultKey,
     });
     const { writeFileSync, existsSync, appendFileSync } = await import('fs');
     writeFileSync('docker-compose.yml', compose);
@@ -217,7 +231,7 @@ async function deploy(
     console.log(chalk.green.bold('  Fly.io deployment ready!'));
     console.log('');
     console.log(`  1. ${chalk.cyan('fly launch --copy-config')}`);
-    console.log(`  2. ${chalk.cyan(`fly secrets set DATABASE_URL="${database.connectionString}" JWT_SECRET="${jwtSecret}"`)}`);
+    console.log(`  2. ${chalk.cyan(`fly secrets set DATABASE_URL="${database.connectionString}" JWT_SECRET="${jwtSecret}" AGENTICMAIL_VAULT_KEY="${vaultKey}"`)}`);
     console.log(`  3. ${chalk.cyan('fly deploy')}`);
     if (domain.customDomain) {
       console.log(`  4. ${chalk.cyan(`fly certs add ${domain.customDomain}`)}`);

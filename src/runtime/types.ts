@@ -46,6 +46,12 @@ export interface ModelConfig {
   baseUrl?: string;
   /** Extra headers for custom endpoints */
   headers?: Record<string, string>;
+  /**
+   * Auth mode for the provider:
+   * - 'api-key' (default): Standard API key auth (x-api-key header for Anthropic, Bearer for OpenAI)
+   * - 'token': Bearer token auth (Anthropic Max subscription tokens, OAuth tokens, proxy tokens)
+   */
+  authMode?: 'api-key' | 'token';
 }
 
 export interface AgentConfig {
@@ -116,6 +122,16 @@ export interface RuntimeConfig {
   sessionIdleTimeoutMs?: number;
   /** Enable the runtime gateway (HTTP API) */
   gatewayEnabled?: boolean;
+  /** AgenticMail manager for org email access (optional — enables agenticmail_* tools) */
+  agenticmailManager?: import('../agent-tools/tools/agenticmail.js').AgenticMailManagerRef;
+  /** Agent memory manager for persistent DB-backed memory (optional — enables enhanced memory tools) */
+  agentMemoryManager?: import('../engine/agent-memory.js').AgentMemoryManager;
+  /** Get OAuth email config for an agent (enables Google/Microsoft Workspace tools) */
+  getEmailConfig?: (agentId: string) => any;
+  /** Callback to persist refreshed OAuth tokens */
+  onTokenRefresh?: (agentId: string, tokens: any) => void;
+  /** Get full agent config (for enabledGoogleServices, etc.) */
+  getAgentConfig?: (agentId: string) => any;
   /** Resume active sessions on startup (default: true) */
   resumeOnStartup?: boolean;
   /** Heartbeat interval in ms (default: 30000 = 30s) */

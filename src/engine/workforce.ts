@@ -133,7 +133,7 @@ export class WorkforceManager {
   private async loadFromDb(): Promise<void> {
     if (!this.engineDb) return;
     try {
-      const rows = await this.engineDb.query<any>('SELECT * FROM work_schedules WHERE enabled = 1');
+      const rows = await this.engineDb.query<any>('SELECT * FROM work_schedules WHERE enabled = TRUE');
       for (const r of rows) {
         const schedule: WorkSchedule = {
           id: r.id,
@@ -318,6 +318,43 @@ export class WorkforceManager {
     return this.clockStatus.get(agentId) === 'clocked_out';
   }
 
+  /**
+   * Check if an agent should be working RIGHT NOW based on their schedule.
+   * Returns { onDuty, schedule, reason } — does not depend on clock status,
+   * only the schedule definition.
+   */
+  shouldBeWorking(agentId: string): { onDuty: boolean; schedule: WorkSchedule | null; reason: string } {
+    const schedule = this.schedules.get(agentId);
+    if (!schedule || !schedule.enabled) {
+      return { onDuty: true, schedule: null, reason: 'No schedule defined — always on' };
+    }
+
+    // Get current time in the agent's timezone
+    const tz = schedule.timezone || 'UTC';
+    const localNow = this.toTimezone(new Date(), tz);
+    const within = this.isWithinWorkingHours(schedule, localNow);
+
+    if (within) {
+      return { onDuty: true, schedule, reason: 'Within scheduled work hours' };
+    } else {
+      const dayOfWeek = localNow.getDay();
+      const timeStr = `${String(localNow.getHours()).padStart(2, '0')}:${String(localNow.getMinutes()).padStart(2, '0')}`;
+      return { onDuty: false, schedule, reason: `Off duty (${tz}: ${timeStr}, day ${dayOfWeek})` };
+    }
+  }
+
+  /**
+   * Get the manager email for an agent (for bypass checks)
+   */
+  getManagerEmail(agentId: string): string {
+    const agent = this.lifecycle?.getAgent(agentId);
+    if (!agent) return '';
+    const config = agent.config || {};
+    return (config as any).managerEmail
+      || ((config as any).manager?.type === 'external' ? (config as any).manager?.email : '')
+      || '';
+  }
+
   // ─── Task Queue ──────────────────────────────────────
 
   /**
@@ -444,6 +481,26 @@ export class WorkforceManager {
     this.schedulerInterval = setInterval(() => {
       this.schedulerTick().catch((err) => { console.error('[workforce] Scheduler tick error:', err); });
     }, 60_000);
+
+    // Sync Gmail vacation responder state on startup (delayed to allow tokens to load)
+    setTimeout(() => this.syncVacationState().catch(() => {}), 15_000);
+  }
+
+  /**
+   * Sync Gmail vacation auto-responder with current clock status.
+   * Called on startup to ensure responder matches actual work hours state.
+   */
+  private async syncVacationState(): Promise<void> {
+    for (const schedule of this.schedules.values()) {
+      if (!schedule.enabled) continue;
+      const status = this.clockStatus.get(schedule.agentId);
+      const isOffDuty = status === 'clocked_out';
+      try {
+        await this.setGmailVacation(schedule.agentId, isOffDuty, isOffDuty ? schedule : undefined);
+      } catch (e: any) {
+        // Silent — not all agents may have Gmail
+      }
+    }
   }
 
   /**
@@ -520,6 +577,11 @@ export class WorkforceManager {
     } catch { /* best effort */ }
 
     this.emitEvent('auto_clock_in', { agentId, schedule: schedule.id });
+
+    // Disable Gmail vacation auto-responder (agent is back on duty)
+    await this.setGmailVacation(agentId, false).catch(e =>
+      console.warn(`[workforce] ${agentId}: failed to disable vacation responder: ${e.message}`)
+    );
   }
 
   /**
@@ -554,6 +616,11 @@ export class WorkforceManager {
     }
 
     this.emitEvent('auto_clock_out', { agentId, schedule: schedule.id, action: schedule.offHoursAction });
+
+    // Enable Gmail vacation auto-responder (agent is off duty)
+    await this.setGmailVacation(agentId, true, schedule).catch(e =>
+      console.warn(`[workforce] ${agentId}: failed to enable vacation responder: ${e.message}`)
+    );
   }
 
   /**
@@ -900,6 +967,143 @@ export class WorkforceManager {
   }
 
   // ─── Time Utilities ──────────────────────────────────
+
+  // ─── Gmail Vacation Auto-Responder ─────────────────
+
+  /**
+   * Toggle Gmail vacation (out-of-office) auto-responder for an agent.
+   * Uses the Gmail API `users.settings.updateVacation` endpoint.
+   *
+   * When enabled, Gmail automatically replies to incoming emails with an
+   * out-of-office message. The responder only sends one reply per sender
+   * per 4 days (Gmail's built-in rate limiting).
+   *
+   * restrictToContacts=false ensures ALL senders get the auto-reply.
+   * Manager emails still get through to the agent via the poller bypass,
+   * but they'll also receive the auto-reply from Gmail (acceptable trade-off).
+   */
+  private async setGmailVacation(agentId: string, enable: boolean, schedule?: WorkSchedule): Promise<void> {
+    // Get agent's email config for OAuth token
+    const agent = this.lifecycle?.getAgent(agentId);
+    if (!agent) return;
+
+    const emailConfig = agent.config?.emailConfig;
+    if (!emailConfig?.oauthRefreshToken || emailConfig.provider !== 'google') return;
+
+    // Refresh the access token
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: emailConfig.oauthClientId,
+        client_secret: emailConfig.oauthClientSecret,
+        refresh_token: emailConfig.oauthRefreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+    const tokenData = await tokenRes.json() as any;
+    if (!tokenData.access_token) throw new Error('Token refresh failed');
+
+    const accessToken = tokenData.access_token;
+    const agentName = agent.config?.displayName || agent.config?.name || 'Agent';
+
+    // Build vacation settings
+    let body: Record<string, any>;
+    if (enable) {
+      // Calculate next start time from schedule
+      const tz = schedule?.timezone || 'UTC';
+      const nextStart = this.getNextWorkStart(schedule);
+
+      const responseSubject = `Out of Office - ${agentName}`;
+      const responseBody = [
+        `Hi,\n`,
+        `Thank you for your email. I'm currently outside of my working hours and will respond when I'm back.`,
+        schedule ? `\nMy regular working hours are ${this.formatScheduleHours(schedule)} (${tz}).` : '',
+        nextStart ? `\nI expect to be back ${nextStart}.` : '',
+        `\nIf this is urgent, please reach out to my manager directly.`,
+        `\nBest regards,\n${agentName}`,
+      ].filter(Boolean).join('\n');
+
+      body = {
+        enableAutoReply: true,
+        responseSubject,
+        responseBodyPlainText: responseBody,
+        restrictToContacts: false,
+        restrictToDomain: false,
+      };
+    } else {
+      body = {
+        enableAutoReply: false,
+      };
+    }
+
+    // Call Gmail API
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/settings/vacation', {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Gmail API ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    console.log(`[workforce] ${agentName}: vacation auto-responder ${enable ? 'ENABLED' : 'DISABLED'}`);
+  }
+
+  /**
+   * Get a human-readable description of the next work start time.
+   */
+  private getNextWorkStart(schedule?: WorkSchedule): string {
+    if (!schedule) return '';
+
+    const tz = schedule.timezone || 'UTC';
+    const now = this.toTimezone(new Date(), tz);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    if (schedule.scheduleType === 'standard' && schedule.config.standardHours) {
+      const { start, daysOfWeek } = schedule.config.standardHours;
+      // Find next working day
+      for (let d = 0; d <= 7; d++) {
+        const checkDay = (now.getDay() + d) % 7;
+        if (daysOfWeek.includes(checkDay)) {
+          if (d === 0 && `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}` < start) {
+            return `today at ${start} ${tz}`;
+          }
+          if (d === 0) continue; // Already past start time today
+          if (d === 1) return `tomorrow at ${start} ${tz}`;
+          return `${dayNames[checkDay]} at ${start} ${tz}`;
+        }
+      }
+    }
+
+    if (schedule.scheduleType === 'shift' && schedule.config.shifts?.length) {
+      const firstShift = schedule.config.shifts[0];
+      return `next shift at ${firstShift.start} ${tz}`;
+    }
+
+    return '';
+  }
+
+  /**
+   * Format schedule hours for the vacation message.
+   */
+  private formatScheduleHours(schedule: WorkSchedule): string {
+    if (schedule.scheduleType === 'standard' && schedule.config.standardHours) {
+      const { start, end, daysOfWeek } = schedule.config.standardHours;
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const days = daysOfWeek.map(d => dayNames[d]).join(', ');
+      return `${start} - ${end}, ${days}`;
+    }
+    if (schedule.scheduleType === 'shift' && schedule.config.shifts?.length) {
+      return schedule.config.shifts.map(s => `${s.name}: ${s.start}-${s.end}`).join(', ');
+    }
+    return 'variable hours';
+  }
 
   /**
    * Convert a Date to a specific timezone.

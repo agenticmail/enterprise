@@ -80,6 +80,9 @@ import { createVaultRoutes } from './vault-routes.js';
 import { createStorageRoutes } from './storage-routes.js';
 import { createPolicyImportRoutes } from './policy-import-routes.js';
 import { createOAuthConnectRoutes } from './oauth-connect-routes.js';
+import { createChatWebhookRoutes } from './chat-webhook-routes.js';
+import { ChatPoller } from './chat-poller.js';
+import { EmailPoller } from './email-poller.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 
 const engine = new Hono<AppEnv>();
@@ -181,6 +184,7 @@ engine.route('/', createCatalogRoutes({
   configGen,
   soulLib: { getSoulTemplates, getSoulTemplatesByCategory, getSoulTemplate, searchSoulTemplates, SOUL_CATEGORIES },
   suites: SKILL_SUITES,
+  lifecycle,
 }));
 
 engine.route('/', createAgentRoutes({
@@ -214,7 +218,79 @@ engine.route('/storage', createStorageRoutes(storageManager));
 engine.route('/policies', createPolicyImportRoutes(policyImporter));
 engine.route('/knowledge-contribution', createKnowledgeContributionRoutes(knowledgeContribution));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
-engine.route('/oauth', createOAuthConnectRoutes(vault));
+engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
+engine.route('/chat-webhook', createChatWebhookRoutes({
+  lifecycle,
+  getRuntime: () => _runtime,
+  projectNumber: '927012824308',
+  standaloneAgents: [
+    { id: '3eecd57d-03ae-440d-8945-5b35f43a8d90', port: 3102 }, // Fola
+    { id: '67ba24f1-c8af-40b4-9df5-c05b81fc1e7a', port: 3101 }, // John
+  ],
+}));
+
+// ─── Chat Poller Management API ─────────────────────────
+engine.get('/chat-poller/status', (c) => {
+  const poller = _chatPoller;
+  if (!poller) return c.json({ running: false, reason: 'not_started' });
+  return c.json(poller.getStatus());
+});
+
+engine.get('/chat-poller/spaces', async (c) => {
+  try {
+    const db = _engineDb;
+    if (!db) return c.json({ spaces: [] });
+    const rows = await db.query(`SELECT key, value FROM engine_settings WHERE key = 'chat_spaces'`);
+    const spaces = rows?.[0] ? JSON.parse((rows[0] as any).value) : [];
+    return c.json({ spaces });
+  } catch { return c.json({ spaces: [] }); }
+});
+
+engine.post('/chat-poller/spaces', async (c) => {
+  try {
+    const db = _engineDb;
+    if (!db) return c.json({ error: 'Engine DB not ready' }, 500);
+    const body = await c.req.json<{ spaces: Array<{ spaceId: string; displayName: string; agentIds: string[]; defaultAgentId?: string }> }>();
+    if (!body.spaces || !Array.isArray(body.spaces)) return c.json({ error: 'spaces array required' }, 400);
+
+    await db.execute(
+      `INSERT INTO engine_settings (key, value) VALUES ('chat_spaces', $1)
+       ON CONFLICT (key) DO UPDATE SET value = $1`,
+      [JSON.stringify(body.spaces)]
+    );
+
+    // Update live poller
+    const poller = _chatPoller;
+    if (poller) {
+      for (const s of body.spaces) {
+        poller.addSpace({
+          spaceId: s.spaceId,
+          displayName: s.displayName,
+          agentIds: s.agentIds,
+          defaultAgentId: s.defaultAgentId,
+        });
+      }
+    }
+
+    return c.json({ ok: true, count: body.spaces.length });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ─── Email Poller Management API ────────────────────────
+engine.get('/email-poller/status', (c) => {
+  const poller = _emailPoller;
+  if (!poller) return c.json({ running: false, reason: 'not_started' });
+  return c.json(poller.getStatus());
+});
+
+engine.post('/email-poller/rediscover', async (c) => {
+  const poller = _emailPoller;
+  if (!poller) return c.json({ error: 'Email poller not started' }, 500);
+  await poller.rediscover();
+  return c.json({ ok: true });
+});
 
 // ─── setEngineDb ────────────────────────────────────────
 
@@ -230,7 +306,7 @@ export async function setEngineDb(
 
   // Cascade DB to all engine modules for persistent storage
   await Promise.all([
-    lifecycle.setDb(db),
+    lifecycle.setDb(db).then(() => lifecycle.setVault(vault)),
     approvals.setDb(db),
     knowledgeBase.setDb(db),
     activity.setDb(db),
@@ -242,6 +318,7 @@ export async function setEngineDb(
     journal.setDb(db),
     compliance.setDb(db),
     communityRegistry.setDb(db),
+    knowledgeContribution.setDb(db),
     workforce.setDb(db),
     policyEngine.setDb(db),
     memoryManager.setDb(db),
@@ -270,15 +347,138 @@ export async function setEngineDb(
 
   // Ensure a default org exists for single-tenant / self-hosted deployments
   await tenants.createDefaultOrg().catch(() => {});
+
+  // ─── Start Google Chat Poller ─────────────────────────
+  // Guard: only start once (setEngineDb can be called multiple times)
+  if (!_chatPoller) {
+    startChatPoller(db).catch(err => console.error(`[chat-poller] Failed to start:`, err));
+  }
+
+  // ─── Start Gmail Email Poller ─────────────────────────
+  if (!_emailPoller) {
+    startEmailPoller(db).catch(err => console.error(`[email-poller] Failed to start:`, err));
+  }
+}
+
+// ─── Chat Poller ────────────────────────────────────────
+
+let _chatPoller: ChatPoller | null = null;
+
+async function startChatPoller(engineDb: any): Promise<void> {
+  console.log('[chat-poller] Initializing...');
+  // Find agents with chat enabled + OAuth tokens for Chat API access
+  const allAgents = lifecycle.getAllAgents();
+  console.log(`[chat-poller] Found ${allAgents.length} agents total`);
+  const chatAgents = allAgents.filter(a => {
+    const services = a.config?.enabledGoogleServices || [];
+    return services.includes('chat') && a.config?.emailConfig?.oauthRefreshToken;
+  });
+
+  if (chatAgents.length === 0) {
+    console.log('[chat-poller] No chat-enabled agents with OAuth tokens, skipping');
+    return;
+  }
+
+  // Use the first chat-enabled agent's OAuth token for polling
+  // (all agents in the same org share the same Google Workspace)
+  const tokenAgent = chatAgents[0];
+  const emailConfig = tokenAgent.config!.emailConfig!;
+
+  const refreshToken = async (): Promise<string> => {
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: emailConfig.oauthClientId,
+        client_secret: emailConfig.oauthClientSecret,
+        refresh_token: emailConfig.oauthRefreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+    const data = await res.json() as any;
+    if (data.access_token) return data.access_token;
+    throw new Error(`Token refresh failed: ${data.error || 'unknown'}`);
+  };
+
+  // Build agent endpoints from known standalone agents + lifecycle agents
+  const standaloneAgentPorts: Record<string, number> = {};
+  // Check chat-webhook config for known ports
+  try {
+    const rows = await engineDb.query(`SELECT key, value FROM engine_settings WHERE key = 'standalone_agents'`);
+    if (rows?.[0]) {
+      const sa = JSON.parse((rows[0] as any).value);
+      for (const a of sa) standaloneAgentPorts[a.id] = a.port;
+    }
+  } catch {}
+
+  const agentEndpoints = chatAgents.map(a => {
+    const identity = a.config?.identity || {};
+    const name = a.config?.name || a.name || 'agent';
+    const displayName = a.config?.displayName || name;
+    const email = a.config?.emailConfig?.email || a.config?.email?.address || '';
+    // Known ports from standalone config, or fall back to well-known ports
+    const port = standaloneAgentPorts[a.id] || 3100;
+
+    return {
+      id: a.id,
+      name: name.toLowerCase(),
+      displayName,
+      email,
+      port,
+      host: 'localhost',
+      roles: (identity as any).roles || [identity.role].filter(Boolean),
+      keywords: (identity as any).keywords || [],
+      enabled: a.state === 'running',
+    };
+  });
+
+  _chatPoller = new ChatPoller({
+    lifecycle,
+    getToken: refreshToken,
+    engineDb,
+    agents: agentEndpoints,
+    intervalMs: 30_000,
+    workforce,
+  });
+
+  await _chatPoller.start();
+}
+
+export function getChatPoller(): ChatPoller | null {
+  return _chatPoller;
+}
+
+// ─── Email Poller ───────────────────────────────────────
+
+let _emailPoller: EmailPoller | null = null;
+
+async function startEmailPoller(engineDb: any): Promise<void> {
+  _emailPoller = new EmailPoller({
+    engineDb,
+    lifecycle,
+    intervalMs: 30_000,
+    workforce,
+  });
+
+  await _emailPoller.start();
+}
+
+export function getEmailPoller(): EmailPoller | null {
+  return _emailPoller;
 }
 
 // ─── Agent Runtime (optional — mounted when runtime is started) ──
 
 let _runtimeApp: import('hono').Hono | null = null;
+let _runtime: any = null;
 
 export function mountRuntimeApp(app: import('hono').Hono): void {
   _runtimeApp = app;
   engine.route('/runtime', app);
+}
+
+export function setRuntime(runtime: any): void {
+  _runtime = runtime;
 }
 
 export { engine as engineRoutes };

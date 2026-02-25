@@ -47,7 +47,7 @@ export interface AgentTool<TParams = Record<string, unknown>, TResult = unknown>
   /** Whether this tool is restricted to agent owner */
   ownerOnly?: boolean;
   /** Category for grouping in UI */
-  category?: 'file' | 'web' | 'search' | 'command' | 'browser' | 'memory' | 'utility';
+  category?: 'file' | 'web' | 'search' | 'command' | 'browser' | 'memory' | 'utility' | 'communication' | 'productivity' | 'email' | 'calendar' | 'enterprise';
   /** Risk level */
   risk?: 'low' | 'medium' | 'high' | 'critical';
 }
@@ -91,6 +91,15 @@ export interface ToolCreationOptions {
   sandboxed?: boolean;
   /** Unique agent identifier for audit + rate limiting */
   agentId?: string;
+  /** Runtime reference for features that need session interaction (e.g., meeting monitor) */
+  runtimeRef?: {
+    /** Send a message into an active session */
+    sendMessage?: (sessionId: string, message: string) => Promise<void>;
+    /** Get the session ID for the current tool execution context */
+    getCurrentSessionId?: () => string | undefined;
+    /** Mark a session as keep-alive (prevents completion on end_turn) */
+    setKeepAlive?: (sessionId: string, keepAlive: boolean) => void;
+  };
   /** AgenticMail tool-specific config overrides */
   config?: AgenticMailToolConfig;
   /** Security sandbox configuration */

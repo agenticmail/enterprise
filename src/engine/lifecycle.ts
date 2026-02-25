@@ -34,9 +34,11 @@ export type AgentState =
 
 export interface ManagedAgent {
   id: string;
+  name?: string;                     // Display name (may differ from config.name)
   orgId: string;                     // Which company owns this agent
   config: AgentConfig;
   state: AgentState;
+  permissionProfileId?: string;      // Permission profile reference
   stateHistory: StateTransition[];
   health: AgentHealth;
   usage: AgentUsage;
@@ -105,6 +107,10 @@ export interface AgentUsage {
   errorRate1h: number;               // Errors per hour in last hour
 
   lastUpdated: string;
+
+  // Aliases used by runtime hooks
+  dailyCostUsd?: number;
+  monthlyCostUsd?: number;
 }
 
 // ─── Per-Agent Budget Controls ──────────────────────────
@@ -119,6 +125,8 @@ export interface AgentBudgetConfig {
   annualCostCap: number;             // 0 = unlimited
   annualTokenCap: number;            // 0 = unlimited
   warningThresholds: number[];       // e.g. [50, 80, 95] — emit alerts at these %
+  dailyLimitUsd?: number;            // Alias for dailyCostCap
+  monthlyLimitUsd?: number;          // Alias for monthlyCostCap
   poolDelegation?: {
     orgPoolPercent: number;           // Max % of org budget this agent can use
     maxDailyFromPool: number;         // Daily cap from org pool
@@ -163,7 +171,8 @@ export type LifecycleEventType =
   | 'approval_requested'
   | 'approval_decided'
   | 'destroyed'
-  | 'birthday';
+  | 'birthday'
+  | 'onboarding_required';
 
 // ─── Lifecycle Manager ──────────────────────────────────
 
@@ -171,6 +180,9 @@ export class AgentLifecycleManager {
   private agents = new Map<string, ManagedAgent>();
   private healthCheckIntervals = new Map<string, NodeJS.Timeout>();
   private deployer = new DeploymentEngine();
+  /** When true, this lifecycle runs on a standalone agent machine (not the enterprise server).
+   *  In standalone mode, persistAgent reloads dashboard-managed fields from DB before saving. */
+  public standaloneMode = false;
   private configGen = new AgentConfigGenerator();
   private permissions: PermissionEngine;
   private engineDb?: EngineDatabase;
@@ -184,6 +196,8 @@ export class AgentLifecycleManager {
   private lastBirthdayCheck: string = '';
   /** External callback for sending birthday messages (set via setBirthdaySender) */
   private birthdaySender: ((agent: ManagedAgent) => Promise<void>) | null = null;
+  /** Vault for decrypting deploy credentials */
+  private vault?: any;
 
   constructor(opts?: { db?: EngineDatabase; permissions?: PermissionEngine }) {
     this.engineDb = opts?.db;
@@ -198,10 +212,14 @@ export class AgentLifecycleManager {
     await this.loadFromDb();
   }
 
+  setVault(vault: any): void {
+    this.vault = vault;
+  }
+
   /**
    * Load all agents from DB into memory
    */
-  private async loadFromDb(): Promise<void> {
+  async loadFromDb(): Promise<void> {
     if (!this.engineDb) return;
     try {
       const agents = await this.engineDb.getAllManagedAgents();
@@ -215,6 +233,12 @@ export class AgentLifecycleManager {
     } catch {
       // Table may not exist yet if migrations haven't run
     }
+  }
+
+  /** Load a single agent fresh from DB (bypasses in-memory cache) */
+  async loadAgentFromDb(agentId: string): Promise<any | null> {
+    if (!this.engineDb) return null;
+    return this.engineDb.getManagedAgent(agentId);
   }
 
   // ─── Agent CRUD ─────────────────────────────────────
@@ -309,6 +333,9 @@ export class AgentLifecycleManager {
     await this.persistAgent(agent);
 
     try {
+      // Resolve org-level deploy credentials if agent doesn't have its own
+      await this.resolveDeployCredentials(agent);
+
       // Run deployment
       this.transition(agent, 'deploying', 'Pushing configuration', 'system');
 
@@ -325,6 +352,7 @@ export class AgentLifecycleManager {
         if (healthy) {
           this.transition(agent, 'running', 'Agent is healthy and running', 'system');
           this.emitEvent(agent, 'started', { deployedBy });
+          this.emitEvent(agent, 'onboarding_required', { message: 'Agent should complete onboarding: read org policies, acknowledge each, and internalize knowledge.' });
           this.startHealthCheckLoop(agent);
         } else {
           this.transition(agent, 'degraded', 'Agent started but health check failed', 'system');
@@ -458,14 +486,67 @@ export class AgentLifecycleManager {
   // ─── Monitoring ─────────────────────────────────────
 
   /**
+   * Record LLM usage (tokens + cost) from an agent session turn.
+   */
+  recordLLMUsage(agentId: string, opts: {
+    inputTokens?: number;
+    outputTokens?: number;
+    costUsd?: number;
+  }) {
+    const agent = this.agents.get(agentId);
+    if (!agent) {
+      console.log(`[lifecycle] recordLLMUsage: agent ${agentId} not found (have ${this.agents.size} agents: ${[...this.agents.keys()].join(', ')})`);
+      return;
+    }
+    console.log(`[lifecycle] recordLLMUsage: agent=${agentId}, input=${opts.inputTokens}, output=${opts.outputTokens}, cost=${opts.costUsd}`);
+
+    const totalTokens = (opts.inputTokens || 0) + (opts.outputTokens || 0);
+    const usage = agent.usage;
+    if (totalTokens > 0) {
+      usage.tokensToday += totalTokens;
+      usage.tokensThisWeek += totalTokens;
+      usage.tokensThisMonth += totalTokens;
+      usage.tokensThisYear += totalTokens;
+    }
+    if (opts.costUsd) {
+      usage.costToday += opts.costUsd;
+      usage.costThisWeek += opts.costUsd;
+      usage.costThisMonth += opts.costUsd;
+      usage.costThisYear += opts.costUsd;
+    }
+    usage.lastUpdated = new Date().toISOString();
+
+    // Persist usage directly to DB (just the usage column, not the whole agent)
+    if (this.engineDb) {
+      this.engineDb.execute(
+        `UPDATE managed_agents SET usage = $1, updated_at = $2 WHERE id = $3`,
+        [JSON.stringify(usage), new Date().toISOString(), agentId]
+      ).catch(() => {});
+    }
+
+    // Check budget caps
+    const budget = agent.budgetConfig;
+    if (budget) {
+      if (budget.dailyCostCap > 0 && usage.costToday >= budget.dailyCostCap) {
+        this.fireBudgetAlert(agent, 'daily_exceeded', 'cost', usage.costToday, budget.dailyCostCap);
+        this.stop(agentId, 'system', 'Daily cost budget exceeded').catch(() => {});
+      }
+    }
+  }
+
+  /**
    * Record a tool call for usage tracking with per-agent budget controls
    */
-  recordToolCall(agentId: string, toolId: string, opts?: {
+  recordToolCall(agentId: string, toolIdOrOpts: string | { toolId: string; tokensUsed?: number; costUsd?: number; isExternalAction?: boolean; error?: boolean }, opts?: {
     tokensUsed?: number;
     costUsd?: number;
     isExternalAction?: boolean;
     error?: boolean;
   }) {
+    if (typeof toolIdOrOpts === 'object') {
+      opts = toolIdOrOpts;
+    }
+    const toolId = typeof toolIdOrOpts === 'string' ? toolIdOrOpts : toolIdOrOpts.toolId;
     const agent = this.agents.get(agentId);
     if (!agent) return;
 
@@ -604,11 +685,26 @@ export class AgentLifecycleManager {
     return Array.from(this.agents.values()).filter(a => a.orgId === orgId);
   }
 
+  /** Get all agents across all orgs */
+  getAllAgents(): ManagedAgent[] {
+    return Array.from(this.agents.values());
+  }
+
   /**
    * Get a single agent
    */
   getAgent(agentId: string): ManagedAgent | undefined {
     return this.agents.get(agentId);
+  }
+
+  /** Get budget config for an agent */
+  getBudget(agentId: string): AgentBudgetConfig | undefined {
+    return this.agents.get(agentId)?.budgetConfig;
+  }
+
+  /** Get usage stats for an agent */
+  getUsage(agentId: string): AgentUsage | undefined {
+    return this.agents.get(agentId)?.usage;
   }
 
   /**
@@ -708,6 +804,9 @@ export class AgentLifecycleManager {
     const agent = this.agents.get(agentId);
     if (!agent) throw new Error(`Agent ${agentId} not found`);
     agent.budgetConfig = config;
+    // Also store in config JSON so it survives DB round-trips
+    if (!agent.config) agent.config = {} as any;
+    (agent.config as any).budgetConfig = config;
     agent.updatedAt = new Date().toISOString();
     await this.persistAgent(agent);
   }
@@ -716,7 +815,13 @@ export class AgentLifecycleManager {
    * Get per-agent budget configuration
    */
   getBudgetConfig(agentId: string): AgentBudgetConfig | undefined {
-    return this.agents.get(agentId)?.budgetConfig;
+    const agent = this.agents.get(agentId);
+    if (!agent) return undefined;
+    // Restore from config JSON if not on top-level
+    if (!agent.budgetConfig && (agent.config as any)?.budgetConfig) {
+      agent.budgetConfig = (agent.config as any).budgetConfig;
+    }
+    return agent.budgetConfig;
   }
 
   /**
@@ -906,6 +1011,62 @@ export class AgentLifecycleManager {
     });
   }
 
+  /**
+   * Resolve org-level deploy credentials and merge into agent config.
+   * If the agent's deployment config is missing an API token, look up
+   * the org's deploy_credentials table for a matching target type.
+   * Also sanitizes app names to be valid for the target platform.
+   */
+  private async resolveDeployCredentials(agent: ManagedAgent): Promise<void> {
+    const target = agent.config?.deployment?.target;
+    if (!target) return;
+
+    // Ensure deployment.config exists
+    if (!agent.config.deployment.config) agent.config.deployment.config = {} as any;
+
+    // Sanitize cloud.appName if present (Fly.io requires lowercase alphanumeric + hyphens)
+    if (target === 'fly' || target === 'railway') {
+      if (!agent.config.deployment.config.cloud) agent.config.deployment.config.cloud = {} as any;
+      const cloud = agent.config.deployment.config.cloud!;
+
+      if (cloud.appName) {
+        cloud.appName = cloud.appName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
+      }
+      // Ensure provider is set
+      if (!cloud.provider) cloud.provider = target as any;
+
+      // If agent already has a token, we're done
+      if (cloud.apiToken) return;
+
+      // Look up org-level credentials
+      if (this.engineDb) {
+        try {
+          const orgId = agent.orgId || 'default';
+          const creds = await this.engineDb.getDeployCredentialsByType(orgId, target);
+          if (creds.length > 0) {
+            let credConfig = creds[0].config;
+
+            // Decrypt if encrypted
+            if (credConfig?._encrypted && this.vault) {
+              try {
+                credConfig = JSON.parse(this.vault.decrypt(credConfig._encrypted));
+              } catch (decErr) {
+                console.error('[lifecycle] Failed to decrypt deploy credential:', decErr);
+              }
+            }
+
+            if (credConfig?.apiToken || credConfig?.token) {
+              cloud.apiToken = credConfig.apiToken || credConfig.token;
+              if (credConfig.region && !cloud.region) cloud.region = credConfig.region;
+            }
+          }
+        } catch (err) {
+          console.error('[lifecycle] Failed to resolve deploy credentials:', err);
+        }
+      }
+    }
+  }
+
   private isConfigComplete(config: AgentConfig): boolean {
     return !!(
       config.name &&
@@ -929,10 +1090,47 @@ export class AgentLifecycleManager {
     return false;
   }
 
+  /** Public persist — for use by routes that mutate agent config directly (e.g. email config) */
+  async saveAgent(agentId: string): Promise<void> {
+    const agent = this.agents.get(agentId);
+    if (agent) await this.persistAgent(agent);
+  }
+
   private async persistAgent(agent: ManagedAgent) {
+    if (!agent.name) agent.name = agent.id;
     this.agents.set(agent.id, agent);
     if (!this.engineDb) return;
     try {
+      // In standalone agent mode, reload dashboard-managed fields from DB before saving
+      // to avoid overwriting changes made via the enterprise dashboard.
+      // The enterprise server itself is the source of truth for config — it should NOT reload.
+      if (this.standaloneMode) {
+        const dbAgent = await this.engineDb.getManagedAgent(agent.id);
+        if (dbAgent) {
+          const dbConfig = dbAgent.config as any;
+          const memConfig = agent.config as any;
+          // Dashboard-managed fields: prefer DB (set by enterprise server)
+          if (dbConfig.model) memConfig.model = dbConfig.model;
+          if (dbConfig.identity) memConfig.identity = dbConfig.identity;
+          if (dbConfig.manager) memConfig.manager = dbConfig.manager;
+          if (dbConfig.catchUp) memConfig.catchUp = dbConfig.catchUp;
+          if (dbConfig.autonomy) memConfig.autonomy = dbConfig.autonomy;
+          if (dbConfig.deployment) memConfig.deployment = dbConfig.deployment;
+          if (dbConfig.schedule) memConfig.schedule = dbConfig.schedule;
+          if (dbConfig.skills) memConfig.skills = dbConfig.skills;
+          if (dbConfig.permissionProfileId) memConfig.permissionProfileId = dbConfig.permissionProfileId;
+          // emailConfig: preserve dashboard fields but keep runtime tokens from memory
+          if (dbConfig.emailConfig && memConfig.emailConfig) {
+            const dbEmail = dbConfig.emailConfig;
+            const memEmail = memConfig.emailConfig;
+            if (dbEmail.oauthClientId) memEmail.oauthClientId = dbEmail.oauthClientId;
+            if (dbEmail.oauthClientSecret) memEmail.oauthClientSecret = dbEmail.oauthClientSecret;
+            if (dbEmail.oauthRedirectUri) memEmail.oauthRedirectUri = dbEmail.oauthRedirectUri;
+            if (dbEmail.oauthScopes) memEmail.oauthScopes = dbEmail.oauthScopes;
+          }
+        }
+      }
+      
       await withRetry(
         () => this.engineDb!.upsertManagedAgent(agent),
         { maxAttempts: 3, baseDelayMs: 100, maxDelayMs: 2000 }

@@ -5,9 +5,9 @@
  * Asks the central registry to resolve the TXT record.
  *
  * Usage:
- *   agenticmail-enterprise verify-domain
- *   agenticmail-enterprise verify-domain --domain agents.agenticmail.io
- *   agenticmail-enterprise verify-domain --db ./data.db
+ *   npx @agenticmail/enterprise verify-domain
+ *   npx @agenticmail/enterprise verify-domain --domain agents.agenticmail.io
+ *   npx @agenticmail/enterprise verify-domain --db ./data.db
  */
 
 import { DomainLock } from './index.js';

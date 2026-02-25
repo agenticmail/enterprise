@@ -11,6 +11,7 @@
 
 import type { EngineDatabase } from './db-adapter.js';
 
+function sj(v: string|null|undefined, fb: any = {}): any { if(!v) return fb; try { return JSON.parse(v); } catch { return fb; } }
 // ─── Types ──────────────────────────────────────────────
 
 export interface ComplianceReport {
@@ -47,8 +48,8 @@ export class ComplianceReporter {
       );
       this.reports = rows.map((r: any) => ({
         id: r.id, orgId: r.org_id, type: r.type, title: r.title,
-        parameters: r.parameters ? JSON.parse(r.parameters) : {},
-        status: r.status, data: r.data ? JSON.parse(r.data) : undefined,
+        parameters: r.parameters ? sj(r.parameters) : {},
+        status: r.status, data: r.data ? sj(r.data) : undefined,
         format: r.format || 'json', generatedBy: r.generated_by,
         error: r.error, createdAt: r.created_at, completedAt: r.completed_at,
       }));

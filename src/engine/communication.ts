@@ -25,6 +25,7 @@
 import type { EngineDatabase } from './db-adapter.js';
 import type { AgentLifecycleManager } from './lifecycle.js';
 
+function sj(v: string|null|undefined, fb: any = {}): any { if(!v) return fb; try { return JSON.parse(v); } catch { return fb; } }
 // ─── Types ──────────────────────────────────────────────
 
 export type MessageType = 'message' | 'task' | 'handoff' | 'broadcast';
@@ -217,7 +218,7 @@ export class AgentCommunicationBus {
       this.messages = rows.map((r: any) => ({
         id: r.id, orgId: r.org_id, fromAgentId: r.from_agent_id, toAgentId: r.to_agent_id,
         type: r.type, subject: r.subject, content: r.content,
-        metadata: r.metadata ? JSON.parse(r.metadata) : {},
+        metadata: r.metadata ? sj(r.metadata) : {},
         status: r.status, parentId: r.parent_id, priority: r.priority || 'normal',
         direction: r.direction || 'internal', channel: r.channel || 'direct',
         deadline: r.deadline, claimedAt: r.claimed_at, completedAt: r.completed_at,
@@ -253,6 +254,11 @@ export class AgentCommunicationBus {
    * Resolves recipients via the agent email registry to classify traffic.
    * Returns array of created/updated messages (one email can have multiple recipients).
    */
+  /** Observe a message/tool call event */
+  async observeMessage(opts: { orgId: string; agentId: string; toolId: string; parameters?: Record<string, any>; result?: any }) {
+    return this.observeToolCall({ ...opts, toolName: opts.toolId });
+  }
+
   async observeToolCall(opts: {
     orgId: string;
     agentId: string;

@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 
@@ -63,7 +63,7 @@ export function VaultPage() {
   // Load secrets
   var loadSecrets = useCallback(function() {
     setLoading(true);
-    engineCall('/vault/secrets?orgId=default')
+    engineCall('/vault/secrets?orgId=' + getOrgId())
       .then(function(d) { setSecrets(d.secrets || d.entries || []); })
       .catch(function(e) { toast(e.message || 'Failed to load secrets', 'error'); })
       .finally(function() { setLoading(false); });
@@ -71,7 +71,7 @@ export function VaultPage() {
 
   var loadAudit = useCallback(function() {
     setAuditLoading(true);
-    engineCall('/vault/audit-log?orgId=default&limit=100')
+    engineCall('/vault/audit-log?orgId=' + getOrgId() + '&limit=100')
       .then(function(d) { setAuditLog(d.entries || d.log || []); })
       .catch(function(e) { toast(e.message || 'Failed to load audit log', 'error'); })
       .finally(function() { setAuditLoading(false); });
@@ -94,7 +94,7 @@ export function VaultPage() {
       await engineCall('/vault/secrets', {
         method: 'POST',
         body: JSON.stringify({
-          orgId: 'default',
+          orgId: getOrgId(),
           name: addForm.name,
           value: addForm.value,
           category: addForm.category
@@ -169,7 +169,7 @@ export function VaultPage() {
     try {
       var d = await engineCall('/vault/rotate-all', {
         method: 'POST',
-        body: JSON.stringify({ orgId: 'default' })
+        body: JSON.stringify({ orgId: getOrgId() })
       });
       toast('Rotated ' + (d.rotated || 0) + ' secrets', 'success');
       loadSecrets();

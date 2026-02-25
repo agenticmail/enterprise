@@ -16,6 +16,7 @@
 import type { EngineDatabase } from './db-adapter.js';
 import { MemorySearchIndex, tokenize } from '../lib/text-search.js';
 
+function sj(v: string|null|undefined, fb: any = {}): any { if(!v) return fb; try { return JSON.parse(v); } catch { return fb; } }
 // ─── Types ──────────────────────────────────────────────
 
 export type MemoryCategory =
@@ -25,7 +26,8 @@ export type MemoryCategory =
   | 'correction'
   | 'skill'
   | 'context'
-  | 'reflection';
+  | 'reflection'
+  | 'session_learning';
 
 export type MemoryImportance = 'critical' | 'high' | 'normal' | 'low';
 
@@ -34,7 +36,9 @@ export type MemorySource =
   | 'interaction'
   | 'admin'
   | 'self_reflection'
-  | 'correction';
+  | 'correction'
+  | 'system'
+  | 'context_compaction';
 
 export const MEMORY_CATEGORIES: Record<MemoryCategory, { label: string; description: string }> = {
   org_knowledge: {
@@ -65,6 +69,10 @@ export const MEMORY_CATEGORIES: Record<MemoryCategory, { label: string; descript
     label: 'Reflections',
     description: 'Self-reflective insights and learnings',
   },
+  session_learning: {
+    label: 'Session Learnings',
+    description: 'Insights captured during conversation sessions',
+  },
 };
 
 export interface AgentMemoryEntry {
@@ -94,8 +102,14 @@ export interface MemoryStats {
   avgConfidence: number;
 }
 
-/** Input shape for createMemory — id, timestamps, and accessCount are generated automatically. */
-export type CreateMemoryInput = Omit<AgentMemoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'accessCount'>;
+/** Input shape for createMemory — id, timestamps, accessCount, and some fields have defaults. */
+export type CreateMemoryInput = Omit<AgentMemoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'accessCount' | 'confidence' | 'tags' | 'metadata' | 'lastAccessedAt' | 'expiresAt'> & {
+  confidence?: number;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  lastAccessedAt?: string;
+  expiresAt?: string;
+};
 
 /** Input shape for updateMemory — partial updates merged with existing entry. */
 export type UpdateMemoryInput = Partial<Omit<AgentMemoryEntry, 'id' | 'agentId' | 'orgId' | 'createdAt'>>;
@@ -108,6 +122,8 @@ export interface MemoryQueryOptions {
   source?: string;
   query?: string;
   limit?: number;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
 }
 
 /** Minimal policy shape expected by createFromPolicy (matches OrgPolicy fields used). */
@@ -154,14 +170,19 @@ export class AgentMemoryManager {
     if (!this.engineDb) return;
     try {
       const rows = await this.engineDb.query<any>('SELECT * FROM agent_memory');
+      console.log(`[memory] Loaded ${rows.length} memories from DB`);
       for (const r of rows) {
-        const entry = this.rowToEntry(r);
-        this.memories.set(entry.id, entry);
-        this.indexAdd(entry.agentId, entry.id);
-        this.searchIndex.addDocument(entry.id, entry);
+        try {
+          const entry = this.rowToEntry(r);
+          this.memories.set(entry.id, entry);
+          this.indexAdd(entry.agentId, entry.id);
+          this.searchIndex.addDocument(entry.id, entry);
+        } catch (entryErr: any) {
+          console.warn(`[memory] Skipped entry ${r.id}: ${entryErr.message}`);
+        }
       }
-    } catch {
-      /* table may not exist yet */
+    } catch (loadErr: any) {
+      console.error('[memory] loadFromDb failed:', loadErr.message);
     }
   }
 
@@ -190,6 +211,42 @@ export class AgentMemoryManager {
     return result;
   }
 
+  // ─── Convenience Methods ─────────────────────────────
+
+  /**
+   * Convenience method for storing a memory with minimal input.
+   * Handles the common case where you just want to store a piece of text.
+   */
+  async storeMemory(agentId: string, opts: {
+    content: string;
+    category?: string;
+    importance?: string;
+    confidence?: number;
+    title?: string;
+    orgId?: string;
+  }): Promise<AgentMemoryEntry> {
+    return this.createMemory({
+      agentId,
+      orgId: opts.orgId || 'default',
+      content: opts.content,
+      category: (opts.category || 'general') as any,
+      importance: (opts.importance || 'normal') as any,
+      confidence: opts.confidence ?? 1.0,
+      title: opts.title || '',
+      source: 'system',
+      tags: [],
+      metadata: {},
+    });
+  }
+
+  /**
+   * Convenience method for searching memories by text query.
+   * Returns matching entries sorted by relevance.
+   */
+  async recall(agentId: string, query: string, limit: number = 5): Promise<AgentMemoryEntry[]> {
+    return this.queryMemories({ agentId, query, limit });
+  }
+
   // ─── CRUD Operations ────────────────────────────────
 
   /**
@@ -200,6 +257,9 @@ export class AgentMemoryManager {
     const now = new Date().toISOString();
     const entry: AgentMemoryEntry = {
       ...input,
+      confidence: input.confidence ?? 0.8,
+      tags: input.tags ?? [],
+      metadata: input.metadata ?? {},
       id: crypto.randomUUID(),
       accessCount: 0,
       createdAt: now,
@@ -310,6 +370,28 @@ export class AgentMemoryManager {
    */
   async queryMemories(opts: MemoryQueryOptions): Promise<AgentMemoryEntry[]> {
     let results = this.getAgentMemories(opts.agentId);
+
+    // If in-memory is empty for this agent, try loading from DB (agent machine writes directly)
+    if (results.length === 0 && this.engineDb && opts.agentId) {
+      try {
+        const rows = await this.engineDb.query<any>(
+          'SELECT * FROM agent_memory WHERE agent_id = ?',
+          [opts.agentId]
+        );
+        console.log(`[memory] Lazy-loaded ${rows.length} memories for agent ${opts.agentId}`);
+        for (const r of rows) {
+          try {
+            const entry = this.rowToEntry(r);
+            this.memories.set(entry.id, entry);
+            this.indexAdd(entry.agentId, entry.id);
+            this.searchIndex.addDocument(entry.id, entry);
+          } catch {}
+        }
+        results = this.getAgentMemories(opts.agentId);
+      } catch (e: any) {
+        console.error('[memory] Lazy-load failed:', e.message);
+      }
+    }
 
     if (opts.category) {
       results = results.filter((m) => m.category === opts.category);
@@ -595,7 +677,13 @@ export class AgentMemoryManager {
    * Returns aggregate statistics for a specific agent's memory entries.
    */
   async getStats(agentId: string): Promise<MemoryStats> {
-    return this.computeStats(this.getAgentMemories(agentId));
+    let entries = this.getAgentMemories(agentId);
+    // Lazy-load from DB if in-memory is empty
+    if (entries.length === 0 && this.engineDb) {
+      await this.queryMemories({ agentId, limit: 1000 }); // triggers DB load
+      entries = this.getAgentMemories(agentId);
+    }
+    return this.computeStats(entries);
   }
 
   /**
@@ -702,8 +790,8 @@ export class AgentMemoryManager {
       accessCount: row.access_count || 0,
       lastAccessedAt: row.last_accessed_at || undefined,
       expiresAt: row.expires_at || undefined,
-      tags: JSON.parse(row.tags || '[]'),
-      metadata: JSON.parse(row.metadata || '{}'),
+      tags: Array.isArray(row.tags) ? row.tags : (Array.isArray(sj(row.tags)) ? sj(row.tags) : []),
+      metadata: sj(row.metadata || '{}'),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

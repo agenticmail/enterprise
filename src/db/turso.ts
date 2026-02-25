@@ -20,7 +20,7 @@ let libsqlClient: any;
 async function getClient() {
   if (!libsqlClient) {
     try {
-      libsqlClient = await import('@libsql/client');
+      const { resolveDriver } = await import("./resolve-driver.js"); libsqlClient = await resolveDriver("@libsql/client", "Turso/LibSQL driver not found. Install it: npm install @libsql/client");
     } catch {
       throw new Error('Turso driver not found. Install: npm install @libsql/client');
     }

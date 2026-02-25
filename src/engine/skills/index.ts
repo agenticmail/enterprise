@@ -72,30 +72,27 @@ import type { ToolDefinition } from '../skills.js';
 export const M365_TOOLS: ToolDefinition[] = M365_MODULES.flatMap(m => m.TOOLS);
 export const GWS_TOOLS: ToolDefinition[] = GWS_MODULES.flatMap(m => m.TOOLS);
 
+// ─── AgenticMail (Company Core Product) ─────────────────
+
+import * as AgenticMail from './agenticmail.js';
+
+export const AGENTICMAIL_MODULES = [AgenticMail] as const;
+export const AGENTICMAIL_SKILL_DEFS = AGENTICMAIL_MODULES.map(m => m.SKILL_DEF);
+export const AGENTICMAIL_TOOLS: ToolDefinition[] = AGENTICMAIL_MODULES.flatMap(m => m.TOOLS);
+
 // ─── Enterprise Utility Skills ─────────────────────────
 
 import * as EntDatabase from './enterprise-database.js';
 import * as EntSpreadsheet from './enterprise-spreadsheet.js';
 import * as EntDocuments from './enterprise-documents.js';
-import * as EntCalendar from './enterprise-calendar.js';
-import * as EntKnowledgeSearch from './enterprise-knowledge-search.js';
-import * as EntWebResearch from './enterprise-web-research.js';
-import * as EntTranslation from './enterprise-translation.js';
-import * as EntLogs from './enterprise-logs.js';
-import * as EntWorkflow from './enterprise-workflow.js';
-import * as EntNotifications from './enterprise-notifications.js';
-import * as EntFinance from './enterprise-finance.js';
 import * as EntHttp from './enterprise-http.js';
 import * as EntSecurityScan from './enterprise-security-scan.js';
 import * as EntCodeSandbox from './enterprise-code-sandbox.js';
 import * as EntDiff from './enterprise-diff.js';
-import * as EntVision from './enterprise-vision.js';
 
 export const ENTERPRISE_MODULES = [
-  EntDatabase, EntSpreadsheet, EntDocuments, EntCalendar,
-  EntKnowledgeSearch, EntWebResearch, EntTranslation, EntLogs,
-  EntWorkflow, EntNotifications, EntFinance, EntHttp,
-  EntSecurityScan, EntCodeSandbox, EntDiff, EntVision,
+  EntDatabase, EntSpreadsheet, EntDocuments, EntHttp,
+  EntSecurityScan, EntCodeSandbox, EntDiff,
 ] as const;
 
 // ─── Combined enterprise skill definitions ─────────────
@@ -106,6 +103,7 @@ export const ENTERPRISE_UTILITY_TOOLS: ToolDefinition[] = ENTERPRISE_MODULES.fla
 // ─── Re-export individual modules for direct access ─────
 
 export {
+  AgenticMail,
   M365Outlook, M365Teams, M365SharePoint, M365OneDrive,
   M365Word, M365Excel, M365PowerPoint, M365OneNote,
   M365Planner, M365PowerBI, M365PowerAutomate, M365Forms,
@@ -114,8 +112,6 @@ export {
   GwsSheets, GwsSlides, GwsMeet, GwsChat,
   GwsForms, GwsSites, GwsKeep, GwsAdmin,
   GwsVault, GwsGroups,
-  EntDatabase, EntSpreadsheet, EntDocuments, EntCalendar,
-  EntKnowledgeSearch, EntWebResearch, EntTranslation, EntLogs,
-  EntWorkflow, EntNotifications, EntFinance, EntHttp,
-  EntSecurityScan, EntCodeSandbox, EntDiff, EntVision,
+  EntDatabase, EntSpreadsheet, EntDocuments, EntHttp,
+  EntSecurityScan, EntCodeSandbox, EntDiff,
 };

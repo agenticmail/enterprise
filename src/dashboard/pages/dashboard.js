@@ -1,5 +1,4 @@
-import { h, useState, useEffect, Fragment, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge } from '../components/utils.js';
-import { useApp, apiCall, engineCall } from '../components/utils.js';
+import { h, useState, useEffect, Fragment, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId, useApp, apiCall, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
 
@@ -58,7 +57,7 @@ export function DashboardPage() {
   useEffect(() => {
     apiCall('/stats').then(setStats).catch(() => {});
     apiCall('/agents').then(d => setAgents(d.agents || d || [])).catch(() => {});
-    engineCall('/agents?orgId=default').then(d => setEngineAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setEngineAgents(d.agents || [])).catch(() => {});
     engineCall('/activity/events?limit=10').then(d => setEvents(d.events || [])).catch(() => {});
   }, []);
 

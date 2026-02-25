@@ -12,12 +12,17 @@ import type { WorkforceManager } from './workforce.js';
 export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { lifecycle?: any }) {
   const router = new Hono();
 
+  /** Extract orgId from body > query > JWT payload > fallback */
+  function resolveOrgId(c: any, body?: any): string {
+    return body?.orgId || c.req.query('orgId') || (c.get?.('jwtPayload') as any)?.orgId || 'AMXK7W9P3E';
+  }
+
   // ─── Schedule CRUD ──────────────────────────────────────
 
   /** List all schedules for the requesting org */
   router.get('/schedules', async (c) => {
     try {
-      const orgId = c.req.header('X-User-Id') || 'default';
+      const orgId = resolveOrgId(c);
       const schedules = await workforce.getSchedulesByOrg(orgId);
       return c.json({ schedules, total: schedules.length });
     } catch (err: any) {
@@ -44,14 +49,12 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
       if (!body.agentId) {
         return c.json({ error: 'agentId is required' }, 400);
       }
-      if (!body.orgId) {
-        return c.json({ error: 'orgId is required' }, 400);
-      }
+      const orgId = resolveOrgId(c, body);
 
       const schedule = {
         id: body.id || crypto.randomUUID(),
         agentId: body.agentId,
-        orgId: body.orgId,
+        orgId,
         timezone: body.timezone || 'UTC',
         scheduleType: body.scheduleType,
         config: body.config,
@@ -67,6 +70,31 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
 
       await workforce.setSchedule(schedule);
       return c.json({ schedule }, 201);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  /** Update an existing schedule */
+  router.put('/schedules/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const body = await c.req.json();
+      const orgId = resolveOrgId(c, body);
+      // Find existing schedule by id — check all org schedules
+      const allSchedules = await workforce.getSchedulesByOrg(orgId);
+      const existing = allSchedules.find((s: any) => s.id === id);
+      if (!existing) return c.json({ error: 'Schedule not found' }, 404);
+
+      const updated = {
+        ...existing,
+        ...body,
+        id,
+        orgId,
+        updatedAt: new Date().toISOString(),
+      };
+      await workforce.setSchedule(updated);
+      return c.json({ schedule: updated });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }
@@ -146,7 +174,7 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
   /** Get workforce status for all agents in the org */
   router.get('/status', async (c) => {
     try {
-      const orgId = c.req.header('X-User-Id') || 'default';
+      const orgId = resolveOrgId(c);
       const status = await workforce.getWorkforceStatus(orgId);
       return c.json(status);
     } catch (err: any) {
@@ -191,17 +219,15 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
       if (!body.agentId) {
         return c.json({ error: 'agentId is required' }, 400);
       }
-      if (!body.orgId) {
-        return c.json({ error: 'orgId is required' }, 400);
-      }
       if (!body.title) {
         return c.json({ error: 'title is required' }, 400);
       }
 
+      const orgId = resolveOrgId(c, body);
       const task = {
         id: body.id || crypto.randomUUID(),
         agentId: body.agentId,
-        orgId: body.orgId,
+        orgId,
         type: body.type || 'general',
         title: body.title,
         description: body.description || '',
@@ -218,6 +244,26 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
       return c.json({ task }, 201);
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
+    }
+  });
+
+  /** List all tasks across all agents */
+  router.get('/tasks', async (c) => {
+    try {
+      const orgId = c.req.query('orgId') || undefined;
+      const status = (c.req.query('status') || undefined) as 'completed' | 'queued' | 'in_progress' | 'cancelled' | undefined;
+      // Get all agents and collect their tasks
+      const agents = await workforce.getWorkforceStatus(orgId || 'default');
+      const allTasks: any[] = [];
+      if (agents && Array.isArray((agents as any).agents)) {
+        for (const agent of (agents as any).agents) {
+          const tasks = await workforce.getAgentTasks(agent.agentId || agent.id, status);
+          allTasks.push(...tasks);
+        }
+      }
+      return c.json({ tasks: allTasks, total: allTasks.length });
+    } catch (err: any) {
+      return c.json({ tasks: [], total: 0 });
     }
   });
 
@@ -262,7 +308,7 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
   /** Extended budget overview, requires lifecycle manager to be configured */
   router.get('/budget-overview', async (c) => {
     try {
-      const orgId = c.req.header('X-User-Id') || 'default';
+      const orgId = resolveOrgId(c);
 
       if (!opts?.lifecycle?.getBudgetSummary) {
         return c.json(

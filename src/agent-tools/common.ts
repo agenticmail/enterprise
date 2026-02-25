@@ -4,7 +4,8 @@
  * Shared helpers for tool parameter reading, result formatting, etc.
  */
 
-import type { ToolResult, AnyAgentTool } from './types.js';
+import type { ToolResult } from './types.js';
+export type { AnyAgentTool } from './types.js';
 
 /** Error thrown when tool input validation fails */
 export class ToolInputError extends Error {
@@ -156,6 +157,8 @@ export function imageResult(params: {
   base64: string;
   mimeType: string;
   extraText?: string;
+  path?: string;
+  details?: string;
 }): ToolResult<unknown> {
   return {
     content: [
@@ -229,4 +232,29 @@ export function redactSecrets(
     }
   }
   return result;
+}
+
+/**
+ * Create an image result from a file path.
+ * Reads the file, detects mime type, and wraps in a tool result.
+ */
+export async function imageResultFromFile(params: {
+  label: string;
+  path: string;
+  extraText?: string;
+  details?: Record<string, unknown>;
+}): Promise<ToolResult<unknown>> {
+  const fs = await import('node:fs/promises');
+  const buf = await fs.readFile(params.path);
+  const ext = params.path.split('.').pop()?.toLowerCase();
+  const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
+  const mimeType = mimeMap[ext || ''] || 'image/png';
+  return imageResult({
+    label: params.label,
+    path: params.path,
+    base64: buf.toString('base64'),
+    mimeType,
+    extraText: params.extraText,
+    details: params.details ? JSON.stringify(params.details) : undefined,
+  });
 }

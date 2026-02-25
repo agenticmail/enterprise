@@ -5,9 +5,9 @@
  * Requires the original deployment key to prove ownership.
  *
  * Usage:
- *   agenticmail-enterprise recover
- *   agenticmail-enterprise recover --domain agents.agenticmail.io --key <hex>
- *   agenticmail-enterprise recover --db ./data.db --db-type sqlite
+ *   npx @agenticmail/enterprise recover
+ *   npx @agenticmail/enterprise recover --domain agents.agenticmail.io --key <hex>
+ *   npx @agenticmail/enterprise recover --db ./data.db --db-type sqlite
  */
 
 import { DomainLock } from './index.js';
@@ -119,6 +119,6 @@ export async function runRecover(args: string[]): Promise<void> {
   console.log(`  ${chalk.bold('Type:')}   ${chalk.cyan('TXT')}`);
   console.log(`  ${chalk.bold('Value:')}  ${chalk.cyan(result.dnsChallenge)}`);
   console.log('');
-  console.log(chalk.dim('  Then run: agenticmail-enterprise verify-domain'));
+  console.log(chalk.dim('  Then run: npx @agenticmail/enterprise verify-domain'));
   console.log('');
 }

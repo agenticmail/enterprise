@@ -13,6 +13,16 @@ import { serve } from '@hono/node-server';
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createRequire } from 'module';
+
+// Resolve version at module load time
+let ENTERPRISE_VERSION = 'unknown';
+try {
+  const _require = createRequire(import.meta.url);
+  ENTERPRISE_VERSION = _require('../package.json').version;
+} catch {
+  try { ENTERPRISE_VERSION = JSON.parse(readFileSync(join(process.cwd(), 'node_modules', '@agenticmail', 'enterprise', 'package.json'), 'utf-8')).version; } catch { /* noop */ }
+}
 import type { DatabaseAdapter } from './db/adapter.js';
 import { createDbProxy, type DbProxy } from './db/proxy.js';
 import { createAdminRoutes } from './admin/routes.js';
@@ -167,6 +177,16 @@ export function createServer(config: ServerConfig): ServerInstance {
 
   // Authentication middleware
   api.use('*', async (c, next) => {
+    // Skip auth for OAuth callback (browser redirect from Google/Microsoft)
+    if (c.req.path.endsWith('/oauth/callback') && c.req.method === 'GET') {
+      return next();
+    }
+
+    // Skip auth for Google Chat webhook (Google sends POST with its own auth)
+    if (c.req.path.includes('/chat-webhook') && c.req.method === 'POST') {
+      return next();
+    }
+
     // Check API key first
     const apiKeyHeader = c.req.header('X-API-Key');
     if (apiKeyHeader) {
@@ -220,6 +240,7 @@ export function createServer(config: ServerConfig): ServerInstance {
 
       // Initialize engine DB on first request
       if (!engineInitialized) {
+        engineInitialized = true; // Prevent repeated init attempts on failure
         // Use the adapter's built-in engine DB interface (SQL adapters expose raw query methods)
         const engineDbInterface = config.db.getEngineDB();
         if (!engineDbInterface) {
@@ -248,19 +269,46 @@ export function createServer(config: ServerConfig): ServerInstance {
         if (config.runtime?.enabled) {
           try {
             const { createAgentRuntime } = await import('./runtime/index.js');
-            const { mountRuntimeApp } = await import('./engine/routes.js');
+            const { mountRuntimeApp, setRuntime } = await import('./engine/routes.js');
+            // Import lifecycle for email config access
+            let getEmailConfig: ((agentId: string) => any) | undefined;
+            let onTokenRefresh: ((agentId: string, tokens: any) => void) | undefined;
+            let agentMemoryMgr: any;
+            try {
+              const { lifecycle: lc, memoryManager: mm } = await import('./engine/routes.js');
+              agentMemoryMgr = mm;
+              if (lc) {
+                getEmailConfig = (agentId: string) => {
+                  const managed = lc.getAgent(agentId);
+                  return managed?.config?.emailConfig || null;
+                };
+                onTokenRefresh = (agentId: string, tokens: any) => {
+                  const managed = lc.getAgent(agentId);
+                  if (managed?.config?.emailConfig) {
+                    if (tokens.accessToken) managed.config.emailConfig.oauthAccessToken = tokens.accessToken;
+                    if (tokens.refreshToken) managed.config.emailConfig.oauthRefreshToken = tokens.refreshToken;
+                    if (tokens.expiresAt) managed.config.emailConfig.oauthTokenExpiry = tokens.expiresAt;
+                    lc.saveAgent(agentId).catch(() => {});
+                  }
+                };
+              }
+            } catch {}
             const runtime = createAgentRuntime({
               engineDb,
               adminDb: config.db,
               defaultModel: config.runtime.defaultModel as any,
               apiKeys: config.runtime.apiKeys,
               gatewayEnabled: true,
+              getEmailConfig,
+              onTokenRefresh,
+              agentMemoryManager: agentMemoryMgr,
             });
             await runtime.start();
             const runtimeApp = runtime.getApp();
             if (runtimeApp) {
               mountRuntimeApp(runtimeApp);
             }
+            setRuntime(runtime);
             console.log('[runtime] Agent runtime started and mounted at /api/engine/runtime/*');
           } catch (runtimeErr: any) {
             console.warn(`[runtime] Failed to start agent runtime: ${runtimeErr.message}`);
@@ -318,6 +366,9 @@ export function createServer(config: ServerConfig): ServerInstance {
 
   async function serveDashboard(c: any) {
     let html = getDashboardHtml();
+    // Inject version
+    html = html.replace('</head>', `<script>window.__ENTERPRISE_VERSION__="${ENTERPRISE_VERSION}";</script></head>`);
+
     if (!_setupComplete) {
       const injection = `<script>window.__EM_SETUP_STATE__=${JSON.stringify({ needsBootstrap: true })};</script>`;
       html = html.replace('</head>', injection + '</head>');
@@ -382,7 +433,7 @@ export function createServer(config: ServerConfig): ServerInstance {
         const server = serve(
           { fetch: app.fetch, port: config.port },
           (info) => {
-            console.log(`\n🏢 AgenticMail Enterprise`);
+            console.log(`\n🏢 AgenticMail Enterprise v${ENTERPRISE_VERSION}`);
             console.log(`   API:    http://localhost:${info.port}/api`);
             console.log(`   Auth:   http://localhost:${info.port}/auth`);
             console.log(`   Health: http://localhost:${info.port}/health`);
@@ -390,6 +441,105 @@ export function createServer(config: ServerConfig): ServerInstance {
 
             // Start health monitoring
             healthMonitor.start();
+
+            // Load saved provider API keys from DB (decrypt via vault, pass via runtime config)
+            config.db.getSettings().then(async (settings: any) => {
+              const { SecureVault } = await import('./engine/vault.js');
+              const vaultInst = new SecureVault();
+              const keys = settings?.modelPricingConfig?.providerApiKeys;
+              if (keys && typeof keys === 'object') {
+                for (const [providerId, apiKey] of Object.entries(keys)) {
+                  if (apiKey && typeof apiKey === 'string') {
+                    let decrypted: string;
+                    try {
+                      decrypted = vaultInst.decrypt(apiKey);
+                    } catch {
+                      decrypted = apiKey; // legacy plaintext fallback
+                    }
+                    if (config.runtime?.apiKeys) {
+                      (config.runtime.apiKeys as Record<string, string>)[providerId] = decrypted;
+                    }
+                    console.log(`   🔑 Loaded API key for ${providerId} from DB`);
+                  }
+                }
+              }
+            }).catch(() => {});
+
+            // Eagerly initialize engine (loads lifecycle, starts chat poller, etc.)
+            // Without this, engine only initializes on first dashboard request
+            (async () => {
+              try {
+                const { engineRoutes, setEngineDb } = await import('./engine/routes.js');
+                const { EngineDatabase } = await import('./engine/db-adapter.js');
+                if (!engineInitialized) {
+                  engineInitialized = true;
+                  const engineDbInterface = config.db.getEngineDB();
+                  if (engineDbInterface) {
+                    const adapterDialect = config.db.getDialect();
+                    const dialectMap: Record<string, string> = {
+                      sqlite: 'sqlite', postgres: 'postgres', supabase: 'postgres',
+                      neon: 'postgres', cockroachdb: 'postgres', mysql: 'mysql',
+                      planetscale: 'mysql', turso: 'turso',
+                    };
+                    const engineDialect = (dialectMap[adapterDialect] || adapterDialect) as any;
+                    const engineDb = new EngineDatabase(engineDbInterface, engineDialect);
+                    const migrationResult = await engineDb.migrate();
+                    console.log(`[engine] Migrations: ${migrationResult.applied} applied, ${migrationResult.total} total`);
+                    await setEngineDb(engineDb, config.db);
+
+                    // Start agent runtime if configured
+                    if (config.runtime?.enabled) {
+                      try {
+                        const { createAgentRuntime } = await import('./runtime/index.js');
+                        const { mountRuntimeApp, setRuntime } = await import('./engine/routes.js');
+                        let getEmailConfig: ((agentId: string) => any) | undefined;
+                        let onTokenRefresh: ((agentId: string, tokens: any) => void) | undefined;
+                        let agentMemoryMgr: any;
+                        try {
+                          const { lifecycle: lc, memoryManager: mm } = await import('./engine/routes.js');
+                          agentMemoryMgr = mm;
+                          if (lc) {
+                            getEmailConfig = (agentId: string) => {
+                              const managed = lc.getAgent(agentId);
+                              return managed?.config?.emailConfig || null;
+                            };
+                            onTokenRefresh = (agentId: string, tokens: any) => {
+                              const managed = lc.getAgent(agentId);
+                              if (managed?.config?.emailConfig) {
+                                if (tokens.accessToken) managed.config.emailConfig.oauthAccessToken = tokens.accessToken;
+                                if (tokens.refreshToken) managed.config.emailConfig.oauthRefreshToken = tokens.refreshToken;
+                                if (tokens.expiresAt) managed.config.emailConfig.oauthTokenExpiry = tokens.expiresAt;
+                                lc.saveAgent(agentId).catch(() => {});
+                              }
+                            };
+                          }
+                        } catch {}
+                        const runtime = createAgentRuntime({
+                          engineDb,
+                          adminDb: config.db,
+                          defaultModel: config.runtime.defaultModel as any,
+                          apiKeys: config.runtime.apiKeys,
+                          gatewayEnabled: true,
+                          getEmailConfig,
+                          onTokenRefresh,
+                          agentMemoryManager: agentMemoryMgr,
+                        });
+                        await runtime.start();
+                        const runtimeApp = runtime.getApp();
+                        if (runtimeApp) mountRuntimeApp(runtimeApp);
+                        setRuntime(runtime);
+                        console.log('[runtime] Agent runtime started');
+                      } catch (runtimeErr: any) {
+                        console.warn(`[runtime] Failed to start: ${runtimeErr.message}`);
+                      }
+                    }
+                    console.log('[engine] Eagerly initialized');
+                  }
+                }
+              } catch (e: any) {
+                console.warn(`[engine] Eager init failed: ${e.message}`);
+              }
+            })();
 
             // Graceful shutdown
             const shutdown = () => {
