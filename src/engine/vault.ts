@@ -302,6 +302,16 @@ export class SecureVault {
   }
 
   /**
+   * Find a vault entry by name across all orgs. Returns first match.
+   */
+  findByName(name: string): VaultEntry | undefined {
+    for (const entry of this.entries.values()) {
+      if (entry.name === name) return entry;
+    }
+    return undefined;
+  }
+
+  /**
    * Re-encrypt a secret with a new plaintext value.
    */
   async updateSecret(id: string, plaintext: string, metadata?: Record<string, any>): Promise<VaultEntry | null> {

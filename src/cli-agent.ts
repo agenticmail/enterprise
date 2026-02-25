@@ -194,11 +194,24 @@ export async function runAgent(_args: string[]) {
     vault,
     getIntegrationKey: async (skillId: string, orgId?: string) => {
       try {
-        const entries = await vault.getSecretsByOrg(orgId || 'default', 'skill_credential');
-        const entry = entries.find(e => e.name === `skill:${skillId}:access_token`);
-        if (!entry) return null;
-        const { decrypted } = await vault.getSecret(entry.id) || {};
-        return decrypted || null;
+        const secretName = `skill:${skillId}:access_token`;
+        // Try specified org first, then all orgs as fallback
+        const orgsToTry = orgId ? [orgId, 'default'] : ['default'];
+        for (const oid of orgsToTry) {
+          const entries = await vault.getSecretsByOrg(oid, 'skill_credential');
+          const entry = entries.find(e => e.name === secretName);
+          if (entry) {
+            const { decrypted } = await vault.getSecret(entry.id) || {};
+            if (decrypted) return decrypted;
+          }
+        }
+        // Last resort: search by secret name across all orgs
+        const found = vault.findByName(secretName);
+        if (found) {
+          const { decrypted } = await vault.getSecret(found.id) || {};
+          return decrypted || null;
+        }
+        return null;
       } catch { return null; }
     },
     resumeOnStartup: false, // Disabled: zombie sessions exhaust Supabase pool on restart

@@ -380,7 +380,7 @@ export async function runAgentLoop(
         if (!result.success) {
           console.log(`[agent-loop] ❌ Tool ${toolCall.name} failed: ${result.error?.slice(0, 200)}`);
         } else {
-          console.log(`[agent-loop] ✅ Tool ${toolCall.name} succeeded (${content.length} chars)`);
+          console.log(`[agent-loop] ✅ Tool ${toolCall.name} succeeded (${content.length} chars): ${content.slice(0, 300)}`);
         }
 
         toolResults.push({

@@ -320,15 +320,51 @@ export function createGoogleMapsTools(config: GoogleMapsConfig): AnyAgentTool[] 
                 });
               } else {
                 const elStatus = el?.status || 'UNKNOWN';
-                const reason = elStatus === 'ZERO_RESULTS'
-                  ? 'No route found — locations may be separated by ocean or no road connection exists. Use flight distance estimates instead.'
-                  : elStatus === 'NOT_FOUND' ? 'Origin or destination not recognized.'
-                  : elStatus === 'MAX_ROUTE_LENGTH_EXCEEDED' ? 'Route too long for this travel mode.'
-                  : '';
-                results.push({ origin: origins[i], destination: destinations[j], status: elStatus, reason });
+                const entry: any = { origin: origins[i], destination: destinations[j], status: elStatus };
+                if (elStatus === 'ZERO_RESULTS') {
+                  entry.reason = 'No driving/transit route exists (likely separated by ocean). Straight-line distance provided below.';
+                } else if (elStatus === 'NOT_FOUND') {
+                  entry.reason = 'Origin or destination not recognized.';
+                } else if (elStatus === 'MAX_ROUTE_LENGTH_EXCEEDED') {
+                  entry.reason = 'Route too long for this travel mode.';
+                }
+                results.push(entry);
               }
             }
           }
+          // If all results are ZERO_RESULTS, auto-calculate straight-line distance via geocoding
+          const allZero = results.length > 0 && results.every((r: any) => r.status === 'ZERO_RESULTS');
+          if (allZero) {
+            try {
+              const origGeo = await mapsApi('/geocode/json', { address: params.origins.split('|')[0] });
+              const destGeo = await mapsApi('/geocode/json', { address: params.destinations.split('|')[0] });
+              const oLoc = origGeo.results?.[0]?.geometry?.location;
+              const dLoc = destGeo.results?.[0]?.geometry?.location;
+              if (oLoc && dLoc) {
+                const R = 3958.8; // Earth radius in miles
+                const dLat = (dLoc.lat - oLoc.lat) * Math.PI / 180;
+                const dLon = (dLoc.lng - oLoc.lng) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) ** 2 +
+                  Math.cos(oLoc.lat * Math.PI / 180) * Math.cos(dLoc.lat * Math.PI / 180) *
+                  Math.sin(dLon / 2) ** 2;
+                const miles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                const km = miles * 1.60934;
+                return jsonResult({
+                  mode: 'straight-line',
+                  note: 'No driving route exists. Calculated straight-line (great-circle) distance instead.',
+                  results: [{
+                    origin: results[0].origin,
+                    destination: results[0].destination,
+                    distance: `${Math.round(miles).toLocaleString()} miles (${Math.round(km).toLocaleString()} km)`,
+                    distanceMiles: Math.round(miles),
+                    distanceKm: Math.round(km),
+                    type: 'straight-line / flight distance',
+                  }],
+                });
+              }
+            } catch { /* fall through to original ZERO_RESULTS response */ }
+          }
+
           return jsonResult({ mode: params.mode || 'driving', results });
         } catch (e: any) { return errorResult(e.message); }
       },

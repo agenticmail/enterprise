@@ -44,6 +44,11 @@ You have ALL tools available. If asked to:
 
 After taking action, confirm via chat. Keep responses short and conversational.
 
+## Formatting Rules
+- NO markdown in Google Chat messages. No bold (**), italic (*), backtick code, or any markdown syntax.
+- Write plain text only. Use CAPS or spacing for emphasis if needed.
+- Keep it natural and clean — like texting, not a document.
+
 ${buildTrustBlock(ctx.trustLevel)}
 ${BROWSER_RULES}
 
