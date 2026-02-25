@@ -73,9 +73,12 @@ export class AmbientMemory {
   private chatContextLimit: number;
   private recallLimit: number;
 
-  /** Track which messages we've already indexed (in-memory, survives for session) */
-  private indexedChatMessages = new Set<string>();
-  private indexedEmails = new Set<string>();
+  /** Persistent cursor: last indexed chat message name per space */
+  private chatCursors = new Map<string, string>();
+  /** Persistent cursor: last indexed email ID */
+  private lastEmailCursor: string | null = null;
+  /** Whether we've loaded cursors from DB */
+  private cursorsLoaded = false;
 
   constructor(config: AmbientMemoryConfig) {
     this.agentId = config.agentId;
@@ -83,6 +86,55 @@ export class AmbientMemory {
     this.db = config.engineDb;
     this.chatContextLimit = config.chatContextLimit || 30;
     this.recallLimit = config.recallLimit || 8;
+  }
+
+  // ─── Persistent Cursor Management ───────────────────
+
+  /**
+   * Load dedup cursors from DB. Called lazily on first use.
+   * Stored in engine_settings as JSON: { chatCursors: { spaceId: lastMessageName }, lastEmailId: "..." }
+   */
+  private async loadCursors(): Promise<void> {
+    if (this.cursorsLoaded) return;
+    this.cursorsLoaded = true;
+    try {
+      const rows = await this.db.query<any>(
+        `SELECT value FROM engine_settings WHERE key = $1`,
+        [`ambient_cursors:${this.agentId}`]
+      );
+      if (rows?.[0]?.value) {
+        const data = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
+        if (data.chatCursors) {
+          for (const [k, v] of Object.entries(data.chatCursors)) {
+            this.chatCursors.set(k, v as string);
+          }
+        }
+        if (data.lastEmailId) this.lastEmailCursor = data.lastEmailId;
+      }
+    } catch {
+      // engine_settings table may not exist yet — that's fine
+    }
+  }
+
+  /**
+   * Persist cursors to DB so they survive restarts.
+   */
+  private async saveCursors(): Promise<void> {
+    const data = {
+      chatCursors: Object.fromEntries(this.chatCursors),
+      lastEmailId: this.lastEmailCursor,
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      await this.db.execute(
+        `INSERT INTO engine_settings (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+        [`ambient_cursors:${this.agentId}`, JSON.stringify(data)]
+      );
+    } catch {
+      // Non-fatal — cursors are an optimization, not critical
+    }
   }
 
   // ─── Chat Space Context ─────────────────────────────
@@ -152,14 +204,22 @@ export class AmbientMemory {
 
   /**
    * Index chat messages into the agent's BM25F memory for future recall.
-   * Only indexes messages we haven't seen before.
+   * Uses persistent cursor to skip already-indexed messages across restarts.
    */
   private async indexChatMessages(messages: ChatMessageRecord[]): Promise<void> {
+    await this.loadCursors();
+
+    const spaceId = messages[0]?.spaceId;
+    if (!spaceId) return;
+    const cursor = this.chatCursors.get(spaceId);
+    let newCount = 0;
+    let latestName = cursor;
+
     for (const msg of messages) {
-      if (this.indexedChatMessages.has(msg.messageName)) continue;
+      // Skip messages at or before the cursor (messages are in chronological order)
+      if (cursor && msg.messageName <= cursor) continue;
       if (!msg.text.trim() || msg.text.length < 10) continue;
 
-      // Store as ambient memory — lower importance, decays naturally
       await this.memory.storeMemory(this.agentId, {
         content: `[Chat: ${msg.spaceName}] ${msg.senderName}: ${msg.text.slice(0, 500)}`,
         category: 'context',
@@ -168,7 +228,17 @@ export class AmbientMemory {
         title: `Chat message from ${msg.senderName} in ${msg.spaceName}`,
       });
 
-      this.indexedChatMessages.add(msg.messageName);
+      if (!latestName || msg.messageName > latestName) latestName = msg.messageName;
+      newCount++;
+    }
+
+    // Update cursor if we indexed new messages
+    if (latestName && latestName !== cursor) {
+      this.chatCursors.set(spaceId, latestName);
+      await this.saveCursors();
+      if (newCount > 0) {
+        console.log(`[ambient-memory] Indexed ${newCount} new chat messages in ${messages[0]?.spaceName}, cursor → ${latestName}`);
+      }
     }
   }
 
@@ -177,11 +247,17 @@ export class AmbientMemory {
   /**
    * Index recent emails into ambient memory.
    * Stores lightweight summaries (subject + sender + snippet) for recall.
+   * Uses persistent cursor to skip already-indexed emails across restarts.
    */
   async indexEmails(emails: EmailRecord[]): Promise<number> {
+    await this.loadCursors();
+
     let indexed = 0;
+    let latestId = this.lastEmailCursor;
+
     for (const email of emails) {
-      if (this.indexedEmails.has(email.messageId)) continue;
+      // Skip if at or before cursor
+      if (this.lastEmailCursor && email.messageId <= this.lastEmailCursor) continue;
       if (!email.subject && !email.snippet) continue;
 
       const content = [
@@ -199,9 +275,19 @@ export class AmbientMemory {
         title: `Email from ${email.fromName || email.from}: ${email.subject}`,
       });
 
-      this.indexedEmails.add(email.messageId);
+      if (!latestId || email.messageId > latestId) latestId = email.messageId;
       indexed++;
     }
+
+    // Update cursor
+    if (latestId && latestId !== this.lastEmailCursor) {
+      this.lastEmailCursor = latestId;
+      await this.saveCursors();
+      if (indexed > 0) {
+        console.log(`[ambient-memory] Indexed ${indexed} new emails, cursor → ${latestId}`);
+      }
+    }
+
     return indexed;
   }
 
