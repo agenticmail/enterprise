@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Chat, channels, meetings, calls, and screen sharing. Manage teams and channels programmatically.',
   category: 'collaboration',
   risk: 'medium',
-  icon: '💜',
+  icon: Emoji.heart,
   source: 'builtin',
 };
 

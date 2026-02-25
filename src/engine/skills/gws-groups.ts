@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Mailing lists, access groups, and group management.',
   category: 'communication',
   risk: 'low',
-  icon: '👥',
+  icon: Emoji.people,
   source: 'builtin',
 };
 

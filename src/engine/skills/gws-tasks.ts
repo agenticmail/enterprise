@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Task lists, create/complete/update tasks, due dates.',
   category: 'productivity',
   risk: 'medium',
-  icon: '✅',
+  icon: Emoji.check,
   source: 'builtin',
 };
 

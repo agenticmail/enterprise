@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Execute code snippets in isolated sandboxes for data transformation, calculations, and automation scripts. Supports JavaScript/TypeScript, Python, and shell commands with memory and time limits.',
   category: 'automation',
   risk: 'high',
-  icon: '⚡',
+  icon: Emoji.bolt,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Compare documents, datasets, configurations, and code to find differences. Supports text diff, JSON/YAML structural diff, spreadsheet comparison, and config audit. Generates human-readable change reports.',
   category: 'data',
   risk: 'low',
-  icon: '🔀',
+  icon: Emoji.shuffle,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

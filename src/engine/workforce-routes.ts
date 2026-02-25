@@ -199,6 +199,7 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
 
       return c.json({
         agentId,
+        clockedIn: !isOffDuty,
         clockStatus: latestClock,
         schedule: schedule || null,
         queuedTasks,

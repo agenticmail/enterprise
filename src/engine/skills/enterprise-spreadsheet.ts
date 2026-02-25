@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Read, write, transform, and analyze Excel and CSV files. Supports filtering, sorting, aggregations, pivot operations, formula computation, merging datasets, and format conversion. Handles large files with streaming.',
   category: 'data',
   risk: 'medium',
-  icon: '📊',
+  icon: Emoji.barChart,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Execute read-only SQL queries against approved databases. Supports PostgreSQL, MySQL, SQLite, and MSSQL. Includes schema introspection, parameterized queries, result formatting, and query plan analysis. All queries run in read-only transactions with timeout limits.',
   category: 'database',
   risk: 'medium',
-  icon: '🗄️',
+  icon: Emoji.database,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

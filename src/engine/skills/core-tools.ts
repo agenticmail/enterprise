@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'File operations, shell, search, and browser automation.',
   category: 'development',
   risk: 'high',
-  icon: '🔧',
+  icon: Emoji.wrench,
   source: 'builtin',
 };
 

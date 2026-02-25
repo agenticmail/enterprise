@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Places search, directions, distances, geocoding, timezone, elevation, and static maps.',
   category: 'utility',
   risk: 'low',
-  icon: '🗺️',
+  icon: Emoji.map,
   source: 'builtin',
 };
 

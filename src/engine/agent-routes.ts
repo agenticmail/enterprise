@@ -3,6 +3,7 @@
  * Mounted at / on the engine sub-app (routes define /agents/*, /usage/*, /budget/*, /bridge/*).
  */
 
+import { Emoji } from './emoji.js';
 import { Hono } from 'hono';
 import type { AgentLifecycleManager } from './lifecycle.js';
 import type { PermissionEngine } from './skills.js';
@@ -907,12 +908,12 @@ export function createAgentRoutes(opts: {
   const TOOL_CATALOG = [
     {
       id: 'core', name: 'Core Tools', description: 'File operations, shell, search, and browser',
-      icon: '🔧', alwaysOn: true,
+      icon: Emoji.wrench, alwaysOn: true,
       tools: ['read', 'write', 'edit', 'bash', 'glob', 'grep', 'web_fetch', 'web_search', 'browser', 'memory'],
     },
     {
       id: 'agenticmail', name: 'AgenticMail', description: 'Email send/receive, inbox management, inter-agent messaging',
-      icon: '📧',
+      icon: Emoji.envelope,
       tools: ['agenticmail_inbox', 'agenticmail_read', 'agenticmail_send', 'agenticmail_reply', 'agenticmail_forward',
               'agenticmail_search', 'agenticmail_labels', 'agenticmail_folders', 'agenticmail_drafts',
               'agenticmail_move', 'agenticmail_delete', 'agenticmail_batch_read', 'agenticmail_batch_delete',
@@ -921,113 +922,113 @@ export function createAgentRoutes(opts: {
     },
     {
       id: 'gmail', name: 'Gmail', description: 'Native Gmail API — search, send, reply, labels, drafts, threads, attachments',
-      icon: '✉️', requiresOAuth: 'google',
+      icon: Emoji.email, requiresOAuth: 'google',
       tools: ['gmail_search', 'gmail_read', 'gmail_thread', 'gmail_send', 'gmail_reply', 'gmail_forward',
               'gmail_modify', 'gmail_trash', 'gmail_labels', 'gmail_drafts', 'gmail_attachment', 'gmail_profile', 'gmail_vacation'],
     },
     {
       id: 'google_calendar', name: 'Google Calendar', description: 'Event management, scheduling, free/busy lookup',
-      icon: '📅', requiresOAuth: 'google',
+      icon: Emoji.calendar, requiresOAuth: 'google',
       tools: ['google_calendar_list', 'google_calendar_events', 'google_calendar_create_event',
               'google_calendar_update_event', 'google_calendar_delete_event', 'google_calendar_freebusy'],
     },
     {
       id: 'google_drive', name: 'Google Drive', description: 'File management, search, sharing, content export',
-      icon: '📁', requiresOAuth: 'google',
+      icon: Emoji.folder, requiresOAuth: 'google',
       tools: ['google_drive_list', 'google_drive_get', 'google_drive_create', 'google_drive_delete',
               'google_drive_share', 'google_drive_move'],
     },
     {
       id: 'google_sheets', name: 'Google Sheets', description: 'Spreadsheet read/write, cell operations, formulas',
-      icon: '📊', requiresOAuth: 'google',
+      icon: Emoji.barChart, requiresOAuth: 'google',
       tools: ['google_sheets_get', 'google_sheets_read', 'google_sheets_write', 'google_sheets_append',
               'google_sheets_clear', 'google_sheets_create', 'google_sheets_add_sheet'],
     },
     {
       id: 'google_docs', name: 'Google Docs', description: 'Document read/write, text insert, find & replace',
-      icon: '📝', requiresOAuth: 'google',
+      icon: Emoji.note, requiresOAuth: 'google',
       tools: ['google_docs_read', 'google_docs_create', 'google_docs_write'],
     },
     {
       id: 'google_contacts', name: 'Google Contacts', description: 'Contact search, directory lookup, CRUD',
-      icon: '👥', requiresOAuth: 'google',
+      icon: Emoji.people, requiresOAuth: 'google',
       tools: ['google_contacts_list', 'google_contacts_search', 'google_contacts_search_directory',
               'google_contacts_create', 'google_contacts_update'],
     },
     {
       id: 'google_tasks', name: 'Google Tasks', description: 'Task lists, create/complete/update tasks, due dates',
-      icon: '✅', requiresOAuth: 'google',
+      icon: Emoji.check, requiresOAuth: 'google',
       tools: ['google_tasks_list_tasklists', 'google_tasks_list', 'google_tasks_create', 'google_tasks_update',
               'google_tasks_complete', 'google_tasks_delete'],
     },
     {
       id: 'google_chat', name: 'Google Chat', description: 'Send messages, manage spaces, read conversations',
-      icon: '💬', requiresOAuth: 'google',
+      icon: Emoji.chat, requiresOAuth: 'google',
       tools: ['google_chat_list_spaces', 'google_chat_list_members', 'google_chat_list_messages',
               'google_chat_send_message', 'google_chat_create_space'],
     },
     {
       id: 'google_slides', name: 'Google Slides', description: 'Create and edit presentations, add slides, text, images',
-      icon: '🎨', requiresOAuth: 'google',
+      icon: Emoji.art, requiresOAuth: 'google',
       tools: ['google_slides_get', 'google_slides_create', 'google_slides_add_slide',
               'google_slides_add_text', 'google_slides_add_image'],
     },
     {
       id: 'google_forms', name: 'Google Forms', description: 'Create forms, add questions, read responses',
-      icon: '📋', requiresOAuth: 'google',
+      icon: Emoji.clipboard, requiresOAuth: 'google',
       tools: ['google_forms_get', 'google_forms_create', 'google_forms_add_question',
               'google_forms_responses', 'google_forms_response_summary'],
     },
     {
       id: 'meetings', name: 'Meetings', description: 'Join Google Meet calls. Take notes, chat, share screen, send summaries.',
-      icon: '🎥', requiresOAuth: 'google',
+      icon: Emoji.video, requiresOAuth: 'google',
       tools: ['meetings_upcoming', 'meeting_join', 'meeting_action', 'meetings_scan_inbox', 'meeting_rsvp'],
     },
     {
       id: 'google_maps', name: 'Google Maps', description: 'Places search, directions, distance calculation, geocoding, autocomplete',
-      icon: '🗺️', requiresIntegration: 'google-maps',
+      icon: Emoji.map, requiresIntegration: 'google-maps',
       tools: ['google_maps_search', 'google_maps_nearby', 'google_maps_place_details', 'google_maps_directions',
               'google_maps_distance', 'google_maps_geocode', 'google_maps_autocomplete', 'google_maps_static',
               'google_maps_timezone', 'google_maps_elevation'],
     },
     {
       id: 'enterprise_database', name: 'Database', description: 'SQL queries, schema inspection, data sampling',
-      icon: '🗄️',
+      icon: Emoji.database,
       tools: ['enterprise_sql_query', 'enterprise_sql_schema', 'enterprise_sql_explain',
               'enterprise_sql_tables', 'enterprise_sql_sample', 'enterprise_sql_write'],
     },
     {
       id: 'enterprise_spreadsheet', name: 'Spreadsheet', description: 'CSV/Excel read, write, filter, aggregate, transform, pivot',
-      icon: '📈',
+      icon: Emoji.chartUp,
       tools: ['enterprise_csv_read', 'enterprise_csv_write', 'enterprise_csv_filter', 'enterprise_csv_aggregate',
               'enterprise_csv_transform', 'enterprise_csv_merge', 'enterprise_csv_pivot', 'enterprise_csv_convert'],
     },
     {
       id: 'enterprise_documents', name: 'Documents', description: 'PDF/DOCX generation, OCR, format conversion',
-      icon: '📄',
+      icon: Emoji.document,
       tools: ['enterprise_pdf_generate', 'enterprise_docx_generate', 'enterprise_ocr', 'enterprise_invoice_parse',
               'enterprise_doc_convert', 'enterprise_doc_merge', 'enterprise_doc_extract', 'enterprise_doc_sign'],
     },
     {
       id: 'enterprise_http', name: 'HTTP Client', description: 'HTTP requests, GraphQL, batch calls, downloads',
-      icon: '🌐',
+      icon: Emoji.globe,
       tools: ['enterprise_http_request', 'enterprise_http_graphql', 'enterprise_http_batch', 'enterprise_http_download'],
     },
     {
       id: 'enterprise_security', name: 'Security Scanning', description: 'Secret scanning, PII detection, dependency audit',
-      icon: '🔒',
+      icon: Emoji.lock,
       tools: ['enterprise_secret_scan', 'enterprise_pii_scan', 'enterprise_pii_redact',
               'enterprise_dep_audit', 'enterprise_compliance_check', 'enterprise_hash'],
     },
     {
       id: 'enterprise_code', name: 'Code Sandbox', description: 'Run JavaScript, Python, shell scripts, JSON transforms',
-      icon: '💻',
+      icon: Emoji.computer,
       tools: ['enterprise_run_js', 'enterprise_run_python', 'enterprise_run_shell',
               'enterprise_json_transform', 'enterprise_regex'],
     },
     {
       id: 'enterprise_diff', name: 'Diff', description: 'Text, JSON, and spreadsheet comparison',
-      icon: '↔️',
+      icon: Emoji.biDirectional,
       tools: ['enterprise_text_diff', 'enterprise_json_diff', 'enterprise_spreadsheet_diff', 'enterprise_diff_summary'],
     },
   ];

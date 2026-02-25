@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Persistent memory for storing and recalling information across sessions.',
   category: 'utility',
   risk: 'low',
-  icon: '🧠',
+  icon: Emoji.brain,
   source: 'builtin',
 };
 

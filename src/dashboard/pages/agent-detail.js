@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 import { TimezoneSelect } from '../components/timezones.js';
 import { DetailModal } from '../components/modal.js';
 import { CULTURES, LANGUAGES, DEFAULT_TRAITS, computeAge, PersonaForm } from '../components/persona-fields.js';
@@ -2299,7 +2300,7 @@ function MemorySection(props) {
                 // Date
                 h('span', { style: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, fmtDate(m.createdAt)),
                 // Expand indicator
-                h('span', { style: { fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' } }, isExpanded ? '▲' : '▼')
+                h('span', { style: { display: 'inline-flex', color: 'var(--text-muted)' } }, isExpanded ? E.triangleUp(12) : E.triangleDown(12))
               ),
               // Expanded detail
               isExpanded && h('div', { style: { padding: '10px 16px 12px', background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)', fontSize: 12, lineHeight: 1.6 } },
@@ -3039,7 +3040,7 @@ function GuardrailsSection(props) {
 
   var actionColor = function(a) { return a === 'kill' ? 'var(--danger)' : a === 'pause' ? 'var(--warning)' : a === 'notify' ? 'var(--info)' : 'var(--text-muted)'; };
   var sevColor = function(s) { return s === 'critical' ? '#ef4444' : s === 'high' ? '#f97316' : s === 'medium' ? '#eab308' : '#64748b'; };
-  var catIcon = function(c) { return c === 'anomaly' ? '⚡' : c === 'security' ? '🛡' : c === 'communication' ? '💬' : c === 'memory' ? '🧠' : c === 'onboarding' ? '📋' : c === 'policy_compliance' ? '📜' : '⚙'; };
+  var catIcon = function(c) { return c === 'anomaly' ? E.bolt(16) : c === 'security' ? E.shield(16) : c === 'communication' ? E.chat(16) : c === 'memory' ? E.brain(16) : c === 'onboarding' ? E.clipboard(16) : c === 'policy_compliance' ? E.scroll(16) : E.gear(16); };
 
   if (loading) return h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading guardrails...');
 
@@ -3197,8 +3198,8 @@ function GuardrailsSection(props) {
           onboardingProgress.map(function(p, i) {
             return h('div', { key: i, style: { display: 'flex', gap: 10, padding: '8px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, alignItems: 'center' } },
               p.acknowledged
-                ? h('span', { style: { color: 'var(--success)', fontSize: 14 } }, '✓')
-                : h('span', { style: { color: 'var(--text-muted)', fontSize: 14 } }, '○'),
+                ? h('span', { style: { display: 'inline-flex', alignItems: 'center' } }, E.checkCircle(16))
+                : h('span', { style: { display: 'inline-flex', width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--border)' } }),
               h('span', { style: { fontWeight: 500, flex: 1 } }, p.policyName || p.name || 'Policy ' + (i + 1)),
               p.acknowledgedAt && h('span', { style: { color: 'var(--text-muted)', fontSize: 11 } }, new Date(p.acknowledgedAt).toLocaleDateString())
             );
@@ -4633,6 +4634,73 @@ var _tsGrid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 };
 // TOOLS SECTION — Toggle tool categories per agent
 // ════════════════════════════════════════════════════════════
 
+// Map server-side emoji strings to custom SVG icons
+var _toolIconMap = {
+  '\u2709\uFE0F': 'email', '\u2709': 'email',              // ✉️
+  '\uD83D\uDCE7': 'email',                                  // 📧
+  '\uD83D\uDCAC': 'chat',                                   // 💬
+  '\uD83D\uDCCB': 'clipboard',                              // 📋
+  '\uD83D\uDD27': 'gear',                                   // 🔧
+  '\uD83D\uDCC5': 'calendar',                               // 📅
+  '\uD83D\uDCC4': 'scroll',                                 // 📄
+  '\uD83D\uDCDD': 'note',                                   // 📝
+  '\uD83D\uDCC1': 'folder',                                 // 📁
+  '\uD83D\uDD12': 'lock',                                   // 🔒
+  '\uD83C\uDF10': 'globe',                                  // 🌐
+  '\uD83D\uDCBB': 'computer',                               // 💻
+  '\uD83D\uDCC8': 'barChart',                               // 📈
+  '\uD83D\uDCCA': 'barChart',                               // 📊
+  '\uD83D\uDC65': 'chat',                                   // 👥
+  '\uD83C\uDFA5': 'video',                                  // 🎥
+  '\uD83C\uDFA8': 'sparkle',                                // 🎨
+  '\u2705': 'checkCircle',                                   // ✅
+  '\uD83D\uDDC4\uFE0F': 'database', '\uD83D\uDDC4': 'database', // 🗄️
+  '\uD83D\uDDFA\uFE0F': 'map', '\uD83D\uDDFA': 'map',     // 🗺️
+  '\u2194\uFE0F': 'biDirectional', '\u2194': 'biDirectional', // ↔️
+  '\u26A1': 'bolt', '\u26A1\uFE0F': 'bolt',                // ⚡
+  '\uD83D\uDD11': 'key',                                    // 🔑
+  '\uD83D\uDCEC': 'mailbox',                                // 📬
+  '\uD83D\uDCE6': 'package',                                // 📦
+  '\uD83E\uDD9E': 'lobster',                                // 🦞
+  '\uD83E\uDD16': 'robot',                                  // 🤖
+  '\uD83E\uDDE0': 'brain',                                  // 🧠
+  '\uD83D\uDD00': 'shuffle',                                // 🔀
+  '\uD83D\uDD17': 'link',                                   // 🔗
+  '\uD83D\uDEE1': 'shield', '\uD83D\uDEE1\uFE0F': 'shield', // 🛡
+  '\uD83D\uDCCC': 'pin',                                    // 📌
+  '\uD83C\uDFDB': 'vault', '\uD83C\uDFDB\uFE0F': 'vault',  // 🏛
+  '\uD83D\uDCD3': 'notebook',                               // 📓
+  '\uD83D\uDCFD': 'projector', '\uD83D\uDCFD\uFE0F': 'projector', // 📽
+  '\uD83D\uDCDA': 'books',                                  // 📚
+  '\uD83D\uDC9C': 'heart',                                  // 💜
+  '\uD83D\uDD8A': 'pen', '\uD83D\uDD8A\uFE0F': 'pen',     // 🖊
+  '\uD83D\uDD35': 'blueCircle',                             // 🔵
+  '\uD83D\uDD37': 'blueDiamond',                            // 🔷
+  '\u2601': 'cloud', '\u2601\uFE0F': 'cloud',              // ☁
+  '\u26C5': 'partlyCloudy',                                 // ⛅
+  '\uD83C\uDF24': 'sunCloud', '\uD83C\uDF24\uFE0F': 'sunCloud', // 🌤
+  '\uD83D\uDFE0': 'orangeCircle',                           // 🟠
+  '\uD83C\uDFD7': 'construction', '\uD83C\uDFD7\uFE0F': 'construction', // 🏗
+  '\uD83D\uDE80': 'rocket',                                 // 🚀
+  '\uD83D\uDEAB': 'blocked',                                // 🚫
+  '\u274C': 'crossCircle',                                   // ❌
+  '\u26A0': 'warning', '\u26A0\uFE0F': 'warning',          // ⚠
+  '\u2764': 'redHeart', '\u2764\uFE0F': 'redHeart',        // ❤
+  '\uD83D\uDC4D': 'thumbsUp',                               // 👍
+  '\u23F3': 'hourglass',                                     // ⏳
+  '\u23F0': 'timer',                                         // ⏰
+  '\uD83C\uDF05': 'sunrise',                                // 🌅
+  '\uD83C\uDFE2': 'building',                               // 🏢
+  '\u2699': 'settings', '\u2699\uFE0F': 'settings',        // ⚙
+  '\u25B2': 'triangleUp',                                    // ▲
+  '\u25BC': 'triangleDown',                                  // ▼
+};
+function _mapToolIcon(emoji) {
+  var name = _toolIconMap[emoji];
+  if (name && E[name]) return E[name](22);
+  return emoji; // fallback to raw string if unknown
+}
+
 function ToolsSection(props) {
   var agentId = props.agentId;
   var _d = useApp(); var toast = _d.toast;
@@ -4722,7 +4790,7 @@ function ToolsSection(props) {
 
     // Google Workspace notice
     !googleAvailable && googleCats.length > 0 && h('div', { style: { padding: '12px 16px', background: 'var(--warning-soft)', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12 } },
-      h('strong', null, '\u26A0\uFE0F Google Workspace tools require OAuth'), ' — ',
+      h('strong', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } }, E.warning(16), ' Google Workspace tools require OAuth'), ' — ',
       'Connect a Google account in the ', h('strong', null, 'Email'), ' tab to unlock Gmail, Calendar, Drive, Sheets, Docs, and Contacts tools.'
     ),
 
@@ -4753,8 +4821,8 @@ function ToolsSection(props) {
             style: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer' },
             onClick: function() { setExpanded(isExpanded ? null : cat.id); }
           },
-            // Icon
-            h('div', { style: { fontSize: 22, width: 36, textAlign: 'center', flexShrink: 0 } }, cat.icon),
+            // Icon (map server emoji strings to custom SVG icons)
+            h('div', { style: { fontSize: 22, width: 36, textAlign: 'center', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, _mapToolIcon(cat.icon)),
             // Info
             h('div', { style: { flex: 1, minWidth: 0 } },
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 } },
@@ -4782,7 +4850,7 @@ function ToolsSection(props) {
             ),
             cat.alwaysOn && h('div', { style: { width: 44, height: 24, flexShrink: 0 } }),
             // Expand arrow
-            h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 } }, isExpanded ? '\u25B2' : '\u25BC')
+            h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 } }, isExpanded ? E.triangleUp(12) : E.triangleDown(12))
           ),
 
           // Expanded tool list
@@ -4893,7 +4961,7 @@ function MeetingCapabilitiesSection(props) {
       borderRadius: 8, padding: '12px 16px', marginBottom: 16,
     } },
       h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 10 } },
-        h('span', { style: { fontSize: 18 } }, isObserverOnly ? '\uD83D\uDC41\uFE0F' : '\u26A0\uFE0F'),
+        h('span', { style: { display: 'inline-flex' } }, isObserverOnly ? E.eye(18) : E.warning(18)),
         h('div', null,
           h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 } },
             isObserverOnly
@@ -4978,7 +5046,7 @@ function MeetingCapabilitiesSection(props) {
                   style: { background: 'var(--danger)', color: '#fff', border: 'none', marginTop: 4 },
                 }, stopping ? 'Stopping...' : '\u23F9\uFE0F Stop Meeting Browser'),
                 isContainer && !canJoinMeetings && !isObserverOnly && h('div', { style: { fontSize: 11, color: 'var(--warning)', marginTop: 4 } },
-                  '\u26A0 Browser is headless-only on this container. It cannot join video calls (no display/audio).'
+                  h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } }, E.warning(14), ' Browser is headless-only on this container. It cannot join video calls (no display/audio).')
                 )
               )
             : h('div', null,
@@ -5163,7 +5231,7 @@ function BrowserConfigCard(props) {
           providers.find(function(p) { return p.id === cfg.provider; })?.name || cfg.provider
         )
       ),
-      h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, collapsed ? '\u25BC' : '\u25B2')
+      h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, collapsed ? E.triangleDown(12) : E.triangleUp(12))
     ),
     !collapsed && h('div', { style: { padding: 16 } },
 
@@ -5612,7 +5680,7 @@ function ToolRestrictionsCard(props) {
       onClick: function() { setCollapsed(!collapsed); }
     },
       h('span', null, '\uD83D\uDD12 Tool Restrictions'),
-      h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, collapsed ? '\u25BC' : '\u25B2')
+      h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, collapsed ? E.triangleDown(12) : E.triangleUp(12))
     ),
     !collapsed && h('div', { style: { padding: 16, display: 'grid', gap: 16 } },
       // Max file size for read/write
@@ -5952,9 +6020,9 @@ function EmailSection(props) {
         h('label', { style: labelStyle }, 'Connection Method'),
         h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 } },
           [
-            { id: 'imap', label: 'Email + Password', desc: 'IMAP/SMTP — works with any email provider', icon: '📧' },
-            { id: 'microsoft', label: 'Microsoft OAuth', desc: 'Azure AD / Entra ID — for M365 orgs', icon: '🏢' },
-            { id: 'google', label: 'Google OAuth', desc: 'Google Workspace — for GWS orgs', icon: '🔵' },
+            { id: 'imap', label: 'Email + Password', desc: 'IMAP/SMTP — works with any email provider', icon: E.email(24) },
+            { id: 'microsoft', label: 'Microsoft OAuth', desc: 'Azure AD / Entra ID — for M365 orgs', icon: E.building(24) },
+            { id: 'google', label: 'Google OAuth', desc: 'Google Workspace — for GWS orgs', icon: E.google(24) },
           ].map(function(m) {
             var selected = form.provider === m.id;
             return h('div', {

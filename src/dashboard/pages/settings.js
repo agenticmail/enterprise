@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, applyBrandColor, showConfirm, setOrgId, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 import { Modal } from '../components/modal.js';
 import { TagInput } from '../components/tag-input.js';
 import { HelpButton } from '../components/help-button.js';
@@ -1602,7 +1603,7 @@ function ProvidersSection(props) {
           !isLocal && !p.isCustom && p.requiresApiKey && h('div', { style: { marginTop: 8 } },
             isConfigured
               ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 } },
-                  h('span', { style: { color: 'var(--success, #16a34a)' } }, '✓ API key configured via environment'),
+                  h('span', { style: { color: 'var(--success, #16a34a)', display: 'inline-flex', alignItems: 'center', gap: 6 } }, E.checkCircle(16), ' API key configured via environment'),
                   h('button', { className: 'btn btn-sm btn-ghost', style: { padding: '2px 8px', fontSize: 11 }, onClick: function() {
                     props.setApiKeyInput('');
                     props.setApiKeyModal({ providerId: p.id, providerName: p.name, isUpdate: true });
@@ -1612,7 +1613,7 @@ function ProvidersSection(props) {
                   h('button', { className: 'btn btn-sm btn-primary', onClick: function() {
                     props.setApiKeyInput('');
                     props.setApiKeyModal({ providerId: p.id, providerName: p.name, isUpdate: false });
-                  }}, '🔑 Add API Key')
+                  }}, E.key(16), ' Add API Key')
                 )
           ),
           h('div', { style: { display: 'flex', gap: 6, marginTop: 8 } },

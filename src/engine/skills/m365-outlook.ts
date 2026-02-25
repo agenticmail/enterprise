@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Email, calendar, contacts, and scheduling via Microsoft Outlook. Send/receive mail, manage events, book rooms.',
   category: 'communication',
   risk: 'medium',
-  icon: '📬',
+  icon: Emoji.mailbox,
   source: 'builtin',
 };
 

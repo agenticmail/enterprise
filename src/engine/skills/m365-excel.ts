@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Spreadsheets, formulas, data analysis, charts, pivot tables, and workbook automation.',
   category: 'analytics',
   risk: 'low',
-  icon: '📊',
+  icon: Emoji.barChart,
   source: 'builtin',
 };
 

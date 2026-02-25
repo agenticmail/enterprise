@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'AI-powered assistant integration for M365 apps — summaries, drafting, analysis.',
   category: 'productivity',
   risk: 'medium',
-  icon: '🤖',
+  icon: Emoji.robot,
   source: 'builtin',
 };
 

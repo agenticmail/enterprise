@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Scan text, code, and documents for security issues: exposed credentials, PII (personally identifiable information), malicious patterns, and dependency vulnerabilities. Supports GDPR, CCPA, HIPAA, and PCI-DSS compliance checks.',
   category: 'security',
   risk: 'low',
-  icon: '🛡️',
+  icon: Emoji.shield,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

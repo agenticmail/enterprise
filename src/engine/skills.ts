@@ -99,6 +99,7 @@ export type SideEffect =
   | 'configures-email';
 
 // ─── Individual Skill File Imports ──────────────────────
+import { Emoji } from './emoji.js';
 import { M365_SKILL_DEFS, GWS_SKILL_DEFS, ENTERPRISE_SKILL_DEFS, AGENTICMAIL_SKILL_DEFS, SYSTEM_SKILL_DEFS } from './skills/index.js';
 
 // ─── Agent Permission Profile ───────────────────────────
@@ -172,7 +173,7 @@ export const SKILL_SUITES: SkillSuite[] = [
     id: 'microsoft-365',
     name: 'Microsoft 365',
     description: 'Complete Microsoft 365 suite — Outlook, Teams, SharePoint, OneDrive, Word, Excel, PowerPoint, OneNote, Planner, Power BI, Power Automate, Forms, To Do, Bookings, Whiteboard, Admin Center, Copilot.',
-    icon: '🏢',
+    icon: Emoji.building,
     skills: [
       'm365-outlook', 'm365-teams', 'm365-sharepoint', 'm365-onedrive',
       'm365-word', 'm365-excel', 'm365-powerpoint', 'm365-onenote',
@@ -184,7 +185,7 @@ export const SKILL_SUITES: SkillSuite[] = [
     id: 'google-workspace',
     name: 'Google Workspace',
     description: 'Complete Google Workspace suite — Gmail, Calendar, Drive, Docs, Sheets, Slides, Meet, Chat, Forms, Sites, Keep, Admin Console, Vault, Groups.',
-    icon: '🔵',
+    icon: Emoji.blueCircle,
     skills: [
       'gws-gmail', 'gws-calendar', 'gws-drive', 'gws-docs', 'gws-sheets',
       'gws-slides', 'gws-meet', 'gws-chat', 'gws-forms', 'gws-sites',
@@ -195,56 +196,56 @@ export const SKILL_SUITES: SkillSuite[] = [
     id: 'atlassian',
     name: 'Atlassian Suite',
     description: 'Jira, Confluence, Bitbucket, Trello, Statuspage, and Opsgenie.',
-    icon: '🔷',
+    icon: Emoji.blueDiamond,
     skills: ['jira', 'confluence', 'bitbucket', 'trello', 'statuspage', 'opsgenie'],
   },
   {
     id: 'aws',
     name: 'Amazon Web Services',
     description: 'AWS cloud infrastructure — S3, EC2, Lambda, RDS, CloudWatch, IAM, SES, SNS, SQS, DynamoDB, CloudFormation.',
-    icon: '☁️',
+    icon: Emoji.cloud,
     skills: ['aws-s3', 'aws-ec2', 'aws-lambda', 'aws-rds', 'aws-cloudwatch', 'aws-iam', 'aws-ses', 'aws-sns', 'aws-sqs', 'aws-dynamodb', 'aws-cloudformation'],
   },
   {
     id: 'azure',
     name: 'Microsoft Azure',
     description: 'Azure cloud infrastructure — VMs, App Service, Functions, Storage, SQL, CosmosDB, DevOps, Active Directory.',
-    icon: '⛅',
+    icon: Emoji.partlyCloudy,
     skills: ['azure-vms', 'azure-app-service', 'azure-functions', 'azure-storage', 'azure-sql', 'azure-cosmosdb', 'azure-devops', 'azure-ad'],
   },
   {
     id: 'gcp',
     name: 'Google Cloud Platform',
     description: 'GCP cloud infrastructure — Compute Engine, Cloud Functions, Cloud Storage, BigQuery, Cloud Run, Pub/Sub, Firestore.',
-    icon: '🌤️',
+    icon: Emoji.sunCloud,
     skills: ['gcp-compute', 'gcp-functions', 'gcp-storage', 'gcp-bigquery', 'gcp-run', 'gcp-pubsub', 'gcp-firestore'],
   },
   {
     id: 'salesforce-suite',
     name: 'Salesforce Suite',
     description: 'Salesforce CRM, Service Cloud, Marketing Cloud, and Commerce Cloud.',
-    icon: '☁',
+    icon: Emoji.cloud,
     skills: ['salesforce', 'salesforce-service', 'salesforce-marketing', 'salesforce-commerce'],
   },
   {
     id: 'hubspot-suite',
     name: 'HubSpot Suite',
     description: 'HubSpot CRM, Marketing Hub, Sales Hub, Service Hub, and CMS.',
-    icon: '🟠',
+    icon: Emoji.orangeCircle,
     skills: ['hubspot-crm', 'hubspot-marketing', 'hubspot-sales', 'hubspot-service'],
   },
   {
     id: 'adobe-creative',
     name: 'Adobe Creative Cloud',
     description: 'Adobe Photoshop, Illustrator, Premiere Pro, After Effects, InDesign, and XD.',
-    icon: '🎨',
+    icon: Emoji.art,
     skills: ['adobe-photoshop', 'adobe-illustrator', 'adobe-premiere', 'adobe-after-effects', 'adobe-indesign', 'adobe-xd'],
   },
   {
     id: 'enterprise-utility',
     name: 'Enterprise Utility Tools',
     description: 'Built-in enterprise productivity tools — database queries, spreadsheets, documents, calendar, knowledge search, web research, translation, logs, workflow, notifications, finance, HTTP, security scanning, code sandbox, diff, and vision.',
-    icon: '🏗️',
+    icon: Emoji.construction,
     skills: [
       'enterprise-database', 'enterprise-spreadsheet', 'enterprise-documents', 'enterprise-http',
       'enterprise-security-scan', 'enterprise-code-sandbox', 'enterprise-diff',

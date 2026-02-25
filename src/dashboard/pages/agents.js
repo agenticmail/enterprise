@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, DEPLOY_PHASES, DEPLOY_PHASE_LABELS, showConfirm, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 import { CULTURES, LANGUAGES, PersonaForm } from '../components/persona-fields.js';
 
 // ════════════════════════════════════════════════════════════
@@ -516,7 +517,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
       h('div', { className: 'modal', style: { maxWidth: 600 } },
         h('div', { className: 'modal-header' },
           h('div', null,
-            h('h2', null, '⚡ Setup Required'),
+            h('h2', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, E.bolt(22), ' Setup Required'),
             h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0', fontWeight: 400 } }, 'Complete these steps before creating your first agent')
           ),
           h('button', { className: 'btn btn-ghost btn-icon', onClick: onClose }, I.x())

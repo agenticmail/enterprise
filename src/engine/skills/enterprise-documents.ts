@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Generate, parse, and convert documents. Create PDFs and Word docs from templates, extract text via OCR from images and scanned PDFs, parse invoices and receipts, and convert between formats (PDF, DOCX, HTML, Markdown).',
   category: 'productivity',
   risk: 'medium',
-  icon: '📄',
+  icon: Emoji.document,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

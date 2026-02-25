@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Document libraries, sites, lists, pages, and content management. Full SharePoint Online API access.',
   category: 'storage',
   risk: 'medium',
-  icon: '📚',
+  icon: Emoji.books,
   source: 'builtin',
 };
 

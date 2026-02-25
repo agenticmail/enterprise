@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Make authenticated HTTP requests to any internal or external API. Supports Bearer tokens, API keys, OAuth, mutual TLS, and custom authentication. Includes request/response logging, retry logic, and rate limiting.',
   category: 'automation',
   risk: 'high',
-  icon: '🔗',
+  icon: Emoji.link,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

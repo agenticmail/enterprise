@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 import type { SkillDefinition, ToolDefinition } from '../skills.js';
 
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
@@ -6,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Cloud file storage, sharing, syncing, and collaboration. Manage files and folders in OneDrive for Business.',
   category: 'storage',
   risk: 'medium',
-  icon: '☁️',
+  icon: Emoji.cloud,
   source: 'builtin',
 };
 

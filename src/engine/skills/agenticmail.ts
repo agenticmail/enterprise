@@ -1,3 +1,4 @@
+import { Emoji } from '../emoji.js';
 /**
  * AgenticMail — Core Email & Agent Communication Platform
  *
@@ -13,7 +14,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'AI-native email platform — send/receive email, inter-agent messaging, storage, SMS, task management, and multi-agent coordination.',
   category: 'communication',
   risk: 'medium',
-  icon: '📬',
+  icon: Emoji.mailbox,
   source: 'builtin',
 };
 
