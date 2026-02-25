@@ -184,6 +184,10 @@ export class AgentRuntime {
           .filter(Boolean);
         if (derived.length) base.enabledGoogleServices = derived;
       }
+      // Pass voice config for meeting TTS
+      if (agentConfig?.voiceConfig) {
+        base.voiceConfig = agentConfig.voiceConfig;
+      }
     }
     // Pass vault for MCP skill bridge (Slack, GitHub, Jira, etc.)
     if (this.config.vault) {

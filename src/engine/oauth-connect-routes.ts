@@ -49,6 +49,8 @@ const SKILL_PROVIDER_MAP: Record<string, string | null> = {
   'confluence-wiki': 'atlassian',
   'airtable-databases': null,           // uses API key / PAT
   'todoist-tasks': null,                // uses API key
+  'elevenlabs': null,                   // uses API key
+  'google-maps': null,                  // uses API key
 };
 
 // ─── Helper: find vault entry by name ───────────────────

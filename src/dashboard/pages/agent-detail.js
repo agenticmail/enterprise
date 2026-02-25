@@ -483,6 +483,8 @@ function PersonalDetailsSection(props) {
       traits: identity.traits && typeof identity.traits === 'object' && !Array.isArray(identity.traits)
         ? Object.assign({}, DEFAULT_TRAITS, identity.traits)
         : Object.assign({}, DEFAULT_TRAITS),
+      voiceId: config.voiceConfig?.voiceId || '',
+      voiceName: config.voiceConfig?.voiceName || '',
     });
     setEditing(true);
   };
@@ -515,6 +517,10 @@ function PersonalDetailsSection(props) {
         name: form.name,
         email: form.email,
       }),
+      voiceConfig: {
+        voiceId: form.voiceId || '',
+        voiceName: form.voiceName || '',
+      },
     };
 
     // Use hot-update if running, else regular config update
@@ -639,6 +645,20 @@ function PersonalDetailsSection(props) {
               })
             )
           : h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'No traits configured')
+      ),
+
+      // Voice Configuration (view mode)
+      h('div', { className: 'card', style: { padding: 20, marginTop: 20 } },
+        h('h4', { style: { margin: '0 0 16px', fontSize: 14, fontWeight: 600 } }, 'Voice'),
+        config.voiceConfig?.voiceName || config.voiceConfig?.voiceId
+          ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+              h('div', { style: { width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18 } }, E.microphone ? E.microphone(20) : '\u{1F3A4}'),
+              h('div', null,
+                h('div', { style: { fontSize: 14, fontWeight: 600 } }, config.voiceConfig.voiceName || 'Custom Voice'),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' } }, config.voiceConfig.voiceId || '')
+              )
+            )
+          : h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'No voice configured \u2014 agent uses text only in meetings')
       )
     );
   }
@@ -695,10 +715,128 @@ function PersonalDetailsSection(props) {
       h(PersonaForm, { form: form, set: set, toast: toast })
     ),
 
+    // Voice Configuration
+    h('div', { className: 'card', style: { padding: 20, marginBottom: 20 } },
+      h('h4', { style: { margin: '0 0 16px', fontSize: 14, fontWeight: 600 } }, 'Voice'),
+      h(VoiceSelector, { voiceId: form.voiceId || '', voiceName: form.voiceName || '', onChange: function(id, name) { set('voiceId', id); set('voiceName', name); } })
+    ),
+
     // Bottom save bar
     h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
       h('button', { className: 'btn btn-primary', disabled: saving, onClick: saveDetails }, saving ? 'Saving...' : 'Save All Changes'),
       h('button', { className: 'btn btn-ghost', onClick: function() { setEditing(false); } }, 'Cancel')
+    )
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// VOICE SELECTOR
+// ════════════════════════════════════════════════════════════
+
+var BUILTIN_VOICES = [
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', gender: 'Female', accent: 'American', style: 'Soft, warm' },
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', gender: 'Female', accent: 'American', style: 'Calm, professional' },
+  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', gender: 'Female', accent: 'British', style: 'Sophisticated' },
+  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', gender: 'Female', accent: 'British', style: 'Warm, engaging' },
+  { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Emily', gender: 'Female', accent: 'American', style: 'Calm, gentle' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', gender: 'Male', accent: 'American', style: 'Deep, narrative' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', gender: 'Male', accent: 'American', style: 'Well-rounded, conversational' },
+  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold', gender: 'Male', accent: 'American', style: 'Crisp, commanding' },
+  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam', gender: 'Male', accent: 'American', style: 'Raspy, authentic' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', gender: 'Male', accent: 'American', style: 'Deep, warm' },
+  { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', gender: 'Male', accent: 'British', style: 'Authoritative, deep' },
+  { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum', gender: 'Male', accent: 'British', style: 'Intense, transatlantic' },
+];
+
+function VoiceSelector(props) {
+  var voiceId = props.voiceId;
+  var voiceName = props.voiceName;
+  var onChange = props.onChange;
+
+  var _customVoices = useState([]);
+  var customVoices = _customVoices[0]; var setCustomVoices = _customVoices[1];
+  var _loadingVoices = useState(false);
+  var loadingVoices = _loadingVoices[0]; var setLoadingVoices = _loadingVoices[1];
+  var _hasApiKey = useState(false);
+  var hasApiKey = _hasApiKey[0]; var setHasApiKey = _hasApiKey[1];
+  var _previewPlaying = useState(null);
+  var previewPlaying = _previewPlaying[0]; var setPreviewPlaying = _previewPlaying[1];
+
+  useEffect(function() {
+    // Check if ElevenLabs integration is connected
+    engineCall('/oauth/status/elevenlabs?orgId=' + getOrgId())
+      .then(function(d) {
+        if (d.connected) {
+          setHasApiKey(true);
+          // Fetch custom voices from ElevenLabs
+          setLoadingVoices(true);
+          engineCall('/integrations/elevenlabs/voices?orgId=' + getOrgId())
+            .then(function(d) { setCustomVoices(d.voices || []); })
+            .catch(function() {})
+            .finally(function() { setLoadingVoices(false); });
+        }
+      })
+      .catch(function() {});
+  }, []);
+
+  var allVoices = BUILTIN_VOICES.concat(customVoices.map(function(v) {
+    return { id: v.voice_id, name: v.name, gender: v.labels?.gender || '', accent: v.labels?.accent || '', style: 'Custom', custom: true };
+  }));
+
+  var selectedVoice = allVoices.find(function(v) { return v.id === voiceId; });
+
+  var cardStyle = function(v) {
+    var isSelected = v.id === voiceId;
+    return {
+      padding: '12px 14px', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
+      border: '2px solid ' + (isSelected ? 'var(--brand-color, #6366f1)' : 'var(--border)'),
+      background: isSelected ? 'var(--brand-color-soft, rgba(99,102,241,0.08))' : 'transparent',
+    };
+  };
+
+  return h(Fragment, null,
+    !hasApiKey && h('div', { style: { padding: 12, background: 'var(--warning-soft)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--warning)', marginBottom: 16 } },
+      'Add your ElevenLabs API key in Settings \u2192 Integrations to enable voice. Built-in voices shown below will work once connected.'
+    ),
+
+    // Current selection
+    voiceId && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', marginBottom: 16 } },
+      h('div', { style: { width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 700 } }, (selectedVoice?.name || voiceName || '?').charAt(0)),
+      h('div', { style: { flex: 1 } },
+        h('div', { style: { fontSize: 14, fontWeight: 600 } }, selectedVoice?.name || voiceName || 'Custom Voice'),
+        h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, voiceId)
+      ),
+      h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { onChange('', ''); } }, 'Clear')
+    ),
+
+    // Voice grid
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 } },
+      allVoices.map(function(v) {
+        return h('div', {
+          key: v.id, style: cardStyle(v),
+          onClick: function() { onChange(v.id, v.name); }
+        },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 } },
+            h('strong', { style: { fontSize: 13 } }, v.name),
+            v.custom && h('span', { className: 'badge badge-info', style: { fontSize: 10 } }, 'Custom')
+          ),
+          h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } },
+            [v.gender, v.accent, v.style].filter(Boolean).join(' \u00B7 ')
+          )
+        );
+      })
+    ),
+
+    loadingVoices && h('div', { style: { textAlign: 'center', padding: 12, color: 'var(--text-muted)', fontSize: 13 } }, 'Loading custom voices...'),
+
+    // Manual voice ID input
+    h('div', { style: { marginTop: 16 } },
+      h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Or enter a voice ID manually'),
+      h('input', {
+        className: 'input', type: 'text', value: voiceId,
+        placeholder: 'ElevenLabs voice ID...',
+        onChange: function(e) { onChange(e.target.value, ''); }
+      })
     )
   );
 }

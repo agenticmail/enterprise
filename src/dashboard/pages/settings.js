@@ -786,6 +786,7 @@ var INTEGRATIONS = [
   { skillId: 'confluence-wiki', name: 'Confluence', desc: 'Team wiki and documentation', authType: 'oauth', provider: 'atlassian' },
   { skillId: 'airtable-databases', name: 'Airtable', desc: 'Spreadsheet-database for structured data', authType: 'token', tokenLabel: 'API Key' },
   { skillId: 'google-maps', name: 'Google Maps', desc: 'Places search, directions, distances, geocoding, and maps', authType: 'token', tokenLabel: 'Maps API Key' },
+  { skillId: 'elevenlabs', name: 'ElevenLabs', desc: 'AI voices for meeting participation and text-to-speech', authType: 'token', tokenLabel: 'API Key' },
 ];
 
 function IntegrationsTab(props) {

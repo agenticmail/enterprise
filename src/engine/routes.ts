@@ -224,6 +224,26 @@ engine.route('/policies', createPolicyImportRoutes(policyImporter));
 engine.route('/knowledge-contribution', createKnowledgeContributionRoutes(knowledgeContribution));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
 engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
+
+// ─── Integration-specific proxy endpoints ───────────────
+engine.get('/integrations/elevenlabs/voices', async (c) => {
+  try {
+    const orgId = c.req.query('orgId') || 'default';
+    const entries = await vault.getSecretsByOrg(orgId);
+    const match = entries.find((e: any) => e.name === 'skill:elevenlabs:access_token');
+    if (!match) return c.json({ error: 'ElevenLabs not connected' }, 401);
+    const secret = await vault.getSecret(match.id);
+    if (!secret) return c.json({ error: 'Key not found' }, 401);
+    const resp = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': secret.decrypted },
+    });
+    if (!resp.ok) return c.json({ error: 'ElevenLabs API error: ' + resp.status }, resp.status as any);
+    const data = await resp.json() as any;
+    return c.json({ voices: data.voices || [] });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
 engine.route('/chat-webhook', createChatWebhookRoutes({
   lifecycle,
   getRuntime: () => _runtime,
