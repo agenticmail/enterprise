@@ -257,7 +257,65 @@ function splitMessageIntoChunks(text: string, maxLen: number): string[] {
   return chunks;
 }
 
+/**
+ * Configure audio input device for meeting voice.
+ * Sets BlackHole (macOS), virtual sink (Linux), or VB-CABLE (Windows)
+ * as the system default input so Meet picks it up as the microphone.
+ */
+async function configureAudioInput(): Promise<{ configured: boolean; device?: string; error?: string }> {
+  const { exec: execCb } = await import('child_process');
+  const { promisify } = await import('util');
+  const exec = promisify(execCb);
+  const platform = process.platform;
+
+  try {
+    if (platform === 'darwin') {
+      // Check if BlackHole is available as input
+      const { stdout: inputs } = await exec('SwitchAudioSource -a -t input 2>/dev/null');
+      if (inputs.includes('BlackHole')) {
+        await exec('SwitchAudioSource -t input -s "BlackHole 2ch"');
+        console.log('[audio] ✅ Set system audio input to BlackHole 2ch');
+        return { configured: true, device: 'BlackHole 2ch' };
+      }
+      return { configured: false, error: 'BlackHole not found as input device' };
+    } else if (platform === 'linux') {
+      // Set PulseAudio virtual source as default
+      try {
+        const { stdout } = await exec('pactl list short sources 2>/dev/null');
+        const virtualSource = stdout.split('\n').find((l: string) => /virtual|null/.test(l));
+        if (virtualSource) {
+          const sourceName = virtualSource.split('\t')[1];
+          await exec(`pactl set-default-source ${sourceName}`);
+          console.log(`[audio] ✅ Set PulseAudio default source to ${sourceName}`);
+          return { configured: true, device: sourceName };
+        }
+      } catch {}
+      return { configured: false, error: 'No virtual audio source found' };
+    } else if (platform === 'win32') {
+      // On Windows, try nircmd to set VB-CABLE as default recording device
+      try {
+        await exec('nircmd setdefaultsounddevice "CABLE Output" 2');
+        console.log('[audio] ✅ Set default recording device to VB-CABLE');
+        return { configured: true, device: 'CABLE Output (VB-Audio)' };
+      } catch {
+        return { configured: false, error: 'Could not set VB-CABLE as default input' };
+      }
+    }
+    return { configured: false, error: `Unsupported platform: ${platform}` };
+  } catch (e: any) {
+    return { configured: false, error: e.message };
+  }
+}
+
 async function joinGoogleMeet(page: any, url: string) {
+  // Configure virtual audio device as system microphone input BEFORE joining
+  const audioConfig = await configureAudioInput();
+  if (audioConfig.configured) {
+    console.log(`[meeting-join] Audio input configured: ${audioConfig.device}`);
+  } else {
+    console.warn(`[meeting-join] Audio input not configured: ${audioConfig.error}`);
+  }
+
   await page.goto(url, { timeout: 60000, waitUntil: 'domcontentloaded' });
   await delay(2000);
 

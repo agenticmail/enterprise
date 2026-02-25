@@ -167,8 +167,9 @@ export async function ensureBrowser(headless: boolean, agentId: string, useChrom
 
     var launchArgs = [
       '--disable-blink-features=AutomationControlled',
-      '--use-fake-device-for-media-stream',
-      '--use-fake-ui-for-media-stream',
+      // NOTE: do NOT use --use-fake-device-for-media-stream — it overrides real audio devices
+      // We need Chrome to use the system's real audio input (BlackHole/VB-CABLE) for meeting voice
+      '--use-fake-ui-for-media-stream',         // Auto-accept mic/camera permission prompts
       '--auto-select-desktop-capture-source=Entire screen',
       '--enable-usermedia-screen-capturing',
       '--disable-infobars',
@@ -181,6 +182,7 @@ export async function ensureBrowser(headless: boolean, agentId: string, useChrom
       args: launchArgs,
       viewport: { width: DEFAULT_VIEWPORT_WIDTH, height: DEFAULT_VIEWPORT_HEIGHT },
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
+      permissions: ['microphone', 'camera', 'notifications'],
     };
 
     // For native Chrome, use the real executable
