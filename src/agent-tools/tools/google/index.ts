@@ -12,7 +12,7 @@ export { createGoogleSheetsTools } from './sheets.js';
 export { createGoogleDocsTools } from './docs.js';
 export { createGoogleContactsTools } from './contacts.js';
 export { createMeetingTools } from './meetings.js';
-export { createMeetingVoiceTools } from './meeting-voice.js';
+export { createMeetingVoiceTools, voiceCapability } from './meeting-voice.js';
 export { createGoogleTasksTools } from './tasks.js';
 export { createGoogleChatTools } from './chat.js';
 export { createGoogleSlidesTools } from './slides.js';

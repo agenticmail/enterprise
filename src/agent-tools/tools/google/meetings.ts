@@ -13,8 +13,10 @@
 import type { AnyAgentTool, ToolCreationOptions } from '../../types.js';
 import { jsonResult, errorResult } from '../../common.js';
 import type { GoogleToolsConfig } from './index.js';
-import { ensureBrowser } from '../browser.js';
+import { ensureBrowser as _ensureBrowser } from '../browser.js';
+export const ensureBrowser = _ensureBrowser;
 import { MeetingMonitor, registerMonitor, getActiveMonitor, removeMonitor } from '../../../engine/meeting-monitor.js';
+import { voiceCapability } from './meeting-voice.js';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { promises as fs } from 'node:fs';
@@ -116,7 +118,7 @@ async function readCaptionsFromDOM(page: any): Promise<{ speaker: string; text: 
  * Tries multiple strategies because Meet's chat input is a React-controlled element.
  * For long messages, splits into chunks to avoid garbled text from keyboard.type().
  */
-async function sendChatMessage(page: any, message: string): Promise<{ sent: boolean; method: string; error?: string }> {
+export async function sendChatMessage(page: any, message: string): Promise<{ sent: boolean; method: string; error?: string }> {
   // Google Meet chat has a character limit (~500 chars). Split long messages into chunks.
   const MAX_CHUNK = 450;
   if (message.length > MAX_CHUNK) {
@@ -509,15 +511,53 @@ export function createMeetingTools(config: GoogleToolsConfig, _options?: ToolCre
             }
           }
 
+          // ─── Voice preflight (non-blocking — runs parallel with join cleanup) ───
+          let voiceStatus: any = null;
+          try {
+            const voiceConfig = (_options as any)?.voiceConfig || {};
+            const elevenLabsKeyResolver = (_options as any)?.elevenLabsKeyResolver;
+            const getApiKey = async () => {
+              if (process.env.ELEVENLABS_API_KEY) return process.env.ELEVENLABS_API_KEY;
+              if (elevenLabsKeyResolver) try { return await elevenLabsKeyResolver(); } catch { return null; }
+              return null;
+            };
+            voiceStatus = await voiceCapability.preflight(
+              agentId, getApiKey,
+              voiceConfig.voiceId, voiceConfig.voiceName, voiceConfig.audioDevice,
+            );
+            console.log(`[meeting-join:${agentId}] Voice: ${voiceStatus.mode} (${voiceStatus.available ? 'ready' : voiceStatus.issues.join(', ')})`);
+          } catch (e: any) {
+            console.warn(`[meeting-join:${agentId}] Voice preflight failed: ${e.message}`);
+          }
+
+          const voiceBlock = voiceStatus
+            ? voiceCapability.buildPromptBlock(agentId)
+            : '\n## Voice: NOT CHECKED\nUse meeting_speak to talk — it auto-falls back to chat if voice fails.\n';
+
+          const hasVoice = voiceStatus?.available === true;
+          const monitorActive = !!getActiveMonitor(agentId);
+
+          const communicationInstructions = hasVoice
+            ? 'You have a VOICE in this meeting. Use meeting_speak(text: "...") to talk out loud — participants will hear you. Use meeting_action(action: "chat", message: "...") for links/code/long text. meeting_speak auto-falls back to chat if voice fails.'
+            : 'You do NOT have a microphone. Communicate via meeting chat: meeting_action(action: "chat", message: "...").';
+
           const joinResult = {
             ...result,
             screenshotBase64: undefined,
-            monitorActive: !!getActiveMonitor(agentId),
+            monitorActive,
+            voiceAvailable: hasVoice,
+            voiceMode: voiceStatus?.mode || 'chat-only',
+            voiceName: voiceStatus?.voiceName || null,
             instructions: result.joined
-              ? getActiveMonitor(agentId)
-                ? 'You are in the meeting. A MeetingMonitor is streaming captions and chat to you automatically. You will receive "[Meeting Monitor — Live Update]" messages. When someone talks to you, use meeting_action(action: "chat", message: "your response"). You do NOT need to call read_captions — updates come to you.'
-                : 'You are in the meeting. Captions are enabled. Call meeting_action(action: "read_captions") periodically to see what people are saying. Use meeting_action(action: "chat", message: "...") to respond.'
+              ? monitorActive
+                ? `You are in the meeting. A MeetingMonitor is streaming captions and chat to you automatically. ${communicationInstructions} You do NOT need to call read_captions — updates come to you.`
+                : `You are in the meeting. Captions are enabled. ${communicationInstructions} Call meeting_action(action: "read_captions") periodically to see what people are saying.`
               : 'Join failed. Check screenshot.',
+            voiceStatusDetail: voiceStatus ? {
+              mode: voiceStatus.mode,
+              voice: voiceStatus.voiceName,
+              issues: voiceStatus.issues,
+            } : null,
           };
 
           if (result.screenshotBase64) {

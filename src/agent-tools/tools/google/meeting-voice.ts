@@ -26,6 +26,196 @@ import { promises as fs } from 'node:fs';
 
 const ELEVENLABS_BASE = 'https://api.elevenlabs.io/v1';
 
+// ════════════════════════════════════════════════════════════
+// VOICE CAPABILITY MANAGER — Singleton per agent
+// ════════════════════════════════════════════════════════════
+
+export interface VoiceStatus {
+  available: boolean;
+  mode: 'voice' | 'chat-only';
+  hasApiKey: boolean;
+  hasVirtualAudio: boolean;
+  hasSox: boolean;
+  platform: string;
+  voiceName: string;
+  voiceId: string;
+  audioDevice: string;
+  issues: string[];
+  lastCheck: number;
+  lastSpeakSuccess: number | null;
+  lastSpeakFailure: number | null;
+  consecutiveFailures: number;
+  /** If true, voice was working but started failing — in degraded mode */
+  degraded: boolean;
+}
+
+/**
+ * Manages voice capability state per agent. Provides:
+ * - Preflight checks before meetings
+ * - Runtime health monitoring during meetings
+ * - Auto-degradation: voice → chat fallback after consecutive failures
+ * - Auto-recovery: periodic re-check to restore voice after transient failures
+ */
+class VoiceCapabilityManager {
+  private statusByAgent = new Map<string, VoiceStatus>();
+  private static instance: VoiceCapabilityManager;
+
+  static getInstance(): VoiceCapabilityManager {
+    if (!this.instance) this.instance = new VoiceCapabilityManager();
+    return this.instance;
+  }
+
+  /** Full preflight check — call before/during meeting join */
+  async preflight(
+    agentId: string,
+    getApiKey: () => Promise<string | null>,
+    voiceId?: string,
+    voiceName?: string,
+    audioDevice?: string,
+  ): Promise<VoiceStatus> {
+    const setup = await checkAudioSetup();
+    const apiKey = await getApiKey();
+    const issues: string[] = [];
+
+    if (!apiKey) issues.push('No ElevenLabs API key');
+    if (!setup.hasBlackHole) issues.push('No virtual audio device');
+    if (!setup.hasSox) issues.push('sox not installed');
+
+    // Quick connectivity check: ping ElevenLabs (only if we have a key)
+    if (apiKey) {
+      try {
+        const res = await fetch(`${ELEVENLABS_BASE}/user`, {
+          headers: { 'xi-api-key': apiKey },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!res.ok) issues.push(`ElevenLabs API error: ${res.status}`);
+      } catch (e: any) {
+        issues.push(`ElevenLabs unreachable: ${e.message}`);
+      }
+    }
+
+    const prev = this.statusByAgent.get(agentId);
+    const resolvedVoiceId = voiceId || DEFAULT_VOICES['rachel'];
+    const defaultDevice = setup.platform === 'darwin' ? 'BlackHole 2ch'
+      : setup.platform === 'win32' ? 'CABLE Input (VB-Audio Virtual Cable)' : 'virtual';
+
+    const status: VoiceStatus = {
+      available: issues.length === 0,
+      mode: issues.length === 0 ? 'voice' : 'chat-only',
+      hasApiKey: !!apiKey,
+      hasVirtualAudio: setup.hasBlackHole,
+      hasSox: setup.hasSox,
+      platform: setup.platform,
+      voiceName: voiceName || 'rachel',
+      voiceId: resolvedVoiceId,
+      audioDevice: audioDevice || defaultDevice,
+      issues,
+      lastCheck: Date.now(),
+      lastSpeakSuccess: prev?.lastSpeakSuccess || null,
+      lastSpeakFailure: prev?.lastSpeakFailure || null,
+      consecutiveFailures: prev?.consecutiveFailures || 0,
+      degraded: false,
+    };
+
+    this.statusByAgent.set(agentId, status);
+    return status;
+  }
+
+  /** Get cached status (or run preflight if stale / missing) */
+  async getStatus(
+    agentId: string,
+    getApiKey: () => Promise<string | null>,
+    voiceId?: string,
+    voiceName?: string,
+    audioDevice?: string,
+  ): Promise<VoiceStatus> {
+    const cached = this.statusByAgent.get(agentId);
+    // Re-check every 5 minutes, or if never checked
+    if (cached && Date.now() - cached.lastCheck < 300_000) return cached;
+    return this.preflight(agentId, getApiKey, voiceId, voiceName, audioDevice);
+  }
+
+  /** Record a successful speak */
+  recordSuccess(agentId: string): void {
+    const s = this.statusByAgent.get(agentId);
+    if (!s) return;
+    s.lastSpeakSuccess = Date.now();
+    s.consecutiveFailures = 0;
+    s.degraded = false;
+    s.mode = 'voice';
+  }
+
+  /** Record a failed speak — auto-degrade after 3 consecutive failures */
+  recordFailure(agentId: string): void {
+    const s = this.statusByAgent.get(agentId);
+    if (!s) return;
+    s.lastSpeakFailure = Date.now();
+    s.consecutiveFailures++;
+    if (s.consecutiveFailures >= 3) {
+      s.degraded = true;
+      s.mode = 'chat-only';
+      console.warn(`[voice:${agentId}] Degraded to chat-only after ${s.consecutiveFailures} consecutive failures`);
+    }
+  }
+
+  /** Force re-check (e.g., after recovery attempt) */
+  invalidate(agentId: string): void {
+    this.statusByAgent.delete(agentId);
+  }
+
+  /** Check if voice should be attempted (respects degradation) */
+  shouldUseVoice(agentId: string): boolean {
+    const s = this.statusByAgent.get(agentId);
+    if (!s) return false;
+    if (s.mode === 'chat-only') {
+      // Auto-recovery: try voice again every 2 minutes after degradation
+      if (s.degraded && s.lastSpeakFailure && Date.now() - s.lastSpeakFailure > 120_000) {
+        console.log(`[voice:${agentId}] Attempting voice recovery...`);
+        return true; // Let it try once
+      }
+      return false;
+    }
+    return s.available;
+  }
+
+  /** Build a system prompt block describing voice status */
+  buildPromptBlock(agentId: string): string {
+    const s = this.statusByAgent.get(agentId);
+    if (!s) return `\n## Voice Status\nVoice not checked yet. Use meeting_speak to talk — it will fall back to chat if voice is unavailable.\n`;
+
+    if (s.available && !s.degraded) {
+      return `
+## Voice: ENABLED
+You CAN speak in this meeting using your voice (${s.voiceName}).
+- Use meeting_speak(text: "...") to talk — participants will HEAR you
+- Use meeting_action(action: "chat", message: "...") for text chat
+- PREFER voice for important points, questions, and responses
+- Use chat for links, code snippets, or long lists
+- Keep spoken messages concise (1-3 sentences) for natural conversation
+- Wait for others to finish (check captions) before speaking`;
+    }
+
+    if (s.degraded) {
+      return `
+## Voice: DEGRADED — Using Chat Fallback
+Voice was working but has failed ${s.consecutiveFailures} times. Automatically switched to chat.
+- Use meeting_action(action: "chat", message: "...") to communicate
+- meeting_speak will auto-retry voice periodically — if it works, voice is restored
+- Issues: ${s.issues.join(', ') || 'transient playback failures'}`;
+    }
+
+    return `
+## Voice: UNAVAILABLE — Chat Only
+Voice is not available for this meeting. Communicate via chat only.
+- Use meeting_action(action: "chat", message: "...") for all communication
+- Issues: ${s.issues.join(', ')}
+- To enable voice: Dashboard → Settings → Integrations → ElevenLabs, then select a voice in agent profile`;
+  }
+}
+
+/** Exported singleton */
+export const voiceCapability = VoiceCapabilityManager.getInstance();
+
 // Default voices — high quality, low latency
 const DEFAULT_VOICES: Record<string, string> = {
   'rachel': '21m00Tcm4TlvDq8ikWAM',     // Female, warm
@@ -257,33 +447,86 @@ Tips:
       },
       async execute(_id: string, params: any) {
         try {
-          const apiKey = await getApiKey();
-          if (!apiKey) {
-            return errorResult('ElevenLabs API key not configured. Add it in Dashboard → Settings → Integrations (key name: "elevenlabs"), or set ELEVENLABS_API_KEY env var.');
-          }
-
           const text = params.text;
           if (!text || text.trim().length === 0) {
             return errorResult('No text to speak.');
           }
 
+          const vcm = voiceCapability;
+          const status = await vcm.getStatus(agentId, getApiKey, config.voiceId, config.voiceName, config.audioDevice);
+
+          // ─── Chat fallback helper ───────────────────────
+          const fallbackToChat = async (reason: string): Promise<any> => {
+            console.log(`[voice:${agentId}] Falling back to chat: ${reason}`);
+            vcm.recordFailure(agentId);
+
+            // Try to send via meeting chat using the browser
+            try {
+              const { ensureBrowser, sendChatMessage } = await import('./meetings.js');
+              const { page } = await ensureBrowser(false, agentId, false);
+              const chatResult = await sendChatMessage(page, text);
+              if (chatResult.sent) {
+                return jsonResult({
+                  action: 'meeting_speak',
+                  status: 'sent_as_chat',
+                  method: 'chat_fallback',
+                  text,
+                  reason,
+                  chatMethod: chatResult.method,
+                  note: 'Voice unavailable — message sent as meeting chat instead.',
+                });
+              }
+            } catch (chatErr: any) {
+              console.error(`[voice:${agentId}] Chat fallback also failed: ${chatErr.message}`);
+            }
+
+            // Both voice and chat failed
+            return jsonResult({
+              action: 'meeting_speak',
+              status: 'failed',
+              text,
+              reason,
+              hint: 'Both voice and chat failed. Check meeting connection and audio setup.',
+            });
+          };
+
+          // ─── Check if voice should be attempted ─────────
+          if (!vcm.shouldUseVoice(agentId)) {
+            return fallbackToChat(status.degraded
+              ? `Voice degraded (${status.consecutiveFailures} consecutive failures)`
+              : `Voice unavailable: ${status.issues.join(', ')}`);
+          }
+
+          // ─── Attempt voice ──────────────────────────────
+          const apiKey = await getApiKey();
+          if (!apiKey) {
+            return fallbackToChat('No ElevenLabs API key');
+          }
+
           // Resolve voice
           let voiceId = config.voiceId || DEFAULT_VOICES['rachel'];
           if (params.voice) {
-            // Check if it's a built-in voice name
             const lower = params.voice.toLowerCase();
             if (DEFAULT_VOICES[lower]) {
               voiceId = DEFAULT_VOICES[lower];
             } else if (params.voice.length > 10) {
-              // Assume it's an ElevenLabs voice ID
               voiceId = params.voice;
             }
           }
 
-          // Generate speech
-          const audioBuffer = await generateSpeech(apiKey, text, voiceId, {
-            model: params.model,
-          });
+          // Generate speech (with timeout)
+          let audioBuffer: Buffer;
+          try {
+            const timeoutMs = Math.max(10_000, text.length * 100); // ~100ms per char, min 10s
+            audioBuffer = await Promise.race([
+              generateSpeech(apiKey, text, voiceId, { model: params.model }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('TTS generation timed out')), timeoutMs)
+              ),
+            ]);
+          } catch (ttsErr: any) {
+            return fallbackToChat(`TTS failed: ${ttsErr.message}`);
+          }
 
           // Save to temp file
           const audioDir = path.join(os.tmpdir(), 'agenticmail-voice');
@@ -291,32 +534,31 @@ Tips:
           const audioFile = path.join(audioDir, `speak-${Date.now()}.mp3`);
           await fs.writeFile(audioFile, audioBuffer);
 
-          // Play through virtual audio device
-          const device = config.audioDevice || 'BlackHole 2ch';
+          // Play through virtual audio device (with timeout)
+          const device = config.audioDevice || status.audioDevice || 'BlackHole 2ch';
           try {
-            await playAudioToDevice(audioFile, device);
+            await Promise.race([
+              playAudioToDevice(audioFile, device),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Audio playback timed out')), 30_000)
+              ),
+            ]);
           } catch (playErr: any) {
-            // If playback fails, still return success with the file path
-            // The agent can use the browser tool to play it another way
-            return jsonResult({
-              action: 'meeting_speak',
-              status: 'audio_generated',
-              text,
-              audioFile,
-              audioSize: audioBuffer.length,
-              playbackError: playErr.message,
-              hint: 'Audio file generated but playback failed. Run the meeting_audio_setup tool to diagnose. You can also manually play the file.',
-            });
+            return fallbackToChat(`Playback failed: ${playErr.message}`);
           }
 
+          // ─── Success! ──────────────────────────────────
+          vcm.recordSuccess(agentId);
           return jsonResult({
             action: 'meeting_speak',
             status: 'spoken',
+            method: 'voice',
             text,
             voiceId,
+            voiceName: config.voiceName || Object.entries(DEFAULT_VOICES).find(([, id]) => id === voiceId)?.[0] || 'custom',
             audioFile,
             audioSize: audioBuffer.length,
-            durationEstimate: Math.round(text.length / 15) + 's', // ~15 chars/sec speech
+            durationEstimate: Math.round(text.length / 15) + 's',
           });
         } catch (e: any) { return errorResult(e.message); }
       },

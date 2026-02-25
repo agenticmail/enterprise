@@ -67,8 +67,14 @@ After joining, a **MeetingMonitor** starts automatically:
 - When someone addresses you, respond with meeting_action(action: "chat", message: "...")
 
 ## Step 3: Participate
-- You have NO microphone — communicate ONLY via meeting chat
-- Keep responses concise and relevant
+**Voice status will be reported in the meeting_join result.** Follow these rules:
+- If voice is ENABLED: Use meeting_speak(text: "...") to talk — participants hear your voice
+  - PREFER voice for important points, direct responses, and questions
+  - Use chat for links, code, or long text that's easier to read
+  - Keep spoken messages to 1-3 sentences for natural flow
+  - Wait for others to finish speaking before you speak
+  - meeting_speak auto-falls back to chat if voice fails mid-meeting
+- If voice is UNAVAILABLE or DEGRADED: Use meeting_action(action: "chat", message: "...") only
 - Take notes on key decisions, action items, and discussion points
 - If someone mentions your name or asks a question directed at you, respond promptly
 
