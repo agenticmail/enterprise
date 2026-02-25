@@ -128,6 +128,7 @@ export async function runAgent(_args: string[]) {
   // 6. Load provider API keys from DB settings (decrypt via vault, NOT process.env)
   const { SecureVault } = await import('./engine/vault.js');
   const vault = new SecureVault();
+  await vault.setDb(engineDb);
   let dbApiKeys: Record<string, string> = {};
   try {
     const settings = await db.getSettings();
@@ -368,9 +369,96 @@ export async function runAgent(_args: string[]) {
         lastActivityAt: Date.now(),
       });
 
-      // Unregister when session completes
-      runtime.onSessionComplete(session.id, () => {
+      // Unregister when session completes + deliver reply if agent didn't send one via tool
+      runtime.onSessionComplete(session.id, async (result: any) => {
         sessionRouter.unregister(AGENT_ID, session.id);
+
+        // Check if google_chat_send_message was called during this session
+        const messages = result?.messages || [];
+        let chatSent = false;
+        for (const msg of messages) {
+          if (Array.isArray(msg.content)) {
+            for (const block of msg.content) {
+              if (block.type === 'tool_use' && block.name === 'google_chat_send_message') {
+                chatSent = true;
+                break;
+              }
+            }
+          }
+          if (chatSent) break;
+        }
+
+        if (!chatSent) {
+          // Extract last assistant text and deliver it
+          let lastText = '';
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg.role === 'assistant') {
+              if (typeof msg.content === 'string') {
+                lastText = msg.content;
+              } else if (Array.isArray(msg.content)) {
+                lastText = msg.content
+                  .filter((b: any) => b.type === 'text')
+                  .map((b: any) => b.text)
+                  .join('\n');
+              }
+              if (lastText.trim()) break;
+            }
+          }
+
+          if (lastText.trim()) {
+            try {
+              // Get OAuth token from agent config
+              const emailCfg = (config as any).emailConfig || {};
+              let token = emailCfg.oauthAccessToken;
+
+              // Refresh if needed
+              if (emailCfg.oauthRefreshToken && emailCfg.oauthClientId) {
+                try {
+                  const tokenUrl = emailCfg.oauthProvider === 'google'
+                    ? 'https://oauth2.googleapis.com/token'
+                    : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+                  const tokenRes = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                      client_id: emailCfg.oauthClientId,
+                      client_secret: emailCfg.oauthClientSecret,
+                      refresh_token: emailCfg.oauthRefreshToken,
+                      grant_type: 'refresh_token',
+                    }),
+                  });
+                  const tokenData = await tokenRes.json() as any;
+                  if (tokenData.access_token) token = tokenData.access_token;
+                } catch {}
+              }
+
+              if (token) {
+                const body: any = { text: lastText.trim() };
+                if (ctx.threadId) {
+                  body.thread = { name: ctx.threadId };
+                }
+                const chatUrl = `https://chat.googleapis.com/v1/${ctx.spaceId}/messages`;
+                const res = await fetch(chatUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(body),
+                });
+                if (res.ok) {
+                  console.log(`[chat] ✅ Fallback: delivered assistant reply to ${ctx.spaceId}`);
+                } else {
+                  console.warn(`[chat] ⚠️ Fallback send failed: ${res.status} ${await res.text().catch(() => '')}`);
+                }
+              }
+            } catch (err: any) {
+              console.warn(`[chat] ⚠️ Fallback delivery error: ${err.message}`);
+            }
+          }
+        }
+
         console.log(`[chat] Session ${session.id} completed, unregistered from router`);
       });
 

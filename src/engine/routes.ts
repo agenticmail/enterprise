@@ -29,6 +29,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types/hono-env.js';
 import { PermissionEngine, BUILTIN_SKILLS, PRESET_PROFILES, SKILL_SUITES } from './skills.js';
+import { FULL_SKILL_DEFINITIONS } from './skills/index.js';
 import { AgentConfigGenerator } from './agent-config.js';
 import { DeploymentEngine } from './deployer.js';
 import { ApprovalEngine } from './approvals.js';
@@ -89,7 +90,11 @@ const engine = new Hono<AppEnv>();
 
 // ─── Shared Instances ───────────────────────────────────
 
-const permissionEngine = new PermissionEngine();
+const permissionEngine = new PermissionEngine(FULL_SKILL_DEFINITIONS);
+{
+  const totalTools = FULL_SKILL_DEFINITIONS.reduce((s, sk) => s + sk.tools.length, 0);
+  console.log(`[permissions] Registered ${FULL_SKILL_DEFINITIONS.length} skills, ${totalTools} tools`);
+}
 const configGen = new AgentConfigGenerator();
 const deployer = new DeploymentEngine();
 const approvals = new ApprovalEngine();

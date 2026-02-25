@@ -74,12 +74,13 @@ export function createAllGoogleTools(config: GoogleToolsConfig, options?: ToolCr
   if (all || has('chat'))             tools.push(...createGoogleChatTools(config, options));
   if (all || has('slides'))           tools.push(...createGoogleSlidesTools(config, options));
   if (all || has('forms'))            tools.push(...createGoogleFormsTools(config, options));
-  if (all || core || has('maps')) {
+  // Google Maps loads independently — it uses an API key (not OAuth), so always check
+  {
     const mapsKeyResolver = (options as any)?.mapsApiKeyResolver as (() => Promise<string> | string) | undefined;
     if (mapsKeyResolver) {
       tools.push(...createGoogleMapsTools({ getApiKey: mapsKeyResolver }));
+      console.log('[google-tools] ✅ Google Maps tools loaded (10 tools)');
     }
-    // If no resolver, skip Maps tools (key not configured)
   }
   return tools;
 }

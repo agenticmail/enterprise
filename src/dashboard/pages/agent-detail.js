@@ -4698,12 +4698,13 @@ function ToolsSection(props) {
   var filtered = cats.filter(function(c) {
     if (filter === 'enabled') return c.enabled;
     if (filter === 'disabled') return !c.enabled;
-    if (filter === 'google') return c.requiresOAuth === 'google';
+    if (filter === 'google') return c.requiresOAuth === 'google' || c.id.startsWith('google_');
     if (filter === 'enterprise') return c.id.startsWith('enterprise_');
+    if (filter === 'integrations') return !!c.requiresIntegration;
     return true;
   });
 
-  var googleCats = cats.filter(function(c) { return c.requiresOAuth === 'google'; });
+  var googleCats = cats.filter(function(c) { return c.requiresOAuth === 'google' || c.id.startsWith('google_'); });
   var googleAvailable = googleCats.some(function(c) { return c.isAvailable; });
 
   return h('div', null,
@@ -4733,6 +4734,7 @@ function ToolsSection(props) {
         { id: 'disabled', label: 'Disabled' },
         { id: 'google', label: 'Google Workspace' },
         { id: 'enterprise', label: 'Enterprise' },
+        { id: 'integrations', label: 'Integrations' },
       ].map(function(f) {
         return h('div', { key: f.id, className: 'tab' + (filter === f.id ? ' active' : ''), onClick: function() { setFilter(f.id); } }, f.label);
       })
@@ -4759,6 +4761,7 @@ function ToolsSection(props) {
                 h('span', { style: { fontWeight: 600, fontSize: 14 } }, cat.name),
                 h('span', { className: 'badge', style: { fontSize: 10, padding: '1px 6px', background: 'var(--bg-tertiary)', color: 'var(--text-muted)' } }, cat.toolCount + ' tools'),
                 !cat.isAvailable && cat.requiresOAuth && h('span', { className: 'badge badge-warning', style: { fontSize: 10, padding: '1px 6px' } }, 'OAuth Required'),
+                cat.requiresIntegration && h('span', { className: 'badge', style: { fontSize: 10, padding: '1px 6px', background: 'var(--accent-soft)', color: 'var(--accent-text)' } }, 'Integration'),
                 cat.alwaysOn && h('span', { className: 'badge badge-info', style: { fontSize: 10, padding: '1px 6px' } }, 'Always On')
               ),
               h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, cat.description)

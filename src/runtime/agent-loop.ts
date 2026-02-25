@@ -326,6 +326,7 @@ export async function runAgentLoop(
 
         if (!hookResult.allowed) {
           // Tool blocked by hook
+          console.log(`[agent-loop] 🚫 Tool ${toolCall.name} BLOCKED: ${hookResult.reason} (session: ${sessionId})`);
           var blockedEvent: StreamEvent = {
             type: 'tool_call_end',
             toolName: toolCall.name,
@@ -370,10 +371,17 @@ export async function runAgentLoop(
           continue;
         }
 
+        console.log(`[agent-loop] 🔧 Executing tool: ${toolCall.name} (session: ${sessionId})`);
         var { result, content } = await executeTool(tool, effectiveToolCall, {
           timeoutMs: toolTimeout,
           signal: options.signal,
         });
+
+        if (!result.success) {
+          console.log(`[agent-loop] ❌ Tool ${toolCall.name} failed: ${result.error?.slice(0, 200)}`);
+        } else {
+          console.log(`[agent-loop] ✅ Tool ${toolCall.name} succeeded (${content.length} chars)`);
+        }
 
         toolResults.push({
           tool_use_id: toolCall.id,

@@ -29,25 +29,54 @@ export interface McpBridgeConfig {
  */
 export async function createMcpBridgeTools(config: McpBridgeConfig): Promise<AnyAgentTool[]> {
   try {
+    // Pre-check: query vault for which skills have credentials before loading adapters
+    const orgId = config.orgId || 'default';
+    let credentialSkillIds: Set<string>;
+    try {
+      const entries = await config.vault.getSecretsByOrg(orgId, 'skill_credential');
+      // Extract skill IDs from vault entry names (format: "skill:{skillId}:access_token")
+      credentialSkillIds = new Set(
+        entries
+          .map((e: any) => e.name?.match(/^skill:([^:]+):/)?.[1])
+          .filter(Boolean)
+      );
+    } catch {
+      credentialSkillIds = new Set();
+    }
+
+    if (credentialSkillIds.size === 0) {
+      console.log('[mcp-bridge] No integration credentials in vault — skipping adapter load');
+      return [];
+    }
+
+    console.log(`[mcp-bridge] Found credentials for ${credentialSkillIds.size} integration(s): ${[...credentialSkillIds].join(', ')}`);
+
     const { SkillMcpFramework } = await import('../../mcp/framework/skill-mcp-framework.js');
     const { allAdapters } = await import('../../mcp/adapters/index.js');
 
+    // Only load adapters that have credentials in the vault
+    const adaptersWithCreds = allAdapters.filter(a => {
+      if (config.enabledSkills?.length) {
+        return config.enabledSkills.includes(a.skillId) && credentialSkillIds.has(a.skillId);
+      }
+      return credentialSkillIds.has(a.skillId);
+    });
+
+    if (adaptersWithCreds.length === 0) {
+      console.log('[mcp-bridge] No adapters match vault credentials — skipping');
+      return [];
+    }
+
     const framework = new SkillMcpFramework({
       vault: config.vault,
-      orgId: config.orgId || 'default',
+      orgId,
       agentId: config.agentId || 'agent',
       skillConfigs: {},
     });
 
-    // Register adapters (optionally filtered)
-    if (config.enabledSkills?.length) {
-      const filtered = allAdapters.filter(a => config.enabledSkills!.includes(a.skillId));
-      framework.registerAll(filtered);
-    } else {
-      framework.registerAll(allAdapters);
-    }
+    framework.registerAll(adaptersWithCreds);
 
-    // Initialize — only skills with vault credentials will succeed
+    // Initialize — resolve credentials and build executors
     const initialized = await framework.initialize();
     const totalTools = Array.from(initialized.values()).reduce((sum, t) => sum + t.length, 0);
 

@@ -99,7 +99,7 @@ export type SideEffect =
   | 'configures-email';
 
 // ─── Individual Skill File Imports ──────────────────────
-import { M365_SKILL_DEFS, GWS_SKILL_DEFS, ENTERPRISE_SKILL_DEFS, AGENTICMAIL_SKILL_DEFS } from './skills/index.js';
+import { M365_SKILL_DEFS, GWS_SKILL_DEFS, ENTERPRISE_SKILL_DEFS, AGENTICMAIL_SKILL_DEFS, SYSTEM_SKILL_DEFS } from './skills/index.js';
 
 // ─── Agent Permission Profile ───────────────────────────
 
@@ -326,6 +326,9 @@ export const BUILTIN_SKILLS: Omit<SkillDefinition, 'tools'>[] = [
 
   // ═══ Enterprise Utility Tools ═══
   ...ENTERPRISE_SKILL_DEFS,
+
+  // ═══ System / Core ═══
+  ...SYSTEM_SKILL_DEFS,
 ];
 
 // ─── Permission Engine ──────────────────────────────────
@@ -414,10 +417,12 @@ export class PermissionEngine {
     }
 
     // 4. Tool-level explicit overrides (highest priority)
-    if (profile.tools.blocked.includes(toolId)) {
+    const blockedTools = profile.tools?.blocked || [];
+    const allowedTools = profile.tools?.allowed || [];
+    if (blockedTools.includes(toolId)) {
       return { allowed: false, reason: `Tool "${toolId}" is explicitly blocked`, requiresApproval: false };
     }
-    if (profile.tools.allowed.includes(toolId)) {
+    if (allowedTools.includes(toolId)) {
       // Explicitly allowed — skip skill checks, but still check approval requirements
       return this._checkApproval(profile, toolId);
     }
@@ -430,9 +435,11 @@ export class PermissionEngine {
     }
 
     // 6. Skill-level check
-    const skillAllowed = profile.skills.mode === 'allowlist'
-      ? profile.skills.list.includes(tool.skillId)
-      : !profile.skills.list.includes(tool.skillId);
+    const skillsMode = profile.skills?.mode || 'blocklist';
+    const skillsList = profile.skills?.list || [];
+    const skillAllowed = skillsMode === 'allowlist'
+      ? skillsList.includes(tool.skillId)
+      : !skillsList.includes(tool.skillId);
 
     if (!skillAllowed) {
       return { allowed: false, reason: `Skill "${tool.skillId}" is not permitted`, requiresApproval: false };

@@ -12,12 +12,10 @@ import { slackAdapter } from './slack.adapter.js';
 import { githubAdapter } from './github.adapter.js';
 import { jiraAdapter } from './jira.adapter.js';
 import { notionAdapter } from './notion.adapter.js';
-import { googleDriveAdapter } from './google-drive.adapter.js';
 import { stripeAdapter } from './stripe.adapter.js';
 import { discordAdapter } from './discord.adapter.js';
 import { salesforceAdapter } from './salesforce.adapter.js';
 import { linearAdapter } from './linear.adapter.js';
-import { teamsAdapter } from './microsoft-teams.adapter.js';
 
 // ─── Communication (16) ─────────────────────────────────
 import { twilioAdapter } from './twilio.adapter.js';
@@ -196,12 +194,10 @@ export const allAdapters: SkillAdapter[] = [
   githubAdapter,
   jiraAdapter,
   notionAdapter,
-  googleDriveAdapter,
   stripeAdapter,
   discordAdapter,
   salesforceAdapter,
   linearAdapter,
-  teamsAdapter,
   // Communication
   twilioAdapter,
   sendgridAdapter,
@@ -368,12 +364,10 @@ export {
   githubAdapter,
   jiraAdapter,
   notionAdapter,
-  googleDriveAdapter,
   stripeAdapter,
   discordAdapter,
   salesforceAdapter,
   linearAdapter,
-  teamsAdapter,
   // Communication
   twilioAdapter,
   sendgridAdapter,

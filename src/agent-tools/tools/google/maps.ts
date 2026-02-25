@@ -319,7 +319,13 @@ export function createGoogleMapsTools(config: GoogleMapsConfig): AnyAgentTool[] 
                   durationInTraffic: el.duration_in_traffic?.text,
                 });
               } else {
-                results.push({ origin: origins[i], destination: destinations[j], status: el?.status || 'UNKNOWN' });
+                const elStatus = el?.status || 'UNKNOWN';
+                const reason = elStatus === 'ZERO_RESULTS'
+                  ? 'No route found — locations may be separated by ocean or no road connection exists. Use flight distance estimates instead.'
+                  : elStatus === 'NOT_FOUND' ? 'Origin or destination not recognized.'
+                  : elStatus === 'MAX_ROUTE_LENGTH_EXCEEDED' ? 'Route too long for this travel mode.'
+                  : '';
+                results.push({ origin: origins[i], destination: destinations[j], status: elStatus, reason });
               }
             }
           }

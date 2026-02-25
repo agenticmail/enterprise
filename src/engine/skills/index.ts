@@ -41,6 +41,15 @@ import * as GwsKeep from './gws-keep.js';
 import * as GwsAdmin from './gws-admin.js';
 import * as GwsVault from './gws-vault.js';
 import * as GwsGroups from './gws-groups.js';
+import * as GwsMaps from './gws-maps.js';
+import * as GwsContacts from './gws-contacts.js';
+import * as GwsTasks from './gws-tasks.js';
+
+// ─── Core + System Skills ───────────────────────────────
+
+import * as CoreTools from './core-tools.js';
+import * as MeetingLifecycle from './meeting-lifecycle.js';
+import * as AgentMemory from './agent-memory.js';
 
 // ─── All M365 modules ───────────────────────────────────
 
@@ -57,7 +66,7 @@ export const GWS_MODULES = [
   GwsGmail, GwsCalendar, GwsDrive, GwsDocs,
   GwsSheets, GwsSlides, GwsMeet, GwsChat,
   GwsForms, GwsSites, GwsKeep, GwsAdmin,
-  GwsVault, GwsGroups,
+  GwsVault, GwsGroups, GwsMaps, GwsContacts, GwsTasks,
 ] as const;
 
 // ─── Combined skill definitions (for BUILTIN_SKILLS) ────
@@ -100,6 +109,22 @@ export const ENTERPRISE_MODULES = [
 export const ENTERPRISE_SKILL_DEFS = ENTERPRISE_MODULES.map(m => m.SKILL_DEF);
 export const ENTERPRISE_UTILITY_TOOLS: ToolDefinition[] = ENTERPRISE_MODULES.flatMap(m => m.TOOLS);
 
+// ─── Full SkillDefinitions with tools (for PermissionEngine) ────
+
+import type { SkillDefinition } from '../skills.js';
+
+const SYSTEM_MODULES = [CoreTools, MeetingLifecycle, AgentMemory] as const;
+
+export const SYSTEM_SKILL_DEFS = SYSTEM_MODULES.map(m => m.SKILL_DEF);
+export const SYSTEM_TOOLS: ToolDefinition[] = SYSTEM_MODULES.flatMap(m => m.TOOLS);
+
+const ALL_MODULES = [...AGENTICMAIL_MODULES, ...M365_MODULES, ...GWS_MODULES, ...ENTERPRISE_MODULES, ...SYSTEM_MODULES];
+
+export const FULL_SKILL_DEFINITIONS: SkillDefinition[] = ALL_MODULES.map(m => ({
+  ...m.SKILL_DEF,
+  tools: m.TOOLS,
+}));
+
 // ─── Re-export individual modules for direct access ─────
 
 export {
@@ -111,7 +136,8 @@ export {
   GwsGmail, GwsCalendar, GwsDrive, GwsDocs,
   GwsSheets, GwsSlides, GwsMeet, GwsChat,
   GwsForms, GwsSites, GwsKeep, GwsAdmin,
-  GwsVault, GwsGroups,
+  GwsVault, GwsGroups, GwsMaps, GwsContacts, GwsTasks,
   EntDatabase, EntSpreadsheet, EntDocuments, EntHttp,
   EntSecurityScan, EntCodeSandbox, EntDiff,
+  CoreTools, MeetingLifecycle, AgentMemory,
 };

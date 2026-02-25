@@ -955,9 +955,40 @@ export function createAgentRoutes(opts: {
               'google_contacts_create', 'google_contacts_update'],
     },
     {
-      id: 'meetings', name: 'Meetings', description: 'Join Google Meet, Zoom, Teams calls. Scan calendar and inbox for meeting invites. RSVP, take notes, send summaries.',
+      id: 'google_tasks', name: 'Google Tasks', description: 'Task lists, create/complete/update tasks, due dates',
+      icon: '✅', requiresOAuth: 'google',
+      tools: ['google_tasks_list_tasklists', 'google_tasks_list', 'google_tasks_create', 'google_tasks_update',
+              'google_tasks_complete', 'google_tasks_delete'],
+    },
+    {
+      id: 'google_chat', name: 'Google Chat', description: 'Send messages, manage spaces, read conversations',
+      icon: '💬', requiresOAuth: 'google',
+      tools: ['google_chat_list_spaces', 'google_chat_list_members', 'google_chat_list_messages',
+              'google_chat_send_message', 'google_chat_create_space'],
+    },
+    {
+      id: 'google_slides', name: 'Google Slides', description: 'Create and edit presentations, add slides, text, images',
+      icon: '🎨', requiresOAuth: 'google',
+      tools: ['google_slides_get', 'google_slides_create', 'google_slides_add_slide',
+              'google_slides_add_text', 'google_slides_add_image'],
+    },
+    {
+      id: 'google_forms', name: 'Google Forms', description: 'Create forms, add questions, read responses',
+      icon: '📋', requiresOAuth: 'google',
+      tools: ['google_forms_get', 'google_forms_create', 'google_forms_add_question',
+              'google_forms_responses', 'google_forms_response_summary'],
+    },
+    {
+      id: 'meetings', name: 'Meetings', description: 'Join Google Meet calls. Take notes, chat, share screen, send summaries.',
       icon: '🎥', requiresOAuth: 'google',
       tools: ['meetings_upcoming', 'meeting_join', 'meeting_action', 'meetings_scan_inbox', 'meeting_rsvp'],
+    },
+    {
+      id: 'google_maps', name: 'Google Maps', description: 'Places search, directions, distance calculation, geocoding, autocomplete',
+      icon: '🗺️', requiresIntegration: 'google-maps',
+      tools: ['google_maps_search', 'google_maps_nearby', 'google_maps_place_details', 'google_maps_directions',
+              'google_maps_distance', 'google_maps_geocode', 'google_maps_autocomplete', 'google_maps_static',
+              'google_maps_timezone', 'google_maps_elevation'],
     },
     {
       id: 'enterprise_database', name: 'Database', description: 'SQL queries, schema inspection, data sampling',
@@ -1331,10 +1362,12 @@ export function createAgentRoutes(opts: {
     const hasGoogleOAuth = emailConfig?.oauthProvider === 'google' && emailConfig?.oauthAccessToken;
     const hasMicrosoftOAuth = emailConfig?.oauthProvider === 'microsoft' && emailConfig?.oauthAccessToken;
 
-    const categories = TOOL_CATALOG.map(cat => {
-      const isAvailable = !cat.requiresOAuth
-        || (cat.requiresOAuth === 'google' && hasGoogleOAuth)
-        || (cat.requiresOAuth === 'microsoft' && hasMicrosoftOAuth);
+    const categories = TOOL_CATALOG.map((cat: any) => {
+      const isAvailable = cat.requiresOAuth
+        ? (cat.requiresOAuth === 'google' && hasGoogleOAuth) || (cat.requiresOAuth === 'microsoft' && hasMicrosoftOAuth)
+        : cat.requiresIntegration
+          ? true // Integration availability is checked at runtime via vault
+          : true;
 
       // Default: core is always on, others on if available
       const defaultEnabled = cat.alwaysOn || isAvailable;
@@ -1345,6 +1378,7 @@ export function createAgentRoutes(opts: {
         toolCount: cat.tools.length, tools: cat.tools,
         enabled, isAvailable, alwaysOn: cat.alwaysOn || false,
         requiresOAuth: cat.requiresOAuth || null,
+        requiresIntegration: cat.requiresIntegration || null,
       };
     });
 
