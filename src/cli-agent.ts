@@ -33,7 +33,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
  *
  * Supported platforms: macOS (brew), Linux (apt/yum/dnf/pacman/apk), Windows (winget/choco).
  */
-async function ensureSystemDependencies(): Promise<void> {
+async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) => Promise<boolean> }): Promise<void> {
   const { exec: execCb } = await import('child_process');
   const { promisify } = await import('util');
   const exec = promisify(execCb);
@@ -264,9 +264,103 @@ async function ensureSystemDependencies(): Promise<void> {
   }
 
   // ─── Summary ───────────────────────────────────────
-  if (installed.length) console.log(`[deps] Installed: ${installed.join(', ')}`);
-  if (failed.length) console.warn(`[deps] Could not auto-install: ${failed.join(' | ')}`);
-  if (!installed.length && !failed.length) console.log('[deps] All dependencies present');
+  if (installed.length) console.log(`\x1b[32m[deps] ✅ Installed: ${installed.join(', ')}\x1b[0m`);
+  if (failed.length) console.warn(`\x1b[33m[deps] ⚠️  Could not auto-install: ${failed.join(' | ')}\x1b[0m`);
+  if (!installed.length && !failed.length) console.log('\x1b[32m[deps] ✅ All system dependencies present\x1b[0m');
+
+  // ─── Voice Meeting Setup Guide ─────────────────────
+  // Show guide if voice deps are missing or partially installed
+  const hasVirtualAudio = platform === 'darwin'
+    ? fileExists('/Library/Audio/Plug-Ins/HAL/BlackHole2ch.driver')
+    : platform === 'win32'
+      ? fileExists('C:\\Program Files\\VB\\CABLE\\vbcable.exe')
+      : await has('pactl');
+  const hasSoxInstalled = await has('sox');
+  const hasElevenLabsKey = !!(process.env.ELEVENLABS_API_KEY);
+
+  // Check vault for ElevenLabs key
+  let hasVaultKey = false;
+  if (opts?.checkVaultKey) {
+    try { hasVaultKey = await opts.checkVaultKey('elevenlabs'); } catch {}
+  }
+
+  const voiceReady = hasVirtualAudio && hasSoxInstalled;
+  const allReady = voiceReady && (hasElevenLabsKey || hasVaultKey);
+
+  if (allReady) {
+    console.log('\x1b[32m[voice] ✅ Meeting voice ready — virtual audio + sox + ElevenLabs configured\x1b[0m');
+  } else {
+    console.log('');
+    console.log('\x1b[36m╔══════════════════════════════════════════════════════════════╗\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m  \x1b[1m\x1b[35m🎤 VOICE IN MEETINGS — Setup Guide\x1b[0m                           \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m╠══════════════════════════════════════════════════════════════╣\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m                                                              \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m  Want your agent to \x1b[1mspeak\x1b[0m in Google Meet calls?              \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m  Follow these steps:                                         \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m                                                              \x1b[36m║\x1b[0m');
+
+    // Step 1: Virtual Audio
+    if (hasVirtualAudio) {
+      console.log('\x1b[36m║\x1b[0m  \x1b[32m✅ Step 1: Virtual Audio Device\x1b[0m                             \x1b[36m║\x1b[0m');
+      console.log('\x1b[36m║\x1b[0m     \x1b[2mAlready installed\x1b[0m                                        \x1b[36m║\x1b[0m');
+    } else {
+      console.log('\x1b[36m║\x1b[0m  \x1b[31m❌ Step 1: Install Virtual Audio Device\x1b[0m                    \x1b[36m║\x1b[0m');
+      if (platform === 'darwin') {
+        console.log('\x1b[36m║\x1b[0m     \x1b[33m→ brew install --cask blackhole-2ch\x1b[0m                     \x1b[36m║\x1b[0m');
+        console.log('\x1b[36m║\x1b[0m     \x1b[2m(Routes agent voice to Meet as a microphone)\x1b[0m             \x1b[36m║\x1b[0m');
+      } else if (platform === 'linux') {
+        console.log('\x1b[36m║\x1b[0m     \x1b[33m→ sudo apt install pulseaudio-utils\x1b[0m                    \x1b[36m║\x1b[0m');
+        console.log('\x1b[36m║\x1b[0m     \x1b[33m→ pactl load-module module-null-sink sink_name=virtual\x1b[0m  \x1b[36m║\x1b[0m');
+        console.log('\x1b[36m║\x1b[0m     \x1b[2m(Creates a virtual audio sink for voice routing)\x1b[0m         \x1b[36m║\x1b[0m');
+      } else if (platform === 'win32') {
+        console.log('\x1b[36m║\x1b[0m     \x1b[33m→ choco install vb-cable\x1b[0m                               \x1b[36m║\x1b[0m');
+        console.log('\x1b[36m║\x1b[0m     \x1b[2mOR download from https://vb-audio.com/Cable/\x1b[0m             \x1b[36m║\x1b[0m');
+        console.log('\x1b[36m║\x1b[0m     \x1b[2m(Virtual audio cable for voice routing)\x1b[0m                  \x1b[36m║\x1b[0m');
+      }
+    }
+
+    console.log('\x1b[36m║\x1b[0m                                                              \x1b[36m║\x1b[0m');
+
+    // Step 2: Sox
+    if (hasSoxInstalled) {
+      console.log('\x1b[36m║\x1b[0m  \x1b[32m✅ Step 2: Audio Router (sox)\x1b[0m                               \x1b[36m║\x1b[0m');
+      console.log('\x1b[36m║\x1b[0m     \x1b[2mAlready installed\x1b[0m                                        \x1b[36m║\x1b[0m');
+    } else {
+      console.log('\x1b[36m║\x1b[0m  \x1b[31m❌ Step 2: Install Audio Router (sox)\x1b[0m                      \x1b[36m║\x1b[0m');
+      if (platform === 'darwin') {
+        console.log('\x1b[36m║\x1b[0m     \x1b[33m→ brew install sox\x1b[0m                                      \x1b[36m║\x1b[0m');
+      } else if (platform === 'linux') {
+        console.log('\x1b[36m║\x1b[0m     \x1b[33m→ sudo apt install sox\x1b[0m                                  \x1b[36m║\x1b[0m');
+      } else if (platform === 'win32') {
+        console.log('\x1b[36m║\x1b[0m     \x1b[33m→ choco install sox.portable\x1b[0m                            \x1b[36m║\x1b[0m');
+      }
+      console.log('\x1b[36m║\x1b[0m     \x1b[2m(Plays TTS audio through the virtual device)\x1b[0m              \x1b[36m║\x1b[0m');
+    }
+
+    console.log('\x1b[36m║\x1b[0m                                                              \x1b[36m║\x1b[0m');
+
+    // Step 3: ElevenLabs API Key
+    if (hasElevenLabsKey || hasVaultKey) {
+      console.log('\x1b[36m║\x1b[0m  \x1b[32m✅ Step 3: ElevenLabs API Key\x1b[0m                               \x1b[36m║\x1b[0m');
+      console.log('\x1b[36m║\x1b[0m     \x1b[2mAlready configured\x1b[0m                                       \x1b[36m║\x1b[0m');
+    } else {
+      console.log('\x1b[36m║\x1b[0m  \x1b[33m⬜ Step 3: Add ElevenLabs API Key\x1b[0m                          \x1b[36m║\x1b[0m');
+      console.log('\x1b[36m║\x1b[0m     \x1b[33m→ Dashboard → Settings → Integrations → ElevenLabs\x1b[0m       \x1b[36m║\x1b[0m');
+      console.log('\x1b[36m║\x1b[0m     \x1b[2mGet your key at https://elevenlabs.io/api\x1b[0m                 \x1b[36m║\x1b[0m');
+    }
+
+    console.log('\x1b[36m║\x1b[0m                                                              \x1b[36m║\x1b[0m');
+
+    // Step 4: Pick a voice
+    console.log('\x1b[36m║\x1b[0m  \x1b[33m⬜ Step 4: Choose a Voice (optional)\x1b[0m                        \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m     \x1b[33m→ Dashboard → Agent → Personal Details → Voice\x1b[0m           \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m     \x1b[2m12 built-in voices + your custom ElevenLabs voices\x1b[0m         \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m║\x1b[0m     \x1b[2mDefault: Rachel (calm, professional American female)\x1b[0m       \x1b[36m║\x1b[0m');
+
+    console.log('\x1b[36m║\x1b[0m                                                              \x1b[36m║\x1b[0m');
+    console.log('\x1b[36m╚══════════════════════════════════════════════════════════════╝\x1b[0m');
+    console.log('');
+  }
 }
 
 export async function runAgent(_args: string[]) {
@@ -895,7 +989,16 @@ export async function runAgent(_args: string[]) {
     console.log(`   Runtime: http://localhost:${info.port}/api/runtime`);
 
     // Auto-install all system dependencies (voice, browser, audio, etc.)
-    ensureSystemDependencies().catch((e) => console.warn('[deps] Dependency check failed:', e.message));
+    ensureSystemDependencies({
+      checkVaultKey: async (name) => {
+        try {
+          const secretName = `skill:${name}:access_token`;
+          // Direct DB query — vault in-memory cache may not be loaded yet
+          const rows = await engineDb.query(`SELECT id FROM vault_entries WHERE name = $1 LIMIT 1`, [secretName]);
+          return rows.length > 0;
+        } catch { return false; }
+      },
+    }).catch((e) => console.warn('[deps] Dependency check failed:', e.message));
 
     console.log('');
   });
