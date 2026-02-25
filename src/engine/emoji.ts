@@ -91,6 +91,9 @@ export const Emoji = {
   blueDiamond: '\uD83D\uDD37',  // 🔷
   orangeCircle: '\uD83D\uDFE0', // 🟠
 
+  // Vision
+  eye: '\uD83D\uDC41',       // 👁
+
   // Arrows
   triangleUp: '\u25B2',    // ▲
   triangleDown: '\u25BC',  // ▼

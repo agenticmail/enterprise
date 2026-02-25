@@ -50,6 +50,7 @@ import * as GwsTasks from './gws-tasks.js';
 import * as CoreTools from './core-tools.js';
 import * as MeetingLifecycle from './meeting-lifecycle.js';
 import * as AgentMemory from './agent-memory.js';
+import * as VisualMemory from './visual-memory.js';
 
 // ─── All M365 modules ───────────────────────────────────
 
@@ -113,7 +114,7 @@ export const ENTERPRISE_UTILITY_TOOLS: ToolDefinition[] = ENTERPRISE_MODULES.fla
 
 import type { SkillDefinition } from '../skills.js';
 
-const SYSTEM_MODULES = [CoreTools, MeetingLifecycle, AgentMemory] as const;
+const SYSTEM_MODULES = [CoreTools, MeetingLifecycle, AgentMemory, VisualMemory] as const;
 
 export const SYSTEM_SKILL_DEFS = SYSTEM_MODULES.map(m => m.SKILL_DEF);
 export const SYSTEM_TOOLS: ToolDefinition[] = SYSTEM_MODULES.flatMap(m => m.TOOLS);
@@ -139,5 +140,5 @@ export {
   GwsVault, GwsGroups, GwsMaps, GwsContacts, GwsTasks,
   EntDatabase, EntSpreadsheet, EntDocuments, EntHttp,
   EntSecurityScan, EntCodeSandbox, EntDiff,
-  CoreTools, MeetingLifecycle, AgentMemory,
+  CoreTools, MeetingLifecycle, AgentMemory, VisualMemory,
 };
