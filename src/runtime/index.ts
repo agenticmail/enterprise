@@ -328,7 +328,7 @@ export class AgentRuntime {
     var toolOpts = this.buildToolOptions(agentId, session.id);
     var tools = opts.tools || await createToolsForContext(toolOpts, sessionContext);
     var toolStats = getToolSetStats(tools);
-    console.log(`[runtime] Session ${session.id} tools: ${toolStats.total} (context: ${sessionContext})${toolStats.unmatched.length ? `, unmatched: ${toolStats.unmatched.join(',')}` : ''}`);
+    console.log(`[runtime] Session ${session.id} tools: ${toolStats.total} (context: ${sessionContext})${toolStats.unregistered.length ? `, unregistered: ${toolStats.unregistered.join(',')}` : ''}`);
 
     // Override model for meeting sessions (faster model = lower latency for voice)
     if (sessionContext === 'meeting' || (this.config.getAgentConfig && systemPrompt && (systemPrompt.includes('MeetingMonitor') || systemPrompt.includes('meeting_speak')))) {
