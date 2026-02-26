@@ -160,42 +160,70 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
     async checkBudget(agentId, orgId, estimatedTokens): Promise<BudgetCheckResult> {
       try {
         var { lifecycle } = await import('../engine/routes.js');
-        // Get agent's budget config
-        var budget = await lifecycle.getBudget(agentId);
+        var budget = lifecycle.getBudget(agentId);
         if (!budget) return { allowed: true };
 
-        // Get current usage
-        var usage = await lifecycle.getUsage(agentId);
+        var usage = lifecycle.getUsage(agentId);
         if (!usage) return { allowed: true };
 
-        var dailySpend = usage.dailyCostUsd || 0;
-        var monthlySpend = usage.monthlyCostUsd || 0;
-        var dailyLimit = budget.dailyLimitUsd || Infinity;
-        var monthlyLimit = budget.monthlyLimitUsd || Infinity;
+        // Resolve field names (DB uses multiple naming conventions)
+        var u = usage as any;
+        var b = budget as any;
+        var dailySpend = u.costToday ?? u.dailyCostUsd ?? 0;
+        var monthlySpend = u.costThisMonth ?? u.monthlyCostUsd ?? 0;
+        var weeklySpend = u.costThisWeek ?? 0;
+        var dailyTokens = u.tokensToday ?? u.dailyTokens ?? 0;
+        var monthlyTokens = u.tokensThisMonth ?? u.monthlyTokens ?? 0;
 
-        if (dailySpend >= dailyLimit) {
+        // Resolve budget caps (DB stores as dailyCost/dailyTokens OR dailyCostCap/dailyTokenCap)
+        var dailyCostLimit = b.dailyCostCap || b.dailyCost || b.dailyLimitUsd || 0;
+        var monthlyCostLimit = b.monthlyCostCap || b.monthlyCost || b.monthlyLimitUsd || 0;
+        var dailyTokenLimit = b.dailyTokenCap || b.dailyTokens || 0;
+        var monthlyTokenLimit = b.monthlyTokenCap || b.monthlyTokens || 0;
+
+        // Check cost limits (0 = unlimited)
+        if (dailyCostLimit > 0 && dailySpend >= dailyCostLimit) {
           return {
             allowed: false,
-            reason: `Daily budget exceeded: $${dailySpend.toFixed(2)} / $${dailyLimit.toFixed(2)}`,
+            reason: `Daily cost budget exceeded: $${dailySpend.toFixed(2)} / $${dailyCostLimit.toFixed(2)}`,
             remainingUsd: 0,
           };
         }
-        if (monthlySpend >= monthlyLimit) {
+        if (monthlyCostLimit > 0 && monthlySpend >= monthlyCostLimit) {
           return {
             allowed: false,
-            reason: `Monthly budget exceeded: $${monthlySpend.toFixed(2)} / $${monthlyLimit.toFixed(2)}`,
+            reason: `Monthly cost budget exceeded: $${monthlySpend.toFixed(2)} / $${monthlyCostLimit.toFixed(2)}`,
             remainingUsd: 0,
           };
         }
 
-        var remainingDaily = dailyLimit - dailySpend;
-        var remainingMonthly = monthlyLimit - monthlySpend;
-        var remaining = Math.min(remainingDaily, remainingMonthly);
+        // Check token limits (0 = unlimited)
+        if (dailyTokenLimit > 0 && dailyTokens >= dailyTokenLimit) {
+          return {
+            allowed: false,
+            reason: `Daily token budget exceeded: ${(dailyTokens/1e6).toFixed(1)}M / ${(dailyTokenLimit/1e6).toFixed(1)}M tokens`,
+            remainingUsd: 0,
+          };
+        }
+        if (monthlyTokenLimit > 0 && monthlyTokens >= monthlyTokenLimit) {
+          return {
+            allowed: false,
+            reason: `Monthly token budget exceeded: ${(monthlyTokens/1e6).toFixed(1)}M / ${(monthlyTokenLimit/1e6).toFixed(1)}M tokens`,
+            remainingUsd: 0,
+          };
+        }
+
+        // Calculate remaining
+        var remaining = Infinity;
+        if (dailyCostLimit > 0) remaining = Math.min(remaining, dailyCostLimit - dailySpend);
+        if (monthlyCostLimit > 0) remaining = Math.min(remaining, monthlyCostLimit - monthlySpend);
+        if (remaining === Infinity) remaining = 100; // no cost limit set
 
         return { allowed: true, remainingUsd: remaining };
-      } catch {
-        // Fail open — if budget check fails, allow the call
-        return { allowed: true };
+      } catch (err) {
+        console.error(`[hooks] Budget check failed: ${(err as Error).message}`);
+        // Fail CLOSED for budget — if we can't check, deny
+        return { allowed: false, reason: 'Budget check error — denying for safety' };
       }
     },
 
