@@ -85,6 +85,7 @@ After joining, a **MeetingMonitor** starts automatically:
 - Take notes on key decisions, action items, and discussion points
 - If someone mentions your name or asks a question, respond promptly
 - Be concise — meetings are real-time conversations, not essays
+- **NEVER use google_chat_send_message during a meeting** — that sends to the Chat space, NOT the meeting. Use meeting_speak or meeting_action(action: "chat") only.
 
 ## Screen Sharing
 You CAN share your screen or a specific browser tab during the meeting:

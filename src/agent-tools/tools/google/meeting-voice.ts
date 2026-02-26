@@ -302,15 +302,22 @@ async function streamSpeechToDevice(
   });
 
   // Fetch TTS stream
+  const fetchStart = Date.now();
   const res = await _fetchTTSStream(apiKey, text, voiceId, options);
+  console.log(`[voice] TTS API responded in ${Date.now() - fetchStart}ms`);
   const reader = res.body!.getReader();
   let totalBytes = 0;
+  let firstChunk = true;
 
   // Pipe stream chunks directly to sox stdin
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      if (firstChunk) {
+        console.log(`[voice] First audio chunk in ${Date.now() - fetchStart}ms (${value.length} bytes)`);
+        firstChunk = false;
+      }
       totalBytes += value.length;
       const canWrite = player.stdin!.write(Buffer.from(value));
       if (!canWrite) {
@@ -370,8 +377,8 @@ async function _fetchTTSStream(
         style: 0.0,
         use_speaker_boost: true,
       },
-      output_format: 'mp3_44100_128',
-      optimize_streaming_latency: 3, // Max streaming optimization
+      output_format: 'mp3_22050_32', // Lower bitrate = smaller chunks = faster first-byte
+      optimize_streaming_latency: 4, // Maximum latency optimization (may reduce quality slightly)
     }),
   });
 

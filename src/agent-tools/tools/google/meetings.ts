@@ -179,33 +179,33 @@ export async function sendChatMessage(page: any, message: string): Promise<{ sen
       await page.keyboard.press('Backspace');
       await delay(100);
 
-      // Strategy A: Clipboard paste (fast + reliable, no garbled text)
+      // Strategy A: execCommand insertText (reliable, no clipboard dependency)
       try {
-        await page.evaluate((text: string) => {
-          navigator.clipboard.writeText(text);
+        const inserted = await page.evaluate((text: string) => {
+          const active = document.activeElement as HTMLTextAreaElement | HTMLInputElement;
+          if (active && ('value' in active)) {
+            const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+              || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            if (setter) {
+              setter.call(active, text);
+              active.dispatchEvent(new Event('input', { bubbles: true }));
+              active.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+          }
+          // contenteditable fallback
+          return document.execCommand('insertText', false, text);
         }, message);
-        const isMac = process.platform === 'darwin';
-        await page.keyboard.press(isMac ? 'Meta+v' : 'Control+v');
+        if (!inserted) throw new Error('insertText returned false');
         await delay(300);
       } catch {
-        // Clipboard failed — fall back to execCommand insertText (bypasses React, no char-by-char)
+        // Strategy B: Clipboard paste (write + paste atomically via page context)
         try {
-          await page.evaluate((text: string) => {
-            const active = document.activeElement as HTMLTextAreaElement | HTMLInputElement;
-            if (active && ('value' in active)) {
-              // Use native setter for React-controlled inputs
-              const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
-                || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-              if (setter) {
-                setter.call(active, text);
-                active.dispatchEvent(new Event('input', { bubbles: true }));
-                active.dispatchEvent(new Event('change', { bubbles: true }));
-                return;
-              }
-            }
-            // contenteditable fallback
-            document.execCommand('insertText', false, text);
+          await page.evaluate(async (text: string) => {
+            await navigator.clipboard.writeText(text);
           }, message);
+          const isMac = process.platform === 'darwin';
+          await page.keyboard.press(isMac ? 'Meta+v' : 'Control+v');
           await delay(300);
         } catch {
           // Last resort: keyboard.type — only for short messages

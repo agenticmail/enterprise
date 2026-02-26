@@ -47,11 +47,10 @@ function fixOrphanedToolBlocks(messages: AgentMessage[]): AgentMessage[] {
   }
 
   // ─── Pass 2: Remove orphaned blocks ───
-  const result = messages.map(m => {
+  let result = messages.map(m => {
     if (!Array.isArray(m.content)) return m;
 
     if (m.role === 'user') {
-      // Remove tool_result blocks without matching tool_use
       const filtered = (m.content as any[]).filter(block => {
         if (block.type === 'tool_result' && block.tool_use_id && !allToolUseIds.has(block.tool_use_id)) {
           fixed = true;
@@ -65,7 +64,6 @@ function fixOrphanedToolBlocks(messages: AgentMessage[]): AgentMessage[] {
     }
 
     if (m.role === 'assistant') {
-      // Remove tool_use blocks without matching tool_result
       const filtered = (m.content as any[]).filter(block => {
         if (block.type === 'tool_use' && block.id && !allToolResultIds.has(block.id)) {
           fixed = true;
@@ -81,7 +79,67 @@ function fixOrphanedToolBlocks(messages: AgentMessage[]): AgentMessage[] {
     return m;
   }).filter(Boolean) as AgentMessage[];
 
-  if (fixed) console.log(`[agent-loop] Fixed orphaned tool_use/tool_result blocks in message history`);
+  // ─── Pass 3: Fix adjacency — tool_result MUST immediately follow its tool_use ───
+  // If user messages got injected between assistant tool_use and user tool_result, reorder.
+  for (let i = 0; i < result.length; i++) {
+    const m = result[i];
+    if (m.role !== 'assistant' || !Array.isArray(m.content)) continue;
+    const toolUseIds = (m.content as any[])
+      .filter((b: any) => b.type === 'tool_use' && b.id)
+      .map((b: any) => b.id);
+    if (toolUseIds.length === 0) continue;
+
+    // The very next message must be a user message with tool_results for these IDs
+    const next = result[i + 1];
+    if (next && next.role === 'user' && Array.isArray(next.content)) {
+      const hasResults = (next.content as any[]).some((b: any) => b.type === 'tool_result' && toolUseIds.includes(b.tool_use_id));
+      if (hasResults) continue; // adjacency is fine
+    }
+
+    // Search further for the tool_result message and move it
+    for (let j = i + 2; j < result.length; j++) {
+      const candidate = result[j];
+      if (candidate.role !== 'user' || !Array.isArray(candidate.content)) continue;
+      const matchingResults = (candidate.content as any[]).filter((b: any) =>
+        b.type === 'tool_result' && toolUseIds.includes(b.tool_use_id));
+      if (matchingResults.length === 0) continue;
+
+      // Extract matching tool_results from their current position
+      const remaining = (candidate.content as any[]).filter((b: any) =>
+        !(b.type === 'tool_result' && toolUseIds.includes(b.tool_use_id)));
+
+      // Build the tool_result message to insert right after the tool_use
+      const toolResultMsg: AgentMessage = { role: 'user', content: matchingResults };
+
+      // Update or remove the source message
+      if (remaining.length === 0) {
+        result.splice(j, 1); // remove empty message
+      } else {
+        result[j] = { ...candidate, content: remaining };
+      }
+
+      // Insert right after the tool_use message
+      result.splice(i + 1, 0, toolResultMsg);
+      fixed = true;
+      console.log(`[agent-loop] Reordered tool_result to fix adjacency (moved from index ${j} to ${i + 1})`);
+      break;
+    }
+
+    // If no tool_result found anywhere, remove the tool_use blocks (truly orphaned)
+    if (!fixed) {
+      const filtered = (m.content as any[]).filter((b: any) =>
+        !(b.type === 'tool_use' && toolUseIds.includes(b.id)));
+      if (filtered.length === 0) {
+        result.splice(i, 1);
+        i--;
+      } else {
+        result[i] = { ...m, content: filtered };
+      }
+      fixed = true;
+    }
+  }
+
+  if (fixed) console.log(`[agent-loop] Fixed orphaned/non-adjacent tool_use/tool_result blocks`);
   return result;
 }
 
@@ -202,6 +260,7 @@ export async function runAgentLoop(
     }
 
     // Call LLM with retry for transient errors
+    var llmCallStart = Date.now();
     var llmResponse: LLMResponse = undefined as any;
     var llmRetryMax = 3;
     var llmRetryDelay = 2000; // start at 2s, doubles each retry
@@ -223,6 +282,7 @@ export async function runAgentLoop(
           options.onEvent,
           options.retryConfig,
         );
+        console.log(`[agent-loop] LLM responded in ${Date.now() - llmCallStart}ms (${estimateMessageTokens(messages)} input tokens)`);
         break; // success
       } catch (err: any) {
         // Recover from orphaned tool_result errors (e.g. after compaction)
@@ -381,6 +441,22 @@ export async function runAgentLoop(
           console.log(`[agent-loop] ❌ Tool ${toolCall.name} failed: ${result.error?.slice(0, 200)}`);
         } else {
           console.log(`[agent-loop] ✅ Tool ${toolCall.name} succeeded (${content.length} chars): ${content.slice(0, 300)}`);
+        }
+
+        // Dynamic tool injection — request_tools returns new tools to add to the session
+        if ((result as any)._dynamicTools?.length) {
+          var newTools = (result as any)._dynamicTools as any[];
+          var existingNames = new Set(config.tools.map((t: any) => t.name));
+          var added = 0;
+          for (var nt of newTools) {
+            if (!existingNames.has(nt.name)) {
+              config.tools.push(nt);
+              toolDefs.push({ name: nt.name, description: nt.description, input_schema: nt.parameters });
+              existingNames.add(nt.name);
+              added++;
+            }
+          }
+          if (added) console.log(`[agent-loop] Dynamically loaded ${added} new tools`);
         }
 
         toolResults.push({

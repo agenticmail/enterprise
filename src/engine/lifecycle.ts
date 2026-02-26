@@ -1101,15 +1101,20 @@ export class AgentLifecycleManager {
     this.agents.set(agent.id, agent);
     if (!this.engineDb) return;
     try {
-      // In standalone agent mode, reload dashboard-managed fields from DB before saving
-      // to avoid overwriting changes made via the enterprise dashboard.
-      // The enterprise server itself is the source of truth for config — it should NOT reload.
-      if (this.standaloneMode) {
-        const dbAgent = await this.engineDb.getManagedAgent(agent.id);
-        if (dbAgent) {
-          const dbConfig = dbAgent.config as any;
-          const memConfig = agent.config as any;
-          // Dashboard-managed fields: prefer DB (set by enterprise server)
+      // Reload select fields from DB before saving to avoid overwriting changes
+      // made by other processes (enterprise server, standalone agents, direct DB updates).
+      const dbAgent = await this.engineDb.getManagedAgent(agent.id);
+      if (dbAgent) {
+        const dbConfig = dbAgent.config as any;
+        const memConfig = agent.config as any;
+
+        // voiceConfig: always preserve from DB (set by dashboard, used by both server + agent)
+        if (dbConfig.voiceConfig && !memConfig.voiceConfig) {
+          memConfig.voiceConfig = dbConfig.voiceConfig;
+        }
+
+        // In standalone mode, also reload dashboard-managed fields (enterprise server is source of truth)
+        if (this.standaloneMode) {
           if (dbConfig.model) memConfig.model = dbConfig.model;
           if (dbConfig.identity) memConfig.identity = dbConfig.identity;
           if (dbConfig.manager) memConfig.manager = dbConfig.manager;
@@ -1119,7 +1124,7 @@ export class AgentLifecycleManager {
           if (dbConfig.schedule) memConfig.schedule = dbConfig.schedule;
           if (dbConfig.skills) memConfig.skills = dbConfig.skills;
           if (dbConfig.permissionProfileId) memConfig.permissionProfileId = dbConfig.permissionProfileId;
-          // emailConfig: preserve dashboard fields but keep runtime tokens from memory
+          if (dbConfig.voiceConfig) memConfig.voiceConfig = { ...(memConfig.voiceConfig || {}), ...dbConfig.voiceConfig };
           if (dbConfig.emailConfig && memConfig.emailConfig) {
             const dbEmail = dbConfig.emailConfig;
             const memEmail = memConfig.emailConfig;

@@ -63,7 +63,7 @@ export class MeetingMonitor {
   /** Timestamp of last new caption arrival — used for silence gap detection */
   private lastCaptionArrival = 0;
   /** Minimum silence gap in ms before flushing captions (wait for speaker to finish) */
-  private silenceGapMs = 2500;
+  private silenceGapMs = 2000;
   /** Minimum total caption text length to flush (skip filler fragments) */
   private minCaptionLength = 20;
 
@@ -72,7 +72,7 @@ export class MeetingMonitor {
     this.agentId = config.agentId;
     this.sessionId = config.sessionId;
     this.sendMessage = config.sendMessage;
-    this.flushIntervalMs = config.flushIntervalMs || 12_000;
+    this.flushIntervalMs = config.flushIntervalMs || 2_000; // Poll every 2s to catch silence gaps quickly
     this.onMeetingEnd = config.onMeetingEnd;
     this.sendChatIndicator = config.sendChatIndicator;
   }
@@ -347,16 +347,9 @@ export class MeetingMonitor {
    * Send accumulated captions and/or chat to the agent session.
    */
   private async sendUpdate(captions: CaptionEntry[], chat: ChatEntry[]): Promise<void> {
-    // Show typing indicator in Meet chat so participants know the AI is processing
-    if (this.sendChatIndicator) {
-      try {
-        // Only show indicator for captions (chat messages are from participants — no need)
-        if (captions.length > 0) {
-          await this.sendChatIndicator(this.page, 'Processing please wait...');
-        }
-      } catch (err: any) {
-        console.log(`[meeting-monitor:${this.agentId}] Chat indicator failed (non-fatal): ${err.message}`);
-      }
+    // Fire-and-forget typing indicator (don't block the flush pipeline)
+    if (this.sendChatIndicator && captions.length > 0) {
+      this.sendChatIndicator(this.page, '...').catch(() => {});
     }
 
     const parts: string[] = ['[Meeting Monitor — Live Update]'];

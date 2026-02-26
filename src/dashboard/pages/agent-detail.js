@@ -485,6 +485,7 @@ function PersonalDetailsSection(props) {
         : Object.assign({}, DEFAULT_TRAITS),
       voiceId: config.voiceConfig?.voiceId || '',
       voiceName: config.voiceConfig?.voiceName || '',
+      meetingModel: config.voiceConfig?.meetingModel || '',
     });
     setEditing(true);
   };
@@ -520,6 +521,7 @@ function PersonalDetailsSection(props) {
       voiceConfig: {
         voiceId: form.voiceId || '',
         voiceName: form.voiceName || '',
+        meetingModel: form.meetingModel || '',
       },
     };
 
@@ -658,7 +660,13 @@ function PersonalDetailsSection(props) {
                 h('div', { style: { fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' } }, config.voiceConfig.voiceId || '')
               )
             )
-          : h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'No voice configured \u2014 agent uses text only in meetings')
+          : h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'No voice configured \u2014 agent uses text only in meetings'),
+        config.voiceConfig?.meetingModel
+          ? h('div', { style: { marginTop: 12, padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 13 } },
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Meeting Model: '),
+              h('span', { style: { fontWeight: 600 } }, config.voiceConfig.meetingModel)
+            )
+          : null
       )
     );
   }
@@ -718,7 +726,27 @@ function PersonalDetailsSection(props) {
     // Voice Configuration
     h('div', { className: 'card', style: { padding: 20, marginBottom: 20 } },
       h('h4', { style: { margin: '0 0 16px', fontSize: 14, fontWeight: 600 } }, 'Voice'),
-      h(VoiceSelector, { voiceId: form.voiceId || '', voiceName: form.voiceName || '', onChange: function(id, name) { set('voiceId', id); set('voiceName', name); } })
+      h(VoiceSelector, { voiceId: form.voiceId || '', voiceName: form.voiceName || '', onChange: function(id, name) { set('voiceId', id); set('voiceName', name); } }),
+
+      // Meeting Model Override
+      h('div', { style: { marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' } },
+        h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' } }, 'Meeting Model'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 } }, 'Faster model for real-time voice conversations. Reduces response latency from ~5s to ~1-2s.'),
+        h('select', {
+          className: 'input',
+          style: { cursor: 'pointer' },
+          value: form.meetingModel || '',
+          onChange: function(e) { set('meetingModel', e.target.value); }
+        },
+          h('option', { value: '' }, 'Same as agent model (default)'),
+          h('option', { value: 'anthropic/claude-sonnet-4-20250514' }, 'Claude Sonnet 4 (Recommended — fast + smart)'),
+          h('option', { value: 'anthropic/claude-3-5-sonnet-20241022' }, 'Claude 3.5 Sonnet (fast + capable)'),
+          h('option', { value: 'anthropic/claude-3-5-haiku-20241022' }, 'Claude 3.5 Haiku (fastest — basic conversations)'),
+          h('option', { value: 'openai/gpt-4o-mini' }, 'GPT-4o Mini (very fast)'),
+          h('option', { value: 'openai/gpt-4o' }, 'GPT-4o (balanced)'),
+          h('option', { value: 'google/gemini-2.0-flash' }, 'Gemini 2.0 Flash (very fast)')
+        )
+      )
     ),
 
     // Bottom save bar

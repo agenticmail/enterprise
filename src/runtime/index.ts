@@ -44,6 +44,7 @@ import { SessionManager } from './session-manager.js';
 import { createRuntimeHooks, createNoopHooks } from './hooks.js';
 import { runAgentLoop } from './agent-loop.js';
 import { createAllTools } from '../agent-tools/index.js';
+import { createToolsForContext, detectSessionContext, getToolSetStats, type SessionContext } from '../agent-tools/tool-resolver.js';
 import { createRuntimeGateway, emitSessionEvent } from './gateway.js';
 import { SubAgentManager, type SpawnSubAgentResult } from './subagent.js';
 import { EmailChannel, type InboundEmail, type InboundEmailResult } from './email-channel.js';
@@ -187,6 +188,9 @@ export class AgentRuntime {
       // Pass voice config for meeting TTS
       if (agentConfig?.voiceConfig) {
         base.voiceConfig = agentConfig.voiceConfig;
+        console.log(`[runtime] Voice config loaded: ${JSON.stringify(agentConfig.voiceConfig)}`);
+      } else {
+        console.log(`[runtime] No voiceConfig in agent config (keys: ${Object.keys(agentConfig || {}).join(', ')})`);
       }
     }
     // Pass vault for MCP skill bridge (Slack, GitHub, Jira, etc.)
@@ -306,15 +310,38 @@ export class AgentRuntime {
     // Create session in DB
     var session = await this.sessionManager!.createSession(agentId, orgId, opts.parentSessionId);
 
-    // Build agent config
-    var tools = opts.tools || await createAllTools(this.buildToolOptions(agentId, session.id));
-
     // Inject persistent memory context into system prompt
     var memoryContext = '';
     if (this.config.agentMemoryManager) {
       try { memoryContext = await this.config.agentMemoryManager.generateMemoryContext(agentId); } catch {}
     }
     var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext);
+
+    // Detect session context for dynamic tool loading
+    var sessionContext = detectSessionContext({
+      systemPrompt,
+      sessionKind: (opts as any).kind,
+      explicitContext: (opts as any).sessionContext,
+    });
+
+    // Build tools — context-aware (only loads what's needed)
+    var toolOpts = this.buildToolOptions(agentId, session.id);
+    var tools = opts.tools || await createToolsForContext(toolOpts, sessionContext);
+    var toolStats = getToolSetStats(tools);
+    console.log(`[runtime] Session ${session.id} tools: ${toolStats.total} (context: ${sessionContext})${toolStats.unmatched.length ? `, unmatched: ${toolStats.unmatched.join(',')}` : ''}`);
+
+    // Override model for meeting sessions (faster model = lower latency for voice)
+    if (sessionContext === 'meeting' || (this.config.getAgentConfig && systemPrompt && (systemPrompt.includes('MeetingMonitor') || systemPrompt.includes('meeting_speak')))) {
+      var agentCfg = this.config.getAgentConfig?.(agentId);
+      var meetingModel = (agentCfg as any)?.voiceConfig?.meetingModel;
+      if (meetingModel) {
+        var parts = meetingModel.split('/');
+        if (parts.length === 2) {
+          model = { provider: parts[0], modelId: parts[1] };
+          console.log(`[runtime] Meeting session — using fast model: ${meetingModel}`);
+        }
+      }
+    }
 
     var agentConfig: AgentConfig = {
       agentId,
@@ -365,21 +392,41 @@ export class AgentRuntime {
 
     // Resume the agent loop with the updated messages
     var model = this.config.defaultModel || DEFAULT_MODEL;
+
+    // Check for meeting model override (existing session may have become a meeting)
+    if (this.config.getAgentConfig) {
+      var _agentCfg = this.config.getAgentConfig(session.agentId);
+      var _meetingModel = (_agentCfg as any)?.voiceConfig?.meetingModel;
+      if (_meetingModel && this.keepAliveSessions.has(sessionId)) {
+        // Keep-alive = meeting session — use faster model
+        var _parts = _meetingModel.split('/');
+        if (_parts.length === 2) {
+          model = { provider: _parts[0], modelId: _parts[1] };
+        }
+      }
+    }
+
     var apiKey = this.resolveApiKey(model.provider);
     if (!apiKey) throw new Error(`No API key for provider: ${model.provider}`);
-
-    var tools = await createAllTools(this.buildToolOptions(session.agentId, sessionId));
 
     var memoryContext = '';
     if (this.config.agentMemoryManager) {
       try { memoryContext = await this.config.agentMemoryManager.generateMemoryContext(session.agentId); } catch {}
     }
+    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext);
+
+    // Context-aware tool loading
+    var _sessionContext = detectSessionContext({
+      systemPrompt: _systemPrompt,
+      isKeepAlive: this.keepAliveSessions.has(sessionId),
+    });
+    var tools = await createToolsForContext(this.buildToolOptions(session.agentId, sessionId), _sessionContext);
 
     var agentConfig: AgentConfig = {
       agentId: session.agentId,
       orgId: session.orgId,
       model,
-      systemPrompt: buildDefaultSystemPrompt(session.agentId, memoryContext),
+      systemPrompt: _systemPrompt,
       tools,
     };
 
@@ -572,6 +619,20 @@ export class AgentRuntime {
     // Mark loop as running to prevent concurrent loops from sendMessage
     this.loopRunning.add(sessionId);
 
+    // Override model for meeting sessions (keep-alive = meeting)
+    if (this.keepAliveSessions.has(sessionId) && this.config.getAgentConfig) {
+      var _mcfg = this.config.getAgentConfig(agentConfig.agentId);
+      var _mm = (_mcfg as any)?.voiceConfig?.meetingModel;
+      if (_mm) {
+        var _mp = _mm.split('/');
+        if (_mp.length === 2 && agentConfig.model.modelId !== _mp[1]) {
+          agentConfig = { ...agentConfig, model: { provider: _mp[0], modelId: _mp[1] } };
+          apiKey = this.resolveApiKey(_mp[0]) || apiKey;
+          console.log(`[runtime] Meeting session — using fast model: ${_mm}`);
+        }
+      }
+    }
+
     // Create hooks
     var hooks = createRuntimeHooks({
       engineDb: this.config.engineDb,
@@ -753,18 +814,22 @@ export class AgentRuntime {
             continue;
           }
 
-          var tools = await createAllTools(this.buildToolOptions(session.agentId, session.id));
-
           var mc = '';
           if (this.config.agentMemoryManager) {
             try { mc = await this.config.agentMemoryManager.generateMemoryContext(session.agentId); } catch {}
           }
+          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc);
+          var _resumeCtx = detectSessionContext({
+            systemPrompt: _resumePrompt,
+            isKeepAlive: this.keepAliveSessions.has(session.id),
+          });
+          var tools = await createToolsForContext(this.buildToolOptions(session.agentId, session.id), _resumeCtx);
 
           var agentConfig: AgentConfig = {
             agentId: session.agentId,
             orgId: session.orgId,
             model,
-            systemPrompt: buildDefaultSystemPrompt(session.agentId, mc),
+            systemPrompt: _resumePrompt,
             tools,
           };
 
