@@ -394,10 +394,18 @@ async function startChatPoller(engineDb: any): Promise<void> {
   // Find agents with chat enabled + OAuth tokens for Chat API access
   const allAgents = lifecycle.getAllAgents();
   console.log(`[chat-poller] Found ${allAgents.length} agents total`);
+  for (const a of allAgents) {
+    const services = a.config?.enabledGoogleServices || [];
+    const hasChat = services.includes('chat');
+    const hasOAuth = !!a.config?.emailConfig?.oauthRefreshToken;
+    const agentName = (a.config as any)?.displayName || (a.config as any)?.name || a.id;
+    console.log(`[chat-poller]   ${agentName}: services=[${services.join(',')}] chat=${hasChat} oauth=${hasOAuth} state=${a.state}`);
+  }
   const chatAgents = allAgents.filter(a => {
     const services = a.config?.enabledGoogleServices || [];
     return services.includes('chat') && a.config?.emailConfig?.oauthRefreshToken;
   });
+  console.log(`[chat-poller] Chat-enabled agents: ${chatAgents.length} (${chatAgents.map(a => a.name).join(', ')})`);
 
   if (chatAgents.length === 0) {
     console.log('[chat-poller] No chat-enabled agents with OAuth tokens, skipping');

@@ -45,6 +45,7 @@ interface ChatMessage {
   thread?: { name?: string };
   space?: { name?: string; displayName?: string; type?: string };
   argumentText?: string; // text without @mention prefix
+  annotations?: any[];   // Google Chat annotations (mentions, etc.)
 }
 
 interface MonitoredSpace {
@@ -508,6 +509,7 @@ export class ChatPoller {
         type: m.sender?.type,
       },
       text: m.argumentText?.trim() || m.text?.trim() || '',
+      annotations: m.annotations,  // preserve for mention detection
       createTime: m.createTime,
       thread: m.thread,
       space: m.space || { name: space.spaceId, displayName: space.displayName },
@@ -594,14 +596,11 @@ export class ChatPoller {
       return;
     }
 
-    // If only one agent in the space, always route to them
-    if (agents.length === 1) {
-      await this.dispatchToAgent(agents[0], msg, space);
-      return;
-    }
-
-    // ─── Priority 1: Direct @mention ──────────────────
-    const mentionedAgent = this.findMentionedAgent(msg.text, agents);
+    // ─── Priority 1: Direct @mention (check ALL space agents, not just enabled) ──
+    // If someone @mentions a disabled agent, we still route to that agent (wake it up).
+    const allSpaceAgents = this.config.agents.filter(a => space.agentIds.includes(a.id));
+    console.log(`[chat-poller] Routing: text="${msg.text.slice(0,80)}", agents=[${allSpaceAgents.map(a => `${a.name}/${a.displayName}(${a.enabled?'on':'off'})`).join(', ')}], annotations=${JSON.stringify(msg.annotations?.length || 0)}`);
+    const mentionedAgent = this.findMentionedAgent(msg.text, allSpaceAgents, msg.annotations);
     if (mentionedAgent) {
       // Record thread ownership
       if (msg.thread?.name) {
@@ -612,6 +611,12 @@ export class ChatPoller {
         });
       }
       await this.dispatchToAgent(mentionedAgent, msg, space);
+      return;
+    }
+
+    // If only one enabled agent and no mention match, route to them
+    if (agents.length === 1) {
+      await this.dispatchToAgent(agents[0], msg, space);
       return;
     }
 
@@ -658,13 +663,30 @@ export class ChatPoller {
     await this.dispatchToAgent(target, msg, space);
   }
 
-  /** Check if message directly mentions an agent by name */
-  private findMentionedAgent(text: string, agents: AgentEndpoint[]): AgentEndpoint | null {
+  /** Check if message directly mentions an agent by name or via annotations */
+  private findMentionedAgent(text: string, agents: AgentEndpoint[], annotations?: any[]): AgentEndpoint | null {
     const lower = text.toLowerCase();
+
+    // Method 1: Check Google Chat annotations (most reliable — structured mention data)
+    if (annotations?.length) {
+      for (const ann of annotations) {
+        if (ann.type === 'USER_MENTION' && ann.userMention) {
+          const mentionedEmail = ann.userMention.user?.email?.toLowerCase();
+          const mentionedName = ann.userMention.user?.displayName?.toLowerCase();
+          for (const agent of agents) {
+            if (mentionedEmail && agent.email?.toLowerCase() === mentionedEmail) return agent;
+            if (mentionedName && agent.displayName?.toLowerCase() === mentionedName) return agent;
+            if (mentionedName && agent.name?.toLowerCase() === mentionedName) return agent;
+          }
+        }
+      }
+    }
+
+    // Method 2: Text pattern matching (fallback)
     for (const agent of agents) {
-      // Check @name, @displayName, or just the name at start
       const names = [agent.name, agent.displayName].filter(Boolean).map(n => n.toLowerCase());
       for (const name of names) {
+        // Match @name, name at start, or just name anywhere preceded by space/start
         if (lower.includes(`@${name}`) || lower.startsWith(`${name},`) || lower.startsWith(`${name} `)) {
           return agent;
         }

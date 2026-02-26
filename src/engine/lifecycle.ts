@@ -1123,6 +1123,7 @@ export class AgentLifecycleManager {
           if (dbConfig.deployment) memConfig.deployment = dbConfig.deployment;
           if (dbConfig.schedule) memConfig.schedule = dbConfig.schedule;
           if (dbConfig.skills) memConfig.skills = dbConfig.skills;
+          if (dbConfig.enabledGoogleServices) memConfig.enabledGoogleServices = dbConfig.enabledGoogleServices;
           if (dbConfig.permissionProfileId) memConfig.permissionProfileId = dbConfig.permissionProfileId;
           if (dbConfig.voiceConfig) memConfig.voiceConfig = { ...(memConfig.voiceConfig || {}), ...dbConfig.voiceConfig };
           if (dbConfig.emailConfig && memConfig.emailConfig) {
