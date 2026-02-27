@@ -114,15 +114,15 @@ export function createGoogleMapsTools(config: GoogleMapsConfig): AnyAgentTool[] 
     // ─── Places: Text Search ──────────────────────────
     {
       name: 'google_maps_search',
-      description: 'Search for places by text query (e.g. "coffee shops near Times Square", "best sushi in San Francisco", "pharmacies open now in Charlotte NC"). Returns name, address, rating, location, and more.',
+      description: 'Search for places by text query. Returns name, address, rating, location.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          query: { type: 'string', description: 'Search query (e.g. "Italian restaurants in downtown Durham")' },
-          location: { type: 'string', description: 'Bias results near this location: "lat,lng" (e.g. "35.9940,-78.8986")' },
-          radius: { type: 'number', description: 'Search radius in meters (max 50000, default 5000)' },
-          type: { type: 'string', description: 'Filter by place type (e.g. restaurant, hospital, gas_station, pharmacy, gym)' },
+          query: { type: 'string', description: 'e.g. "pizza near me"' },
+          location: { type: 'string', description: 'lat,lng to bias results' },
+          radius: { type: 'number', description: 'Radius in meters' },
+          type: { type: 'string', description: 'e.g. restaurant, gas_station' },
           openNow: { type: 'boolean', description: 'Only show places that are currently open' },
           maxResults: { type: 'number', description: 'Max results to return (default 10, max 20)' },
         },
@@ -149,15 +149,15 @@ export function createGoogleMapsTools(config: GoogleMapsConfig): AnyAgentTool[] 
     // ─── Places: Nearby Search ────────────────────────
     {
       name: 'google_maps_nearby',
-      description: 'Find places near a specific location by type (e.g. all gas stations within 2km of a point). Requires location coordinates.',
+      description: 'Find nearby places by type and location.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          location: { type: 'string', description: 'Center point: "lat,lng" (e.g. "35.9940,-78.8986")' },
+          location: { type: 'string', description: 'lat,lng center point' },
           radius: { type: 'number', description: 'Radius in meters (max 50000, default 1500)' },
-          type: { type: 'string', description: 'Place type (e.g. restaurant, hospital, gas_station, atm, pharmacy, supermarket)' },
-          keyword: { type: 'string', description: 'Optional keyword filter (e.g. "organic", "24 hour")' },
+          type: { type: 'string', description: 'e.g. restaurant, atm, pharmacy' },
+          keyword: { type: 'string' },
           openNow: { type: 'boolean', description: 'Only currently open places' },
           maxResults: { type: 'number', description: 'Max results (default 10, max 20)' },
         },
@@ -186,7 +186,7 @@ export function createGoogleMapsTools(config: GoogleMapsConfig): AnyAgentTool[] 
     // ─── Places: Details ──────────────────────────────
     {
       name: 'google_maps_place_details',
-      description: 'Get detailed info about a specific place by its place ID. Returns hours, phone, website, reviews, photos, and more.',
+      description: 'Get place details (hours, phone, website, reviews, photos).',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -229,7 +229,7 @@ export function createGoogleMapsTools(config: GoogleMapsConfig): AnyAgentTool[] 
       parameters: {
         type: 'object' as const,
         properties: {
-          origin: { type: 'string', description: 'Starting point — address, place name, or "lat,lng"' },
+          origin: { type: 'string', description: 'Address or lat,lng' },
           destination: { type: 'string', description: 'End point — address, place name, or "lat,lng"' },
           mode: { type: 'string', description: 'Travel mode: driving (default), walking, bicycling, transit' },
           avoidTolls: { type: 'boolean', description: 'Avoid toll roads' },

@@ -1050,7 +1050,7 @@ export function toolsToDefinitions(tools: import('../agent-tools/types.js').AnyA
     return {
       name: t.name,
       description: t.description,
-      input_schema: t.parameters as Record<string, any>,
+      input_schema: (t.parameters || (t as any).input_schema || { type: 'object', properties: {} }) as Record<string, any>,
     };
   });
 }

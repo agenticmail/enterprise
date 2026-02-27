@@ -126,7 +126,11 @@ function fixOrphanedToolBlocks(messages: AgentMessage[]): AgentMessage[] {
     }
 
     // If no tool_result found anywhere, remove the tool_use blocks (truly orphaned)
-    if (!fixed) {
+    // Check if adjacency is STILL broken for this specific message
+    const nextAfterFix = result[i + 1];
+    const adjacencyOk = nextAfterFix && nextAfterFix.role === 'user' && Array.isArray(nextAfterFix.content) &&
+      (nextAfterFix.content as any[]).some((b: any) => b.type === 'tool_result' && toolUseIds.includes(b.tool_use_id));
+    if (!adjacencyOk) {
       const filtered = (m.content as any[]).filter((b: any) =>
         !(b.type === 'tool_use' && toolUseIds.includes(b.id)));
       if (filtered.length === 0) {
@@ -248,6 +252,7 @@ export async function runAgentLoop(
       try {
         var budgetResult = await hooks.checkBudget(config.agentId, config.orgId, estimateMessageTokens(messages));
         if (!budgetResult.allowed) {
+          console.log(`[agent-loop] BUDGET EXCEEDED for agent ${config.agentId}: ${budgetResult.reason}`);
           var budgetEvent: StreamEvent = { type: 'budget_exceeded', reason: budgetResult.reason || 'Budget limit reached' };
           options.onEvent?.(budgetEvent);
           return buildResult(messages, 'completed', turnCount, totalTextContent, 'budget_exceeded');
@@ -498,6 +503,25 @@ export async function runAgentLoop(
         } catch (err: any) {
           console.warn('[runtime] Checkpoint save error:', err.message);
         }
+      }
+
+      // ── Auto-end optimization: skip second LLM call for terminal tools ──
+      // If every tool call in this turn was a "terminal" tool (sends a message, no further
+      // reasoning needed) AND all succeeded, end the session without another LLM round-trip.
+      // Saves ~$0.03 and ~3s per chat message.
+      var TERMINAL_TOOLS = new Set([
+        'google_chat_send_message', 'google_chat_send_card', 'google_chat_send_dm',
+        'google_chat_reply_message',
+      ]);
+      var allTerminal = llmResponse.toolCalls.length > 0
+        && llmResponse.toolCalls.every(function(tc: any) { return TERMINAL_TOOLS.has(tc.name); })
+        && toolResults.every(function(tr: any) { return !tr.is_error; });
+      if (allTerminal) {
+        console.log(`[agent-loop] ⚡ Auto-end: all tools were terminal send tools, skipping confirmation LLM call`);
+        lastStopReason = 'end_turn';
+        var autoEndEvent: StreamEvent = { type: 'turn_end', stopReason: 'end_turn' };
+        options.onEvent?.(autoEndEvent);
+        break;
       }
 
       // Continue loop — LLM will process tool results

@@ -484,7 +484,9 @@ export async function runAgent(_args: string[]) {
             // Fallback: plaintext key (legacy, pre-encryption)
             dbApiKeys[providerId] = apiKey;
           }
-          console.log(`   🔑 Loaded API key for ${providerId} from DB`);
+          var keyPreview = dbApiKeys[providerId];
+          var firstChar = keyPreview.charCodeAt(0);
+          console.log(`   🔑 Loaded API key for ${providerId}: starts="${keyPreview.slice(0,8)}..." len=${keyPreview.length} firstCharCode=${firstChar} rawStored="${(apiKey as string).slice(0,12)}..."`);
         }
       }
     }
@@ -656,14 +658,16 @@ export async function runAgent(_args: string[]) {
         threadId: string;
         isDM: boolean;
         messageText: string;
+        isManager?: boolean;
       }>();
 
-      console.log(`[chat] Message from ${ctx.senderName} (${ctx.senderEmail}) in ${ctx.spaceName}: "${ctx.messageText.slice(0, 80)}"`);
+      const isMessagingSource = ['whatsapp', 'telegram'].includes(ctx.source);
+      console.log(`[chat] Message from ${ctx.senderName} (${ctx.senderEmail}) in ${ctx.source || ctx.spaceName}: "${ctx.messageText.slice(0, 80)}"`);
 
       const agentDomain = agent.email?.split('@')[1] || 'agenticmail.io';
       const isColleague = ctx.senderEmail.endsWith(`@${agentDomain}`);
       const managerEmail = agent.config?.manager?.email || '';
-      const isManager = ctx.senderEmail === managerEmail;
+      const isManager = ctx.isManager || ctx.senderEmail === managerEmail;
       const trustLevel = isManager ? 'manager' : isColleague ? 'colleague' : 'external';
 
       // ─── Session Routing: check for existing sessions first ───
@@ -727,12 +731,21 @@ export async function runAgent(_args: string[]) {
           }
           return token;
         };
-        ambientContext = await ambient.buildSessionContext(
-          ctx.messageText,
-          ctx.spaceId,
-          ctx.spaceName,
-          getToken,
-        );
+        if (isMessagingSource) {
+          // Messaging channels: fetch platform-native history + ambient recall
+          ambientContext = await ambient.buildMessagingContext(
+            ctx.messageText,
+            ctx.source,
+            ctx.senderEmail,
+          );
+        } else {
+          ambientContext = await ambient.buildSessionContext(
+            ctx.messageText,
+            ctx.spaceId,
+            ctx.spaceName,
+            getToken,
+          );
+        }
         if (ambientContext) {
           console.log(`[chat] Ambient memory: ${ambientContext.length} chars of context injected`);
         }
@@ -740,25 +753,58 @@ export async function runAgent(_args: string[]) {
         console.warn(`[chat] Ambient memory error (non-fatal): ${err.message}`);
       }
 
-      const { buildGoogleChatPrompt, buildScheduleInfo } = await import('./system-prompts/google/index.js');
-      const systemPrompt = buildGoogleChatPrompt({
-        agent: { name: agentName, role: identity?.role || 'professional', personality: identity?.personality },
-        schedule: buildScheduleInfo(agentSchedule, agentTimezone),
-        managerEmail: agent.config?.manager?.email || '',
-        senderName: ctx.senderName,
-        senderEmail: ctx.senderEmail,
-        spaceName: ctx.spaceName,
-        spaceId: ctx.spaceId,
-        threadId: ctx.threadId,
-        isDM: ctx.isDM,
-        trustLevel,
-        ambientContext,
-      });
+      let systemPrompt: string;
+
+      if (isMessagingSource) {
+        // Build messaging-specific system prompt
+        const { buildScheduleInfo } = await import('./system-prompts/google/index.js');
+        const sendToolName = ctx.source === 'whatsapp' ? 'whatsapp_send'
+          : 'telegram_send';
+        const platformName = ctx.source === 'whatsapp' ? 'WhatsApp'
+          : 'Telegram';
+        systemPrompt = [
+          `You are ${agentName}, a ${identity?.role || 'professional'} AI assistant.`,
+          identity?.personality ? `Personality: ${identity.personality}` : '',
+          '',
+          `CHANNEL: ${platformName} (direct message)`,
+          `SENDER: ${ctx.senderName} (${ctx.senderEmail})`,
+          trustLevel === 'manager' ? 'This is your MANAGER. Full trust — follow their instructions.' : '',
+          '',
+          `REPLY INSTRUCTIONS:`,
+          `- Use ${sendToolName} to reply. The recipient is: ${ctx.senderEmail}`,
+          `- NEVER use google_chat_send_message — this conversation is on ${platformName}, not Google Chat.`,
+          `- Keep messages concise and conversational — this is a chat, not an email.`,
+          `- No markdown formatting — plain text only.`,
+          '',
+          buildScheduleInfo(agentSchedule, agentTimezone),
+          ambientContext ? `\nCONTEXT FROM MEMORY:\n${ambientContext}` : '',
+        ].filter(Boolean).join('\n');
+
+      } else {
+        const { buildGoogleChatPrompt, buildScheduleInfo } = await import('./system-prompts/google/index.js');
+        systemPrompt = buildGoogleChatPrompt({
+          agent: { name: agentName, role: identity?.role || 'professional', personality: identity?.personality },
+          schedule: buildScheduleInfo(agentSchedule, agentTimezone),
+          managerEmail: agent.config?.manager?.email || '',
+          senderName: ctx.senderName,
+          senderEmail: ctx.senderEmail,
+          spaceName: ctx.spaceName,
+          spaceId: ctx.spaceId,
+          threadId: ctx.threadId,
+          isDM: ctx.isDM,
+          trustLevel,
+          ambientContext,
+        });
+      }
+
+      // Use messaging-specific session context for lean tool loading
+      const sessionContext = isMessagingSource ? ctx.source : undefined;
 
       const session = await runtime.spawnSession({
         agentId: AGENT_ID,
         message: ctx.messageText,
         systemPrompt,
+        ...(sessionContext ? { sessionContext } : {}),
       });
 
       // Register in session router
@@ -775,13 +821,16 @@ export async function runAgent(_args: string[]) {
       runtime.onSessionComplete(session.id, async (result: any) => {
         sessionRouter.unregister(AGENT_ID, session.id);
 
-        // Check if google_chat_send_message was called during this session
+        // Check if agent sent a reply via the appropriate tool
         const messages = result?.messages || [];
+        const sendToolNames = isMessagingSource
+          ? ['whatsapp_send', 'telegram_send']
+          : ['google_chat_send_message'];
         let chatSent = false;
         for (const msg of messages) {
           if (Array.isArray(msg.content)) {
             for (const block of msg.content) {
-              if (block.type === 'tool_use' && block.name === 'google_chat_send_message') {
+              if (block.type === 'tool_use' && sendToolNames.includes(block.name)) {
                 chatSent = true;
                 break;
               }
@@ -810,49 +859,81 @@ export async function runAgent(_args: string[]) {
 
           if (lastText.trim()) {
             try {
-              // Get OAuth token from agent config
-              const emailCfg = (config as any).emailConfig || {};
-              let token = emailCfg.oauthAccessToken;
-
-              // Refresh if needed
-              if (emailCfg.oauthRefreshToken && emailCfg.oauthClientId) {
-                try {
-                  const tokenUrl = emailCfg.oauthProvider === 'google'
-                    ? 'https://oauth2.googleapis.com/token'
-                    : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
-                  const tokenRes = await fetch(tokenUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                      client_id: emailCfg.oauthClientId,
-                      client_secret: emailCfg.oauthClientSecret,
-                      refresh_token: emailCfg.oauthRefreshToken,
-                      grant_type: 'refresh_token',
-                    }),
-                  });
-                  const tokenData = await tokenRes.json() as any;
-                  if (tokenData.access_token) token = tokenData.access_token;
-                } catch {}
-              }
-
-              if (token) {
-                const body: any = { text: lastText.trim() };
-                if (ctx.threadId) {
-                  body.thread = { name: ctx.threadId };
+              if (isMessagingSource) {
+                // ─── Messaging fallback: send via platform-native method ───
+                if (ctx.source === 'whatsapp') {
+                  // WhatsApp fallback via Baileys connection
+                  try {
+                    const { getOrCreateConnection, toJid } = await import('./agent-tools/tools/messaging/whatsapp.js');
+                    const conn = getOrCreateConnection(AGENT_ID);
+                    if (conn.connected && conn.sock) {
+                      await conn.sock.sendMessage(toJid(ctx.senderEmail), { text: lastText.trim() });
+                      console.log(`[chat] ✅ Fallback: delivered WhatsApp reply to ${ctx.senderEmail}`);
+                    }
+                  } catch (waErr: any) {
+                    console.warn(`[chat] ⚠️ WhatsApp fallback failed: ${waErr.message}`);
+                  }
+                } else if (ctx.source === 'telegram') {
+                  // Telegram fallback via Bot API
+                  try {
+                    const channelCfg = agent.config?.messagingChannels?.telegram || {};
+                    const botToken = channelCfg.botToken;
+                    if (botToken) {
+                      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: ctx.senderEmail, text: lastText.trim() }),
+                      });
+                      console.log(`[chat] ✅ Fallback: delivered Telegram reply to ${ctx.senderEmail}`);
+                    }
+                  } catch (tgErr: any) {
+                    console.warn(`[chat] ⚠️ Telegram fallback failed: ${tgErr.message}`);
+                  }
                 }
-                const chatUrl = `https://chat.googleapis.com/v1/${ctx.spaceId}/messages`;
-                const res = await fetch(chatUrl, {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(body),
-                });
-                if (res.ok) {
-                  console.log(`[chat] ✅ Fallback: delivered assistant reply to ${ctx.spaceId}`);
-                } else {
-                  console.warn(`[chat] ⚠️ Fallback send failed: ${res.status} ${await res.text().catch(() => '')}`);
+              } else {
+                // ─── Google Chat fallback ───
+                const emailCfg = (config as any).emailConfig || {};
+                let token = emailCfg.oauthAccessToken;
+
+                if (emailCfg.oauthRefreshToken && emailCfg.oauthClientId) {
+                  try {
+                    const tokenUrl = emailCfg.oauthProvider === 'google'
+                      ? 'https://oauth2.googleapis.com/token'
+                      : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+                    const tokenRes = await fetch(tokenUrl, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                      body: new URLSearchParams({
+                        client_id: emailCfg.oauthClientId,
+                        client_secret: emailCfg.oauthClientSecret,
+                        refresh_token: emailCfg.oauthRefreshToken,
+                        grant_type: 'refresh_token',
+                      }),
+                    });
+                    const tokenData = await tokenRes.json() as any;
+                    if (tokenData.access_token) token = tokenData.access_token;
+                  } catch {}
+                }
+
+                if (token) {
+                  const body: any = { text: lastText.trim() };
+                  if (ctx.threadId) {
+                    body.thread = { name: ctx.threadId };
+                  }
+                  const chatUrl = `https://chat.googleapis.com/v1/${ctx.spaceId}/messages`;
+                  const res = await fetch(chatUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                  });
+                  if (res.ok) {
+                    console.log(`[chat] ✅ Fallback: delivered assistant reply to ${ctx.spaceId}`);
+                  } else {
+                    console.warn(`[chat] ⚠️ Fallback send failed: ${res.status} ${await res.text().catch(() => '')}`);
+                  }
                 }
               }
             } catch (err: any) {

@@ -246,7 +246,7 @@ export function createDiffTools(options?: ToolCreationOptions): AnyAgentTool[] {
   var entDiffText: AnyAgentTool = {
     name: 'ent_diff_text',
     label: 'Text Diff',
-    description: 'Compute a line-by-line diff between two texts or files using an LCS-based algorithm. Output in unified diff format with +/- prefixes and @@ hunk headers. Returns diff string with stats.',
+    description: 'Compute a line-by-line diff between two texts or files using an LCS-based alg...',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -306,7 +306,7 @@ export function createDiffTools(options?: ToolCreationOptions): AnyAgentTool[] {
   var entDiffJson: AnyAgentTool = {
     name: 'ent_diff_json',
     label: 'JSON Diff',
-    description: 'Deep diff two JSON objects. Recursively compares and reports added keys, removed keys, and changed values with their full paths. Supports ignoring specific keys.',
+    description: 'Deep diff two JSON objects.',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -372,7 +372,7 @@ export function createDiffTools(options?: ToolCreationOptions): AnyAgentTool[] {
   var entDiffSpreadsheet: AnyAgentTool = {
     name: 'ent_diff_spreadsheet',
     label: 'Spreadsheet Diff',
-    description: 'Compare two CSV files by matching rows via a key column. Reports added rows, removed rows, and changed cells with row key, column name, and old/new values.',
+    description: 'Compare two CSV files by matching rows via a key column.',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -483,7 +483,7 @@ export function createDiffTools(options?: ToolCreationOptions): AnyAgentTool[] {
   var entDiffSummary: AnyAgentTool = {
     name: 'ent_diff_summary',
     label: 'Diff Summary',
-    description: 'Generate a human-readable summary of differences between two texts or files. Computes a line diff and produces a narrative overview with statistics.',
+    description: 'Generate a human-readable summary of differences between two texts or files.',
     category: 'utility',
     risk: 'low',
     parameters: {

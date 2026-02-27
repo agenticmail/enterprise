@@ -51,7 +51,7 @@ export function createGoogleDriveTools(config: GoogleToolsConfig, _options?: Too
   return [
     {
       name: 'google_drive_list',
-      description: 'List files and folders in Google Drive. Supports search queries, folder filtering, and MIME type filtering.',
+      description: 'List Drive files/folders.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -163,7 +163,7 @@ export function createGoogleDriveTools(config: GoogleToolsConfig, _options?: Too
     },
     {
       name: 'google_drive_request_access',
-      description: 'Request access to a file you cannot read. Sends an email to your manager (or file owner) asking for access. Use this when google_drive_get returns ACCESS_DENIED.',
+      description: 'Request access to a Drive file.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -204,7 +204,7 @@ export function createGoogleDriveTools(config: GoogleToolsConfig, _options?: Too
     },
     {
       name: 'google_drive_create',
-      description: 'Create a new file or folder in Google Drive. For text files, provide content directly.',
+      description: 'Create a file/folder in Drive.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -249,7 +249,7 @@ export function createGoogleDriveTools(config: GoogleToolsConfig, _options?: Too
     },
     {
       name: 'google_drive_delete',
-      description: 'Move a file to trash (or permanently delete).',
+      description: 'Trash a Drive file.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -304,7 +304,7 @@ export function createGoogleDriveTools(config: GoogleToolsConfig, _options?: Too
     },
     {
       name: 'google_drive_move',
-      description: 'Move a file to a different folder.',
+      description: 'Move a file to another folder.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,

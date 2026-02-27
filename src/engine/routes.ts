@@ -84,9 +84,11 @@ import { createOAuthConnectRoutes } from './oauth-connect-routes.js';
 import { createChatWebhookRoutes } from './chat-webhook-routes.js';
 import { ChatPoller } from './chat-poller.js';
 import { EmailPoller } from './email-poller.js';
+import { MessagingPoller } from './messaging-poller.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 
 const engine = new Hono<AppEnv>();
+let _engineApp: Hono<AppEnv> = engine;
 
 // ─── Shared Instances ───────────────────────────────────
 
@@ -383,6 +385,11 @@ export async function setEngineDb(
   if (!_emailPoller) {
     startEmailPoller(db).catch(err => console.error(`[email-poller] Failed to start:`, err));
   }
+
+  // ─── Start Messaging Poller (WhatsApp, Telegram) ──
+  if (!_messagingPoller) {
+    startMessagingPoller(db).catch(err => console.error(`[messaging-poller] Failed to start:`, err));
+  }
 }
 
 // ─── Chat Poller ────────────────────────────────────────
@@ -498,6 +505,71 @@ async function startEmailPoller(engineDb: any): Promise<void> {
 
 export function getEmailPoller(): EmailPoller | null {
   return _emailPoller;
+}
+
+// ─── Messaging Poller (WhatsApp, Telegram) ─────────
+
+let _messagingPoller: MessagingPoller | null = null;
+
+async function startMessagingPoller(engineDb: any): Promise<void> {
+  const allAgents = lifecycle.getAllAgents();
+  const agents = allAgents.filter(a => a.state === 'running' || a.status === 'active').map(a => ({
+    id: a.id, name: a.name || '', displayName: (a.config as any)?.displayName || a.name || a.id,
+    status: 'active' as const, port: a.port || 3102,
+  }));
+
+  // Check platform capabilities via admin DB (has direct pool access)
+  let capabilities: any = {};
+  try {
+    if (_adminDb && (_adminDb as any).pool) {
+      const r = await (_adminDb as any).pool.query(`SELECT platform_capabilities FROM company_settings LIMIT 1`);
+      capabilities = r.rows?.[0]?.platform_capabilities || {};
+    } else {
+      // Fallback: try getSettings if available
+      const settings = await (_adminDb as any)?.getSettings?.();
+      capabilities = settings?.platformCapabilities || {};
+    }
+  } catch (err: any) {
+    console.log(`[messaging] Failed to read platform capabilities: ${err.message}`);
+  }
+
+  const hasAny = capabilities.whatsapp || capabilities.telegram;
+  if (!hasAny) {
+    console.log('[messaging-poller] No messaging channels enabled in Platform Capabilities');
+    return;
+  }
+
+  // Detect public URL for webhook support (fly.io, VPS, tunnel, etc.)
+  const publicUrl = process.env.PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : process.env.FLY_APP_NAME
+    ? `https://${process.env.FLY_APP_NAME}.fly.dev` : process.env.RENDER_EXTERNAL_URL
+    || undefined;
+
+  _messagingPoller = new MessagingPoller({
+    agents: agents as any,
+    dataDir: process.env.DATA_DIR || '/tmp/agenticmail-data',
+    publicUrl,
+    app: _engineApp || undefined,
+    engineDb,
+    getCapability: (key: string) => !!capabilities[key],
+    getAgentChannelConfig: (agentId: string) => {
+      try {
+        const a = lifecycle.getAgent(agentId);
+        return a?.config?.messagingChannels || null;
+      } catch { return null; }
+    },
+    getVaultKey: (name: string) => {
+      try {
+        const vault = lifecycle.getVault?.();
+        return vault?.get?.(name) || null;
+      } catch { return null; }
+    },
+  });
+  await _messagingPoller.start();
+}
+
+export function getMessagingPoller(): MessagingPoller | null {
+  return _messagingPoller;
 }
 
 // ─── Agent Runtime (optional — mounted when runtime is started) ──

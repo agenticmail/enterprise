@@ -61,6 +61,9 @@ export interface User {
   passwordHash?: string;
   ssoProvider?: string;
   ssoSubject?: string;
+  totpSecret?: string;      // Base32-encoded TOTP secret (encrypted)
+  totpEnabled?: boolean;     // Whether 2FA is active
+  totpBackupCodes?: string;  // JSON array of hashed backup codes
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
@@ -201,8 +204,18 @@ export interface CompanySettings {
   firewallConfig?: FirewallConfig;
   modelPricingConfig?: ModelPricingConfig;
   orgEmailConfig?: OrgEmailConfig;
+  platformCapabilities?: PlatformCapabilities;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface PlatformCapabilities {
+  localSystemAccess?: boolean;   // Filesystem + shell access
+  // (iMessage removed)
+  telegram?: boolean;            // Telegram Bot API
+  whatsapp?: boolean;            // WhatsApp Business API
+  enabledAt?: string;            // ISO timestamp when first enabled
+  enabledBy?: string;            // User ID who enabled
 }
 
 export interface OrgEmailConfig {

@@ -111,7 +111,7 @@ export function createSecurityScanTools(options?: ToolCreationOptions): AnyAgent
   var entSecScanSecrets: AnyAgentTool = {
     name: 'ent_sec_scan_secrets',
     label: 'Scan for Leaked Secrets',
-    description: 'Scan file(s) for leaked secrets such as AWS keys, GitHub tokens, Slack tokens, API keys, private keys, JWTs, connection strings, and Stripe keys. Returns file, line number, pattern matched, and redacted value.',
+    description: 'Scan file(s) for leaked secrets such as AWS keys, GitHub tokens, Slack tokens...',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -172,14 +172,14 @@ export function createSecurityScanTools(options?: ToolCreationOptions): AnyAgent
   var entSecScanPii: AnyAgentTool = {
     name: 'ent_sec_scan_pii',
     label: 'Scan for PII',
-    description: 'Scan file(s) for personally identifiable information: email addresses, phone numbers, SSNs, credit card numbers (with Luhn validation), and IP addresses. Returns findings with location.',
+    description: 'Scan file(s) for personally identifiable information: email addresses, phone ...',
     category: 'utility',
     risk: 'low',
     parameters: {
       type: 'object',
       properties: {
         path: { type: 'string', description: 'File or directory path to scan.' },
-        types: { type: 'string', description: 'Comma-separated PII types to detect: email, phone, ssn, credit_card, ip, all (default all).' },
+        types: { type: 'string', description: 'Comma-separated PII types to detect: email, phone, ssn, credit_card, ip, all ...' },
       },
       required: ['path'],
     },
@@ -242,7 +242,7 @@ export function createSecurityScanTools(options?: ToolCreationOptions): AnyAgent
   var entSecRedactPii: AnyAgentTool = {
     name: 'ent_sec_redact_pii',
     label: 'Redact PII',
-    description: 'Redact personally identifiable information from a file. Replaces matches with [REDACTED:type] placeholders. Returns count of redactions made.',
+    description: 'Redact personally identifiable information from a file.',
     category: 'utility',
     risk: 'medium',
     parameters: {
@@ -250,7 +250,7 @@ export function createSecurityScanTools(options?: ToolCreationOptions): AnyAgent
       properties: {
         file_path: { type: 'string', description: 'Path to the file to redact.' },
         output_path: { type: 'string', description: 'Output file path. If omitted, overwrites the original file.' },
-        types: { type: 'string', description: 'Comma-separated PII types: email, phone, ssn, credit_card, ip, all (default all).' },
+        types: { type: 'string', description: 'Comma-separated PII types: email, phone, ssn, credit_card, ip, all (default a...' },
       },
       required: ['file_path'],
     },
@@ -306,7 +306,7 @@ export function createSecurityScanTools(options?: ToolCreationOptions): AnyAgent
   var entSecScanDeps: AnyAgentTool = {
     name: 'ent_sec_scan_deps',
     label: 'Scan Dependencies',
-    description: 'Scan package.json, requirements.txt, or Gemfile for security patterns: wildcard versions, deprecated packages, and unpinned dependencies. Returns advisory list.',
+    description: 'Scan package.json, requirements.txt, or Gemfile for security patterns: wildca...',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -388,7 +388,7 @@ export function createSecurityScanTools(options?: ToolCreationOptions): AnyAgent
   var entSecComplianceCheck: AnyAgentTool = {
     name: 'ent_sec_compliance_check',
     label: 'Compliance Check',
-    description: 'Check files against compliance rules for PCI-DSS, HIPAA, GDPR, or SOC2. Runs relevant checks for encryption, logging, access control, and data retention patterns. Returns pass/fail per rule.',
+    description: 'Check files against compliance rules for PCI-DSS, HIPAA, GDPR, or SOC2.',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -480,7 +480,7 @@ export function createSecurityScanTools(options?: ToolCreationOptions): AnyAgent
   var entSecHash: AnyAgentTool = {
     name: 'ent_sec_hash',
     label: 'Generate Hash',
-    description: 'Generate a cryptographic hash of a string or file contents using sha256, sha512, md5, or sha1. Returns the hash in hex or base64 encoding.',
+    description: 'Generate a cryptographic hash of a string or file contents using sha256, sha5...',
     category: 'utility',
     risk: 'low',
     parameters: {

@@ -5,7 +5,7 @@ import { ErrorBoundary } from './components/error-boundary.js';
 import { Modal } from './components/modal.js';
 import { LoginPage, OnboardingWizard } from './pages/login.js';
 import { DashboardPage, SetupChecklist } from './pages/dashboard.js';
-import { AgentsPage, AgentDetailPage, CreateAgentWizard, DeployModal } from './pages/agents.js';
+import { AgentsPage, AgentDetailPage, CreateAgentWizard, DeployModal } from './pages/agents.js?v=5';
 import { SkillsPage } from './pages/skills.js';
 import { KnowledgeBasePage } from './pages/knowledge.js';
 import { ApprovalsPage } from './pages/approvals.js';
@@ -66,8 +66,26 @@ export { Modal } from './components/modal.js';
 function App() {
   const [authed, setAuthed] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  const [page, setPage] = useState('dashboard');
-  const [selectedAgentId, setSelectedAgentId] = useState(null);
+  // URL-synced routing
+  function parseRoute() {
+    const p = window.location.pathname.replace(/^\/dashboard\/?/, '') || '';
+    const parts = p.split('/').filter(Boolean);
+    if (parts[0] === 'agents' && parts[1]) return { page: 'agents', agentId: parts[1] };
+    if (parts[0]) return { page: parts[0], agentId: null };
+    return { page: 'dashboard', agentId: null };
+  }
+  const initial = parseRoute();
+  const [page, _setPage] = useState(initial.page);
+  const [selectedAgentId, _setSelectedAgentId] = useState(initial.agentId);
+
+  function setPage(p) { _setPage(p); _setSelectedAgentId(null); history.pushState(null, '', '/dashboard/' + (p === 'dashboard' ? '' : p)); }
+  function setSelectedAgentId(id) { _setSelectedAgentId(id); if (id) history.pushState(null, '', '/dashboard/agents/' + id); }
+
+  useEffect(() => {
+    const onPop = () => { const r = parseRoute(); _setPage(r.page); _setSelectedAgentId(r.agentId); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const [theme, setTheme] = useState(localStorage.getItem('em_theme') || 'dark');
   const [toasts, setToasts] = useState([]);
   const [user, setUser] = useState(null);
@@ -75,6 +93,7 @@ function App() {
   const [needsSetup, setNeedsSetup] = useState(null);
   const [sidebarPinned, setSidebarPinned] = useState(() => localStorage.getItem('em_sidebar_pinned') === 'true');
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if already authenticated via cookie on mount, and check setup state
   useEffect(() => {
@@ -179,12 +198,22 @@ function App() {
     vault: VaultPage,
   };
 
-  const navigateToAgent = (agentId) => { setSelectedAgentId(agentId); };
+  const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };
   const PageComponent = pages[page] || DashboardPage;
-  const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '');
+  const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '') + (mobileMenuOpen ? ' mobile-open' : '');
 
   return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage } },
     h('div', { className: 'app-layout' },
+      // Mobile hamburger
+      h('button', { className: 'mobile-hamburger', onClick: () => setMobileMenuOpen(true) },
+        h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' },
+          h('line', { x1: 3, y1: 6, x2: 21, y2: 6 }),
+          h('line', { x1: 3, y1: 12, x2: 21, y2: 12 }),
+          h('line', { x1: 3, y1: 18, x2: 21, y2: 18 })
+        )
+      ),
+      // Mobile backdrop
+      mobileMenuOpen && h('div', { className: 'mobile-backdrop visible', onClick: () => setMobileMenuOpen(false) }),
       // Sidebar
       h('div', { className: sidebarClass, onMouseEnter: onSidebarEnter, onMouseLeave: onSidebarLeave },
         h('div', { className: 'sidebar-brand' },
@@ -197,7 +226,7 @@ function App() {
             h('div', { key: section.section + si, className: 'sidebar-section' },
               h('div', { className: 'sidebar-section-title' }, section.section),
               section.items.map(item =>
-                h('div', { key: item.id, className: 'nav-item' + (page === item.id && !selectedAgentId ? ' active' : ''), onClick: () => { setPage(item.id); setSelectedAgentId(null); }, 'data-tooltip': item.label },
+                h('div', { key: item.id, className: 'nav-item' + (page === item.id && !selectedAgentId ? ' active' : ''), onClick: () => { setPage(item.id); setSelectedAgentId(null); setMobileMenuOpen(false); }, 'data-tooltip': item.label },
                   item.icon(),
                   h('span', { className: 'nav-label' }, item.label),
                   item.badge && h('span', { className: 'badge' }, item.badge)
@@ -230,7 +259,7 @@ function App() {
         ),
         h('div', { className: 'page-content' },
           selectedAgentId
-            ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { setSelectedAgentId(null); setPage('agents'); } })
+            ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { _setSelectedAgentId(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); } })
             : page === 'agents'
               ? h(AgentsPage, { onSelectAgent: navigateToAgent })
               : h(PageComponent)

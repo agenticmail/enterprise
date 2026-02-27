@@ -1,29 +1,34 @@
 /**
- * Enterprise Dynamic Tool Resolver
+ * Enterprise Dynamic Tool Resolver v2
  *
- * Problem: Loading ALL 200+ tool definitions into every LLM call burns ~10-20K tokens
- * just on schemas. A meeting session doesn't need spreadsheet tools. An email handler
- * doesn't need maps tools.
+ * PROBLEM: Loading ALL 200+ tool definitions into every LLM call burns ~18-20K tokens
+ * just on schemas. A simple "hey how are you" costs 40K tokens because 98 tools are loaded.
  *
- * Solution: Context-aware tool loading with on-demand expansion.
+ * SOLUTION: Three-tier lazy loading system:
  *
- * Architecture:
- *   1. Tools are grouped into TOOL SETS (logical categories)
- *   2. Session CONTEXTS define which sets to load (meeting, chat, email, task, full)
- *   3. A `request_tools` meta-tool lets agents dynamically load more sets mid-session
- *   4. Auto-detection infers context from system prompt, session kind, and runtime flags
+ *   TIER 1 — ESSENTIAL (always loaded, ~8-12 tools, ~2-3K tokens)
+ *     Tools the agent needs for ANY conversation. Think of it as "what a human always has":
+ *     ability to think (memory), communicate (chat), look things up (search), and ask for more tools.
  *
- * Token savings:
- *   - Meeting:  ~20 tools instead of 200+ (90% reduction, ~15K tokens saved per LLM call)
- *   - Chat:     ~70 tools instead of 200+ (65% reduction)
- *   - Email:    ~50 tools instead of 200+ (75% reduction)
- *   - Task:     ~140 tools (30% reduction — tasks need broad access)
- *   - Full:     All tools (backward-compatible)
+ *   TIER 2 — CONTEXTUAL (loaded when context signals demand, ~20-40 tools)
+ *     Loaded based on session context (meeting, email handler, etc.) or when the conversation
+ *     shifts to need them. The agent can also request these via `request_tools`.
  *
- * MAINTENANCE: When adding new tools, update:
- *   1. TOOL_REGISTRY — add the tool name and its set
- *   2. SESSION_TOOL_SETS — add the set to relevant contexts (if new set)
- *   3. Run `npm run build` to verify no TypeScript errors
+ *   TIER 3 — SPECIALIST (loaded on-demand only, ~100+ tools)
+ *     Niche tools (slides, forms, security scans, spreadsheet transforms). Only loaded when
+ *     the agent explicitly requests them or the task requires them.
+ *
+ * KEEP-ALIVE INTEGRATION:
+ *   - Sessions track their loaded tool sets in `SessionToolState`
+ *   - When a session transitions (chat → meeting → chat), tools are re-resolved
+ *   - `request_tools` results persist across the session (no re-requesting)
+ *   - Tool state survives session resume after process restart
+ *
+ * TOKEN IMPACT:
+ *   - Simple chat: ~12 tools (~3K tokens) instead of 98 (~20K) = 85% reduction
+ *   - Active work: ~30-50 tools (~8-12K tokens) loaded progressively as needed
+ *   - Meeting: ~15 tools (~4K tokens)
+ *   - Full (backward compat): all tools
  *
  * @module tool-resolver
  */
@@ -42,8 +47,8 @@ export type ToolSet =
   | 'memory'
   | 'visual_memory'
   // Meetings
-  | 'meeting_voice'        // In-meeting voice/chat (meeting_speak, meeting_action, etc.)
-  | 'meeting_lifecycle'    // Join/leave/schedule (meeting_join, meeting_rsvp, meetings_upcoming, etc.)
+  | 'meeting_voice'
+  | 'meeting_lifecycle'
   // Google Workspace
   | 'gws_chat'
   | 'gws_gmail'
@@ -64,18 +69,70 @@ export type ToolSet =
   | 'ent_security'
   | 'ent_code'
   | 'ent_diff'
+  // Local system
+  | 'local_filesystem'
+  | 'local_shell'
   // Communication
   | 'agenticmail'
+  // Messaging channels
+  | 'msg_whatsapp'
+  | 'msg_telegram'
   // Integrations
   | 'mcp_bridge';
 
+// ─── Tier Classification ─────────────────────────────────
+
+export type ToolTier = 1 | 2 | 3;
+
+/**
+ * Tier 1: ESSENTIAL — Always loaded in every session. Absolute minimum for the agent to function.
+ * Tier 2: CONTEXTUAL — Loaded by session context or conversation signals.
+ * Tier 3: SPECIALIST — Only loaded on explicit request_tools or task context.
+ */
+const TIER_MAP: Record<ToolSet, ToolTier> = {
+  // Tier 1 — Agent can't function without these
+  core: 1,           // read/write/search/bash — fundamental
+  memory: 1,         // agent memory is always needed
+
+  // Tier 2 — Common workflows, loaded by context
+  gws_chat: 2,       // only when source is Google Chat
+  browser: 2,
+  system: 2,
+  visual_memory: 2,
+  meeting_voice: 2,
+  meeting_lifecycle: 2,
+  gws_gmail: 2,
+  gws_calendar: 2,
+  gws_drive: 2,
+  gws_docs: 2,
+  gws_tasks: 2,
+  gws_contacts: 2,
+  agenticmail: 2,
+  ent_http: 2,
+
+  // Tier 3 — Specialist, on-demand only
+  gws_sheets: 3,
+  gws_slides: 3,
+  gws_forms: 3,
+  gws_maps: 3,
+  ent_database: 3,
+  ent_spreadsheet: 3,
+  ent_documents: 3,
+  ent_security: 3,
+  ent_code: 3,
+  ent_diff: 3,
+  local_filesystem: 2,
+  local_shell: 2,
+  msg_whatsapp: 2,
+  msg_telegram: 2,
+  mcp_bridge: 3,
+};
+
 // ─── Exhaustive Tool Registry ────────────────────────────
-// Every tool name → its set. This is the SINGLE SOURCE OF TRUTH.
-// If a tool isn't listed here, it falls into the 'unregistered' bucket
-// and gets loaded in all contexts (safe default).
+// Every tool name → its set. SINGLE SOURCE OF TRUTH.
 
 const TOOL_REGISTRY: Record<string, ToolSet> = {
-  // ── Core (10) ──
+  // ── Core (8) ──
   read: 'core',
   write: 'core',
   edit: 'core',
@@ -85,7 +142,7 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   web_fetch: 'core',
   web_search: 'core',
 
-  // ── Browser (1-2) ──
+  // ── Browser (1) ──
   browser: 'browser',
 
   // ── System (1) ──
@@ -109,13 +166,13 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   vision_similar: 'visual_memory',
   vision_track: 'visual_memory',
 
-  // ── Meeting Voice (4) — tools used DURING a meeting ──
+  // ── Meeting Voice (4) ──
   meeting_speak: 'meeting_voice',
   meeting_action: 'meeting_voice',
   meeting_audio_setup: 'meeting_voice',
   meeting_voices: 'meeting_voice',
 
-  // ── Meeting Lifecycle (10) — tools for joining/managing meetings ──
+  // ── Meeting Lifecycle (8) ──
   meeting_join: 'meeting_lifecycle',
   meeting_rsvp: 'meeting_lifecycle',
   meeting_can_join: 'meeting_lifecycle',
@@ -125,7 +182,7 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   meetings_scan_inbox: 'meeting_lifecycle',
   meetings_upcoming: 'meeting_lifecycle',
 
-  // ── Google Chat (13) ──
+  // ── Google Chat (14) ──
   google_chat_send_message: 'gws_chat',
   google_chat_list_messages: 'gws_chat',
   google_chat_list_spaces: 'gws_chat',
@@ -249,12 +306,12 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   ent_db_explain: 'ent_database',
   ent_db_connections: 'ent_database',
 
-  // ── Enterprise: Spreadsheet (7) ──
+  // ── Enterprise: Spreadsheet (8) ──
   ent_sheet_read: 'ent_spreadsheet',
   ent_sheet_write: 'ent_spreadsheet',
   ent_sheet_filter: 'ent_spreadsheet',
   ent_sheet_aggregate: 'ent_spreadsheet',
-  ent_sheet_transform: 'ent_spreadsheet', // ent_sheet_transform
+  ent_sheet_transform: 'ent_spreadsheet',
   ent_sheet_merge: 'ent_spreadsheet',
   ent_sheet_pivot: 'ent_spreadsheet',
   ent_sheet_convert: 'ent_spreadsheet',
@@ -337,202 +394,408 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   agenticmail_complete_task: 'agenticmail',
   agenticmail_submit_result: 'agenticmail',
   agenticmail_wait_for_email: 'agenticmail',
+
+  // ── Local: Filesystem (7) ──
+  file_read: 'local_filesystem',
+  file_write: 'local_filesystem',
+  file_edit: 'local_filesystem',
+  file_list: 'local_filesystem',
+  file_search: 'local_filesystem',
+  file_move: 'local_filesystem',
+  file_delete: 'local_filesystem',
+
+  // ── Local: Shell & System (7) ──
+  shell_exec: 'local_shell',
+  shell_interactive: 'local_shell',
+  shell_sudo: 'local_shell',
+  shell_install: 'local_shell',
+  shell_session_list: 'local_shell',
+  shell_session_kill: 'local_shell',
+  system_info: 'local_shell',
+
+  // ── Messaging: WhatsApp (16) ──
+  whatsapp_connect: 'msg_whatsapp',
+  whatsapp_status: 'msg_whatsapp',
+  whatsapp_send: 'msg_whatsapp',
+  whatsapp_send_media: 'msg_whatsapp',
+  whatsapp_get_groups: 'msg_whatsapp',
+  whatsapp_send_voice: 'msg_whatsapp',
+  whatsapp_send_location: 'msg_whatsapp',
+  whatsapp_send_contact: 'msg_whatsapp',
+  whatsapp_react: 'msg_whatsapp',
+  whatsapp_typing: 'msg_whatsapp',
+  whatsapp_read_receipts: 'msg_whatsapp',
+  whatsapp_profile: 'msg_whatsapp',
+  whatsapp_group_manage: 'msg_whatsapp',
+  whatsapp_delete_message: 'msg_whatsapp',
+  whatsapp_forward: 'msg_whatsapp',
+  whatsapp_disconnect: 'msg_whatsapp',
+
+  // ── Messaging: Telegram (4) ──
+  telegram_send: 'msg_telegram',
+  telegram_send_media: 'msg_telegram',
+  telegram_get_me: 'msg_telegram',
+  telegram_get_chat: 'msg_telegram',
 };
 
-// Total registered: ~205 tools
+// ─── Session Context Types ───────────────────────────────
 
-// ─── Session Context → Tool Set Mapping ──────────────────
+export type SessionContext = 'meeting' | 'chat' | 'email' | 'task' | 'full' | 'whatsapp' | 'telegram';
 
-export type SessionContext = 'meeting' | 'chat' | 'email' | 'task' | 'full';
+// ─── Session Tool State ──────────────────────────────────
+// Tracks what tools are loaded per session. Survives across sendMessage calls.
 
-/**
- * Which tool sets each session context loads.
- *
- * Design principles:
- *  - meeting: MINIMAL — only what's needed for real-time voice conversation
- *  - chat: MODERATE — daily work tools + ability to join meetings
- *  - email: FOCUSED — email handling + supporting lookups
- *  - task: BROAD — autonomous work needs wide tool access
- *  - full: EVERYTHING — backward-compatible, no filtering
- */
-const SESSION_TOOL_SETS: Record<SessionContext, ToolSet[]> = {
+export interface SessionToolState {
+  context: SessionContext;
+  loadedSets: Set<ToolSet>;
+  /** Tool instances cached for this session — avoids recreating */
+  cachedTools: AnyAgentTool[] | null;
+  /** All tools (unfiltered) for request_tools to pull from */
+  allToolsRef: AnyAgentTool[] | null;
+  /** Timestamp of last context change */
+  lastContextChange: number;
+  /** History of loaded sets for debugging */
+  loadHistory: Array<{ sets: ToolSet[]; reason: string; time: number }>;
+}
+
+/** Global session tool state registry */
+const sessionToolStates = new Map<string, SessionToolState>();
+
+export function getSessionToolState(sessionId: string): SessionToolState | undefined {
+  return sessionToolStates.get(sessionId);
+}
+
+export function clearSessionToolState(sessionId: string): void {
+  sessionToolStates.delete(sessionId);
+}
+
+// ─── Context → Tier 2 Promotion Rules ───────────────────
+// Which Tier 2 sets get auto-loaded for each context.
+// Tier 1 is ALWAYS loaded. Tier 3 is NEVER auto-loaded (must be requested).
+
+const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
+  // Meeting: voice + calendar (check schedule)
   meeting: [
-    'core',                     // read/write/search (may need to look things up)
-    'memory',                   // remember context from the meeting
-    'meeting_voice',            // speak, chat, audio control
-    'gws_chat',                 // send messages to chat space
-    'gws_calendar',             // check schedule if asked
+    'meeting_voice',
+    'gws_calendar',
   ],
 
+  // Chat (Google Chat): GWS chat tools + browser + calendar
   chat: [
-    'core', 'browser', 'system',
-    'memory', 'visual_memory',
-    'meeting_lifecycle',        // can join meetings from chat
-    'meeting_voice',            // in case meeting starts mid-session
-    'gws_chat', 'gws_gmail', 'gws_calendar', 'gws_drive', 'gws_docs',
-    'gws_tasks', 'gws_contacts',
-    'agenticmail',
-    'ent_http',                 // may need to fetch APIs
+    'gws_chat',
+    'browser',
+    'gws_calendar',
   ],
 
+  // WhatsApp: lean — only WhatsApp tools + browser
+  whatsapp: [
+    'msg_whatsapp',
+    'browser',
+  ],
+
+  // Telegram: lean — only Telegram tools + browser
+  telegram: [
+    'msg_telegram',
+    'browser',
+  ],
+
+  // Email handler: focused email + lookups
   email: [
-    'core', 'system',
-    'memory',
-    'gws_gmail', 'gws_calendar', 'gws_contacts', 'gws_drive',
+    'system',
+    'gws_gmail',
+    'gws_calendar',
+    'gws_contacts',
+    'gws_drive',
     'gws_tasks',
     'agenticmail',
-    'ent_documents',            // may need to generate/parse attachments
+    'ent_documents',
   ],
 
+  // Task: broad access for autonomous work
   task: [
-    'core', 'browser', 'system',
-    'memory', 'visual_memory',
+    'browser', 'system',
+    'visual_memory',
     'meeting_lifecycle',
-    'gws_chat', 'gws_gmail', 'gws_calendar', 'gws_drive',
-    'gws_docs', 'gws_sheets', 'gws_contacts', 'gws_slides',
-    'gws_forms', 'gws_tasks', 'gws_maps',
+    'gws_gmail', 'gws_calendar', 'gws_drive',
+    'gws_docs', 'gws_sheets', 'gws_contacts',
+    'gws_tasks', 'gws_maps',
     'ent_database', 'ent_spreadsheet', 'ent_documents',
     'ent_http', 'ent_security', 'ent_code', 'ent_diff',
     'agenticmail', 'mcp_bridge',
   ],
 
-  full: [
-    'core', 'browser', 'system',
-    'memory', 'visual_memory',
-    'meeting_voice', 'meeting_lifecycle',
-    'gws_chat', 'gws_gmail', 'gws_calendar', 'gws_drive',
-    'gws_docs', 'gws_sheets', 'gws_contacts', 'gws_slides',
-    'gws_forms', 'gws_tasks', 'gws_maps',
-    'ent_database', 'ent_spreadsheet', 'ent_documents',
-    'ent_http', 'ent_security', 'ent_code', 'ent_diff',
-    'agenticmail', 'mcp_bridge',
-  ],
+  // Full: everything
+  full: Object.keys(TIER_MAP) as ToolSet[],
 };
+
+// ─── Conversation Signal Detection ───────────────────────
+// Analyze user message to auto-promote tool sets mid-conversation.
+// This prevents the agent from needing to call request_tools for obvious needs.
+
+interface SignalRule {
+  patterns: RegExp[];
+  sets: ToolSet[];
+}
+
+const SIGNAL_RULES: SignalRule[] = [
+  // Email mentions
+  { patterns: [/\bemail\b/i, /\bgmail\b/i, /\binbox\b/i, /\bsend.*mail\b/i],
+    sets: ['gws_gmail'] },
+  // Calendar mentions
+  { patterns: [/\bcalendar\b/i, /\bschedule\b/i, /\bmeeting.*upcoming\b/i, /\bevent\b/i, /\bfree.*busy\b/i],
+    sets: ['gws_calendar'] },
+  // Drive/docs
+  { patterns: [/\bdrive\b/i, /\bdocument\b/i, /\bgoogle doc\b/i],
+    sets: ['gws_drive', 'gws_docs'] },
+  // Sheets
+  { patterns: [/\bspreadsheet\b/i, /\bsheet\b/i, /\bcsv\b/i, /\bexcel\b/i],
+    sets: ['gws_sheets'] },
+  // Slides
+  { patterns: [/\bslide\b/i, /\bpresentation\b/i, /\bpowerpoint\b/i],
+    sets: ['gws_slides'] },
+  // Forms
+  { patterns: [/\bform\b/i, /\bsurvey\b/i, /\bquestionnaire\b/i],
+    sets: ['gws_forms'] },
+  // Maps
+  { patterns: [/\bmap\b/i, /\bdirection\b/i, /\bplace\b/i, /\brestaurant\b/i, /\bnearby\b/i, /\bgeocode\b/i, /\bdistance\b/i],
+    sets: ['gws_maps'] },
+  // Meeting join
+  { patterns: [/\bjoin.*meeting\b/i, /\bmeeting.*join\b/i, /\bgoogle meet\b/i],
+    sets: ['meeting_lifecycle', 'meeting_voice'] },
+  // Database
+  { patterns: [/\bdatabase\b/i, /\bsql\b/i, /\bquery\b/i, /\bpostgres\b/i],
+    sets: ['ent_database'] },
+  // Security
+  { patterns: [/\bsecurity\b/i, /\bscan.*secret\b/i, /\bpii\b/i, /\bcompliance\b/i],
+    sets: ['ent_security'] },
+  // PDF/docs
+  { patterns: [/\bpdf\b/i, /\binvoice\b/i, /\bocr\b/i, /\bdocx\b/i],
+    sets: ['ent_documents'] },
+  // Code
+  { patterns: [/\brun.*python\b/i, /\brun.*javascript\b/i, /\bcode.*sandbox\b/i, /\bregex\b/i],
+    sets: ['ent_code'] },
+  // Contacts
+  { patterns: [/\bcontact\b/i, /\bphone.*number\b/i, /\bdirectory\b/i],
+    sets: ['gws_contacts'] },
+  // AgenticMail
+  { patterns: [/\bagenticmail\b/i, /\bagent.*email\b/i],
+    sets: ['agenticmail'] },
+];
+
+/**
+ * Detect tool sets needed based on conversation text.
+ * Returns sets that should be promoted (may already be loaded).
+ */
+export function detectSignals(text: string): ToolSet[] {
+  const needed = new Set<ToolSet>();
+  for (const rule of SIGNAL_RULES) {
+    if (rule.patterns.some(p => p.test(text))) {
+      for (const s of rule.sets) needed.add(s);
+    }
+  }
+  return [...needed];
+}
 
 // ─── Context Detection ───────────────────────────────────
 
-/**
- * Auto-detect session context from available signals.
- * Priority: explicit > sessionKind > system prompt analysis > default
- */
 export function detectSessionContext(opts: {
   systemPrompt?: string;
   isKeepAlive?: boolean;
   sessionKind?: string;
-  explicitContext?: SessionContext;
+  explicitContext?: SessionContext | string;
 }): SessionContext {
-  if (opts.explicitContext) return opts.explicitContext;
-
+  if (opts.explicitContext && opts.explicitContext in CONTEXT_PROMOTIONS) return opts.explicitContext as SessionContext;
   if (opts.sessionKind === 'meeting') return 'meeting';
   if (opts.sessionKind === 'email') return 'email';
   if (opts.sessionKind === 'task') return 'task';
 
   const sp = opts.systemPrompt || '';
-
-  // Keep-alive + meeting keywords = active meeting
   if (opts.isKeepAlive && (sp.includes('MeetingMonitor') || sp.includes('meeting_speak'))) {
     return 'meeting';
   }
-
-  // Meeting join prompt (not yet in meeting, but about to)
-  if (sp.includes('meeting_join') && sp.includes('MeetingMonitor')) return 'chat';
-
-  // Email-focused session
   if (sp.includes('[Email Handler]') || sp.includes('email triage')) return 'email';
-
-  // Default: chat (most common)
   return 'chat';
 }
 
 // ─── Tool Filtering ──────────────────────────────────────
 
 /**
- * Filter tools for a session context.
- *
- * How it works:
- *  1. Look up each tool's name in TOOL_REGISTRY to find its set
- *  2. Check if that set is in the active sets for this context
- *  3. Unregistered tools (not in TOOL_REGISTRY) are ALWAYS included (safe default for new/MCP tools)
- *  4. Add `request_tools` meta-tool for on-demand expansion
+ * Get the tool sets for a context: Tier 1 (always) + context promotions + additional.
+ */
+function resolveSetsForContext(
+  context: SessionContext,
+  additionalSets?: ToolSet[],
+): Set<ToolSet> {
+  const sets = new Set<ToolSet>();
+
+  // Tier 1 — always loaded
+  for (const [setName, tier] of Object.entries(TIER_MAP)) {
+    if (tier === 1) sets.add(setName as ToolSet);
+  }
+
+  // Context promotions
+  for (const s of CONTEXT_PROMOTIONS[context]) sets.add(s);
+
+  // Explicit additions
+  if (additionalSets) {
+    for (const s of additionalSets) sets.add(s);
+  }
+
+  return sets;
+}
+
+/**
+ * Filter tools based on active sets.
  */
 export function filterToolsForContext(
   allTools: AnyAgentTool[],
   context: SessionContext,
-  options?: { additionalSets?: ToolSet[] }
+  options?: { additionalSets?: ToolSet[]; sessionId?: string; userMessage?: string }
 ): AnyAgentTool[] {
-  const activeSets = new Set<ToolSet>([
-    ...SESSION_TOOL_SETS[context],
-    ...(options?.additionalSets || []),
-  ]);
+  const activeSets = resolveSetsForContext(context, options?.additionalSets);
+
+  // Auto-promote from user message signals
+  if (options?.userMessage) {
+    const signaled = detectSignals(options.userMessage);
+    for (const s of signaled) activeSets.add(s);
+  }
+
+  // Restore previously loaded sets from session state
+  const sessionId = options?.sessionId;
+  if (sessionId) {
+    const state = sessionToolStates.get(sessionId);
+    if (state) {
+      for (const s of state.loadedSets) activeSets.add(s);
+    }
+  }
 
   const filtered = allTools.filter(tool => {
     const set = TOOL_REGISTRY[tool.name];
-    if (!set) return true; // Unregistered tool → always include (safe default)
+    if (!set) return true; // Unregistered → always include
     return activeSets.has(set);
   });
 
   // Add request_tools meta-tool
   filtered.push(createRequestToolsTool(allTools, activeSets, context));
 
+  // Update session state
+  if (sessionId) {
+    const existing = sessionToolStates.get(sessionId);
+    if (existing) {
+      existing.loadedSets = activeSets;
+      existing.cachedTools = filtered;
+      existing.allToolsRef = allTools;
+      existing.context = context;
+    } else {
+      sessionToolStates.set(sessionId, {
+        context,
+        loadedSets: activeSets,
+        cachedTools: filtered,
+        allToolsRef: allTools,
+        lastContextChange: Date.now(),
+        loadHistory: [{ sets: [...activeSets], reason: `initial:${context}`, time: Date.now() }],
+      });
+    }
+  }
+
+  return filtered;
+}
+
+// ─── Context Transition ──────────────────────────────────
+// When a keep-alive session changes context (e.g., chat → meeting),
+// re-resolve tools while preserving any dynamically loaded sets.
+
+export function transitionSessionContext(
+  sessionId: string,
+  newContext: SessionContext,
+  allTools: AnyAgentTool[],
+): AnyAgentTool[] | null {
+  const state = sessionToolStates.get(sessionId);
+  if (!state) return null;
+
+  const oldContext = state.context;
+  if (oldContext === newContext) return null; // No change
+
+  console.log(`[tool-resolver] Session ${sessionId} transitioning: ${oldContext} → ${newContext}`);
+
+  // Keep dynamically loaded sets (user explicitly requested them)
+  const dynamicSets = new Set<ToolSet>();
+  const baseSetsOld = resolveSetsForContext(oldContext);
+  for (const s of state.loadedSets) {
+    if (!baseSetsOld.has(s)) dynamicSets.add(s); // Was dynamically added
+  }
+
+  // Resolve new base + carry over dynamic
+  const newSets = resolveSetsForContext(newContext);
+  for (const s of dynamicSets) newSets.add(s);
+
+  // Filter
+  const filtered = allTools.filter(tool => {
+    const set = TOOL_REGISTRY[tool.name];
+    if (!set) return true;
+    return newSets.has(set);
+  });
+  filtered.push(createRequestToolsTool(allTools, newSets, newContext));
+
+  // Update state
+  state.context = newContext;
+  state.loadedSets = newSets;
+  state.cachedTools = filtered;
+  state.lastContextChange = Date.now();
+  state.loadHistory.push({ sets: [...newSets], reason: `transition:${oldContext}→${newContext}`, time: Date.now() });
+
+  console.log(`[tool-resolver] Transitioned ${sessionId}: ${filtered.length} tools (was ${state.cachedTools?.length || '?'})`);
   return filtered;
 }
 
 // ─── Request Tools Meta-Tool ─────────────────────────────
 
-/**
- * Creates the `request_tools` meta-tool that lets agents dynamically
- * load additional tool sets mid-session.
- *
- * Example: Agent is in a meeting and needs to check a spreadsheet.
- *   → Agent calls request_tools({ sets: ['gws_sheets'] })
- *   → Sheets tools are injected into the session
- *   → Agent can now use google_sheets_read, etc.
- */
+const SET_DESCRIPTIONS: Record<ToolSet, string> = {
+  core: 'File I/O, search, bash (8 tools)',
+  browser: 'Web browser automation (1 tool)',
+  system: 'System capabilities check (1 tool)',
+  memory: 'Agent memory — store/search/reflect (4 tools)',
+  visual_memory: 'Vision capture, OCR, visual comparison (10 tools)',
+  meeting_voice: 'In-meeting voice + chat (4 tools)',
+  meeting_lifecycle: 'Join/schedule/manage meetings (8 tools)',
+  gws_chat: 'Google Chat messaging (14 tools)',
+  gws_gmail: 'Gmail read/send/search (15 tools)',
+  gws_calendar: 'Google Calendar events (6 tools)',
+  gws_drive: 'Google Drive files (7 tools)',
+  gws_docs: 'Google Docs read/write (3 tools)',
+  gws_sheets: 'Google Sheets read/write (7 tools)',
+  gws_contacts: 'Google Contacts (5 tools)',
+  gws_slides: 'Google Slides presentations (12 tools)',
+  gws_forms: 'Google Forms surveys (8 tools)',
+  gws_tasks: 'Google Tasks (7 tools)',
+  gws_maps: 'Google Maps + Places (10 tools)',
+  ent_database: 'SQL database tools (6 tools)',
+  ent_spreadsheet: 'CSV/spreadsheet processing (8 tools)',
+  ent_documents: 'PDF/DOCX generation, OCR, invoices (8 tools)',
+  ent_http: 'HTTP requests, GraphQL (4 tools)',
+  ent_security: 'Security scanning — secrets, PII, deps (6 tools)',
+  ent_code: 'Code sandbox — JS, Python, shell (5 tools)',
+  ent_diff: 'Text/JSON/spreadsheet diffs (4 tools)',
+  agenticmail: 'Full email management (40 tools)',
+  local_filesystem: 'File read/write/edit/move/delete/search (7 tools)',
+  local_shell: 'Shell exec, PTY sessions, sudo, package install (7 tools)',
+  msg_whatsapp: 'WhatsApp messaging, media, groups (16 tools)',
+  msg_telegram: 'Telegram messaging and media (4 tools)',
+  mcp_bridge: 'MCP integration adapters',
+};
+
 function createRequestToolsTool(
   allTools: AnyAgentTool[],
   activeSets: Set<ToolSet>,
   context: SessionContext,
 ): AnyAgentTool {
   const loadedSets = new Set<ToolSet>(activeSets);
-
-  // Build human-readable set descriptions
-  const SET_DESCRIPTIONS: Record<ToolSet, string> = {
-    core: 'File I/O, search, bash',
-    browser: 'Web browser automation',
-    system: 'System capabilities check',
-    memory: 'Agent memory (store/search/reflect)',
-    visual_memory: 'Vision capture, OCR, visual comparison',
-    meeting_voice: 'In-meeting voice + chat',
-    meeting_lifecycle: 'Join/schedule/manage meetings',
-    gws_chat: 'Google Chat messaging',
-    gws_gmail: 'Gmail read/send/search',
-    gws_calendar: 'Google Calendar events',
-    gws_drive: 'Google Drive files',
-    gws_docs: 'Google Docs read/write',
-    gws_sheets: 'Google Sheets read/write',
-    gws_contacts: 'Google Contacts',
-    gws_slides: 'Google Slides',
-    gws_forms: 'Google Forms',
-    gws_tasks: 'Google Tasks',
-    gws_maps: 'Google Maps + Places',
-    ent_database: 'SQL database tools',
-    ent_spreadsheet: 'CSV/spreadsheet processing',
-    ent_documents: 'PDF/DOCX generation, OCR, invoices',
-    ent_http: 'HTTP requests, GraphQL',
-    ent_security: 'Security scanning (secrets, PII, deps)',
-    ent_code: 'Code sandbox (JS, Python, shell)',
-    ent_diff: 'Text/JSON/spreadsheet diffs',
-    agenticmail: 'Email management (40 tools)',
-    mcp_bridge: 'MCP integration adapters',
-  };
-
   const allSets = Object.keys(SET_DESCRIPTIONS) as ToolSet[];
   const notLoaded = allSets.filter(s => !loadedSets.has(s));
 
+  // Compact description — only list what's NOT loaded to save tokens
   const description = notLoaded.length > 0
-    ? `Load additional tool sets into this session on demand. ` +
-      `Currently loaded: ${[...loadedSets].join(', ')}. ` +
-      `Available to load: ${notLoaded.map(s => `${s} (${SET_DESCRIPTIONS[s]})`).join(', ')}.`
+    ? `Load more tools into this session. Available: ${notLoaded.map(s => `${s} (${SET_DESCRIPTIONS[s]})`).join('; ')}.`
     : 'All tool sets are loaded.';
 
   return {
@@ -546,7 +809,7 @@ function createRequestToolsTool(
         sets: {
           type: 'array',
           items: { type: 'string', enum: allSets },
-          description: 'Tool sets to load: ' + notLoaded.map(s => `"${s}"`).join(', '),
+          description: 'Tool sets to load',
         },
       },
       required: ['sets'],
@@ -567,7 +830,6 @@ function createRequestToolsTool(
         };
       }
 
-      // Find tools in the new sets
       const newToolNames = new Set<string>();
       for (const [name, set] of Object.entries(TOOL_REGISTRY)) {
         if (newSets.includes(set)) newToolNames.add(name);
@@ -585,31 +847,22 @@ function createRequestToolsTool(
           allLoaded: [...loadedSets],
           message: `Loaded ${newTools.length} tools from: ${newSets.join(', ')}. They are now available.`,
         }) }],
-        // Signal to agent-loop to inject these into the session
         _dynamicTools: newTools,
       };
     },
   } as AnyAgentTool;
 }
 
-// ─── Main Entry Point ────────────────────────────────────
+// ─── Main Entry Points ───────────────────────────────────
 
 /**
- * Create tools for a specific session context.
- * Drop-in replacement for `createAllTools` that's context-aware.
- *
- * Usage:
- *   // Instead of:
- *   const tools = await createAllTools(options);
- *
- *   // Use:
- *   const tools = await createToolsForContext(options, 'meeting');
- *   // → ~20 tools instead of 200+
+ * Create tools for a session context with lazy loading.
+ * Drop-in replacement for createAllTools — context-aware + session-stateful.
  */
 export async function createToolsForContext(
   options: AllToolsOptions,
   context: SessionContext,
-  additionalSets?: ToolSet[],
+  opts?: { additionalSets?: ToolSet[]; sessionId?: string; userMessage?: string },
 ): Promise<AnyAgentTool[]> {
   const { createAllTools } = await import('./index.js');
 
@@ -618,14 +871,67 @@ export async function createToolsForContext(
   }
 
   const allTools = await createAllTools(options);
-  return filterToolsForContext(allTools, context, { additionalSets });
+  return filterToolsForContext(allTools, context, {
+    additionalSets: opts?.additionalSets,
+    sessionId: opts?.sessionId,
+    userMessage: opts?.userMessage,
+  });
+}
+
+/**
+ * Get tools for a session, using cached state if available.
+ * This is the preferred entry point for sendMessage — reuses existing tool state.
+ */
+export async function getToolsForSession(
+  sessionId: string,
+  options: AllToolsOptions,
+  opts?: { context?: SessionContext; userMessage?: string },
+): Promise<AnyAgentTool[]> {
+  const state = sessionToolStates.get(sessionId);
+
+  if (state?.cachedTools && state.allToolsRef) {
+    // Session has existing tool state — check if user message signals new sets
+    if (opts?.userMessage) {
+      const signaled = detectSignals(opts.userMessage);
+      const newSignals = signaled.filter(s => !state.loadedSets.has(s));
+
+      if (newSignals.length > 0) {
+        // Auto-promote: add signaled sets without agent needing to call request_tools
+        for (const s of newSignals) state.loadedSets.add(s);
+        state.loadHistory.push({ sets: newSignals, reason: `signal:${newSignals.join(',')}`, time: Date.now() });
+        console.log(`[tool-resolver] Auto-promoted sets for ${sessionId}: ${newSignals.join(', ')}`);
+
+        // Re-filter with expanded sets
+        const filtered = state.allToolsRef.filter(tool => {
+          const set = TOOL_REGISTRY[tool.name];
+          if (!set) return true;
+          return state.loadedSets.has(set);
+        });
+        filtered.push(createRequestToolsTool(state.allToolsRef, state.loadedSets, state.context));
+        state.cachedTools = filtered;
+        return filtered;
+      }
+    }
+
+    // Context transition check
+    if (opts?.context && opts.context !== state.context) {
+      const transitioned = transitionSessionContext(sessionId, opts.context, state.allToolsRef);
+      if (transitioned) return transitioned;
+    }
+
+    return state.cachedTools;
+  }
+
+  // No cached state — create fresh
+  const context = opts?.context || state?.context || 'chat';
+  return createToolsForContext(options, context, {
+    sessionId,
+    userMessage: opts?.userMessage,
+  });
 }
 
 // ─── Diagnostics ─────────────────────────────────────────
 
-/**
- * Get detailed tool loading stats for logging.
- */
 export function getToolSetStats(tools: AnyAgentTool[]): {
   total: number;
   bySet: Record<string, number>;
@@ -646,20 +952,15 @@ export function getToolSetStats(tools: AnyAgentTool[]): {
   return { total: tools.length, bySet, unregistered };
 }
 
-/**
- * Validate that all tools in the system are registered.
- * Call at startup to catch missing registrations early.
- */
 export function validateToolRegistry(allTools: AnyAgentTool[]): {
   registered: number;
   unregistered: string[];
-  registryOrphans: string[]; // In registry but not in tools
+  registryOrphans: string[];
 } {
   const toolNames = new Set(allTools.map(t => t.name));
   const unregistered = allTools
     .filter(t => !TOOL_REGISTRY[t.name])
     .map(t => t.name);
-
   const registryOrphans = Object.keys(TOOL_REGISTRY)
     .filter(name => !toolNames.has(name));
 
@@ -668,4 +969,20 @@ export function validateToolRegistry(allTools: AnyAgentTool[]): {
     unregistered,
     registryOrphans,
   };
+}
+
+/**
+ * Get all session tool states for diagnostics.
+ */
+export function getAllSessionToolStates(): Map<string, { context: SessionContext; toolCount: number; loadedSets: string[]; history: any[] }> {
+  const result = new Map<string, any>();
+  for (const [id, state] of sessionToolStates) {
+    result.set(id, {
+      context: state.context,
+      toolCount: state.cachedTools?.length || 0,
+      loadedSets: [...state.loadedSets],
+      history: state.loadHistory,
+    });
+  }
+  return result;
 }

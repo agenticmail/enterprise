@@ -220,6 +220,8 @@ export interface SpawnOptions {
   systemPrompt?: string;
   tools?: AnyAgentTool[];
   parentSessionId?: string;
+  additionalSets?: string[];
+  sessionContext?: string;
 }
 
 // ─── Follow-Up ───────────────────────────────────────────

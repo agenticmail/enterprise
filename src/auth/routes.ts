@@ -170,6 +170,98 @@ export function createAuthRoutes(
     }
   }
 
+  // ─── TOTP Helpers ────────────────────────────────────────
+
+  function generateTotpSecret(): string {
+    const bytes = new Uint8Array(20);
+    crypto.getRandomValues(bytes);
+    return base32Encode(bytes);
+  }
+
+  function base32Encode(bytes: Uint8Array): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let result = '';
+    let bits = 0;
+    let value = 0;
+    for (const byte of bytes) {
+      value = (value << 8) | byte;
+      bits += 8;
+      while (bits >= 5) {
+        result += alphabet[(value >>> (bits - 5)) & 31];
+        bits -= 5;
+      }
+    }
+    if (bits > 0) {
+      result += alphabet[(value << (5 - bits)) & 31];
+    }
+    return result;
+  }
+
+  function base32Decode(input: string): Uint8Array {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const cleaned = input.replace(/[=\s]/g, '').toUpperCase();
+    const bytes: number[] = [];
+    let bits = 0;
+    let value = 0;
+    for (const char of cleaned) {
+      const idx = alphabet.indexOf(char);
+      if (idx === -1) continue;
+      value = (value << 5) | idx;
+      bits += 5;
+      if (bits >= 8) {
+        bytes.push((value >>> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+    return new Uint8Array(bytes);
+  }
+
+  async function generateTotp(secret: string, timeStep = 30, digits = 6, offsetSteps = 0): Promise<string> {
+    const keyBytes = base32Decode(secret);
+    const time = Math.floor(Date.now() / 1000 / timeStep) + offsetSteps;
+    const timeBytes = new Uint8Array(8);
+    let t = time;
+    for (let i = 7; i >= 0; i--) {
+      timeBytes[i] = t & 0xff;
+      t = Math.floor(t / 256);
+    }
+    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, timeBytes));
+    const offset = sig[sig.length - 1] & 0x0f;
+    const code = ((sig[offset] & 0x7f) << 24 | sig[offset + 1] << 16 | sig[offset + 2] << 8 | sig[offset + 3]) % (10 ** digits);
+    return String(code).padStart(digits, '0');
+  }
+
+  async function verifyTotp(secret: string, token: string): Promise<boolean> {
+    // Allow 1 step drift in either direction
+    for (const offset of [0, -1, 1]) {
+      const expected = await generateTotp(secret, 30, 6, offset);
+      if (expected === token) return true;
+    }
+    return false;
+  }
+
+  function generateBackupCodes(count = 8): string[] {
+    const codes: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const bytes = new Uint8Array(4);
+      crypto.getRandomValues(bytes);
+      codes.push(Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase());
+    }
+    return codes;
+  }
+
+  // Pending 2FA challenges — short-lived, keyed by a challenge token
+  const pending2fa = new Map<string, { userId: string; expiresAt: number }>();
+
+  // Cleanup expired challenges periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of pending2fa) {
+      if (v.expiresAt < now) pending2fa.delete(k);
+    }
+  }, 60_000);
+
   // ─── Email/Password Login ───────────────────────────────
 
   auth.post('/login', async (c) => {
@@ -189,6 +281,17 @@ export function createAuthRoutes(
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
+    // If 2FA enabled, return challenge instead of session
+    if (user.totpEnabled && user.totpSecret) {
+      const challengeToken = generateCsrf(); // reuse the random generator
+      pending2fa.set(challengeToken, { userId: user.id, expiresAt: Date.now() + 5 * 60 * 1000 });
+      return c.json({
+        requires2fa: true,
+        challengeToken,
+        message: 'Enter your 2FA code to continue',
+      });
+    }
+
     const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'password');
 
     return c.json({
@@ -196,6 +299,217 @@ export function createAuthRoutes(
       refreshToken,
       csrf,
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    });
+  });
+
+  // ─── 2FA Verification (during login) ───────────────────
+
+  auth.post('/2fa/verify', async (c) => {
+    const { challengeToken, code } = await c.req.json();
+    if (!challengeToken || !code) {
+      return c.json({ error: 'Challenge token and code required' }, 400);
+    }
+
+    const challenge = pending2fa.get(challengeToken);
+    if (!challenge || challenge.expiresAt < Date.now()) {
+      pending2fa.delete(challengeToken);
+      return c.json({ error: 'Challenge expired. Please login again.' }, 401);
+    }
+
+    const user = await db.getUser(challenge.userId);
+    if (!user || !user.totpSecret) {
+      pending2fa.delete(challengeToken);
+      return c.json({ error: 'User not found' }, 401);
+    }
+
+    // Try TOTP code first
+    const totpValid = await verifyTotp(user.totpSecret, code.replace(/\s/g, ''));
+    
+    // Try backup codes if TOTP fails
+    let backupUsed = false;
+    if (!totpValid && user.totpBackupCodes) {
+      try {
+        const { default: bcrypt } = await import('bcryptjs');
+        const backupCodes: string[] = JSON.parse(user.totpBackupCodes);
+        for (let i = 0; i < backupCodes.length; i++) {
+          const match = await bcrypt.compare(code.toUpperCase().replace(/\s/g, ''), backupCodes[i]);
+          if (match) {
+            // Remove used backup code
+            backupCodes.splice(i, 1);
+            await db.updateUser(user.id, { totpBackupCodes: JSON.stringify(backupCodes) } as any);
+            backupUsed = true;
+            break;
+          }
+        }
+      } catch { /* invalid backup codes JSON */ }
+    }
+
+    if (!totpValid && !backupUsed) {
+      return c.json({ error: 'Invalid 2FA code' }, 401);
+    }
+
+    pending2fa.delete(challengeToken);
+
+    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'password+2fa');
+
+    return c.json({
+      token,
+      refreshToken,
+      csrf,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      ...(backupUsed ? { warning: 'Backup code used. You have fewer backup codes remaining.' } : {}),
+    });
+  });
+
+  // ─── 2FA Setup (authenticated users) ───────────────────
+
+  auth.post('/2fa/setup', async (c) => {
+    const token = await extractToken(c);
+    if (!token) return c.json({ error: 'Authentication required' }, 401);
+
+    let userId: string;
+    try {
+      const { jwtVerify } = await import('jose');
+      const secret = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jwtVerify(token, secret);
+      userId = payload.sub as string;
+    } catch {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+
+    const user = await db.getUser(userId);
+    if (!user) return c.json({ error: 'User not found' }, 404);
+
+    if (user.totpEnabled) {
+      return c.json({ error: '2FA is already enabled. Disable it first to re-enroll.' }, 400);
+    }
+
+    const totpSecret = generateTotpSecret();
+    const settings = await db.getSettings();
+    const issuer = settings?.name || 'AgenticMail Enterprise';
+    const otpauthUrl = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(user.email)}?secret=${totpSecret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+
+    // Save secret (not yet enabled — user must verify first)
+    await db.updateUser(userId, { totpSecret } as any);
+
+    return c.json({
+      secret: totpSecret,
+      otpauthUrl,
+      qrData: otpauthUrl, // Frontend can render QR from this
+    });
+  });
+
+  auth.post('/2fa/confirm', async (c) => {
+    const token = await extractToken(c);
+    if (!token) return c.json({ error: 'Authentication required' }, 401);
+
+    let userId: string;
+    try {
+      const { jwtVerify } = await import('jose');
+      const secret = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jwtVerify(token, secret);
+      userId = payload.sub as string;
+    } catch {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+
+    const { code } = await c.req.json();
+    if (!code) return c.json({ error: 'Verification code required' }, 400);
+
+    const user = await db.getUser(userId);
+    if (!user || !user.totpSecret) return c.json({ error: 'No 2FA setup in progress' }, 400);
+    if (user.totpEnabled) return c.json({ error: '2FA is already enabled' }, 400);
+
+    const valid = await verifyTotp(user.totpSecret, code.replace(/\s/g, ''));
+    if (!valid) return c.json({ error: 'Invalid code. Make sure your authenticator app time is synced.' }, 400);
+
+    // Generate backup codes
+    const plainBackupCodes = generateBackupCodes(8);
+    const { default: bcrypt } = await import('bcryptjs');
+    const hashedCodes = await Promise.all(plainBackupCodes.map(c => bcrypt.hash(c, 10)));
+
+    await db.updateUser(userId, {
+      totpEnabled: true,
+      totpBackupCodes: JSON.stringify(hashedCodes),
+    } as any);
+
+    return c.json({
+      enabled: true,
+      backupCodes: plainBackupCodes,
+      warning: 'Save these backup codes securely. They will not be shown again.',
+    });
+  });
+
+  auth.post('/2fa/disable', async (c) => {
+    const token = await extractToken(c);
+    if (!token) return c.json({ error: 'Authentication required' }, 401);
+
+    let userId: string;
+    try {
+      const { jwtVerify } = await import('jose');
+      const secret = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jwtVerify(token, secret);
+      userId = payload.sub as string;
+    } catch {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+
+    const { password } = await c.req.json();
+    if (!password) return c.json({ error: 'Password required to disable 2FA' }, 400);
+
+    const user = await db.getUser(userId);
+    if (!user || !user.passwordHash) return c.json({ error: 'User not found' }, 404);
+
+    const { default: bcrypt } = await import('bcryptjs');
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) return c.json({ error: 'Invalid password' }, 401);
+
+    await db.updateUser(userId, {
+      totpEnabled: false,
+      totpSecret: undefined,
+      totpBackupCodes: undefined,
+    } as any);
+
+    return c.json({ disabled: true });
+  });
+
+  auth.get('/2fa/status', async (c) => {
+    const token = await extractToken(c);
+    if (!token) return c.json({ error: 'Authentication required' }, 401);
+
+    try {
+      const { jwtVerify } = await import('jose');
+      const secret = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jwtVerify(token, secret);
+      const user = await db.getUser(payload.sub as string);
+      if (!user) return c.json({ error: 'User not found' }, 404);
+      return c.json({ enabled: !!user.totpEnabled });
+    } catch {
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+  });
+
+  // ─── API Key Login ──────────────────────────────────────
+
+  auth.post('/login/api-key', async (c) => {
+    const { apiKey } = await c.req.json();
+    if (!apiKey) return c.json({ error: 'API key required' }, 400);
+
+    const key = await db.validateApiKey(apiKey);
+    if (!key) return c.json({ error: 'Invalid or revoked API key' }, 401);
+
+    // Get the user who created this key
+    const user = await db.getUser(key.createdBy);
+    if (!user) return c.json({ error: 'API key owner not found' }, 401);
+
+    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'api-key');
+
+    return c.json({
+      token,
+      refreshToken,
+      csrf,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      keyName: key.name,
     });
   });
 

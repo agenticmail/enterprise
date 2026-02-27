@@ -276,8 +276,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200);
     const offset = Math.max(parseInt(c.req.query('offset') || '0'), 0);
     const users = await db.listUsers({ limit, offset });
-    // Strip password hashes
-    const safe = users.map(({ passwordHash, ...u }) => u);
+    // Strip sensitive fields
+    const safe = users.map(({ passwordHash, totpSecret, totpBackupCodes, ...u }) => u);
     return c.json({ users: safe, limit, offset });
   });
 
@@ -315,6 +315,40 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     return c.json(safe);
   });
 
+  // ─── Reset Password (admin/owner can reset any user's password) ──
+
+  api.post('/users/:id/reset-password', requireRole('admin'), async (c) => {
+    const existing = await db.getUser(c.req.param('id'));
+    if (!existing) return c.json({ error: 'User not found' }, 404);
+
+    const body = await c.req.json();
+    const newPassword = body.password;
+
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    }
+
+    const { default: bcrypt } = await import('bcryptjs');
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+
+    // Use raw SQL via the pool — updateUser doesn't handle password_hash
+    await (db as any).pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, c.req.param('id')]
+    );
+
+    await db.logEvent({
+      actor: c.get('userId') || 'system',
+      actorType: 'user',
+      action: 'user.password_reset',
+      resource: `user:${c.req.param('id')}`,
+      details: { targetEmail: existing.email, resetBy: 'admin' },
+      ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip'),
+    }).catch(() => {});
+
+    return c.json({ ok: true, message: 'Password reset successfully' });
+  });
+
   api.delete('/users/:id', requireRole('owner'), async (c) => {
     const existing = await db.getUser(c.req.param('id'));
     if (!existing) return c.json({ error: 'User not found' }, 404);
@@ -327,6 +361,58 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
     await db.deleteUser(c.req.param('id'));
     return c.json({ ok: true });
+  });
+
+  // ─── Platform Capabilities ──────────────────────────
+
+  api.get('/platform-capabilities', requireRole('admin'), async (c) => {
+    const os = await import('node:os');
+    const settings = await db.getSettings();
+    return c.json({ capabilities: settings?.platformCapabilities || {}, serverOS: os.platform() });
+  });
+
+  api.put('/platform-capabilities', requireRole('owner'), async (c) => {
+    const body = await c.req.json();
+    const userId = c.get('userId') || 'system';
+    const capabilities = {
+      localSystemAccess: !!body.localSystemAccess,
+      telegram: !!body.telegram,
+      whatsapp: !!body.whatsapp,
+      enabledAt: new Date().toISOString(),
+      enabledBy: userId,
+    };
+
+    await db.updateSettings({ platformCapabilities: capabilities } as any);
+
+    await db.logEvent({
+      actor: userId,
+      actorType: 'user',
+      action: 'platform.capabilities_updated',
+      resource: 'company_settings',
+      details: capabilities,
+      ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip'),
+    }).catch(() => {});
+
+    return c.json({ ok: true, capabilities });
+  });
+
+  // ─── WhatsApp QR Code ────────────────────────────────
+
+  api.get('/whatsapp/qr/:agentId', requireRole('admin'), async (c) => {
+    try {
+      var { getWhatsAppQR, isWhatsAppConnected } = await import('../agent-tools/tools/messaging/whatsapp.js');
+      var agentId = c.req.param('agentId');
+      if (isWhatsAppConnected(agentId)) {
+        return c.json({ status: 'connected' });
+      }
+      var qr = getWhatsAppQR(agentId);
+      if (qr) {
+        return c.json({ status: 'awaiting_scan', qr });
+      }
+      return c.json({ status: 'not_initialized', message: 'Agent has not started WhatsApp connection yet.' });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
   });
 
   // ─── Audit Log ──────────────────────────────────────

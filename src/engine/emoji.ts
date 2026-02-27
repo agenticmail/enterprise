@@ -22,6 +22,8 @@ export const Emoji = {
   email: '\u2709\uFE0F',    // ✉️
   envelope: '\uD83D\uDCE7', // 📧
   chat: '\uD83D\uDCAC',     // 💬
+  whatsapp: '\uD83D\uDCF2',  // 📲 (WhatsApp — green circle in dashboard SVG)
+  telegram: '\u2708\uFE0F',  // ✈️ (Telegram — blue paper plane in dashboard SVG)
   mailbox: '\uD83D\uDCEC',  // 📬
 
   // Documents
@@ -82,6 +84,7 @@ export const Emoji = {
   vault: '\uD83C\uDFDB',     // 🏛
   construction: '\uD83C\uDFD7', // 🏗
   computer: '\uD83D\uDCBB',  // 💻
+  terminal: '\uD83D\uDDA5\uFE0F', // 🖥️ (terminal/shell — maps to terminal SVG in dashboard)
   lobster: '\uD83E\uDD9E',   // 🦞
   heart: '\uD83D\uDC9C',     // 💜
   redHeart: '\u2764\uFE0F',  // ❤️

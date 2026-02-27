@@ -160,10 +160,51 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
     async checkBudget(agentId, orgId, estimatedTokens): Promise<BudgetCheckResult> {
       try {
         var { lifecycle } = await import('../engine/routes.js');
+
+        // ── Sync budget config from DB (at most once per 60s to avoid hammering DB) ──
+        var now = Date.now();
+        var cacheKey = `budget_sync_${agentId}`;
+        var lastSync = (globalThis as any)[cacheKey] || 0;
+        if (now - lastSync > 60_000) {
+          (globalThis as any)[cacheKey] = now;
+          try {
+            var freshAgent = await lifecycle.loadAgentFromDb(agentId);
+            if (freshAgent) {
+              var existingAgent = lifecycle.getAgent(agentId);
+              if (existingAgent) {
+                if (freshAgent.budgetConfig) {
+                  existingAgent.budgetConfig = freshAgent.budgetConfig;
+                }
+                // Also sync usage from DB in case it was reset externally
+                if (freshAgent.usage) {
+                  existingAgent.usage = freshAgent.usage;
+                }
+                console.log(`[budget] Synced from DB — budget: daily=${freshAgent.budgetConfig?.dailyTokenCap || freshAgent.budgetConfig?.dailyTokens || 0}, monthly=${freshAgent.budgetConfig?.monthlyTokenCap || freshAgent.budgetConfig?.monthlyTokens || 0}, usage: tokensToday=${freshAgent.usage?.tokensToday || 0}, tokensMonth=${freshAgent.usage?.tokensThisMonth || freshAgent.usage?.monthlyTokens || 0}`);
+              }
+            }
+          } catch {}
+        }
+
+        // ── Daily reset check (in case workforce didn't trigger it) ──
+        var usage = lifecycle.getUsage(agentId);
+        if (usage) {
+          var lastUpdated = (usage as any).lastUpdated || '';
+          var todayKey = new Date().toISOString().slice(0, 10);
+          var lastKey = lastUpdated ? new Date(lastUpdated).toISOString().slice(0, 10) : todayKey;
+          if (lastKey < todayKey) {
+            console.log(`[budget] Daily reset triggered for agent ${agentId} (last update: ${lastKey}, today: ${todayKey})`);
+            usage.tokensToday = 0;
+            usage.costToday = 0;
+            usage.errorsToday = 0;
+            usage.toolCallsToday = 0;
+            usage.externalActionsToday = 0;
+            (usage as any).totalSessionsToday = 0;
+          }
+        }
+
         var budget = lifecycle.getBudget(agentId);
         if (!budget) return { allowed: true };
 
-        var usage = lifecycle.getUsage(agentId);
         if (!usage) return { allowed: true };
 
         // Resolve field names (DB uses multiple naming conventions)

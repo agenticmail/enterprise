@@ -322,6 +322,46 @@ export class AmbientMemory {
   }
 
   /**
+   * Messaging context builder — fetches recent conversation history from WhatsApp/Telegram
+   * plus ambient recall. Used for non-Google Chat messaging sources.
+   */
+  async buildMessagingContext(
+    messageText: string,
+    source: string,
+    contactId: string,
+  ): Promise<string> {
+    const [chatHistory, ambientContext] = await Promise.all([
+      this.getMessagingHistory(source, contactId),
+      this.recall(messageText),
+    ]);
+
+    const parts: string[] = [];
+    if (chatHistory) parts.push(chatHistory);
+    if (ambientContext) parts.push(ambientContext);
+    return parts.join('\n\n');
+  }
+
+  /**
+   * Fetch recent conversation history from a messaging platform.
+   */
+  private async getMessagingHistory(source: string, contactId: string): Promise<string> {
+    try {
+      if (source === 'whatsapp') {
+        // WhatsApp: Baileys doesn't persist history — return empty for now
+        // TODO: Store WhatsApp messages in Postgres for ambient recall
+        return '';
+      } else if (source === 'telegram') {
+        // Telegram: Bot API doesn't provide chat history — return empty for now
+        // TODO: Store Telegram messages in Postgres for ambient recall
+        return '';
+      }
+    } catch (err: any) {
+      console.warn(`[ambient-memory] Failed to fetch ${source} history for ${contactId}: ${err.message}`);
+    }
+    return '';
+  }
+
+  /**
    * Full context builder — combines space history + ambient recall.
    * This is the main entry point for injecting memory into a chat session.
    */

@@ -207,8 +207,8 @@ export function SettingsPage() {
       SETTINGS_HELP[tab] && h(HelpButton, { label: SETTINGS_HELP[tab].label }, SETTINGS_HELP[tab].content())
     ),
     h('div', { className: 'tabs' },
-      ['general', 'llm-providers', 'api-keys', 'authentication', 'email', 'deployments', 'security', 'network', 'pricing', 'integrations'].map(t =>
-        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'llm-providers': 'LLM Providers', 'api-keys': 'API Keys', authentication: 'Authentication', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall', pricing: 'Model Pricing', integrations: 'Integrations' }[t])
+      ['general', 'llm-providers', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security', 'network', 'pricing', 'integrations'].map(t =>
+        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'llm-providers': 'LLM Providers', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall', pricing: 'Model Pricing', integrations: 'Integrations' }[t])
       )
     ),
 
@@ -442,6 +442,7 @@ export function SettingsPage() {
     ),
 
     tab === 'authentication' && h('div', null,
+      h(TwoFactorCard, { toast: toast }),
       h('div', { className: 'card', style: { marginBottom: 16 } },
         h('div', { className: 'card-header' }, h('h3', null, 'Single Sign-On (SSO)')),
         h('div', { className: 'card-body' },
@@ -515,6 +516,8 @@ export function SettingsPage() {
         )
       )
     ),
+
+    tab === 'platform' && h(PlatformCapabilitiesTab, { toast: toast }),
 
     tab === 'email' && h('div', null,
       // Saved configurations summary
@@ -1915,6 +1918,309 @@ function ModelPricingTab(props) {
     models.length > 0 && h('div', { style: { fontSize: 13, color: '#6b7280', marginTop: 8 } },
       models.length + ' model(s) configured across ' + Object.keys(providerGroups).length + ' provider(s)',
       pricing.updatedAt && h('span', null, ' \u2014 Last updated: ' + new Date(pricing.updatedAt).toLocaleString())
+    )
+  );
+}
+
+// ─── Two-Factor Authentication Card ─────────────────────
+
+function TwoFactorCard({ toast }) {
+  var [status, setStatus] = useState(null); // null=loading, true=enabled, false=disabled
+  var [setupData, setSetupData] = useState(null); // { secret, otpauthUrl }
+  var [verifyCode, setVerifyCode] = useState('');
+  var [backupCodes, setBackupCodes] = useState(null);
+  var [disablePassword, setDisablePassword] = useState('');
+  var [showDisable, setShowDisable] = useState(false);
+  var [loading, setLoading] = useState(false);
+  var [error, setError] = useState('');
+
+  useEffect(function() {
+    fetch('/auth/2fa/status', { credentials: 'same-origin' }).then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
+      if (d) setStatus(d.enabled);
+    }).catch(function() { setStatus(false); });
+  }, []);
+
+  var startSetup = async function() {
+    setError(''); setLoading(true);
+    try {
+      var r = await fetch('/auth/2fa/setup', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Setup failed');
+      setSetupData(d);
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  };
+
+  var confirmSetup = async function() {
+    setError(''); setLoading(true);
+    try {
+      var r = await fetch('/auth/2fa/confirm', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: verifyCode }) });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Verification failed');
+      setBackupCodes(d.backupCodes);
+      setStatus(true);
+      setSetupData(null);
+      toast('Two-factor authentication enabled', 'success');
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  };
+
+  var disable2fa = async function() {
+    setError(''); setLoading(true);
+    try {
+      var r = await fetch('/auth/2fa/disable', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: disablePassword }) });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed to disable');
+      setStatus(false);
+      setShowDisable(false);
+      setDisablePassword('');
+      toast('Two-factor authentication disabled', 'success');
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  };
+
+  return h('div', { className: 'card', style: { marginBottom: 16 } },
+    h('div', { className: 'card-header' }, h('h3', null, I.shield(), ' Two-Factor Authentication (2FA)')),
+    h('div', { className: 'card-body' },
+
+      // Loading state
+      status === null && h('div', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Checking 2FA status...'),
+
+      // Enabled state
+      status === true && !backupCodes && h('div', null,
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 } },
+          h('span', { className: 'badge badge-success' }, 'Enabled'),
+          h('span', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'Your account is protected with two-factor authentication.')
+        ),
+        !showDisable && h('button', { className: 'btn btn-danger btn-sm', onClick: function() { setShowDisable(true); } }, 'Disable 2FA'),
+        showDisable && h('div', { style: { marginTop: 12, padding: 16, background: 'var(--danger-soft)', borderRadius: 'var(--radius)', border: '1px solid var(--danger)' } },
+          h('div', { style: { fontWeight: 600, marginBottom: 8, color: 'var(--danger)' } }, 'Confirm disable'),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Enter your password to disable 2FA'),
+            h('input', { className: 'input', type: 'password', value: disablePassword, onChange: function(e) { setDisablePassword(e.target.value); }, placeholder: 'Your password' })
+          ),
+          error && h('div', { style: { color: 'var(--danger)', fontSize: 12, marginBottom: 8 } }, error),
+          h('div', { style: { display: 'flex', gap: 8 } },
+            h('button', { className: 'btn btn-danger btn-sm', disabled: loading || !disablePassword, onClick: disable2fa }, loading ? 'Disabling...' : 'Disable 2FA'),
+            h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setShowDisable(false); setError(''); } }, 'Cancel')
+          )
+        )
+      ),
+
+      // Backup codes display (shown once after enabling)
+      backupCodes && h('div', null,
+        h('div', { style: { background: 'var(--warning-soft)', border: '1px solid var(--warning)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 16 } },
+          h('div', { style: { fontWeight: 600, marginBottom: 8, color: 'var(--warning)' } }, 'Save Your Backup Codes'),
+          h('div', { style: { fontSize: 12, marginBottom: 12, color: 'var(--text-secondary)' } }, 'These codes can be used if you lose access to your authenticator app. Each code can only be used once. Store them securely.'),
+          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 } },
+            backupCodes.map(function(code) {
+              return h('code', { key: code, style: { padding: '6px 8px', background: 'var(--bg-tertiary)', borderRadius: 4, textAlign: 'center', fontSize: 13, fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' } }, code);
+            })
+          )
+        ),
+        h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setBackupCodes(null); } }, 'I have saved my backup codes')
+      ),
+
+      // Disabled state — setup flow
+      status === false && !setupData && h('div', null,
+        h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 } }, 'Add an extra layer of security to your account. You will need an authenticator app like Google Authenticator, Authy, or 1Password.'),
+        h('button', { className: 'btn btn-primary btn-sm', disabled: loading, onClick: startSetup }, loading ? 'Setting up...' : 'Enable 2FA'),
+        error && h('div', { style: { color: 'var(--danger)', fontSize: 12, marginTop: 8 } }, error)
+      ),
+
+      // Setup flow — show secret + verify
+      setupData && h('div', null,
+        h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontWeight: 600, marginBottom: 8 } }, 'Step 1: Scan QR Code'),
+          h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 } }, 'Scan this code with your authenticator app. If you cannot scan, enter the secret key manually.'),
+          // QR code as a simple image from a public API
+          h('div', { style: { display: 'flex', gap: 16, alignItems: 'flex-start' } },
+            h('img', { src: 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent(setupData.otpauthUrl), alt: 'QR Code', style: { width: 160, height: 160, borderRadius: 8, border: '1px solid var(--border)' } }),
+            h('div', null,
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Secret Key (manual entry):'),
+              h('code', { style: { display: 'block', padding: '8px 12px', background: 'var(--bg-tertiary)', borderRadius: 6, fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', wordBreak: 'break-all', cursor: 'pointer' }, onClick: function() { navigator.clipboard?.writeText(setupData.secret); toast('Secret copied', 'info'); } }, setupData.secret),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Click to copy')
+            )
+          )
+        ),
+        h('div', null,
+          h('div', { style: { fontWeight: 600, marginBottom: 8 } }, 'Step 2: Verify Code'),
+          h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 } }, 'Enter the 6-digit code from your authenticator app to confirm setup.'),
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+            h('input', {
+              className: 'input', type: 'text', inputMode: 'numeric', autoComplete: 'one-time-code',
+              value: verifyCode, onChange: function(e) { setVerifyCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6)); },
+              placeholder: '000000', maxLength: 6,
+              style: { width: 160, textAlign: 'center', fontSize: 20, letterSpacing: '0.3em', fontFamily: 'var(--font-mono)' }
+            }),
+            h('button', { className: 'btn btn-primary btn-sm', disabled: loading || verifyCode.length !== 6, onClick: confirmSetup }, loading ? 'Verifying...' : 'Verify & Enable'),
+            h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setSetupData(null); setVerifyCode(''); setError(''); } }, 'Cancel')
+          ),
+          error && h('div', { style: { color: 'var(--danger)', fontSize: 12, marginTop: 8 } }, error)
+        )
+      )
+    )
+  );
+}
+
+// ─── Platform Capabilities Tab ──────────────────────────
+
+function PlatformCapabilitiesTab({ toast }) {
+  var [caps, setCaps] = useState(null);
+  var [serverOS, setServerOS] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [saving, setSaving] = useState(false);
+
+  // Triple confirm state
+  var [confirmTarget, setConfirmTarget] = useState(null); // { key, label }
+  var [confirmStep, setConfirmStep] = useState(0);
+  var [confirmTyped, setConfirmTyped] = useState('');
+
+  useEffect(function() {
+    apiCall('/platform-capabilities').then(function(d) {
+      setCaps(d.capabilities || {});
+      if (d.serverOS) setServerOS(d.serverOS);
+    }).catch(function() { setCaps({}); }).finally(function() { setLoading(false); });
+  }, []);
+
+  var startToggle = function(key, label, currentValue) {
+    if (currentValue) {
+      saveCap(key, false);
+    } else {
+      setConfirmTarget({ key: key, label: label });
+      setConfirmStep(1);
+      setConfirmTyped('');
+    }
+  };
+
+  var advanceConfirm = function() {
+    if (confirmStep < 3) { setConfirmStep(confirmStep + 1); return; }
+    if (confirmStep === 3) {
+      if (confirmTyped.trim().toUpperCase() !== 'ENABLE') { toast('Type ENABLE to confirm', 'error'); return; }
+      saveCap(confirmTarget.key, true);
+      setConfirmStep(0); setConfirmTarget(null); setConfirmTyped('');
+    }
+  };
+
+  var cancelConfirm = function() { setConfirmStep(0); setConfirmTarget(null); setConfirmTyped(''); };
+
+  var saveCap = async function(key, value) {
+    var next = Object.assign({}, caps, { [key]: value });
+    setCaps(next); setSaving(true);
+    try {
+      await apiCall('/platform-capabilities', { method: 'PUT', body: JSON.stringify(next) });
+      toast((value ? 'Enabled! Go to agent > Channels tab to configure.' : 'Disabled successfully'), 'success');
+    } catch (e) { toast(e.message, 'error'); }
+    setSaving(false);
+  };
+
+  if (loading) return h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading...');
+
+  var CAPS = [
+    { key: 'localSystemAccess', label: 'Local System Access', desc: 'Full access to host filesystem (read/write/delete) and shell (execute commands, sudo, install packages). Equivalent to terminal access.', icon: E.terminal, danger: 'Agents can read, modify, and delete ANY file on this machine, execute arbitrary shell commands, and install software with sudo. Only enable if you trust the agents completely.', nextSteps: 'Tools are now available to all agents. No further config needed — agents can use shell_exec, file_read, shell_sudo, shell_install, etc.' },
+    { key: 'telegram', label: 'Telegram', desc: 'Send and receive Telegram messages via Bot API. Webhook preferred, long-polling fallback.', icon: E.telegram, danger: 'Agents will send messages through the configured Telegram bot. Webhook preferred (auto-detected), long-polling fallback.', nextSteps: 'Step 1: Open Telegram, search @BotFather, send /newbot, follow the steps to get a bot token. Step 2: Go to any agent > Channels tab > Telegram card, paste the bot token. Step 3: Add your Telegram user ID to Trusted Chat IDs (get it from @userinfobot).' },
+    { key: 'whatsapp', label: 'WhatsApp', desc: 'Connect via QR code scan — agents link as a device on a WhatsApp account. No Business API needed.', icon: E.whatsapp, danger: 'Agents will appear as a linked device on the WhatsApp account and can send/receive messages, voice notes, media, and manage groups as that phone number.', nextSteps: 'Go to any agent > Channels tab > WhatsApp card. Click "Connect WhatsApp" to generate a QR code. Open WhatsApp on your phone > Settings > Linked Devices > Link a Device > Scan the QR code.' },
+  ];
+
+  return h(Fragment, null,
+    h('div', { style: { marginBottom: 16 } },
+      h('p', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, 'Control platform-level capabilities for agents. These are powerful features that operate outside the normal API sandbox. Each requires triple confirmation to enable.')
+    ),
+
+    CAPS.map(function(cap) {
+      var enabled = !!caps[cap.key];
+      var osUnavailable = cap.requiresOS && serverOS && serverOS !== cap.requiresOS;
+      return h('div', { key: cap.key, className: 'card', style: { marginBottom: 12, borderColor: osUnavailable ? 'var(--border)' : enabled ? 'var(--success)' : 'var(--border)', opacity: osUnavailable ? 0.7 : 1 } },
+        h('div', { className: 'card-body' },
+          h('div', { style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 } },
+            h('div', { style: { flex: 1 } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+                cap.icon(),
+                h('span', { style: { fontWeight: 600, fontSize: 14 } }, cap.label),
+                osUnavailable
+                  ? h('span', { className: 'badge badge-neutral', style: { marginLeft: 8, background: '#dc354520', color: '#dc3545' } }, 'Unavailable')
+                  : h('span', { className: 'badge badge-' + (enabled ? 'success' : 'neutral'), style: { marginLeft: 8 } }, enabled ? 'Enabled' : 'Disabled')
+              ),
+              osUnavailable
+                ? h('div', { style: { marginTop: 6, padding: '10px 12px', background: '#dc354508', borderRadius: 8, fontSize: 12, border: '1px solid #dc354520', color: 'var(--text-secondary)' } },
+                    E.warning(14), ' ', cap.unavailableMsg
+                  )
+                : h(Fragment, null,
+                    h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 0 } }, cap.desc),
+                    enabled && cap.nextSteps && h('div', { style: { marginTop: 10, padding: '10px 12px', background: 'var(--accent-soft, #e8f4ff)', borderRadius: 8, fontSize: 12, borderLeft: '3px solid var(--accent)' } },
+                      h('strong', null, 'Next: '), cap.nextSteps
+                    )
+                  )
+            ),
+            !osUnavailable && h('button', {
+              className: 'btn btn-sm ' + (enabled ? 'btn-danger' : 'btn-primary'),
+              disabled: saving,
+              onClick: function() { startToggle(cap.key, cap.label, enabled); }
+            }, enabled ? 'Disable' : 'Enable')
+          )
+        )
+      );
+    }),
+
+    // Triple confirmation modal
+    confirmStep >= 1 && confirmTarget && h('div', { className: 'modal-overlay', onClick: cancelConfirm },
+      h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { width: 480 } },
+        h('div', { className: 'modal-header' },
+          h('h2', { style: { color: 'var(--danger)' } },
+            confirmStep === 1 ? 'Enable ' + confirmTarget.label + '?' :
+            confirmStep === 2 ? 'Security Warning' :
+            'Final Confirmation'
+          ),
+          h('button', { className: 'btn btn-ghost btn-icon', onClick: cancelConfirm }, '\u00D7')
+        ),
+        h('div', { className: 'modal-body', style: { padding: 20 } },
+
+          confirmStep === 1 && h(Fragment, null,
+            h('p', { style: { marginBottom: 12 } }, 'You are about to enable ', h('strong', null, confirmTarget.label), ' for all agents in your organization.'),
+            h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 } }, 'This gives agents access to powerful system-level features outside the normal API sandbox.'),
+            h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelConfirm }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceConfirm }, 'I understand, continue')
+            )
+          ),
+
+          confirmStep === 2 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
+              h('strong', { style: { color: 'var(--danger)', display: 'block', marginBottom: 4 } }, 'SECURITY WARNING'),
+              h('p', { style: { fontSize: 12, margin: 0 } }, CAPS.find(function(c) { return c.key === confirmTarget.key; })?.danger)
+            ),
+            h('ul', { style: { fontSize: 12, color: 'var(--text-secondary)', paddingLeft: 20, marginBottom: 16 } },
+              h('li', null, 'This action is logged in the audit trail'),
+              h('li', null, 'Only organization owners can enable this'),
+              h('li', null, 'Takes effect immediately for ALL agents'),
+              h('li', null, 'Can be disabled at any time')
+            ),
+            h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelConfirm }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceConfirm }, 'I accept the risks')
+            )
+          ),
+
+          confirmStep === 3 && h(Fragment, null,
+            h('p', { style: { marginBottom: 12 } }, 'Type ', h('strong', { style: { fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 } }, 'ENABLE'), ' to confirm:'),
+            h('input', {
+              type: 'text', className: 'form-control', placeholder: 'Type ENABLE...',
+              value: confirmTyped, autoFocus: true,
+              onInput: function(e) { setConfirmTyped(e.target.value); },
+              onKeyDown: function(e) { if (e.key === 'Enter') advanceConfirm(); },
+              style: { marginBottom: 16, textAlign: 'center', fontSize: 18, letterSpacing: '0.1em', fontFamily: 'var(--font-mono)', borderColor: confirmTyped.trim().toUpperCase() === 'ENABLE' ? 'var(--danger)' : 'var(--border)' }
+            }),
+            h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelConfirm }, 'Cancel'),
+              h('button', {
+                className: 'btn btn-danger',
+                disabled: confirmTyped.trim().toUpperCase() !== 'ENABLE',
+                onClick: advanceConfirm
+              }, 'Enable ' + confirmTarget.label)
+            )
+          )
+        )
+      )
     )
   );
 }

@@ -3,27 +3,110 @@ import { apiCall, authCall, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
 export function LoginPage({ onLogin }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [ssoProviders, setSsoProviders] = useState([]);
+  var [tab, setTab] = useState('password'); // 'password' | 'apikey' | 'sso'
+  var [email, setEmail] = useState('');
+  var [password, setPassword] = useState('');
+  var [apiKey, setApiKey] = useState('');
+  var [error, setError] = useState('');
+  var [loading, setLoading] = useState(false);
+  var [ssoProviders, setSsoProviders] = useState([]);
 
-  useEffect(() => {
-    fetch('/auth/sso/providers').then(r => r.ok ? r.json() : null).then(d => {
-      if (d && d.providers) setSsoProviders(d.providers);
-    }).catch(() => {});
+  // 2FA state
+  var [needs2fa, setNeeds2fa] = useState(false);
+  var [challengeToken, setChallengeToken] = useState('');
+  var [totpCode, setTotpCode] = useState('');
+
+  useEffect(function() {
+    fetch('/auth/sso/providers').then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
+      if (d && d.providers && d.providers.length > 0) setSsoProviders(d.providers);
+    }).catch(function() {});
   }, []);
 
-  const submit = async (e) => {
+  var submitPassword = async function(e) {
     e.preventDefault(); setError(''); setLoading(true);
     try {
-      const d = await authCall('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      // Server sets httpOnly cookies automatically — no localStorage needed
+      var d = await authCall('/login', { method: 'POST', body: JSON.stringify({ email: email, password: password }) });
+      if (d.requires2fa) {
+        setNeeds2fa(true);
+        setChallengeToken(d.challengeToken);
+        setLoading(false);
+        return;
+      }
       onLogin(d);
     } catch (err) { setError(err.message); }
     setLoading(false);
   };
+
+  var submit2fa = async function(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    try {
+      var d = await authCall('/2fa/verify', { method: 'POST', body: JSON.stringify({ challengeToken: challengeToken, code: totpCode }) });
+      onLogin(d);
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  };
+
+  var submitApiKey = async function(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    try {
+      var d = await authCall('/login/api-key', { method: 'POST', body: JSON.stringify({ apiKey: apiKey }) });
+      onLogin(d);
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  };
+
+  var cancel2fa = function() {
+    setNeeds2fa(false);
+    setChallengeToken('');
+    setTotpCode('');
+    setError('');
+  };
+
+  var tabStyle = function(t) {
+    return {
+      flex: 1, padding: '8px 0', textAlign: 'center', fontSize: 13, fontWeight: 600,
+      cursor: 'pointer', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+      color: tab === t ? 'var(--accent-text)' : 'var(--text-muted)',
+      background: 'none', border: 'none', borderBottomStyle: 'solid', borderBottomWidth: 2,
+      borderBottomColor: tab === t ? 'var(--accent)' : 'transparent',
+      fontFamily: 'var(--font)', transition: 'all 150ms ease',
+    };
+  };
+
+  // ─── 2FA Verification Screen ──────────────────────────
+
+  if (needs2fa) {
+    return h('div', { className: 'login-page' },
+      h('div', { className: 'login-card' },
+        h('div', { className: 'login-logo' },
+          h('img', { src: '/dashboard/assets/logo.png', alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
+          h('h1', null, 'Two-Factor Authentication'),
+          h('p', null, 'Enter the code from your authenticator app')
+        ),
+        h('form', { onSubmit: submit2fa },
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, '6-Digit Code'),
+            h('input', {
+              className: 'input', type: 'text', inputMode: 'numeric', autoComplete: 'one-time-code',
+              value: totpCode, onChange: function(e) { setTotpCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6)); },
+              placeholder: '000000', autoFocus: true, maxLength: 6,
+              style: { textAlign: 'center', fontSize: 24, letterSpacing: '0.3em', fontFamily: 'var(--font-mono)' }
+            })
+          ),
+          error && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 16 } }, error),
+          h('button', { className: 'btn btn-primary', type: 'submit', disabled: loading || totpCode.length !== 6, style: { width: '100%', justifyContent: 'center', padding: '8px' } }, loading ? 'Verifying...' : 'Verify'),
+          h('div', { style: { textAlign: 'center', marginTop: 16 } },
+            h('button', { type: 'button', className: 'btn btn-ghost btn-sm', onClick: cancel2fa }, 'Back to login')
+          ),
+          h('div', { style: { textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--text-muted)' } },
+            'You can also enter a backup code'
+          )
+        )
+      )
+    );
+  }
+
+  // ─── Main Login Screen ────────────────────────────────
 
   return h('div', { className: 'login-page' },
     h('div', { className: 'login-card' },
@@ -32,24 +115,66 @@ export function LoginPage({ onLogin }) {
         h('h1', null, 'AgenticMail Enterprise'),
         h('p', null, 'AI Agent Identity & Management Platform')
       ),
-      h('form', { onSubmit: submit },
+
+      // Tab bar
+      h('div', { style: { display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' } },
+        h('button', { type: 'button', style: tabStyle('password'), onClick: function() { setTab('password'); setError(''); } }, 'Email & Password'),
+        h('button', { type: 'button', style: tabStyle('apikey'), onClick: function() { setTab('apikey'); setError(''); } }, 'API Key'),
+        ssoProviders.length > 0 && h('button', { type: 'button', style: tabStyle('sso'), onClick: function() { setTab('sso'); setError(''); } }, 'SSO')
+      ),
+
+      // ── Email/Password Tab ──────────────────────────
+      tab === 'password' && h('form', { onSubmit: submitPassword },
         h('div', { className: 'form-group' },
           h('label', { className: 'form-label' }, 'Email'),
-          h('input', { className: 'input', type: 'email', value: email, onChange: e => setEmail(e.target.value), placeholder: 'admin@company.com', required: true, autoFocus: true })
+          h('input', { className: 'input', type: 'email', value: email, onChange: function(e) { setEmail(e.target.value); }, placeholder: 'admin@company.com', required: true, autoFocus: true })
         ),
         h('div', { className: 'form-group' },
           h('label', { className: 'form-label' }, 'Password'),
-          h('input', { className: 'input', type: 'password', value: password, onChange: e => setPassword(e.target.value), placeholder: 'Enter password', required: true })
+          h('input', { className: 'input', type: 'password', value: password, onChange: function(e) { setPassword(e.target.value); }, placeholder: 'Enter password', required: true })
         ),
         error && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 16 } }, error),
         h('button', { className: 'btn btn-primary', type: 'submit', disabled: loading, style: { width: '100%', justifyContent: 'center', padding: '8px' } }, loading ? 'Signing in...' : 'Sign In')
       ),
-      ssoProviders.length > 0 && h('div', { style: { textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--text-muted)' } },
-        'Or sign in with ',
-        ssoProviders.map((p, i) => h(Fragment, { key: p.type }, i > 0 && ' · ', h('a', { href: p.url }, p.name)))
+
+      // ── API Key Tab ─────────────────────────────────
+      tab === 'apikey' && h('form', { onSubmit: submitApiKey },
+        h('div', { style: { background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 } },
+          'Use an API key for programmatic access or headless environments. Create API keys from Settings after logging in.'
+        ),
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'API Key'),
+          h('input', { className: 'input', type: 'password', value: apiKey, onChange: function(e) { setApiKey(e.target.value); }, placeholder: 'em_key_...', required: true, autoFocus: true, style: { fontFamily: 'var(--font-mono)', fontSize: 13 } })
+        ),
+        error && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 16 } }, error),
+        h('button', { className: 'btn btn-primary', type: 'submit', disabled: loading || !apiKey.trim(), style: { width: '100%', justifyContent: 'center', padding: '8px' } }, loading ? 'Authenticating...' : 'Sign In with API Key')
       ),
-      h('div', { style: { textAlign: 'center', marginTop: ssoProviders.length > 0 ? 8 : 20, fontSize: 12, color: 'var(--text-muted)' } },
-        h('a', { href: '#', onClick: () => { const k = prompt('Enter API Key:'); if (k) { localStorage.setItem('em_api_key', k); onLogin({}); } } }, 'Use API Key')
+
+      // ── SSO Tab ─────────────────────────────────────
+      tab === 'sso' && h('div', null,
+        h('div', { style: { marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)' } },
+          'Sign in using your organization\'s identity provider.'
+        ),
+        ssoProviders.map(function(p) {
+          return h('a', {
+            key: p.type, href: p.url,
+            className: 'btn btn-secondary',
+            style: { width: '100%', justifyContent: 'center', padding: '10px', marginBottom: 8, display: 'flex', textDecoration: 'none' }
+          },
+            p.type === 'saml' ? I.shield() : I.link(),
+            ' Sign in with ', p.name
+          );
+        }),
+        ssoProviders.length === 0 && h('div', { style: { textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 13 } },
+          'No SSO providers configured. Set up SAML or OIDC in Settings.'
+        )
+      ),
+
+      // Footer
+      h('div', { style: { textAlign: 'center', marginTop: 20, fontSize: 11, color: 'var(--text-muted)' } },
+        'Secured with enterprise-grade authentication',
+        h('span', { style: { margin: '0 6px' } }, '·'),
+        '2FA supported'
       )
     )
   );

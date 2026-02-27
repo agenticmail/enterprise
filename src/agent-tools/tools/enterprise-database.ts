@@ -52,7 +52,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbQuery: AnyAgentTool = {
     name: 'ent_db_query',
     label: 'Database Query',
-    description: 'Execute a read-only SQL query against a database connection. Only SELECT statements are allowed. Returns results as a JSON table with column headers and rows.',
+    description: 'Execute a read-only SQL query against a database connection.',
     category: 'utility',
     risk: 'medium',
     parameters: {
@@ -107,7 +107,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbSchema: AnyAgentTool = {
     name: 'ent_db_schema',
     label: 'Database Schema',
-    description: 'Get the schema (columns, types, primary keys) for a specific table in the database.',
+    description: 'Get the schema (columns, types, primary keys) for a specific table in the dat...',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -169,7 +169,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbExplain: AnyAgentTool = {
     name: 'ent_db_explain',
     label: 'Explain Query Plan',
-    description: 'Run EXPLAIN QUERY PLAN on a SQL query to understand how the database will execute it. Useful for query optimization.',
+    description: 'Run EXPLAIN QUERY PLAN on a SQL query to understand how the database will exe...',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -221,7 +221,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbConnections: AnyAgentTool = {
     name: 'ent_db_connections',
     label: 'List Database Connections',
-    description: 'List all available database connections that can be used with other database tools.',
+    description: 'List all available database connections that can be used with other database ...',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -317,7 +317,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbSample: AnyAgentTool = {
     name: 'ent_db_sample',
     label: 'Sample Table Rows',
-    description: 'Get a random sample of rows from a database table. Useful for understanding table contents and data patterns.',
+    description: 'Get a random sample of rows from a database table.',
     category: 'utility',
     risk: 'low',
     parameters: {

@@ -674,6 +674,16 @@ export class AgentHeartbeatManager {
       return;
     }
 
+    // Respect guardrails — don't waste LLM tokens if agent is paused/off-duty
+    try {
+      const { guardrails } = await import('./routes.js');
+      const status = await guardrails.getStatus(ctx.agentId);
+      if (status.paused || status.offDuty) {
+        console.log(`[heartbeat] Skipping action dispatch — agent is ${status.offDuty ? 'off duty' : 'paused'}`);
+        return;
+      }
+    } catch { /* non-blocking */ }
+
     const summaries = items.map((item, i) => 
       `${i + 1}. [${item.result.priority.toUpperCase()}] ${item.check.name}: ${item.result.summary}`
     ).join('\n');

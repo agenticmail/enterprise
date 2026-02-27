@@ -1,23 +1,19 @@
 /**
  * Google Chat API Tools
  *
- * Lets agents communicate via Google Chat — create DMs with users, send/read
- * messages in spaces, manage memberships.
+ * SCHEMA OPTIMIZATION RULES (apply to ALL tool files):
+ *   1. Tool descriptions: ONE short sentence. No examples, no lists, no multi-line.
+ *      BAD:  "Search for places using Google Maps. Find restaurants, businesses, landmarks..."
+ *      GOOD: "Search for places by text query."
+ *   2. Param descriptions: OMIT if name is self-explanatory (e.g. "email", "subject", "body").
+ *      Only add description for non-obvious params or format hints.
+ *      BAD:  messageId: { description: 'Message ID (required)' }
+ *      GOOD: messageId: { type: 'string' }
+ *   3. Remove "(required)" from descriptions — the `required` array handles that.
+ *   4. Use short enum syntax: 'list|create|delete' not '"list" (default), "create", or "delete"'
+ *   5. Every token in a description costs money on EVERY LLM call. Be ruthless.
  *
  * Uses Google Chat API v1 with user authentication (OAuth).
- * Endpoint: POST /v1/spaces:setup (creates spaces + adds members in one call)
- *
- * PREREQUISITE: Google Chat API must be enabled in Google Cloud Console AND
- * a Chat app must be configured (APIs & Services > Google Chat API > Configuration).
- * Without this, all calls return 401/404.
- *
- * Required OAuth scopes:
- *   - https://www.googleapis.com/auth/chat.spaces
- *   - https://www.googleapis.com/auth/chat.spaces.create
- *   - https://www.googleapis.com/auth/chat.messages
- *   - https://www.googleapis.com/auth/chat.messages.create
- *   - https://www.googleapis.com/auth/chat.memberships
- *
  * Docs: https://developers.google.com/workspace/chat/api/reference/rest/v1
  */
 
@@ -65,37 +61,16 @@ export function createGoogleChatTools(config: GoogleToolsConfig, _options?: Tool
     // ─── Setup Space (the correct way to create spaces/DMs) ────
     {
       name: 'google_chat_setup_space',
-      description: `Create a Google Chat space or DM and add members in one step.
-Use this to:
-- Create a named space: set spaceType="SPACE" and displayName
-- Create a group chat: set spaceType="GROUP_CHAT" with 2+ member emails
-- Create/find a DM with a user: set spaceType="DIRECT_MESSAGE" with exactly 1 member email
-If a DM already exists with that user, returns the existing one.
-The calling user is automatically added — do NOT include them in members.`,
+      description: 'Create a Chat space/DM and add members. For DMs, returns existing if found. Caller auto-added.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceType: {
-            type: 'string',
-            description: 'SPACE (named room), GROUP_CHAT (unnamed group), or DIRECT_MESSAGE (1:1 DM)',
-          },
-          displayName: {
-            type: 'string',
-            description: 'Space display name (required for SPACE, ignored for GROUP_CHAT and DIRECT_MESSAGE)',
-          },
-          description: {
-            type: 'string',
-            description: 'Space description (only for SPACE type)',
-          },
-          members: {
-            type: 'string',
-            description: 'Comma-separated email addresses of users to add (e.g. "user@example.com,other@example.com")',
-          },
-          externalUserAllowed: {
-            type: 'string',
-            description: '"true" to allow users outside the organization',
-          },
+          spaceType: { type: 'string', description: 'SPACE | GROUP_CHAT | DIRECT_MESSAGE' },
+          displayName: { type: 'string', description: 'Name (SPACE only)' },
+          description: { type: 'string', description: 'Description (SPACE only)' },
+          members: { type: 'string', description: 'Comma-separated emails to add' },
+          externalUserAllowed: { type: 'string', description: '"true" for external users' },
         },
         required: ['spaceType'],
       },
@@ -165,12 +140,12 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── Find Direct Message ────────────────────────────
     {
       name: 'google_chat_find_dm',
-      description: 'Find an existing DM space with a specific user by their email. Returns the space if it exists, or an error if no DM exists yet (use google_chat_setup_space to create one).',
+      description: 'Find existing DM with a user by email. Use setup_space to create if not found.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          email: { type: 'string', description: 'Email address of the other user' },
+          email: { type: 'string' },
         },
         required: ['email'],
       },
@@ -197,13 +172,13 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── List Spaces ────────────────────────────────────
     {
       name: 'google_chat_list_spaces',
-      description: 'List Google Chat spaces (rooms, DMs, group chats) the user has access to.',
+      description: 'List Chat spaces/DMs the user has access to.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          pageSize: { type: 'string', description: 'Max results (default: 20, max: 1000)' },
-          filter: { type: 'string', description: 'Filter, e.g. "spaceType = SPACE" for named rooms, "spaceType = DIRECT_MESSAGE" for DMs' },
+          pageSize: { type: 'string', description: 'Max results (default 20)' },
+          filter: { type: 'string', description: 'e.g. "spaceType = SPACE" or "spaceType = DIRECT_MESSAGE"' },
         },
         required: [],
       },
@@ -235,12 +210,12 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── Get Space Details ──────────────────────────────
     {
       name: 'google_chat_get_space',
-      description: 'Get details about a specific Google Chat space by its resource name (e.g. "spaces/AAAA...").',
+      description: 'Get details of a Chat space.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceName: { type: 'string', description: 'Space resource name (e.g. "spaces/AAAAxyz...")' },
+          spaceName: { type: 'string', description: 'e.g. "spaces/AAAAxyz..."' },
         },
         required: ['spaceName'],
       },
@@ -258,16 +233,16 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── List Messages in Space ─────────────────────────
     {
       name: 'google_chat_list_messages',
-      description: 'List recent messages in a Google Chat space. Returns sender, text, and timestamps.',
+      description: 'List recent messages in a Chat space.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceName: { type: 'string', description: 'Space resource name (e.g. "spaces/AAAAxyz...")' },
-          pageSize: { type: 'string', description: 'Max messages (default: 25, max: 1000)' },
-          orderBy: { type: 'string', description: '"createTime asc" or "createTime desc" (default: desc)' },
-          filter: { type: 'string', description: 'Filter, e.g. \'createTime > "2024-01-01T00:00:00Z"\'' },
-          showDeleted: { type: 'string', description: '"true" to include deleted messages' },
+          spaceName: { type: 'string', description: 'e.g. "spaces/AAAAxyz..."' },
+          pageSize: { type: 'string', description: 'Max (default 25)' },
+          orderBy: { type: 'string', description: '"createTime asc" or "createTime desc"' },
+          filter: { type: 'string' },
+          showDeleted: { type: 'string', description: '"true" to include deleted' },
         },
         required: ['spaceName'],
       },
@@ -299,15 +274,15 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── Send Message ───────────────────────────────────
     {
       name: 'google_chat_send_message',
-      description: 'Send a message to a Google Chat space or DM. Supports plain text and threading.',
+      description: 'Send a message to a Chat space/DM. Formatting: *bold* _italic_ ~strike~ `code`.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceName: { type: 'string', description: 'Space resource name (e.g. "spaces/AAAAxyz...")' },
-          text: { type: 'string', description: 'Message text (supports Chat formatting: *bold*, _italic_, ~strikethrough~, `code`)' },
-          threadKey: { type: 'string', description: 'Thread key to reply in a specific thread' },
-          threadName: { type: 'string', description: 'Thread resource name to reply to an existing thread' },
+          spaceName: { type: 'string' },
+          text: { type: 'string' },
+          threadKey: { type: 'string', description: 'Reply in thread' },
+          threadName: { type: 'string', description: 'Reply to existing thread' },
         },
         required: ['spaceName', 'text'],
       },
@@ -342,13 +317,13 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── Update Message ─────────────────────────────────
     {
       name: 'google_chat_update_message',
-      description: 'Edit an existing message in Google Chat.',
+      description: 'Edit a Chat message.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageName: { type: 'string', description: 'Message resource name (e.g. "spaces/AAAA.../messages/BBBB...")' },
-          text: { type: 'string', description: 'New message text' },
+          messageName: { type: 'string' },
+          text: { type: 'string', description: 'New text' },
         },
         required: ['messageName', 'text'],
       },
@@ -370,12 +345,12 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── Delete Message ─────────────────────────────────
     {
       name: 'google_chat_delete_message',
-      description: 'Delete a message in Google Chat.',
+      description: 'Delete a Chat message.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageName: { type: 'string', description: 'Message resource name to delete' },
+          messageName: { type: 'string' },
         },
         required: ['messageName'],
       },
@@ -393,14 +368,14 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── List Members ───────────────────────────────────
     {
       name: 'google_chat_list_members',
-      description: 'List members of a Google Chat space.',
+      description: 'List members of a Chat space.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceName: { type: 'string', description: 'Space resource name' },
-          pageSize: { type: 'string', description: 'Max results (default: 100)' },
-          filter: { type: 'string', description: 'Filter, e.g. \'role = "ROLE_MANAGER"\'' },
+          spaceName: { type: 'string' },
+          pageSize: { type: 'string' },
+          filter: { type: 'string' },
         },
         required: ['spaceName'],
       },
@@ -429,13 +404,13 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── Add Member to Space ────────────────────────────
     {
       name: 'google_chat_add_member',
-      description: 'Add a user to an existing Google Chat space by email. For creating a new space with members, use google_chat_setup_space instead.',
+      description: 'Add a user to a Chat space by email.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceName: { type: 'string', description: 'Space resource name' },
-          email: { type: 'string', description: 'Email address of user to add' },
+          spaceName: { type: 'string' },
+          email: { type: 'string' },
         },
         required: ['spaceName', 'email'],
       },
@@ -462,24 +437,16 @@ The calling user is automatically added — do NOT include them in members.`,
     // ─── Upload & Send Attachment ─────────────────────────
     {
       name: 'google_chat_upload_attachment',
-      description: `Upload a file (image, document, PDF, etc.) to a Google Chat space and optionally send it as a message. Supports files up to 200 MB.
-
-Usage:
-- To send an image: provide filePath to a local file + optional message text
-- To send a document: provide filePath to any supported file type
-- The file is first uploaded to the space, then sent as a message attachment
-
-Supported: images (png, jpg, gif, webp), documents (pdf, docx, xlsx, pptx, csv, txt), archives (zip), and more.
-Blocked file types: exe, bat, cmd, com, vbs, js (and others blocked by Google Chat).`,
+      description: 'Upload a local file to a Chat space as a message attachment. Up to 200MB. Supports images, docs, PDFs, archives.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceName: { type: 'string', description: 'Space resource name (e.g. "spaces/AAAAxyz...")' },
-          filePath: { type: 'string', description: 'Local file path to upload' },
-          text: { type: 'string', description: 'Optional message text to accompany the attachment' },
-          threadKey: { type: 'string', description: 'Thread key to send in a specific thread' },
-          threadName: { type: 'string', description: 'Thread resource name to reply to an existing thread' },
+          spaceName: { type: 'string' },
+          filePath: { type: 'string', description: 'Local file path' },
+          text: { type: 'string', description: 'Optional message text' },
+          threadKey: { type: 'string' },
+          threadName: { type: 'string' },
         },
         required: ['spaceName', 'filePath'],
       },
@@ -582,19 +549,19 @@ Blocked file types: exe, bat, cmd, com, vbs, js (and others blocked by Google Ch
     // ─── Send Image from URL ────────────────────────────
     {
       name: 'google_chat_send_image',
-      description: `Send a message with an inline image from a URL to a Google Chat space. The image is embedded directly in the message using a Card with an image widget — no upload needed. Works with any publicly accessible image URL.`,
+      description: 'Send an inline image from URL to a Chat space (embedded card, no upload needed).',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          spaceName: { type: 'string', description: 'Space resource name (e.g. "spaces/AAAAxyz...")' },
-          imageUrl: { type: 'string', description: 'Public URL of the image to display' },
-          text: { type: 'string', description: 'Optional text message above the image' },
-          title: { type: 'string', description: 'Optional card title/header' },
-          subtitle: { type: 'string', description: 'Optional card subtitle' },
-          linkUrl: { type: 'string', description: 'Optional URL the image links to when clicked' },
-          threadKey: { type: 'string', description: 'Thread key' },
-          threadName: { type: 'string', description: 'Thread resource name' },
+          spaceName: { type: 'string' },
+          imageUrl: { type: 'string', description: 'Public image URL' },
+          text: { type: 'string' },
+          title: { type: 'string' },
+          subtitle: { type: 'string' },
+          linkUrl: { type: 'string', description: 'Click-through URL' },
+          threadKey: { type: 'string' },
+          threadName: { type: 'string' },
         },
         required: ['spaceName', 'imageUrl'],
       },
@@ -661,13 +628,13 @@ Blocked file types: exe, bat, cmd, com, vbs, js (and others blocked by Google Ch
     // ─── Download Attachment ─────────────────────────────
     {
       name: 'google_chat_download_attachment',
-      description: 'Download a file attachment from a Google Chat message. Saves the file locally.',
+      description: 'Download a Chat message attachment to local file.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          attachmentName: { type: 'string', description: 'Attachment resource name from a message (e.g. "spaces/AAAA/messages/BBBB/attachments/CCCC")' },
-          savePath: { type: 'string', description: 'Local path to save the downloaded file (e.g. "/tmp/report.pdf")' },
+          attachmentName: { type: 'string', description: 'e.g. "spaces/.../messages/.../attachments/..."' },
+          savePath: { type: 'string', description: 'Local save path' },
         },
         required: ['attachmentName', 'savePath'],
       },
@@ -714,13 +681,13 @@ Blocked file types: exe, bat, cmd, com, vbs, js (and others blocked by Google Ch
     // ─── React to Message ───────────────────────────────
     {
       name: 'google_chat_react',
-      description: 'Add an emoji reaction to a message.',
+      description: 'React to a Chat message with emoji.',
       category: 'communication' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageName: { type: 'string', description: 'Message resource name' },
-          emoji: { type: 'string', description: 'Unicode emoji (e.g. "👍", "❤️", "✅")' },
+          messageName: { type: 'string' },
+          emoji: { type: 'string', description: 'Unicode emoji' },
         },
         required: ['messageName', 'emoji'],
       },

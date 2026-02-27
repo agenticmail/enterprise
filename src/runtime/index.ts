@@ -44,7 +44,8 @@ import { SessionManager } from './session-manager.js';
 import { createRuntimeHooks, createNoopHooks } from './hooks.js';
 import { runAgentLoop } from './agent-loop.js';
 import { createAllTools } from '../agent-tools/index.js';
-import { createToolsForContext, detectSessionContext, getToolSetStats, type SessionContext } from '../agent-tools/tool-resolver.js';
+import { createToolsForContext, detectSessionContext, getToolSetStats, getToolsForSession, clearSessionToolState, type SessionContext } from '../agent-tools/tool-resolver.js';
+import { resolveModelForContext as resolveModel, type ModelRoute, type ModelContext } from './model-router.js';
 import { createRuntimeGateway, emitSessionEvent } from './gateway.js';
 import { SubAgentManager, type SpawnSubAgentResult } from './subagent.js';
 import { EmailChannel, type InboundEmail, type InboundEmailResult } from './email-channel.js';
@@ -321,26 +322,24 @@ export class AgentRuntime {
     var sessionContext = detectSessionContext({
       systemPrompt,
       sessionKind: (opts as any).kind,
-      explicitContext: (opts as any).sessionContext,
+      explicitContext: opts.sessionContext,
     });
 
     // Build tools — context-aware (only loads what's needed)
     var toolOpts = this.buildToolOptions(agentId, session.id);
-    var tools = opts.tools || await createToolsForContext(toolOpts, sessionContext);
+    var tools = opts.tools || await createToolsForContext(toolOpts, sessionContext, {
+      additionalSets: opts.additionalSets as any,
+      sessionId: session.id,
+      userMessage: opts.message,
+    });
     var toolStats = getToolSetStats(tools);
     console.log(`[runtime] Session ${session.id} tools: ${toolStats.total} (context: ${sessionContext})${toolStats.unregistered.length ? `, unregistered: ${toolStats.unregistered.join(',')}` : ''}`);
 
-    // Override model for meeting sessions (faster model = lower latency for voice)
-    if (sessionContext === 'meeting' || (this.config.getAgentConfig && systemPrompt && (systemPrompt.includes('MeetingMonitor') || systemPrompt.includes('meeting_speak')))) {
-      var agentCfg = this.config.getAgentConfig?.(agentId);
-      var meetingModel = (agentCfg as any)?.voiceConfig?.meetingModel;
-      if (meetingModel) {
-        var parts = meetingModel.split('/');
-        if (parts.length === 2) {
-          model = { provider: parts[0], modelId: parts[1] };
-          console.log(`[runtime] Meeting session — using fast model: ${meetingModel}`);
-        }
-      }
+    // Per-context model override — resolves from agent's modelRouting config
+    var _contextModel = this.resolveModelForContext(agentId, sessionContext);
+    if (_contextModel) {
+      model = _contextModel;
+      console.log(`[runtime] ${sessionContext} session — using model: ${_contextModel.provider}/${_contextModel.modelId}`);
     }
 
     var agentConfig: AgentConfig = {
@@ -356,6 +355,13 @@ export class AgentRuntime {
     if (!apiKey) {
       await this.sessionManager!.updateSession(session.id, { status: 'failed' });
       throw new Error(`No API key configured for provider: ${model.provider}`);
+    }
+    // Debug: detect non-ASCII in API key
+    for (let ci = 0; ci < apiKey.length; ci++) {
+      if (apiKey.charCodeAt(ci) > 127) {
+        console.error(`[runtime] WARNING: API key for ${model.provider} contains non-ASCII at index ${ci}: charCode=${apiKey.charCodeAt(ci)}`);
+        break;
+      }
     }
 
     this.runSessionLoop(session.id, agentConfig, [{ role: 'user', content: opts.message }], apiKey);
@@ -393,17 +399,11 @@ export class AgentRuntime {
     // Resume the agent loop with the updated messages
     var model = this.config.defaultModel || DEFAULT_MODEL;
 
-    // Check for meeting model override (existing session may have become a meeting)
-    if (this.config.getAgentConfig) {
-      var _agentCfg = this.config.getAgentConfig(session.agentId);
-      var _meetingModel = (_agentCfg as any)?.voiceConfig?.meetingModel;
-      if (_meetingModel && this.keepAliveSessions.has(sessionId)) {
-        // Keep-alive = meeting session — use faster model
-        var _parts = _meetingModel.split('/');
-        if (_parts.length === 2) {
-          model = { provider: _parts[0], modelId: _parts[1] };
-        }
-      }
+    // Per-context model override (meeting, chat, email, task, etc.)
+    var _smCtx = this.keepAliveSessions.has(sessionId) ? 'meeting' : 'chat';
+    var _smModel = this.resolveModelForContext(session.agentId, _smCtx);
+    if (_smModel) {
+      model = _smModel;
     }
 
     var apiKey = this.resolveApiKey(model.provider);
@@ -415,12 +415,15 @@ export class AgentRuntime {
     }
     var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext);
 
-    // Context-aware tool loading
+    // Context-aware tool loading — reuses session tool state (preserves dynamically loaded sets)
     var _sessionContext = detectSessionContext({
       systemPrompt: _systemPrompt,
       isKeepAlive: this.keepAliveSessions.has(sessionId),
     });
-    var tools = await createToolsForContext(this.buildToolOptions(session.agentId, sessionId), _sessionContext);
+    var tools = await getToolsForSession(sessionId, this.buildToolOptions(session.agentId, sessionId), {
+      context: _sessionContext,
+      userMessage: message,
+    });
 
     var agentConfig: AgentConfig = {
       agentId: session.agentId,
@@ -619,18 +622,12 @@ export class AgentRuntime {
     // Mark loop as running to prevent concurrent loops from sendMessage
     this.loopRunning.add(sessionId);
 
-    // Override model for meeting sessions (keep-alive = meeting)
-    if (this.keepAliveSessions.has(sessionId) && this.config.getAgentConfig) {
-      var _mcfg = this.config.getAgentConfig(agentConfig.agentId);
-      var _mm = (_mcfg as any)?.voiceConfig?.meetingModel;
-      if (_mm) {
-        var _mp = _mm.split('/');
-        if (_mp.length === 2 && agentConfig.model.modelId !== _mp[1]) {
-          agentConfig = { ...agentConfig, model: { provider: _mp[0], modelId: _mp[1] } };
-          apiKey = this.resolveApiKey(_mp[0]) || apiKey;
-          console.log(`[runtime] Meeting session — using fast model: ${_mm}`);
-        }
-      }
+    // Per-context model override
+    var _loopCtx = this.keepAliveSessions.has(sessionId) ? 'meeting' : 'chat';
+    var _loopModel = this.resolveModelForContext(agentConfig.agentId, _loopCtx);
+    if (_loopModel && agentConfig.model.modelId !== _loopModel.modelId) {
+      agentConfig = { ...agentConfig, model: _loopModel };
+      apiKey = this.resolveApiKey(_loopModel.provider) || apiKey;
     }
 
     // Create hooks
@@ -775,6 +772,7 @@ export class AgentRuntime {
           self.loopRunning.delete(sessionId);
           self.pendingMessages.delete(sessionId);
           self.activeSessions.delete(sessionId);
+          clearSessionToolState(sessionId);
         }
       }
     })();
@@ -823,7 +821,9 @@ export class AgentRuntime {
             systemPrompt: _resumePrompt,
             isKeepAlive: this.keepAliveSessions.has(session.id),
           });
-          var tools = await createToolsForContext(this.buildToolOptions(session.agentId, session.id), _resumeCtx);
+          var tools = await createToolsForContext(this.buildToolOptions(session.agentId, session.id), _resumeCtx, {
+            sessionId: session.id,
+          });
 
           var agentConfig: AgentConfig = {
             agentId: session.agentId,
@@ -896,6 +896,12 @@ export class AgentRuntime {
 
   private resolveApiKey(provider: string): string | undefined {
     return resolveApiKeyForProvider(provider, this.config.apiKeys, this.customProviders);
+  }
+
+  /** Resolve per-context model from agent's modelRouting config */
+  resolveModelForContext(agentId: string, context: string): { provider: string; modelId: string } | null {
+    const agentCfg = this.config.getAgentConfig?.(agentId);
+    return resolveModel(agentCfg, context as ModelContext);
   }
 
   /** Returns all available providers (built-in + custom). */

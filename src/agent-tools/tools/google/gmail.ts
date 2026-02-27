@@ -297,16 +297,16 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── List / Search ─────────────────────────────────
     {
       name: 'gmail_search',
-      description: 'Search emails using Gmail search syntax. Supports all Gmail operators: from:, to:, subject:, has:attachment, is:unread, after:, before:, label:, in:, category:, larger:, smaller:, filename:, etc.',
+      description: 'Search Gmail. Supports all Gmail operators (from:, to:, subject:, is:unread, has:attachment, after:, before:, label:, etc).',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          query: { type: 'string', description: 'Gmail search query (e.g. "from:alice@example.com is:unread", "subject:invoice after:2026/01/01", "has:attachment filename:pdf")' },
-          maxResults: { type: 'number', description: 'Max messages (default: 20, max: 100)' },
-          labelIds: { type: 'string', description: 'Comma-separated label IDs to filter (e.g. "INBOX", "SENT", "STARRED", "IMPORTANT", "UNREAD")' },
-          includeSpamTrash: { type: 'string', description: '"true" to include spam/trash in results' },
-          pageToken: { type: 'string', description: 'Token for next page of results' },
+          query: { type: 'string', description: 'Gmail query, e.g. "from:alice is:unread"' },
+          maxResults: { type: 'number', description: 'Default 20, max 100' },
+          labelIds: { type: 'string', description: 'Comma-separated: INBOX, SENT, STARRED, etc' },
+          includeSpamTrash: { type: 'string' },
+          pageToken: { type: 'string' },
         },
         required: [],
       },
@@ -350,13 +350,13 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Read Message ──────────────────────────────────
     {
       name: 'gmail_read',
-      description: 'Read the full content of an email message including body text, HTML, and attachment info.',
+      description: 'Read full email content (body, HTML, attachments).',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageId: { type: 'string', description: 'Message ID (required)' },
-          markAsRead: { type: 'string', description: '"true" to mark as read when opening (default: "false")' },
+          messageId: { type: 'string' },
+          markAsRead: { type: 'string', description: '"true" to mark read' },
         },
         required: ['messageId'],
       },
@@ -380,13 +380,13 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Read Thread ───────────────────────────────────
     {
       name: 'gmail_thread',
-      description: 'Read an entire email thread/conversation. Returns all messages in the thread.',
+      description: 'Read entire email thread.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          threadId: { type: 'string', description: 'Thread ID (required)' },
-          format: { type: 'string', description: '"full" (default) or "metadata" (headers only, faster)' },
+          threadId: { type: 'string' },
+          format: { type: 'string', description: '"full" or "metadata"' },
         },
         required: ['threadId'],
       },
@@ -409,23 +409,23 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Send Email ────────────────────────────────────
     {
       name: 'gmail_send',
-      description: 'Send an email. Supports plain text, HTML, CC/BCC, reply threading, attachments, and custom headers.',
+      description: 'Send an email. Supports HTML, CC/BCC, threading, attachments.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          to: { type: 'string', description: 'Recipient email(s), comma-separated (required)' },
-          subject: { type: 'string', description: 'Email subject (required)' },
-          body: { type: 'string', description: 'Plain text body (required)' },
-          html: { type: 'string', description: 'HTML body (optional — sends multipart with text fallback)' },
-          cc: { type: 'string', description: 'CC recipients, comma-separated' },
-          bcc: { type: 'string', description: 'BCC recipients, comma-separated' },
-          replyTo: { type: 'string', description: 'Reply-To address' },
-          threadId: { type: 'string', description: 'Thread ID to reply in (for threading)' },
-          inReplyTo: { type: 'string', description: 'Message-ID being replied to (for proper threading)' },
-          references: { type: 'string', description: 'Message-ID references chain' },
-          attachments: { type: 'string', description: 'JSON array of file attachments: [{"filename": "screenshot.png", "base64": "...", "mimeType": "image/png"}]' },
-          attachment_paths: { type: 'string', description: 'JSON array of file paths to attach, e.g. ["/tmp/screenshot.png"]. Reads files automatically.' },
+          to: { type: 'string', description: 'Comma-separated recipients' },
+          subject: { type: 'string' },
+          body: { type: 'string' },
+          html: { type: 'string', description: 'HTML body (multipart)' },
+          cc: { type: 'string' },
+          bcc: { type: 'string' },
+          replyTo: { type: 'string' },
+          threadId: { type: 'string', description: 'For threading' },
+          inReplyTo: { type: 'string', description: 'For threading' },
+          references: { type: 'string' },
+          attachments: { type: 'string', description: 'JSON array: [{filename, base64, mimeType}]' },
+          attachment_paths: { type: 'string', description: 'JSON array of local file paths' },
         },
         required: ['to', 'subject', 'body'],
       },
@@ -454,16 +454,16 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Reply to Email ────────────────────────────────
     {
       name: 'gmail_reply',
-      description: 'Reply to an email. Auto-sets threading headers (In-Reply-To, References, threadId). Supports file attachments.',
+      description: 'Reply to an email. Auto-sets threading headers.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageId: { type: 'string', description: 'Message ID to reply to (required)' },
-          body: { type: 'string', description: 'Reply text (required)' },
-          html: { type: 'string', description: 'HTML reply body (optional)' },
-          replyAll: { type: 'string', description: '"true" to reply to all recipients' },
-          cc: { type: 'string', description: 'Additional CC recipients' },
+          messageId: { type: 'string' },
+          body: { type: 'string' },
+          html: { type: 'string' },
+          replyAll: { type: 'string', description: '"true" for reply-all' },
+          cc: { type: 'string' },
           attachments: { type: 'string', description: 'JSON array of file attachments: [{"filename": "screenshot.png", "base64": "...", "mimeType": "image/png"}]' },
           attachment_paths: { type: 'string', description: 'JSON array of file paths to attach, e.g. ["/tmp/screenshot.png"]. Reads files automatically.' },
         },
@@ -517,14 +517,14 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Forward Email ─────────────────────────────────
     {
       name: 'gmail_forward',
-      description: 'Forward an email to another recipient, preserving the original message content. Supports file attachments.',
+      description: 'Forward an email to another recipient.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageId: { type: 'string', description: 'Message ID to forward (required)' },
-          to: { type: 'string', description: 'Forward to (required)' },
-          body: { type: 'string', description: 'Additional message to include above forwarded content' },
+          messageId: { type: 'string' },
+          to: { type: 'string' },
+          body: { type: 'string', description: 'Message above forwarded content' },
           cc: { type: 'string', description: 'CC recipients' },
           attachment_paths: { type: 'string', description: 'JSON array of file paths to attach, e.g. ["/tmp/screenshot.png"]. Reads files automatically.' },
         },
@@ -567,14 +567,14 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Modify Labels ─────────────────────────────────
     {
       name: 'gmail_modify',
-      description: 'Add or remove labels from messages. Use for: mark read/unread, star/unstar, archive, move to trash, apply labels.',
+      description: 'Add/remove labels. Use for read/unread, star, archive, trash.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageIds: { type: 'string', description: 'Comma-separated message IDs (required)' },
-          addLabels: { type: 'string', description: 'Comma-separated label IDs to add (e.g. "STARRED", "IMPORTANT", "Label_123")' },
-          removeLabels: { type: 'string', description: 'Comma-separated label IDs to remove (e.g. "UNREAD", "INBOX")' },
+          messageIds: { type: 'string', description: 'Comma-separated IDs' },
+          addLabels: { type: 'string', description: 'e.g. "STARRED,IMPORTANT"' },
+          removeLabels: { type: 'string', description: 'e.g. "UNREAD,INBOX"' },
         },
         required: ['messageIds'],
       },
@@ -610,7 +610,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
         type: 'object' as const,
         properties: {
           messageIds: { type: 'string', description: 'Comma-separated message IDs (required)' },
-          permanent: { type: 'string', description: '"true" to permanently delete (IRREVERSIBLE). Default: moves to trash.' },
+          permanent: { type: 'string', description: '"true" = permanent delete' },
         },
         required: ['messageIds'],
       },
@@ -636,15 +636,15 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Labels ────────────────────────────────────────
     {
       name: 'gmail_labels',
-      description: 'List all labels/folders, or create/delete a label.',
+      description: 'List/create/delete Gmail labels.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          action: { type: 'string', description: '"list" (default), "create", or "delete"' },
-          name: { type: 'string', description: 'Label name (for create)' },
-          labelId: { type: 'string', description: 'Label ID (for delete)' },
-          color: { type: 'string', description: 'Label background color hex (for create, e.g. "#4986e7")' },
+          action: { type: 'string', description: 'list|create|delete' },
+          name: { type: 'string' },
+          labelId: { type: 'string' },
+          color: { type: 'string', description: 'Hex color' },
         },
         required: [],
       },
@@ -685,20 +685,20 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Drafts ────────────────────────────────────────
     {
       name: 'gmail_drafts',
-      description: 'List, create, update, send, or delete email drafts.',
+      description: 'Manage email drafts (list/create/update/send/delete).',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          action: { type: 'string', description: '"list" (default), "create", "update", "send", or "delete"' },
-          draftId: { type: 'string', description: 'Draft ID (for update/send/delete)' },
-          to: { type: 'string', description: 'Recipient (for create/update)' },
-          subject: { type: 'string', description: 'Subject (for create/update)' },
-          body: { type: 'string', description: 'Body text (for create/update)' },
-          html: { type: 'string', description: 'HTML body (for create/update)' },
-          cc: { type: 'string', description: 'CC recipients (for create/update)' },
-          attachment_paths: { type: 'string', description: 'JSON array of file paths to attach (for create/update)' },
-          maxResults: { type: 'number', description: 'Max drafts to list (default: 20)' },
+          action: { type: 'string', description: 'list|create|update|send|delete' },
+          draftId: { type: 'string' },
+          to: { type: 'string' },
+          subject: { type: 'string' },
+          body: { type: 'string' },
+          html: { type: 'string' },
+          cc: { type: 'string' },
+          attachment_paths: { type: 'string', description: 'JSON array of paths' },
+          maxResults: { type: 'number' },
         },
         required: [],
       },
@@ -751,13 +751,13 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Get Attachment ────────────────────────────────
     {
       name: 'gmail_attachment',
-      description: 'Download an email attachment. Returns base64-encoded data.',
+      description: 'Download email attachment (base64).',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          messageId: { type: 'string', description: 'Message ID (required)' },
-          attachmentId: { type: 'string', description: 'Attachment ID from gmail_read results (required)' },
+          messageId: { type: 'string' },
+          attachmentId: { type: 'string' },
         },
         required: ['messageId', 'attachmentId'],
       },
@@ -777,7 +777,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Profile / Quota ───────────────────────────────
     {
       name: 'gmail_profile',
-      description: 'Get the agent\'s Gmail profile: email address, total messages, threads count, and history ID.',
+      description: 'Get Gmail profile (email, message count).',
       category: 'utility' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       async execute(_id: string) {
@@ -797,19 +797,19 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Vacation / Auto-Reply ─────────────────────────
     {
       name: 'gmail_vacation',
-      description: 'Get or set vacation/auto-reply settings.',
+      description: 'Get/set vacation auto-reply.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          action: { type: 'string', description: '"get" (default) or "set"' },
-          enabled: { type: 'string', description: '"true" or "false" (for set)' },
-          subject: { type: 'string', description: 'Auto-reply subject (for set)' },
-          body: { type: 'string', description: 'Auto-reply message body (for set)' },
-          startTime: { type: 'string', description: 'Start date (ISO 8601, for set)' },
-          endTime: { type: 'string', description: 'End date (ISO 8601, for set)' },
-          restrictToContacts: { type: 'string', description: '"true" to only reply to contacts (for set)' },
-          restrictToDomain: { type: 'string', description: '"true" to only reply to same domain (for set)' },
+          action: { type: 'string', description: 'get|set' },
+          enabled: { type: 'string' },
+          subject: { type: 'string' },
+          body: { type: 'string' },
+          startTime: { type: 'string' },
+          endTime: { type: 'string' },
+          restrictToContacts: { type: 'string' },
+          restrictToDomain: { type: 'string' },
         },
         required: [],
       },
@@ -839,7 +839,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     // ─── Signature Management ────────────────────────────
     {
       name: 'gmail_get_signature',
-      description: 'Get the current email signature for the primary send-as alias.',
+      description: 'Get current email signature.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -864,13 +864,13 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
     },
     {
       name: 'gmail_set_signature',
-      description: 'Set or update the email signature for the primary send-as alias. Accepts HTML for rich signatures with images, links, and formatting.',
+      description: 'Set email signature (HTML supported).',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
         properties: {
-          signature: { type: 'string', description: 'HTML signature content. Use HTML tags for formatting: <b>bold</b>, <a href="...">links</a>, <img src="..."> for logos, <br> for line breaks, <table> for layout.' },
-          displayName: { type: 'string', description: 'Display name for the send-as alias (optional)' },
+          signature: { type: 'string', description: 'HTML signature content' },
+          displayName: { type: 'string' },
         },
         required: ['signature'],
       },

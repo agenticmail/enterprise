@@ -584,6 +584,36 @@ export function createMeetingTools(config: GoogleToolsConfig, _options?: ToolCre
               voiceConfig.voiceId, voiceConfig.voiceName, voiceConfig.audioDevice,
             );
             console.log(`[meeting-join:${agentId}] Voice: ${voiceStatus.mode} (${voiceStatus.available ? 'ready' : voiceStatus.issues.join(', ')})`);
+
+            // ─── Initialize Voice Intelligence (non-blocking) ───
+            if (voiceStatus?.available) {
+              const apiKey = await getApiKey();
+              if (apiKey) {
+                const { createMeetingVoiceIntelligence } = await import('../../../engine/meeting-voice-intelligence.js');
+                const voiceIntel = createMeetingVoiceIntelligence({
+                  agentId,
+                  agentName: (_options as any)?.agentName || 'AI Assistant',
+                  agentAliases: (_options as any)?.agentAliases || [],
+                  voiceId: voiceConfig.voiceId || voiceStatus.voiceId,
+                  voiceName: voiceConfig.voiceName || voiceStatus.voiceName,
+                  audioDevice: voiceConfig.audioDevice || voiceStatus.audioDevice,
+                  apiKey,
+                  modelSpeed: 'fast', // Assume fast model for meetings (Sonnet)
+                });
+                // Pre-generate audio bank in background (non-blocking)
+                voiceIntel.initialize().then(result => {
+                  console.log(`[meeting-join:${agentId}] Voice Intelligence: ${result.generated} audio clips ready (${result.durationMs}ms)`);
+                  // Play introduction after audio bank is ready
+                  if (result.generated > 0) {
+                    voiceIntel.introduce().then(played => {
+                      if (played) console.log(`[meeting-join:${agentId}] Introduction played`);
+                    }).catch(() => {});
+                  }
+                }).catch(e => {
+                  console.warn(`[meeting-join:${agentId}] Voice Intelligence init failed: ${e.message}`);
+                });
+              }
+            }
           } catch (e: any) {
             console.warn(`[meeting-join:${agentId}] Voice preflight failed: ${e.message}`);
           }

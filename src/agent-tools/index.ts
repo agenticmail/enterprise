@@ -157,6 +157,8 @@ import { createSecurityScanTools } from './tools/enterprise-security-scan.js';
 import { createCodeSandboxTools } from './tools/enterprise-code-sandbox.js';
 import { createDiffTools } from './tools/enterprise-diff.js';
 import { createAgenticMailTools } from './tools/agenticmail.js';
+import { createWhatsAppTools } from './tools/messaging/whatsapp.js';
+import { createTelegramTools } from './tools/messaging/telegram.js';
 import type { AgenticMailManagerRef } from './tools/agenticmail.js';
 import { createAllGoogleTools } from './tools/google/index.js';
 import { createTokenProvider } from './tools/oauth-token-provider.js';
@@ -386,13 +388,29 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     }
   }
 
+  // ─── Messaging Tools (WhatsApp, Telegram) ───
+  var messagingTools: AnyAgentTool[] = [];
+  try {
+    // WhatsApp
+    const dataDir = options?.workspaceDir ? (await import('node:path')).resolve(options.workspaceDir, '..') : process.cwd();
+    messagingTools = messagingTools.concat(createWhatsAppTools({ agentId: options?.agentId || '', dataDir }) as any);
+    // Telegram
+    const telegramConfig = (options as any)?.agentConfig?.messagingChannels?.telegram || {};
+    if (telegramConfig.botToken) {
+      messagingTools = messagingTools.concat(createTelegramTools({ botToken: telegramConfig.botToken }) as any);
+    }
+  } catch (e: any) {
+    console.warn(`[tools] Messaging tools load failed: ${e.message}`);
+  }
+
   var enabledTools = rawTools
     .filter(function(t): t is AnyAgentTool { return t !== null; })
     .concat(enterpriseTools)
     .concat(agenticmailTools)
     .concat(workspaceTools)
     .concat(enterpriseBrowserTools)
-    .concat(mcpBridgeTools);
+    .concat(mcpBridgeTools)
+    .concat(messagingTools);
 
   // Wrap with middleware if configured
   if (options?.middleware) {

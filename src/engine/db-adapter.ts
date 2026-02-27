@@ -230,9 +230,13 @@ export class EngineDatabase {
   // ─── Managed Agents ─────────────────────────────────
 
   async upsertManagedAgent(agent: ManagedAgent): Promise<void> {
+    // Strip budgetConfig from config blob — it lives in its own column (budget_config)
+    const configToWrite = { ...(agent.config as any) };
+    delete configToWrite.budgetConfig;
+
     await this.db.run(`
-      INSERT INTO managed_agents (id, org_id, name, display_name, state, config, health, usage, permission_profile_id, version, last_deployed_at, last_health_check_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO managed_agents (id, org_id, name, display_name, state, config, health, usage, budget_config, permission_profile_id, version, last_deployed_at, last_health_check_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         state = excluded.state,
         config = excluded.config,
@@ -244,8 +248,9 @@ export class EngineDatabase {
         updated_at = excluded.updated_at
     `, [
       agent.id, agent.orgId, agent.config.name, agent.config.displayName,
-      agent.state, JSON.stringify(agent.config), JSON.stringify(agent.health),
-      JSON.stringify(agent.usage), agent.config.permissionProfileId,
+      agent.state, JSON.stringify(configToWrite), JSON.stringify(agent.health),
+      JSON.stringify(agent.usage), JSON.stringify(agent.budgetConfig || {}),
+      agent.config.permissionProfileId,
       agent.version, agent.lastDeployedAt || null, agent.lastHealthCheckAt || null,
       agent.createdAt, agent.updatedAt,
     ]);
@@ -1046,8 +1051,12 @@ export class EngineDatabase {
       lastHealthCheckAt: row.last_health_check_at,
       version: row.version,
     };
-    // Restore budgetConfig from config JSON
-    if ((config as any)?.budgetConfig) {
+    // Read budgetConfig from dedicated column (not config JSON)
+    const bc = sj(row.budget_config || '{}');
+    if (bc && Object.keys(bc).length > 0) {
+      agent.budgetConfig = bc;
+    } else if ((config as any)?.budgetConfig) {
+      // Fallback: migrate from config JSON if budget_config column is empty
       agent.budgetConfig = (config as any).budgetConfig;
     }
     return agent;

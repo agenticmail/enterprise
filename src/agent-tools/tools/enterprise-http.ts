@@ -118,7 +118,7 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
     {
       name: 'ent_http_request',
       label: 'HTTP Request',
-      description: 'Make an HTTP request to any URL. Supports GET, POST, PUT, PATCH, DELETE. Includes SSRF protection and timeout. Response body is truncated to 50KB.',
+      description: 'Make an HTTP request to any URL.',
       category: 'web',
       risk: 'high',
       parameters: {
@@ -204,7 +204,7 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
     {
       name: 'ent_http_graphql',
       label: 'GraphQL Query',
-      description: 'Execute a GraphQL query or mutation against a GraphQL endpoint. Returns the data and errors from the response.',
+      description: 'Execute a GraphQL query or mutation against a GraphQL endpoint.',
       category: 'web',
       risk: 'high',
       parameters: {
@@ -279,7 +279,7 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
     {
       name: 'ent_http_batch',
       label: 'Batch HTTP Requests',
-      description: 'Execute multiple HTTP requests in parallel with configurable concurrency. Uses Promise.allSettled so individual failures do not block others.',
+      description: 'Execute multiple HTTP requests in parallel with configurable concurrency.',
       category: 'web',
       risk: 'high',
       parameters: {
@@ -365,7 +365,7 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
     {
       name: 'ent_http_download',
       label: 'Download File',
-      description: 'Download a file from a URL and save it to a local path. Checks content-length before downloading and enforces a maximum file size.',
+      description: 'Download a file from a URL and save it to a local path.',
       category: 'web',
       risk: 'high',
       parameters: {

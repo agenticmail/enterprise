@@ -804,11 +804,16 @@ export class AgentLifecycleManager {
     const agent = this.agents.get(agentId);
     if (!agent) throw new Error(`Agent ${agentId} not found`);
     agent.budgetConfig = config;
-    // Also store in config JSON so it survives DB round-trips
     if (!agent.config) agent.config = {} as any;
-    (agent.config as any).budgetConfig = config;
     agent.updatedAt = new Date().toISOString();
-    await this.persistAgent(agent);
+    
+    // Write to dedicated budget_config column — completely separate from config blob
+    if (this.engineDb) {
+      await this.engineDb.execute(
+        `UPDATE managed_agents SET budget_config = ?::jsonb, updated_at = ? WHERE id = ?`,
+        [JSON.stringify(config), agent.updatedAt, agentId]
+      );
+    }
   }
 
   /**
@@ -1108,12 +1113,18 @@ export class AgentLifecycleManager {
         const dbConfig = dbAgent.config as any;
         const memConfig = agent.config as any;
 
+        // budgetConfig: lives in its own DB column now, read via rowToManagedAgent.
+        // Sync from DB agent object (not config JSON).
+        if (dbAgent.budgetConfig && Object.keys(dbAgent.budgetConfig).length > 0) {
+          agent.budgetConfig = dbAgent.budgetConfig;
+        }
+
         // voiceConfig: always preserve from DB (set by dashboard, used by both server + agent)
         if (dbConfig.voiceConfig && !memConfig.voiceConfig) {
           memConfig.voiceConfig = dbConfig.voiceConfig;
         }
 
-        // In standalone mode, also reload dashboard-managed fields (enterprise server is source of truth)
+        // In standalone mode, reload dashboard-managed fields (enterprise server is source of truth)
         if (this.standaloneMode) {
           if (dbConfig.model) memConfig.model = dbConfig.model;
           if (dbConfig.identity) memConfig.identity = dbConfig.identity;

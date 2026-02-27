@@ -80,7 +80,6 @@ export function createAllGoogleTools(config: GoogleToolsConfig, options?: ToolCr
     const mapsKeyResolver = (options as any)?.mapsApiKeyResolver as (() => Promise<string> | string) | undefined;
     if (mapsKeyResolver) {
       tools.push(...createGoogleMapsTools({ getApiKey: mapsKeyResolver }));
-      console.log('[google-tools] ✅ Google Maps tools loaded (10 tools)');
     }
   }
   return tools;

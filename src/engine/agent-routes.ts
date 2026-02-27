@@ -1040,6 +1040,29 @@ export function createAgentRoutes(opts: {
       tools: ['vision_capture', 'vision_query', 'vision_compare', 'vision_diff', 'vision_similar',
               'vision_track', 'vision_ocr', 'vision_health', 'vision_session_start', 'vision_session_end'],
     },
+    {
+      id: 'local_filesystem', name: 'Filesystem', description: 'Read, write, edit, move, delete, search, and list files on the host machine.',
+      icon: Emoji.folder,
+      tools: ['file_read', 'file_write', 'file_edit', 'file_list', 'file_search', 'file_move', 'file_delete'],
+    },
+    {
+      id: 'local_shell', name: 'Shell & System', description: 'Execute commands, interactive PTY sessions, sudo, package installation, system info.',
+      icon: Emoji.terminal,
+      tools: ['shell_exec', 'shell_interactive', 'shell_sudo', 'shell_install', 'shell_session_list', 'shell_session_kill', 'system_info'],
+    },
+    {
+      id: 'whatsapp', name: 'WhatsApp', description: 'WhatsApp messaging via linked device. QR code scan to connect — no Business API needed.',
+      icon: Emoji.whatsapp || Emoji.chat,
+      tools: ['whatsapp_connect', 'whatsapp_status', 'whatsapp_send', 'whatsapp_send_media', 'whatsapp_get_groups',
+              'whatsapp_send_voice', 'whatsapp_send_location', 'whatsapp_send_contact', 'whatsapp_react',
+              'whatsapp_typing', 'whatsapp_read_receipts', 'whatsapp_profile', 'whatsapp_group_manage',
+              'whatsapp_delete_message', 'whatsapp_forward', 'whatsapp_disconnect'],
+    },
+    {
+      id: 'telegram', name: 'Telegram', description: 'Telegram Bot API — send messages, media, manage chats. Requires a bot token.',
+      icon: Emoji.telegram || Emoji.chat, requiresIntegration: 'telegram',
+      tools: ['telegram_send', 'telegram_send_media', 'telegram_get_me', 'telegram_get_chat'],
+    },
   ];
 
   // ═══════════════════════════════════════════════════════════
@@ -1362,17 +1385,32 @@ export function createAgentRoutes(opts: {
   /**
    * GET /bridge/agents/:id/tools — List available tool categories with enabled/disabled status
    */
-  router.get('/bridge/agents/:id/tools', (c) => {
+  router.get('/bridge/agents/:id/tools', async (c) => {
     const agentId = c.req.param('id');
     const managed = lifecycle.getAgent(agentId);
     if (!managed) return c.json({ error: 'Agent not found' }, 404);
 
+    const os = await import('node:os');
+    const serverPlatform = os.platform();
     const toolConfig = managed.config?.toolAccess || {};
     const emailConfig = managed.config?.emailConfig;
     const hasGoogleOAuth = emailConfig?.oauthProvider === 'google' && emailConfig?.oauthAccessToken;
     const hasMicrosoftOAuth = emailConfig?.oauthProvider === 'microsoft' && emailConfig?.oauthAccessToken;
 
     const categories = TOOL_CATALOG.map((cat: any) => {
+      // Platform check
+      if (cat.requiresPlatform && cat.requiresPlatform !== serverPlatform) {
+        return {
+          id: cat.id, name: cat.name, description: cat.description, icon: cat.icon,
+          toolCount: cat.tools.length, tools: cat.tools,
+          enabled: false, isAvailable: false, alwaysOn: false,
+          requiresOAuth: null, requiresIntegration: null,
+          requiresPlatform: cat.requiresPlatform,
+          platformUnavailable: true,
+          platformMessage: 'Requires ' + cat.requiresPlatform,
+        };
+      }
+
       const isAvailable = cat.requiresOAuth
         ? (cat.requiresOAuth === 'google' && hasGoogleOAuth) || (cat.requiresOAuth === 'microsoft' && hasMicrosoftOAuth)
         : cat.requiresIntegration
@@ -1421,6 +1459,82 @@ export function createAgentRoutes(opts: {
     managed.updatedAt = new Date().toISOString();
     await lifecycle.saveAgent(agentId);
     return c.json({ success: true, toolAccess: managed.config.toolAccess });
+  });
+
+  // ─── Messaging Channels Config ──────────────────────
+
+  /**
+   * PUT /bridge/agents/:id/config — Update agent config fields (messaging channels, etc.)
+   */
+  router.put('/bridge/agents/:id/config', async (c) => {
+    const agentId = c.req.param('id');
+    const managed = lifecycle.getAgent(agentId);
+    if (!managed) return c.json({ error: 'Agent not found' }, 404);
+    const body = await c.req.json();
+    // Merge into config
+    if (body.messagingChannels) {
+      managed.config = managed.config || {} as any;
+      (managed.config as any).messagingChannels = {
+        ...((managed.config as any).messagingChannels || {}),
+        ...body.messagingChannels,
+      };
+    }
+    managed.updatedAt = new Date().toISOString();
+    await lifecycle.saveAgent(agentId);
+    return c.json({ success: true });
+  });
+
+  /**
+   * POST /bridge/agents/:id/whatsapp/connect — Start WhatsApp connection
+   */
+  router.post('/bridge/agents/:id/whatsapp/connect', async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      const { createWhatsAppTools } = await import('../agent-tools/tools/messaging/whatsapp.js');
+      const dataDir = process.env.DATA_DIR || '/tmp/agenticmail-data';
+      const tools = createWhatsAppTools({ agentId, dataDir: `${dataDir}/agents/${agentId}/whatsapp` });
+      const connectTool = tools.find(t => t.name === 'whatsapp_connect');
+      if (!connectTool) return c.json({ error: 'WhatsApp not available' }, 500);
+      const result = await connectTool.execute({});
+      return c.json(result);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  /**
+   * GET /bridge/agents/:id/whatsapp/status — Check WhatsApp status
+   */
+  router.get('/bridge/agents/:id/whatsapp/status', async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      const { isWhatsAppConnected, getWhatsAppQR } = await import('../agent-tools/tools/messaging/whatsapp.js');
+      return c.json({
+        connected: isWhatsAppConnected(agentId),
+        hasQr: !!getWhatsAppQR(agentId),
+      });
+    } catch {
+      return c.json({ connected: false });
+    }
+  });
+
+  /**
+   * POST /bridge/agents/:id/whatsapp/disconnect — Disconnect WhatsApp
+   */
+  router.post('/bridge/agents/:id/whatsapp/disconnect', async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      const { createWhatsAppTools } = await import('../agent-tools/tools/messaging/whatsapp.js');
+      const dataDir = process.env.DATA_DIR || '/tmp/agenticmail-data';
+      const tools = createWhatsAppTools({ agentId, dataDir: `${dataDir}/agents/${agentId}/whatsapp` });
+      const disconnectTool = tools.find(t => t.name === 'whatsapp_disconnect');
+      if (!disconnectTool) return c.json({ error: 'Not available' }, 500);
+      const body = await c.req.json().catch(() => ({}));
+      const result = await disconnectTool.execute(body);
+      return c.json(result);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
   });
 
   return router;

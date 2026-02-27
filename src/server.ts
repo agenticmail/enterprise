@@ -412,8 +412,11 @@ export function createServer(config: ServerConfig): ServerInstance {
         const content = readFileSync(filePath);
         return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': ext === '.js' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400' } });
       }
+      // Static asset not found — return 404, NOT the SPA HTML
+      // (returning HTML for missing .js causes browser MIME type errors)
+      return c.json({ error: 'Not found', path: c.req.path }, 404);
     }
-    // Fall through to SPA handler for non-asset requests
+    // Non-asset path — fall through to SPA handler
     return serveDashboard(c);
   });
 

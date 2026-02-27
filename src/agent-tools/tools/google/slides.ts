@@ -42,7 +42,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Create Presentation ────────────────────────────
     {
       name: 'google_slides_create',
-      description: 'Create a new Google Slides presentation with a title slide and optional subtitle. Also accepts an array of content slides to populate the presentation upfront (each with a title and body text). This is the recommended way to create presentations — avoids creating blank decks.',
+      description: 'Create a new presentation.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -251,7 +251,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Get Slide Thumbnail ────────────────────────────
     {
       name: 'google_slides_thumbnail',
-      description: 'Get a thumbnail image URL for a specific slide. Useful for previewing slides.',
+      description: 'Get slide thumbnail URL.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -276,7 +276,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Add Slide ──────────────────────────────────────
     {
       name: 'google_slides_add_slide',
-      description: 'Add a new slide to a presentation. Can specify layout (BLANK, TITLE, TITLE_AND_BODY, TITLE_AND_TWO_COLUMNS, etc.).',
+      description: 'Add a slide to presentation.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -306,7 +306,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Insert Text ────────────────────────────────────
     {
       name: 'google_slides_insert_text',
-      description: 'Insert text into a shape or text box on a slide. Requires the objectId of the shape.',
+      description: 'Insert text into a shape/textbox.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -341,7 +341,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Replace All Text ───────────────────────────────
     {
       name: 'google_slides_replace_text',
-      description: 'Replace all occurrences of text in a presentation. Great for template-based slide generation.',
+      description: 'Find and replace text across all slides.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -430,7 +430,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Add Image to Slide ─────────────────────────────
     {
       name: 'google_slides_add_image',
-      description: 'Add an image to a slide from a public URL.',
+      description: 'Add an image to a slide from URL.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -481,7 +481,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Delete Slide ───────────────────────────────────
     {
       name: 'google_slides_delete_slide',
-      description: 'Delete a slide from a presentation by its object ID.',
+      description: 'Delete a slide.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -506,7 +506,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
     // ─── Duplicate Slide ────────────────────────────────
     {
       name: 'google_slides_duplicate_slide',
-      description: 'Duplicate an existing slide in a presentation.',
+      description: 'Duplicate a slide.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,

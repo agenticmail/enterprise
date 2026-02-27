@@ -21,4 +21,5 @@ export const TOOLS: ToolDefinition[] = [
   { id: 'browser', name: 'Browser', description: 'Control a web browser for automation', category: 'write', risk: 'high', skillId: 'core-tools', sideEffects: ['network-request'] },
   { id: 'web_search', name: 'Web Search', description: 'Search the web', category: 'read', risk: 'low', skillId: 'core-tools', sideEffects: ['network-request'] },
   { id: 'web_fetch', name: 'Web Fetch', description: 'Fetch and extract content from a URL', category: 'read', risk: 'low', skillId: 'core-tools', sideEffects: ['network-request'] },
+  { id: 'request_tools', name: 'Request Tools', description: 'Dynamically load additional tool sets', category: 'read', risk: 'low', skillId: 'core-tools', sideEffects: [] },
 ];

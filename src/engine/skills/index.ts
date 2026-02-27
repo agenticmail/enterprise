@@ -52,6 +52,11 @@ import * as MeetingLifecycle from './meeting-lifecycle.js';
 import * as AgentMemory from './agent-memory.js';
 import * as VisualMemory from './visual-memory.js';
 
+// ─── Messaging + Local System Skills ────────────────────
+
+import { MESSAGING_SKILLS } from './messaging.js';
+import { LOCAL_SYSTEM_SKILLS } from './local-system.js';
+
 // ─── All M365 modules ───────────────────────────────────
 
 export const M365_MODULES = [
@@ -121,10 +126,14 @@ export const SYSTEM_TOOLS: ToolDefinition[] = SYSTEM_MODULES.flatMap(m => m.TOOL
 
 const ALL_MODULES = [...AGENTICMAIL_MODULES, ...M365_MODULES, ...GWS_MODULES, ...ENTERPRISE_MODULES, ...SYSTEM_MODULES];
 
-export const FULL_SKILL_DEFINITIONS: SkillDefinition[] = ALL_MODULES.map(m => ({
-  ...m.SKILL_DEF,
-  tools: m.TOOLS,
-}));
+export const FULL_SKILL_DEFINITIONS: SkillDefinition[] = [
+  ...ALL_MODULES.map(m => ({
+    ...m.SKILL_DEF,
+    tools: m.TOOLS,
+  })),
+  ...MESSAGING_SKILLS,
+  ...LOCAL_SYSTEM_SKILLS,
+];
 
 // ─── Re-export individual modules for direct access ─────
 

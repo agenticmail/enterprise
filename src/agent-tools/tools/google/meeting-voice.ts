@@ -668,6 +668,17 @@ Tips:
             }
           }
 
+          // ─── Interrupt any running fillers before speaking actual response ───
+          try {
+            const { getActiveVoiceIntelligence } = await import('../../../engine/meeting-voice-intelligence.js');
+            const voiceIntel = getActiveVoiceIntelligence(agentId);
+            if (voiceIntel?.audioController?.isPlaying) {
+              voiceIntel.audioController.interrupt();
+              // Brief pause to let audio device reset
+              await new Promise(r => setTimeout(r, 200));
+            }
+          } catch {} // Voice intelligence not available — continue normally
+
           // ─── Stream TTS directly to audio device (near-zero latency) ───
           const device = config.audioDevice || status.audioDevice || 'BlackHole 2ch';
           try {

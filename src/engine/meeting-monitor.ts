@@ -290,7 +290,21 @@ export class MeetingMonitor {
       return;
     }
 
-    // ─── Step 3: Accumulate new content into pending buffers ───
+    // ─── Step 3: Interruption detection ───
+    // If someone starts talking while the agent is speaking, interrupt gracefully
+    if (bufferData.captions.length > 0) {
+      try {
+        const { getActiveVoiceIntelligence } = await import('./meeting-voice-intelligence.js');
+        const voiceIntel = getActiveVoiceIntelligence(this.agentId);
+        if (voiceIntel?.audioController?.isPlaying) {
+          const interrupterText = bufferData.captions.map(c => c.text).join(' ');
+          console.log(`[meeting-monitor:${this.agentId}] Interruption detected while agent speaking`);
+          await voiceIntel.handleInterruption(interrupterText);
+        }
+      } catch {} // Voice intelligence not available
+    }
+
+    // ─── Step 4: Accumulate new content into pending buffers ───
     if (bufferData.captions.length > 0) {
       this.pendingCaptions.push(...bufferData.captions);
       this.lastCaptionArrival = Date.now();
@@ -347,6 +361,41 @@ export class MeetingMonitor {
    * Send accumulated captions and/or chat to the agent session.
    */
   private async sendUpdate(captions: CaptionEntry[], chat: ChatEntry[]): Promise<void> {
+    // ─── Voice Intelligence: play fillers while LLM processes ───
+    if (captions.length > 0) {
+      try {
+        const { getActiveVoiceIntelligence } = await import('./meeting-voice-intelligence.js');
+        const voiceIntel = getActiveVoiceIntelligence(this.agentId);
+        if (voiceIntel?.isReady) {
+          const consolidated = this.consolidateCaptions(captions);
+          const decision = voiceIntel.decisionEngine.analyze(
+            consolidated.map(c => ({ speaker: c.speaker, text: c.text }))
+          );
+          if (decision.shouldSpeak) {
+            // Play fillers in background while LLM processes the captions
+            // This covers the gap between "captions flushed" and "meeting_speak called"
+            const context = {
+              captionText: consolidated.map(c => c.text).join(' '),
+              speaker: consolidated[consolidated.length - 1]?.speaker || 'Unknown',
+              directedAtAgent: decision.directedAtAgent,
+              complexity: decision.complexity,
+              participantCount: new Set(consolidated.map(c => c.speaker)).size,
+              isQuestion: decision.isQuestion,
+            };
+            // Fire-and-forget — fillers play while LLM generates response
+            voiceIntel.handleCaptions(
+              consolidated.map(c => ({ speaker: c.speaker, text: c.text })),
+              async () => {
+                // This callback will be resolved when meeting_speak is called with the response
+                // For now, we just wait — the filler system handles the gap
+                return new Promise(() => {}); // Never resolves — fillers interrupted by meeting_speak
+              }
+            ).catch(() => {});
+          }
+        }
+      } catch {} // Voice intelligence not available
+    }
+
     // Fire-and-forget typing indicator (don't block the flush pipeline)
     if (this.sendChatIndicator && captions.length > 0) {
       this.sendChatIndicator(this.page, '...').catch(() => {});
@@ -370,7 +419,24 @@ export class MeetingMonitor {
     }
 
     parts.push('\n--- END UPDATE ---');
-    parts.push('If someone addressed you or asked a question, respond using meeting_action(action: "chat", message: "your response"). Otherwise, just note the content silently — do NOT respond to every caption update.');
+
+    // ─── Voice Intelligence: check if agent should speak vs listen ───
+    try {
+      const { getActiveVoiceIntelligence } = await import('./meeting-voice-intelligence.js');
+      const voiceIntel = getActiveVoiceIntelligence(this.agentId);
+      if (voiceIntel?.isReady && captions.length > 0) {
+        const decision = voiceIntel.decisionEngine.analyze(
+          consolidated.map(c => ({ speaker: c.speaker, text: c.text }))
+        );
+        if (decision.shouldSpeak) {
+          parts.push(`\n[Voice Intelligence] Someone is addressing you or asking a question (${decision.reason}). Respond using meeting_speak — fillers will play automatically while you think.`);
+        } else {
+          parts.push(`\n[Voice Intelligence] ${decision.reason}. No response needed — taking notes silently.`);
+        }
+      }
+    } catch {} // Voice intelligence not available — fall through
+
+    parts.push('If someone addressed you or asked a question, respond using meeting_speak(text: "your response") to talk out loud, or meeting_action(action: "chat", message: "your response") for text. Otherwise, just note the content silently — do NOT respond to every caption update.');
 
     try {
       await this.sendMessage(this.sessionId, parts.join('\n'));

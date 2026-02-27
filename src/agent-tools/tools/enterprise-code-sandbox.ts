@@ -49,7 +49,7 @@ export function createCodeSandboxTools(options?: ToolCreationOptions): AnyAgentT
   var entCodeRunJs: AnyAgentTool = {
     name: 'ent_code_run_js',
     label: 'Run JavaScript',
-    description: 'Run JavaScript code in a sandboxed Node.js VM context. No file system, network, or process access. console.log output is captured. Returns stdout and the expression result.',
+    description: 'Run JavaScript code in a sandboxed Node.js VM context.',
     category: 'command',
     risk: 'medium',
     parameters: {
@@ -150,7 +150,7 @@ export function createCodeSandboxTools(options?: ToolCreationOptions): AnyAgentT
   var entCodeRunPython: AnyAgentTool = {
     name: 'ent_code_run_python',
     label: 'Run Python',
-    description: 'Run Python code via the system python3 interpreter. Code is written to a temp file and executed. Returns stdout and stderr.',
+    description: 'Run Python code via the system python3 interpreter.',
     category: 'command',
     risk: 'high',
     parameters: {
@@ -195,7 +195,7 @@ export function createCodeSandboxTools(options?: ToolCreationOptions): AnyAgentT
   var entCodeRunShell: AnyAgentTool = {
     name: 'ent_code_run_shell',
     label: 'Run Shell Script',
-    description: 'Run a multi-line shell (bash) script via child_process. Returns stdout, stderr, and exit code.',
+    description: 'Run a multi-line shell (bash) script via child_process.',
     category: 'command',
     risk: 'critical',
     parameters: {
@@ -235,7 +235,7 @@ export function createCodeSandboxTools(options?: ToolCreationOptions): AnyAgentT
   var entCodeTransformJson: AnyAgentTool = {
     name: 'ent_code_transform_json',
     label: 'Transform JSON',
-    description: 'Transform JSON data using a JavaScript expression evaluated in a sandboxed VM. The input JSON is available as the `data` variable. Example expressions: data.filter(x => x.age > 18), Object.keys(data), data.map(x => x.name).',
+    description: 'Transform JSON data using a JavaScript expression evaluated in a sandboxed VM.',
     category: 'utility',
     risk: 'medium',
     parameters: {
@@ -300,7 +300,7 @@ export function createCodeSandboxTools(options?: ToolCreationOptions): AnyAgentT
   var entCodeRegex: AnyAgentTool = {
     name: 'ent_code_regex',
     label: 'Regex Operations',
-    description: 'Test and apply regular expressions. Supports test, match, replace, and split operations. Returns matches with captured groups, or the transformed text.',
+    description: 'Test and apply regular expressions.',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -308,9 +308,9 @@ export function createCodeSandboxTools(options?: ToolCreationOptions): AnyAgentT
       properties: {
         pattern: { type: 'string', description: 'Regular expression pattern (without delimiters).' },
         input: { type: 'string', description: 'Input string to apply the regex on.' },
-        flags: { type: 'string', description: 'Regex flags (default "g"). Common: g (global), i (case-insensitive), m (multiline).' },
+        flags: { type: 'string', description: 'Regex flags (default "g").' },
         operation: { type: 'string', description: 'Operation: test, match, replace, split (default match).', enum: ['test', 'match', 'replace', 'split'] },
-        replacement: { type: 'string', description: 'Replacement string for the "replace" operation. Supports $1, $2 group references.' },
+        replacement: { type: 'string', description: 'Replacement string for the "replace" operation.' },
       },
       required: ['pattern', 'input'],
     },

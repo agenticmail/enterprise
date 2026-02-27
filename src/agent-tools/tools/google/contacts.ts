@@ -46,7 +46,7 @@ export function createGoogleContactsTools(config: GoogleToolsConfig, _options?: 
   return [
     {
       name: 'google_contacts_list',
-      description: 'List contacts from the agent\'s Google directory. Returns names, emails, phones, organizations.',
+      description: 'List Google Contacts.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -73,7 +73,7 @@ export function createGoogleContactsTools(config: GoogleToolsConfig, _options?: 
     },
     {
       name: 'google_contacts_search',
-      description: 'Search contacts by name, email, or phone number.',
+      description: 'Search contacts by name/email/phone.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -100,7 +100,7 @@ export function createGoogleContactsTools(config: GoogleToolsConfig, _options?: 
     },
     {
       name: 'google_contacts_search_directory',
-      description: 'Search the organization\'s Google Workspace directory (all employees). Requires domain-wide access.',
+      description: 'Search company directory.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -128,7 +128,7 @@ export function createGoogleContactsTools(config: GoogleToolsConfig, _options?: 
     },
     {
       name: 'google_contacts_create',
-      description: 'Create a new contact in the agent\'s Google Contacts.',
+      description: 'Create a contact.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -163,7 +163,7 @@ export function createGoogleContactsTools(config: GoogleToolsConfig, _options?: 
     },
     {
       name: 'google_contacts_update',
-      description: 'Update an existing contact.',
+      description: 'Update a contact.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,

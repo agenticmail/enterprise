@@ -80,7 +80,7 @@ export function createGoogleDocsTools(config: GoogleToolsConfig, _options?: Tool
     },
     {
       name: 'google_docs_create',
-      description: 'Create a new Google Doc with optional initial content.',
+      description: 'Create a Google Doc.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,

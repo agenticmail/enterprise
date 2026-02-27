@@ -44,7 +44,7 @@ export function createGoogleFormsTools(config: GoogleToolsConfig, _options?: Too
     // ─── Create Form ────────────────────────────────────
     {
       name: 'google_forms_create',
-      description: 'Create a new Google Form with a title and optional description. Returns the form ID and edit URL.',
+      description: 'Create a Google Form.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,
@@ -256,7 +256,7 @@ export function createGoogleFormsTools(config: GoogleToolsConfig, _options?: Too
     // ─── List Responses ─────────────────────────────────
     {
       name: 'google_forms_list_responses',
-      description: 'List all responses submitted to a Google Form. Returns respondent answers with timestamps.',
+      description: 'List form responses.',
       category: 'productivity' as const,
       parameters: {
         type: 'object' as const,

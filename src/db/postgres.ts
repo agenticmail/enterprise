@@ -117,6 +117,16 @@ export class PostgresAdapter extends DatabaseAdapter {
       await client.query(`
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS org_email_config JSONB;
       `).catch(() => {});
+      // Platform capabilities column
+      await client.query(`
+        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS platform_capabilities JSONB;
+      `).catch(() => {});
+      // 2FA / TOTP columns on users
+      await client.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT;
+      `).catch(() => {});
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -190,6 +200,11 @@ export class PostgresAdapter extends DatabaseAdapter {
     if (updates.orgEmailConfig !== undefined) {
       fields.push(`org_email_config = $${i}`);
       values.push(JSON.stringify(updates.orgEmailConfig));
+      i++;
+    }
+    if ((updates as any).platformCapabilities !== undefined) {
+      fields.push(`platform_capabilities = $${i}`);
+      values.push(JSON.stringify((updates as any).platformCapabilities));
       i++;
     }
     fields.push(`updated_at = NOW()`);
@@ -322,7 +337,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     const fields: string[] = [];
     const values: any[] = [];
     let i = 1;
-    for (const key of ['email', 'name', 'role', 'sso_provider', 'sso_subject'] as const) {
+    for (const key of ['email', 'name', 'role', 'sso_provider', 'sso_subject', 'totp_secret', 'totp_enabled', 'totp_backup_codes', 'last_login_at'] as const) {
       const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
       if ((updates as any)[camelKey] !== undefined) {
         fields.push(`${key} = $${i}`);
@@ -526,6 +541,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     return {
       id: r.id, email: r.email, name: r.name, role: r.role,
       passwordHash: r.password_hash, ssoProvider: r.sso_provider, ssoSubject: r.sso_subject,
+      totpSecret: r.totp_secret, totpEnabled: !!r.totp_enabled, totpBackupCodes: r.totp_backup_codes,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
       lastLoginAt: r.last_login_at ? new Date(r.last_login_at) : undefined,
     };
@@ -571,6 +587,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       cfApiToken: r.cf_api_token || undefined,
       cfAccountId: r.cf_account_id || undefined,
       orgEmailConfig: r.org_email_config ? (typeof r.org_email_config === 'string' ? JSON.parse(r.org_email_config) : r.org_email_config) : undefined,
+      platformCapabilities: r.platform_capabilities ? (typeof r.platform_capabilities === 'string' ? JSON.parse(r.platform_capabilities) : r.platform_capabilities) : undefined,
       signatureTemplate: r.signature_template || undefined,
     } as any;
   }

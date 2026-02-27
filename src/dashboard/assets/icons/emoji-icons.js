@@ -852,4 +852,26 @@ export const E = {
       h('path', { d: 'M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71', stroke: '#06b6d4', strokeWidth: 2.5, fill: 'none', strokeLinecap: 'round' })
     );
   },
+  whatsapp: function(size) {
+    var s = size || 20;
+    return h('svg', svg({ width: s, height: s }),
+      h('circle', { cx: 12, cy: 12, r: 11, fill: '#25D366' }),
+      h('path', { d: 'M17.47 14.38c-.27-.14-1.6-.79-1.85-.88s-.43-.14-.61.14-.7.88-.86 1.06-.32.2-.59.07a7.4 7.4 0 01-2.2-1.36 8.3 8.3 0 01-1.52-1.9c-.16-.27 0-.42.12-.56s.27-.32.41-.48.18-.27.27-.45a.5.5 0 000-.48c-.07-.14-.61-1.47-.84-2-.22-.53-.44-.46-.61-.46h-.52a1 1 0 00-.72.34A3.04 3.04 0 007.2 10a5.27 5.27 0 001.1 2.8 12.1 12.1 0 004.63 4.09c.65.28 1.15.45 1.55.58.65.21 1.24.18 1.71.11.52-.08 1.6-.66 1.83-1.29s.23-1.18.16-1.29-.25-.2-.52-.34z', fill: 'white' })
+    );
+  },
+  telegram: function(size) {
+    var s = size || 20;
+    return h('svg', svg({ width: s, height: s }),
+      h('circle', { cx: 12, cy: 12, r: 11, fill: '#0088cc' }),
+      h('path', { d: 'M5.4 11.6l11.2-4.3c.5-.2.9.1.8.7l-1.9 9c-.1.6-.5.7-.9.5l-2.8-2.1-1.3 1.3c-.2.2-.3.2-.5.1l.2-3.1 5.6-5.1c.2-.2 0-.3-.3-.1l-7 4.4-3-1c-.6-.2-.6-.6.1-.9z', fill: 'white' })
+    );
+  },
+  terminal: function(size) {
+    var s = size || 20;
+    return h('svg', svg({ width: s, height: s }),
+      h('rect', { x: 2, y: 3, width: 20, height: 18, rx: 3, fill: '#1e1e1e' }),
+      h('path', { d: 'M6 8l4 4-4 4', stroke: '#4ade80', strokeWidth: 2, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      h('line', { x1: 12, y1: 16, x2: 18, y2: 16, stroke: '#4ade80', strokeWidth: 2, strokeLinecap: 'round' })
+    );
+  },
 };

@@ -36,7 +36,7 @@ export function createGoogleTasksTools(tp: TokenProvider): AnyAgentTool[] {
   return [
     {
       name: 'google_tasks_list_tasklists',
-      description: 'List all task lists (like "My Tasks", custom lists). Returns task list IDs needed for other operations.',
+      description: 'List task lists.',
       category: 'utility' as const,
       parameters: { type: 'object' as const, properties: {}, required: [] },
       async execute() {
@@ -79,7 +79,7 @@ export function createGoogleTasksTools(tp: TokenProvider): AnyAgentTool[] {
     },
     {
       name: 'google_tasks_create',
-      description: 'Create a new task. Use this to track work items, reminders, and follow-ups.',
+      description: 'Create a task.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -105,7 +105,7 @@ export function createGoogleTasksTools(tp: TokenProvider): AnyAgentTool[] {
     },
     {
       name: 'google_tasks_complete',
-      description: 'Mark a task as completed.',
+      description: 'Complete a task.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -179,7 +179,7 @@ export function createGoogleTasksTools(tp: TokenProvider): AnyAgentTool[] {
     },
     {
       name: 'google_tasks_create_list',
-      description: 'Create a new task list (e.g. "Follow-ups", "Customer Issues").',
+      description: 'Create a task list.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,

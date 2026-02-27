@@ -1131,11 +1131,7 @@ export function AgentsPage({ onSelectAgent }) {
   const load = () => apiCall('/agents').then(d => setAgents(d.agents || d || [])).catch(() => {});
   useEffect(() => { load(); }, []);
 
-  const deleteAgent = async (id) => {
-    const ok = await showConfirm({ title: 'Delete Agent', message: 'Are you sure you want to delete this agent? This will remove all associated data.', warning: 'This action cannot be undone.', danger: true, confirmText: 'Delete Agent' });
-    if (!ok) return;
-    try { await engineCall('/bridge/agents/' + id, { method: 'DELETE', body: JSON.stringify({ destroyedBy: 'dashboard' }) }); toast('Agent deleted', 'success'); load(); } catch (e) { toast(e.message, 'error'); }
-  };
+  // Delete moved to agent detail overview tab with triple confirmation
 
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
@@ -1166,8 +1162,7 @@ export function AgentsPage({ onSelectAgent }) {
                   h('td', null,
                     h('div', { style: { display: 'flex', gap: 4 } },
                       h('button', { className: 'btn btn-primary btn-sm', onClick: () => onSelectAgent && onSelectAgent(a.id) }, 'View Details'),
-                      h('button', { className: 'btn btn-ghost btn-sm', title: 'Restart', onClick: () => engineCall('/agents/' + a.id + '/restart', { method: 'POST', body: JSON.stringify({ restartedBy: 'dashboard' }) }).then(() => toast('Restarting...', 'info')).catch(e => toast(e.message, 'error')) }, I.refresh()),
-                      h('button', { className: 'btn btn-ghost btn-sm', title: 'Delete', onClick: () => deleteAgent(a.id) }, I.trash())
+                      h('button', { className: 'btn btn-ghost btn-sm', title: 'Restart', onClick: () => engineCall('/agents/' + a.id + '/restart', { method: 'POST', body: JSON.stringify({ restartedBy: 'dashboard' }) }).then(() => toast('Restarting...', 'info')).catch(e => toast(e.message, 'error')) }, I.refresh())
                     )
                   )
                 )
@@ -1182,4 +1177,4 @@ export function AgentsPage({ onSelectAgent }) {
 // AGENT DETAIL PAGE — Re-exported from agent-detail.js
 // ════════════════════════════════════════════════════════════
 
-export { AgentDetailPage } from './agent-detail.js';
+export { AgentDetailPage } from './agent-detail/index.js?v=5';

@@ -29,7 +29,7 @@ export function createGoogleSheetsTools(config: GoogleToolsConfig, _options?: To
   return [
     {
       name: 'google_sheets_get',
-      description: 'Get spreadsheet metadata: title, sheets/tabs, row counts.',
+      description: 'Get spreadsheet metadata.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -110,7 +110,7 @@ export function createGoogleSheetsTools(config: GoogleToolsConfig, _options?: To
     },
     {
       name: 'google_sheets_append',
-      description: 'Append rows to the end of a sheet (after existing data).',
+      description: 'Append rows to a Sheet.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
@@ -189,7 +189,7 @@ export function createGoogleSheetsTools(config: GoogleToolsConfig, _options?: To
     },
     {
       name: 'google_sheets_add_sheet',
-      description: 'Add a new sheet/tab to an existing spreadsheet.',
+      description: 'Add a sheet tab.',
       category: 'utility' as const,
       parameters: {
         type: 'object' as const,
