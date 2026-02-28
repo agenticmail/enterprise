@@ -187,8 +187,8 @@ export function createServer(config: ServerConfig): ServerInstance {
       return next();
     }
 
-    // Skip auth for agent status updates (internal agent→server communication)
-    if (c.req.path.includes('/engine/agent-status/') && c.req.method === 'POST') {
+    // Skip auth for agent status (internal communication + dashboard SSE)
+    if (c.req.path.includes('/engine/agent-status')) {
       return next();
     }
 
