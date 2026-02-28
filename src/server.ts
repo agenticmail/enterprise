@@ -119,9 +119,9 @@ export function createServer(config: ServerConfig): ServerInstance {
 
   // Rate limiting
   app.use('*', rateLimiter({
-    limit: config.rateLimit ?? 120,
+    limit: config.rateLimit ?? 300,
     windowSec: 60,
-    skipPaths: ['/health', '/ready'],
+    skipPaths: ['/health', '/ready', '/dashboard', '/api/engine/agent-status'],
   }));
 
   // Request logging
