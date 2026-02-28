@@ -547,19 +547,30 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
 
   router.get('/search-metrics', async (c) => {
     try {
+      const db = (manager as any).db;
+      if (!db) return c.json({ error: 'Database not available' }, 500);
+
       const days = parseInt(c.req.query('days') || '7');
       const agentId = c.req.query('agentId');
       const since = new Date(Date.now() - days * 86400000).toISOString();
 
-      let sql = `SELECT * FROM knowledge_search_log WHERE timestamp >= $1`;
+      let sql = `SELECT * FROM knowledge_search_log WHERE timestamp >= ?`;
       const params: any[] = [since];
       if (agentId) {
-        sql += ` AND agent_id = $2`;
+        sql += ` AND agent_id = ?`;
         params.push(agentId);
       }
       sql += ` ORDER BY timestamp DESC LIMIT 500`;
 
-      const rows = await db.query<any>(sql, params);
+      let rows: any[];
+      try {
+        rows = await db.all(sql, params) || [];
+      } catch (e: any) {
+        // Table may not exist yet
+        if (e.message?.includes('does not exist') || e.message?.includes('no such table')) {
+          rows = [];
+        } else throw e;
+      }
 
       // Aggregate metrics
       const totalSearches = rows.length;

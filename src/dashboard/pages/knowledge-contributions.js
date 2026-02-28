@@ -31,6 +31,7 @@ export function KnowledgeContributionsPage() {
   var [contribPage, setContribPage] = useState(0);
   var [contribSearch, setContribSearch] = useState('');
   var [contribAgent, setContribAgent] = useState('');
+  var [selectedContrib, setSelectedContrib] = useState(null);
   var CONTRIB_PAGE_SIZE = 20;
 
   // Search metrics state
@@ -473,7 +474,7 @@ export function KnowledgeContributionsPage() {
             ),
             h('tbody', null,
               paged.map(function(c) {
-                return h('tr', { key: c.id },
+                return h('tr', { key: c.id, onClick: function() { setSelectedContrib(c); }, style: { cursor: 'pointer' } },
                   h('td', null, renderAgentBadge(c.agentId, agentData)),
                   h('td', { style: { fontWeight: 500, fontSize: 13 } }, c.title || '-'),
                   h('td', null, c.importance ? h('span', { className: 'badge badge-' + (c.importance === 'high' ? 'danger' : c.importance === 'medium' ? 'warning' : 'info') }, c.importance) : '-'),
@@ -1352,6 +1353,38 @@ export function KnowledgeContributionsPage() {
 
     // Tooltip overlay
     renderTooltip(),
+
+    // ── Contribution Detail Modal ────────────────────────
+    selectedContrib && h(Modal, {
+      title: selectedContrib.title || 'Contribution Detail',
+      onClose: function() { setSelectedContrib(null); },
+      footer: h('button', { className: 'btn btn-secondary', onClick: function() { setSelectedContrib(null); } }, 'Close')
+    },
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
+        h('div', { style: { display: 'flex', gap: 20, flexWrap: 'wrap' } },
+          h('div', null, h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Agent'), h('div', null, renderAgentBadge(selectedContrib.agentId, agentData))),
+          h('div', null, h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Category'), h('div', null, selectedContrib.category || '-')),
+          h('div', null, h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Importance'), h('div', null, selectedContrib.importance || '-')),
+          h('div', null, h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Confidence'), h('div', null, selectedContrib.confidence != null ? (selectedContrib.confidence * 100).toFixed(0) + '%' : '-')),
+          h('div', null, h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Source'), h('div', null, selectedContrib.source || '-')),
+          h('div', null, h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Date'), h('div', null, selectedContrib.createdAt || selectedContrib.date ? new Date(selectedContrib.createdAt || selectedContrib.date).toLocaleString() : '-'))
+        ),
+        selectedContrib.tags && h('div', null,
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Tags'),
+          h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 } },
+            (Array.isArray(selectedContrib.tags) ? selectedContrib.tags : (selectedContrib.tags || '').split(',')).filter(Boolean).map(function(t) {
+              return h('span', { key: t, className: 'badge', style: { fontSize: 11 } }, t.trim());
+            })
+          )
+        ),
+        h('div', null,
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Content'),
+          h('div', {
+            style: { marginTop: 6, padding: 12, background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6, maxHeight: 400, overflowY: 'auto' }
+          }, selectedContrib.content || 'No content')
+        )
+      )
+    ),
 
     // ── Create Base Modal ──────────────────────────────
     showCreateBase && h(Modal, {
