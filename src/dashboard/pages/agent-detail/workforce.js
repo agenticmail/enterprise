@@ -43,6 +43,22 @@ export function WorkforceSection(props) {
   var selectedRecord = _selectedRecord[0]; var setSelectedRecord = _selectedRecord[1];
   var CLOCK_PAGE_SIZE = 15;
 
+  // Real-time status
+  var _rtStatus = useState(null);
+  var rtStatus = _rtStatus[0]; var setRtStatus = _rtStatus[1];
+
+  useEffect(function() {
+    engineCall('/agent-status/' + agentId).then(function(d) { setRtStatus(d); }).catch(function() {});
+    var es = new EventSource('/api/engine/agent-status-stream?agentId=' + agentId);
+    es.onmessage = function(event) {
+      try {
+        var data = JSON.parse(event.data);
+        if (data.type === 'status') setRtStatus(data);
+      } catch {}
+    };
+    return function() { es.close(); };
+  }, [agentId]);
+
   var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   var defaultSchedForm = {
@@ -193,21 +209,32 @@ export function WorkforceSection(props) {
 
   return h(Fragment, null,
 
-    // ─── Status Card ────────────────────────────────────
+    // ─── Status Card (Real-Time) ──────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Clock Status'),
-        status && status.clockedIn
-          ? h('button', { className: 'btn btn-secondary btn-sm', onClick: clockOut }, I.clock(), ' Clock Out')
-          : h('button', { className: 'btn btn-primary btn-sm', onClick: clockIn }, I.clock(), ' Clock In')
+        h('span', null, 'Agent Status'),
+        h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+          rtStatus && h('span', {
+            className: 'badge badge-' + (rtStatus.status === 'online' ? 'success' : rtStatus.status === 'idle' ? 'info' : rtStatus.status === 'error' ? 'danger' : 'neutral'),
+            style: { textTransform: 'capitalize' }
+          }, rtStatus.status || 'unknown'),
+          (status && status.clockedIn) || (rtStatus && rtStatus.clockedIn)
+            ? h('button', { className: 'btn btn-secondary btn-sm', onClick: clockOut }, I.clock(), ' Clock Out')
+            : h('button', { className: 'btn btn-primary btn-sm', onClick: clockIn }, I.clock(), ' Clock In')
+        )
       ),
       h('div', { className: 'card-body' },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
-          status && status.clockedIn
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
+          (status && status.clockedIn) || (rtStatus && rtStatus.clockedIn)
             ? h('span', { className: 'badge badge-success' }, I.check(), ' Clocked In')
             : h('span', { className: 'badge badge-neutral' }, I.clock(), ' Clocked Out'),
           status && status.lastClockIn && h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Since: ' + new Date(status.lastClockIn).toLocaleString()),
           status && status.totalHoursToday != null && h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Hours today: ' + Number(status.totalHoursToday).toFixed(1))
+        ),
+        // Real-time activity
+        rtStatus && rtStatus.currentActivity && h('div', { style: { marginTop: 10, padding: 8, background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13 } },
+          h('strong', null, 'Currently: '), rtStatus.currentActivity.detail || rtStatus.currentActivity.type,
+          rtStatus.currentActivity.tool && h('span', { style: { color: 'var(--text-muted)', marginLeft: 8 } }, '(' + rtStatus.currentActivity.tool + ')')
         )
       )
     ),

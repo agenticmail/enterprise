@@ -138,6 +138,8 @@ export interface RuntimeConfig {
   vault?: any;
   /** Knowledge base engine for RAG search tools */
   knowledgeEngine?: any;
+  /** Real-time agent status tracker */
+  agentStatusTracker?: import('../engine/agent-status.js').AgentStatusTracker;
   /** Resume active sessions on startup (default: true) */
   resumeOnStartup?: boolean;
   /** Heartbeat interval in ms (default: 30000 = 30s) */

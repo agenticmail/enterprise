@@ -105,6 +105,8 @@ const lifecycle = new AgentLifecycleManager({ permissions: permissionEngine });
 const knowledgeBase = new KnowledgeBaseEngine();
 const tenants = new TenantManager();
 const activity = new ActivityTracker();
+import { AgentStatusTracker } from './agent-status.js';
+const agentStatus = new AgentStatusTracker();
 const dlp = new DLPEngine();
 const commBus = new AgentCommunicationBus();
 const guardrails = new GuardrailEngine({
@@ -216,6 +218,51 @@ engine.route('/', createActivityRoutes({
 }));
 
 engine.route('/', createDeploySchemaRoutes(() => _engineDb, () => vault));
+
+// ─── Real-Time Agent Status ───────────────────────────
+engine.get('/agent-status', (c) => {
+  return c.json({ statuses: agentStatus.getAllStatuses() });
+});
+
+engine.get('/agent-status/:agentId', (c) => {
+  return c.json(agentStatus.getStatus(c.req.param('agentId')));
+});
+
+engine.get('/agent-status-stream', (c) => {
+  const filterAgent = c.req.query('agentId');
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      const send = (data: string) => {
+        try { controller.enqueue(encoder.encode(`data: ${data}\n\n`)); }
+        catch { unsub(); }
+      };
+
+      // Send current state immediately
+      if (filterAgent) {
+        send(JSON.stringify({ type: 'status', ...agentStatus.getStatus(filterAgent) }));
+      } else {
+        for (const s of agentStatus.getAllStatuses()) {
+          send(JSON.stringify({ type: 'status', ...s }));
+        }
+      }
+
+      // Subscribe to updates
+      const unsub = agentStatus.subscribe((agentId, snapshot) => {
+        if (filterAgent && agentId !== filterAgent) return;
+        send(JSON.stringify({ type: 'status', ...snapshot }));
+      });
+
+      // Keepalive
+      const hb = setInterval(() => send(JSON.stringify({ type: 'heartbeat' })), 30_000);
+
+      c.req.raw.signal.addEventListener('abort', () => { unsub(); clearInterval(hb); });
+    },
+  });
+  return new Response(stream, {
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+  });
+});
 
 engine.route('/community', createCommunityRoutes(communityRegistry));
 engine.route('/workforce', createWorkforceRoutes(workforce, { lifecycle }));
@@ -618,4 +665,4 @@ export function setRuntime(runtime: any): void {
 }
 
 export { engine as engineRoutes };
-export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater };
+export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus };

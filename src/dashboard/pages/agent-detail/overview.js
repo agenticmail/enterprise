@@ -54,6 +54,28 @@ export function OverviewSection(props) {
     });
   }, [agentId]);
 
+  // ─── Real-Time Agent Status (SSE) ─────────────────────
+  var _rtStatus = useState(null);
+  var rtStatus = _rtStatus[0]; var setRtStatus = _rtStatus[1];
+
+  useEffect(function() {
+    // Fetch initial snapshot
+    engineCall('/agent-status/' + agentId).then(function(d) { setRtStatus(d); }).catch(function() {});
+
+    // Subscribe to real-time updates via SSE
+    var es = new EventSource('/api/engine/agent-status-stream?agentId=' + agentId);
+    es.onmessage = function(event) {
+      try {
+        var data = JSON.parse(event.data);
+        if (data.type === 'status') setRtStatus(data);
+      } catch {}
+    };
+    es.onerror = function() {
+      // Reconnect is automatic with EventSource
+    };
+    return function() { es.close(); };
+  }, [agentId]);
+
   // ─── Action Handlers ───────────────────────────────────
 
   var doAction = function(action) {
@@ -287,6 +309,48 @@ export function OverviewSection(props) {
       )
     ),
 
+    // ─── Real-Time Status Card ────────────────────────────
+    h('div', { className: 'card', style: { marginBottom: 20 } },
+      h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('span', null, 'Live Status'),
+        rtStatus ? h('span', {
+          className: 'badge badge-' + (rtStatus.status === 'online' ? 'success' : rtStatus.status === 'idle' ? 'info' : rtStatus.status === 'error' ? 'danger' : 'neutral'),
+          style: { textTransform: 'capitalize' }
+        }, rtStatus.status === 'online' ? I.check() : rtStatus.status === 'idle' ? I.clock() : '', ' ', rtStatus.status || 'unknown') : null
+      ),
+      h('div', { className: 'card-body' },
+        !rtStatus || rtStatus.status === 'offline'
+          ? h('div', { style: { textAlign: 'center', padding: 12, color: 'var(--text-muted)', fontSize: 13 } },
+              I.clock(), ' Agent is offline',
+              rtStatus && rtStatus.lastActivity && h('span', { style: { marginLeft: 8 } }, '(last active: ' + new Date(rtStatus.lastActivity).toLocaleString() + ')')
+            )
+          : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+              // Currently working on
+              rtStatus.currentActivity
+                ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                    h('div', {
+                      style: { width: 10, height: 10, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 2s infinite', flexShrink: 0 }
+                    }),
+                    h('div', null,
+                      h('div', { style: { fontWeight: 600, fontSize: 14 } }, 'Currently: ', rtStatus.currentActivity.detail || rtStatus.currentActivity.type),
+                      rtStatus.currentActivity.tool && h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Using: ', rtStatus.currentActivity.tool),
+                      h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Started: ', new Date(rtStatus.currentActivity.startedAt).toLocaleTimeString())
+                    )
+                  )
+                : h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                    h('div', { style: { width: 10, height: 10, borderRadius: '50%', background: 'var(--info)', flexShrink: 0 } }),
+                    h('div', { style: { fontSize: 14 } }, 'Idle — waiting for tasks')
+                  ),
+              // Stats row
+              h('div', { style: { display: 'flex', gap: 20, fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 10 } },
+                h('span', null, 'Sessions: ', h('strong', null, rtStatus.activeSessions || 0)),
+                rtStatus.onlineSince && h('span', null, 'Uptime: ', h('strong', null, _formatUptime(rtStatus.uptimeMs))),
+                rtStatus.lastHeartbeat && h('span', null, 'Last heartbeat: ', h('strong', null, _timeAgo(rtStatus.lastHeartbeat)))
+              )
+            )
+      )
+    ),
+
     // ─── Quick Actions Bar ──────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header' }, h('span', null, 'Quick Actions')),
@@ -425,5 +489,33 @@ export function OverviewSection(props) {
       )
     )
   );
+}
+
+function _formatUptime(ms) {
+  if (!ms) return '-';
+  var s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's';
+  var m = Math.floor(s / 60);
+  if (m < 60) return m + 'm';
+  var hr = Math.floor(m / 60);
+  if (hr < 24) return hr + 'h ' + (m % 60) + 'm';
+  return Math.floor(hr / 24) + 'd ' + (hr % 24) + 'h';
+}
+
+function _timeAgo(ts) {
+  if (!ts) return '-';
+  var diff = Date.now() - new Date(ts).getTime();
+  if (diff < 5000) return 'just now';
+  if (diff < 60000) return Math.floor(diff / 1000) + 's ago';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+  return Math.floor(diff / 3600000) + 'h ago';
+}
+
+// Inject pulse animation CSS if not already present
+if (typeof document !== 'undefined' && !document.getElementById('_pulse_css')) {
+  var style = document.createElement('style');
+  style.id = '_pulse_css';
+  style.textContent = '@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }';
+  document.head.appendChild(style);
 }
 

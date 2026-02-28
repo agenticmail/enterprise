@@ -439,6 +439,14 @@ export async function runAgentLoop(
         }
 
         console.log(`[agent-loop] 🔧 Executing tool: ${toolCall.name} (session: ${sessionId})`);
+
+        // Track tool start in real-time status
+        try {
+          const { agentStatus: _as, describeToolActivity: _dta } = await import('../engine/routes.js').then(r => ({ agentStatus: r.agentStatus, describeToolActivity: null }));
+          const { describeToolActivity: _dta2 } = await import('../engine/agent-status.js');
+          _as?.toolStart(config.agentId, toolCall.name, _dta2(toolCall.name));
+        } catch { /* non-blocking */ }
+
         var { result, content } = await executeTool(tool, effectiveToolCall, {
           timeoutMs: toolTimeout,
           signal: options.signal,
@@ -458,6 +466,12 @@ export async function runAgentLoop(
             tool: toolCall.name, success: !!result.success,
             durationMs: result.durationMs, error: result.error?.slice(0, 200),
           });
+        } catch { /* non-blocking */ }
+
+        // Track tool end in real-time status
+        try {
+          const { agentStatus: _as2 } = await import('../engine/routes.js');
+          _as2?.toolEnd(config.agentId);
         } catch { /* non-blocking */ }
 
         // Dynamic tool injection — request_tools returns new tools to add to the session

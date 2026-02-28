@@ -558,11 +558,19 @@ export async function runAgent(_args: string[]) {
       } catch { return null; }
     },
     knowledgeEngine: routes.knowledgeBase,
+    agentStatusTracker: routes.agentStatus,
     resumeOnStartup: false, // Disabled: zombie sessions exhaust Supabase pool on restart
   });
 
   await runtime.start();
   const runtimeApp = runtime.getApp();
+
+  // Send initial heartbeat to mark agent as online
+  routes.agentStatus.heartbeat(AGENT_ID);
+  // Store agent ID for periodic heartbeats
+  (runtime as any)._knownAgentIds = [AGENT_ID];
+  // Send heartbeat every 30s
+  setInterval(() => routes.agentStatus.heartbeat(AGENT_ID), 30_000).unref();
 
   // 7b. Initialize remaining shared singletons from routes.js so hooks work in standalone mode
   // Note: lifecycle was already initialized in step 4 (we use routes.lifecycle as the single instance)
