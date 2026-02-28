@@ -190,6 +190,8 @@ export async function runAgentLoop(
   var registry = new ToolRegistry();
   registry.register(config.tools);
   var toolDefs = toolsToDefinitions(config.tools);
+  // Expose tools globally for cross-tool calls (e.g., browser → meeting_join redirect)
+  (globalThis as any).__currentSessionTools = config.tools;
 
   // Initialize messages
   var messages: AgentMessage[] = [];
@@ -461,7 +463,10 @@ export async function runAgentLoop(
               added++;
             }
           }
-          if (added) console.log(`[agent-loop] Dynamically loaded ${added} new tools`);
+          if (added) {
+            console.log(`[agent-loop] Dynamically loaded ${added} new tools`);
+            (globalThis as any).__currentSessionTools = config.tools;
+          }
         }
 
         toolResults.push({

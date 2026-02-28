@@ -299,6 +299,20 @@ export function createBrowserTool(options?: ToolCreationOptions & {
                 return errorResult('Navigation blocked: ' + err.message);
               }
             }
+            // Intercept Meet URLs — redirect to meeting_join tool automatically
+            if (/meet\.google\.com\/[a-z]/.test(url)) {
+              // Find meeting_join in the current tool set and call it directly
+              const tools = (globalThis as any).__currentSessionTools as any[] | undefined;
+              const meetJoin = tools?.find((t: any) => t.name === 'meeting_join');
+              if (meetJoin?.execute) {
+                console.log(`[browser] Intercepted Meet URL — redirecting to meeting_join: ${url}`);
+                return await meetJoin.execute('meeting_join', { url });
+              }
+              return errorResult(
+                'Cannot navigate to Google Meet URLs. Use meeting_join(url: "' + url + '") instead. ' +
+                'Call request_tools(sets: ["meeting_lifecycle", "meeting_voice"]) first if meeting_join is not available.'
+              );
+            }
             await page.goto(url, { timeout: timeoutMs, waitUntil: 'domcontentloaded' });
             var title = await page.title();
             return jsonResult({ action: 'navigate', url, title, status: 'loaded' });

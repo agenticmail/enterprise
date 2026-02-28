@@ -416,10 +416,14 @@ export class AgentRuntime {
     var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext);
 
     // Context-aware tool loading — reuses session tool state (preserves dynamically loaded sets)
-    var _sessionContext = detectSessionContext({
-      systemPrompt: _systemPrompt,
-      isKeepAlive: this.keepAliveSessions.has(sessionId),
-    });
+    // Don't re-detect context for keep-alive sessions (meetings) — they stay in their original context
+    var _sessionContext: SessionContext | undefined;
+    if (!this.keepAliveSessions.has(sessionId)) {
+      _sessionContext = detectSessionContext({
+        systemPrompt: _systemPrompt,
+        isKeepAlive: false,
+      });
+    }
     var tools = await getToolsForSession(sessionId, this.buildToolOptions(session.agentId, sessionId), {
       context: _sessionContext,
       userMessage: message,

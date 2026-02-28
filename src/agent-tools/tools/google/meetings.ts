@@ -477,8 +477,12 @@ export function createMeetingTools(config: GoogleToolsConfig, _options?: ToolCre
               try {
                 await page.keyboard.press('d'); // open chat panel
                 await delay(1500);
-                const chatResult = await sendChatMessage(page, `Hi, I'm joining to take notes. I'll communicate via chat.`);
-                console.log(`[meeting-join:${agentId}] Intro chat: ${chatResult.sent ? 'sent' : 'failed'} (${chatResult.method})`);
+                // Only send chat intro if voice is NOT available — voice intro handles it
+                const voiceConfig = (_options as any)?.voiceConfig || {};
+                if (!voiceConfig.voiceId) {
+                  const chatResult = await sendChatMessage(page, `Hi, I'm joining to take notes. I'll communicate via chat.`);
+                  console.log(`[meeting-join:${agentId}] Intro chat: ${chatResult.sent ? 'sent' : 'failed'} (${chatResult.method})`);
+                }
               } catch {}
             }
 
@@ -537,11 +541,14 @@ export function createMeetingTools(config: GoogleToolsConfig, _options?: ToolCre
                         console.log(`[meeting-join:${agentId}] ✅ Admitted to meeting!`);
                         // Enable captions
                         try { await page.keyboard.press('c'); await delay(1000); } catch {}
-                        // Open chat + send intro
+                        // Open chat (skip intro message when voice is available)
                         try {
                           await page.keyboard.press('d');
                           await delay(1500);
-                          await sendChatMessage(page, `Hi, I'm joining to take notes. I'll communicate via chat.`);
+                          const voiceConfig = (_options as any)?.voiceConfig || {};
+                          if (!voiceConfig.voiceId) {
+                            await sendChatMessage(page, `Hi, I'm joining to take notes. I'll communicate via chat.`);
+                          }
                         } catch {}
                         // NOW start the monitor (safe — no concurrent loop issue)
                         try { await startMonitor(); } catch (e: any) {
@@ -588,8 +595,10 @@ export function createMeetingTools(config: GoogleToolsConfig, _options?: ToolCre
             // ─── Initialize Voice Intelligence (non-blocking) ───
             if (voiceStatus?.available) {
               const apiKey = await getApiKey();
+              console.log(`[meeting-join:${agentId}] Voice Intelligence: apiKey=${apiKey ? 'present' : 'MISSING'}`);
               if (apiKey) {
                 const { createMeetingVoiceIntelligence } = await import('../../../engine/meeting-voice-intelligence.js');
+                console.log(`[meeting-join:${agentId}] Creating Voice Intelligence instance...`);
                 const voiceIntel = createMeetingVoiceIntelligence({
                   agentId,
                   agentName: (_options as any)?.agentName || 'AI Assistant',
@@ -603,12 +612,7 @@ export function createMeetingTools(config: GoogleToolsConfig, _options?: ToolCre
                 // Pre-generate audio bank in background (non-blocking)
                 voiceIntel.initialize().then(result => {
                   console.log(`[meeting-join:${agentId}] Voice Intelligence: ${result.generated} audio clips ready (${result.durationMs}ms)`);
-                  // Play introduction after audio bank is ready
-                  if (result.generated > 0) {
-                    voiceIntel.introduce().then(played => {
-                      if (played) console.log(`[meeting-join:${agentId}] Introduction played`);
-                    }).catch(() => {});
-                  }
+                  // Voice intro disabled — let the agent speak naturally when addressed
                 }).catch(e => {
                   console.warn(`[meeting-join:${agentId}] Voice Intelligence init failed: ${e.message}`);
                 });

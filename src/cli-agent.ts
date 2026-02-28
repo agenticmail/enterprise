@@ -739,8 +739,13 @@ export async function runAgent(_args: string[]) {
             ctx.senderEmail,
           );
         } else {
+          // Expand recall query for join-intent messages so ambient memory finds meeting links
+          let recallQuery = ctx.messageText;
+          if (/\bjoin\b.*\b(meeting|call|again|back|meet)\b|\brejoin\b|\bget.*in.*meeting\b/i.test(recallQuery)) {
+            recallQuery += ' meeting link meet.google.com';
+          }
           ambientContext = await ambient.buildSessionContext(
-            ctx.messageText,
+            recallQuery,
             ctx.spaceId,
             ctx.spaceName,
             getToken,
@@ -798,7 +803,18 @@ export async function runAgent(_args: string[]) {
       }
 
       // Use messaging-specific session context for lean tool loading
-      const sessionContext = isMessagingSource ? ctx.source : undefined;
+      let sessionContext: string | undefined = isMessagingSource ? ctx.source : undefined;
+
+      // Auto-detect meeting context: if message + ambient context mentions a Meet URL or joining
+      if (!sessionContext) {
+        const fullContext = (ctx.messageText + ' ' + (ambientContext || '')).toLowerCase();
+        const hasMeetUrl = /meet\.google\.com\/[a-z]/.test(fullContext);
+        const hasJoinIntent = /\bjoin\b.*\b(meeting|call|again|back|meet)\b|\brejoin\b|\bget.*in.*meeting\b/i.test(fullContext);
+        if (hasMeetUrl || hasJoinIntent) {
+          sessionContext = 'meeting';
+          console.log(`[chat] Auto-detected meeting context (url=${hasMeetUrl}, intent=${hasJoinIntent}) — loading meeting tools from start`);
+        }
+      }
 
       const session = await runtime.spawnSession({
         agentId: AGENT_ID,

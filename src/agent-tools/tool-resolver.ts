@@ -559,8 +559,8 @@ const SIGNAL_RULES: SignalRule[] = [
   // Maps
   { patterns: [/\bmap\b/i, /\bdirection\b/i, /\bplace\b/i, /\brestaurant\b/i, /\bnearby\b/i, /\bgeocode\b/i, /\bdistance\b/i],
     sets: ['gws_maps'] },
-  // Meeting join
-  { patterns: [/\bjoin.*meeting\b/i, /\bmeeting.*join\b/i, /\bgoogle meet\b/i],
+  // Meeting join — broad patterns to catch casual phrasing
+  { patterns: [/\bjoin.*meeting\b/i, /\bmeeting.*join\b/i, /\bgoogle meet\b/i, /meet\.google\.com/i, /\bjoin.*call\b/i, /\bvideo.*call\b/i, /\bjoin.*meet\b/i, /\bjoin.*again\b/i, /\brejoin\b/i, /\bjoin back\b/i, /\bjoin the\b/i, /\bget.*in.*meeting\b/i],
     sets: ['meeting_lifecycle', 'meeting_voice'] },
   // Database
   { patterns: [/\bdatabase\b/i, /\bsql\b/i, /\bquery\b/i, /\bpostgres\b/i],

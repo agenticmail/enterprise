@@ -266,12 +266,26 @@ async function generateSpeech(
  * Pipes ElevenLabs stream → sox stdin → virtual audio device.
  * Audio starts playing within ~200ms of first chunk.
  */
+/** Active response players per agent — so voice intelligence can kill them on interruption */
+const activeResponsePlayers = new Map<string, import('child_process').ChildProcess>();
+
+export function killActiveResponsePlayer(agentId: string): boolean {
+  const player = activeResponsePlayers.get(agentId);
+  if (player) {
+    try { player.kill('SIGTERM'); } catch {}
+    activeResponsePlayers.delete(agentId);
+    return true;
+  }
+  return false;
+}
+
 async function streamSpeechToDevice(
   apiKey: string,
   text: string,
   voiceId: string,
   device: string,
-  options?: { stability?: number; similarity?: number; model?: string }
+  options?: { stability?: number; similarity?: number; model?: string },
+  agentId?: string,
 ): Promise<{ audioSize: number; durationMs: number }> {
   const { spawn } = await import('child_process');
   const platform = process.platform;
@@ -301,6 +315,16 @@ async function streamSpeechToDevice(
     timeout: 60_000,
   });
 
+  // Register so voice intelligence can kill on interruption
+  if (agentId) {
+    activeResponsePlayers.set(agentId, player);
+    // Use global registry so voice intelligence can find us without circular imports
+    (globalThis as any).__activeResponsePlayers = activeResponsePlayers;
+    player.on('close', () => {
+      activeResponsePlayers.delete(agentId);
+    });
+  }
+
   // Fetch TTS stream
   const fetchStart = Date.now();
   const res = await _fetchTTSStream(apiKey, text, voiceId, options);
@@ -310,6 +334,8 @@ async function streamSpeechToDevice(
   let firstChunk = true;
 
   // Pipe stream chunks directly to sox stdin
+  // Swallow EPIPE errors when sox is killed mid-stream (interruption)
+  player.stdin!.on('error', () => {});
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -319,15 +345,16 @@ async function streamSpeechToDevice(
         firstChunk = false;
       }
       totalBytes += value.length;
-      const canWrite = player.stdin!.write(Buffer.from(value));
-      if (!canWrite) {
-        // Backpressure — wait for drain
-        await new Promise<void>(resolve => player.stdin!.once('drain', resolve));
-      }
+      try {
+        const canWrite = player.stdin!.write(Buffer.from(value));
+        if (!canWrite) {
+          await new Promise<void>(resolve => player.stdin!.once('drain', resolve));
+        }
+      } catch { break; } // EPIPE — sox was killed (interruption)
     }
-    player.stdin!.end();
+    try { player.stdin!.end(); } catch {}
   } catch (e: any) {
-    player.kill();
+    try { player.kill(); } catch {}
     throw new Error(`Stream pipe failed: ${e.message}`);
   }
 
@@ -614,10 +641,28 @@ Tips:
             console.log(`[voice:${agentId}] Falling back to chat: ${reason}`);
             vcm.recordFailure(agentId);
 
+            // Shut down voice intelligence — stop hum, disable echo discard
+            try {
+              const { getActiveVoiceIntelligence } = await import('../../../engine/meeting-voice-intelligence.js');
+              const voiceIntel = getActiveVoiceIntelligence(agentId);
+              if (voiceIntel) {
+                voiceIntel.stopAll();
+                voiceIntel.shutdown();
+              }
+            } catch {}
+
             // Try to send via meeting chat using the browser
             try {
               const { ensureBrowser, sendChatMessage } = await import('./meetings.js');
               const { page } = await ensureBrowser(false, agentId, false);
+
+              // On first voice failure, announce mic issue in chat
+              if (!vcm._announcedChatFallback?.has(agentId)) {
+                if (!vcm._announcedChatFallback) (vcm as any)._announcedChatFallback = new Set();
+                vcm._announcedChatFallback.add(agentId);
+                await sendChatMessage(page, `Sorry, something is wrong with my microphone so I'll be responding via chat for now!`);
+              }
+
               const chatResult = await sendChatMessage(page, text);
               if (chatResult.sent) {
                 return jsonResult({
@@ -668,26 +713,31 @@ Tips:
             }
           }
 
-          // ─── Interrupt any running fillers before speaking actual response ───
+          // ─── Stop hum + mark speaking state for echo management ───
           try {
             const { getActiveVoiceIntelligence } = await import('../../../engine/meeting-voice-intelligence.js');
             const voiceIntel = getActiveVoiceIntelligence(agentId);
-            if (voiceIntel?.audioController?.isPlaying) {
-              voiceIntel.audioController.interrupt();
-              // Brief pause to let audio device reset
-              await new Promise(r => setTimeout(r, 200));
+            if (voiceIntel) {
+              voiceIntel.stopAll(); // Kill hum
+              await new Promise(r => setTimeout(r, 100));
+              voiceIntel.markSpeaking(text); // Monitor will now discard echo captions
             }
-          } catch {} // Voice intelligence not available — continue normally
+          } catch {}
 
           // ─── Stream TTS directly to audio device (near-zero latency) ───
           const device = config.audioDevice || status.audioDevice || 'BlackHole 2ch';
           try {
             const result = await streamSpeechToDevice(apiKey, text, voiceId, device, {
               model: params.model,
-            });
+            }, agentId);
 
             // ─── Success! ──────────────────────────────────
             vcm.recordSuccess(agentId);
+            // Mark done speaking — echo discard cooldown starts
+            try {
+              const { getActiveVoiceIntelligence: getVI } = await import('../../../engine/meeting-voice-intelligence.js');
+              getVI(agentId)?.markDoneSpeaking();
+            } catch {}
             return jsonResult({
               action: 'meeting_speak',
               status: 'spoken',
@@ -722,6 +772,11 @@ Tips:
                 streaming: false,
               });
             } catch (fileErr: any) {
+              // Mark done speaking before falling back to chat
+              try {
+                const { getActiveVoiceIntelligence: getVI } = await import('../../../engine/meeting-voice-intelligence.js');
+                getVI(agentId)?.markDoneSpeaking();
+              } catch {}
               return fallbackToChat(`Voice failed: ${streamErr.message}, file fallback: ${fileErr.message}`);
             }
           }
