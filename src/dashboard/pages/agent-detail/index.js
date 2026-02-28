@@ -111,8 +111,14 @@ export function AgentDetailPage(props) {
 
   return h(Fragment, null,
 
-    // ─── Header Bar ─────────────────────────────────────
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 } },
+    // ─── Header Bar (sticky) ────────────────────────────
+    h('div', { style: {
+      position: 'sticky', top: 0, zIndex: 20,
+      background: 'var(--bg)', borderBottom: '1px solid var(--border)',
+      padding: '16px 0', marginBottom: 0,
+      marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24,
+    } },
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: 16 } },
 
       // Back Button
       h('button', { className: 'btn btn-ghost btn-sm', onClick: onBack, title: 'Back to agents', style: { flexShrink: 0 } },
@@ -152,14 +158,22 @@ export function AgentDetailPage(props) {
         !isPaused && (state === 'running' || state === 'active') && h('button', { className: 'btn btn-secondary btn-sm', onClick: doPause }, I.pause(), ' Pause'),
         isPaused && h('button', { className: 'btn btn-secondary btn-sm', onClick: doResume }, I.play(), ' Resume')
       )
-    ),
+    ), // close header inner flex
+    ), // close header sticky wrapper
 
-    // ─── Tab Bar ────────────────────────────────────────
-    h('div', { className: 'tabs', style: { marginBottom: 20 } },
+    // ─── Tab Bar (sticky, scrollable) ───────────────────
+    h('div', { style: {
+      position: 'sticky', top: 77, zIndex: 19,
+      background: 'var(--bg)', borderBottom: '1px solid var(--border)',
+      marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24,
+      marginBottom: 20,
+    } },
+    h('div', { className: 'tabs', style: { marginBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } },
       TABS.map(function(t) {
         return h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: function() { setTab(t); } }, TAB_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1));
       })
     ),
+    ), // close tab bar sticky wrapper
 
     // ─── Tab Content ────────────────────────────────────
     tab === 'overview' && h(OverviewSection, { agentId: agentId, agent: agent, engineAgent: engineAgent, profile: profile, reload: load, agents: agents, onBack: onBack }),
