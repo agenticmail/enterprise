@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
+import { BrandLogo, SKILL_BRAND_MAP } from '../assets/brand-logos.js';
 
 export function CommunitySkillsPage() {
   const { toast, user } = useApp();
@@ -241,8 +242,12 @@ export function CommunitySkillsPage() {
     if (fn && typeof fn === 'function') return fn(size);
     return E.puzzle ? E.puzzle(size) : h('span', { style: { fontSize: size } }, '\ud83e\udde9');
   };
-  const skillIcon = (icon, size, category) => {
+  const skillIcon = (icon, size, category, skillId) => {
     size = size || 28;
+    // 1. Check brand logo map first (inline SVGs, always work)
+    var brandKey = skillId && SKILL_BRAND_MAP[skillId];
+    if (brandKey && BrandLogo[brandKey]) return BrandLogo[brandKey](size);
+    // 2. URL/data URI icons with fallback
     if (icon && (icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:'))) {
       return h('span', { style: { display: 'inline-flex' } },
         h('img', { src: icon, alt: '', style: { width: size, height: size, objectFit: 'contain', borderRadius: 6 },
@@ -251,7 +256,9 @@ export function CommunitySkillsPage() {
         h('span', { className: '_skill_fb', style: { display: 'none' } }, _catIcon(category, size))
       );
     }
+    // 3. Emoji character
     if (icon) return h('span', { style: { fontSize: size } }, icon);
+    // 4. Category fallback
     return _catIcon(category, size);
   };
 
@@ -287,7 +294,7 @@ export function CommunitySkillsPage() {
     s.verified && h('span', {
       style: { position: 'absolute', top: 8, right: 8, fontSize: 11, color: 'var(--brand-color)', fontWeight: 600 }
     }, '\u2713 Verified'),
-    h('div', { style: { marginBottom: 6 } }, skillIcon(s.icon, 28, s.category)),
+    h('div', { style: { marginBottom: 6 } }, skillIcon(s.icon, 28, s.category, s.id)),
     h('div', { className: 'skill-name' }, s.name),
     h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'by ' + s.author),
     h('div', { className: 'skill-desc' }, s.description),
@@ -387,7 +394,7 @@ export function CommunitySkillsPage() {
               return h('div', { key: update.id, className: 'card', style: { padding: 14 } },
                 h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
                   h('div', { style: { display: 'flex', gap: 12, alignItems: 'center' } },
-                    skillIcon(meta.icon || update.icon, 24),
+                    skillIcon(meta.icon || update.icon, 24, meta.category, update.skillId || meta.id),
                     h('div', null,
                       h('div', { style: { fontWeight: 600, fontSize: 14 } }, meta.name || update.skillName || update.skillId),
                       h('div', { style: { fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 } },
@@ -520,7 +527,7 @@ export function CommunitySkillsPage() {
           h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
             h('div', { style: { display: 'flex', gap: 12, alignItems: 'center' } },
               h('div', { style: { position: 'relative' } },
-                skillIcon(meta.icon, 24),
+                skillIcon(meta.icon, 24, meta.category, meta.id),
                 hasUpdate && h('span', {
                   style: {
                     position: 'absolute', top: -4, right: -4,
@@ -567,7 +574,7 @@ export function CommunitySkillsPage() {
       h('div', { className: 'modal', style: { width: 640, maxHeight: '80vh', overflow: 'auto' }, onClick: e => e.stopPropagation() },
         h('div', { className: 'modal-header' },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
-            skillIcon(detail.icon, 28, detail.category),
+            skillIcon(detail.icon, 28, detail.category, detail.id),
             h('div', null,
               h('h2', null, detail.name),
               h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'by ' + detail.author + ' \u00B7 v' + detail.version)
