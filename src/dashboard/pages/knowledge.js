@@ -16,6 +16,7 @@ export function KnowledgeBasePage() {
   const [editForm, setEditForm] = useState({ name: '', description: '' });
   const [loading, setLoading] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [importKb, setImportKb] = useState(null);
 
   const load = useCallback(() => {
     engineCall('/knowledge-bases').then(d => setKbs(d.knowledgeBases || [])).catch(() => {});
@@ -202,7 +203,7 @@ export function KnowledgeBasePage() {
       showImport && h(KnowledgeImportWizard, {
         kbId: selected.id,
         kbName: selected.name,
-        onClose: () => setShowImport(false),
+        onClose: () => { setShowImport(false); setImportKb(null); },
         onDone: () => selectKb(selected),
       }),
     );
@@ -237,10 +238,21 @@ export function KnowledgeBasePage() {
                 h('span', { className: 'badge badge-neutral' }, (kb.stats?.chunkCount || kb.stats?.chunks || kb.stats?.totalChunks || 0) + ' chunks'),
                 kb.agentIds && kb.agentIds.length > 0 && h('span', { className: 'badge badge-success' }, kb.agentIds.length + ' agent(s)')
               ),
-              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 8 } }, 'Click to view details \u2192')
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 } },
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Click to view details \u2192'),
+                h('button', { className: 'btn btn-sm', style: { fontSize: 11, padding: '3px 10px' }, onClick: (e) => { e.stopPropagation(); setImportKb(kb); setShowImport(true); } }, I.plus(), ' Import')
+              )
             )
           )
-        ))
+        )),
+
+    // Import wizard (from list view)
+    showImport && importKb && h(KnowledgeImportWizard, {
+      kbId: importKb.id,
+      kbName: importKb.name,
+      onClose: () => { setShowImport(false); setImportKb(null); },
+      onDone: () => load(),
+    }),
   );
 }
 
