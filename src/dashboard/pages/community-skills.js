@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 
 export function CommunitySkillsPage() {
   const { toast, user } = useApp();
@@ -230,12 +231,27 @@ export function CommunitySkillsPage() {
 
   const stars = (n) => '\u2605'.repeat(Math.round(n)) + '\u2606'.repeat(5 - Math.round(n));
 
-  const skillIcon = (icon, size) => {
+  const CATEGORY_ICONS = {
+    development: E.code, communication: E.chat, productivity: E.bolt, finance: E.barChart,
+    sales: E.people, analytics: E.barChart, devops: E.gear, security: E.shield, ai: E.brain,
+    infrastructure: E.server, monitoring: E.eye, marketing: E.megaphone, hr: E.people, design: E.palette,
+  };
+  const skillIcon = (icon, size, category) => {
     size = size || 28;
     if (icon && (icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:'))) {
-      return h('img', { src: icon, alt: '', style: { width: size, height: size, objectFit: 'contain', borderRadius: 6 } });
+      var fallbackHtml = category && CATEGORY_ICONS[category] ? CATEGORY_ICONS[category] : E.puzzle;
+      return h('span', null,
+        h('img', { src: icon, alt: '', style: { width: size, height: size, objectFit: 'contain', borderRadius: 6 },
+          onError: function(e) { e.target.style.display = 'none'; e.target.parentNode.querySelector('._skill_fb') && (e.target.parentNode.querySelector('._skill_fb').style.display = ''); }
+        }),
+        h('span', { className: '_skill_fb', style: { display: 'none', fontSize: size - 4 }, dangerouslySetInnerHTML: { __html: fallbackHtml } })
+      );
     }
-    return h('span', { style: { fontSize: size } }, icon || '\ud83e\udde9');
+    if (icon) return h('span', { style: { fontSize: size } }, icon);
+    // Category-based fallback
+    var fallback = category && CATEGORY_ICONS[category];
+    if (fallback) return h('span', { style: { fontSize: size - 4 }, dangerouslySetInnerHTML: { __html: fallback } });
+    return h('span', { style: { fontSize: size } }, '\ud83e\udde9');
   };
 
   var updateStatusColor = function(s) {
@@ -270,7 +286,7 @@ export function CommunitySkillsPage() {
     s.verified && h('span', {
       style: { position: 'absolute', top: 8, right: 8, fontSize: 11, color: 'var(--brand-color)', fontWeight: 600 }
     }, '\u2713 Verified'),
-    h('div', { style: { marginBottom: 6 } }, skillIcon(s.icon, 28)),
+    h('div', { style: { marginBottom: 6 } }, skillIcon(s.icon, 28, s.category)),
     h('div', { className: 'skill-name' }, s.name),
     h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'by ' + s.author),
     h('div', { className: 'skill-desc' }, s.description),
@@ -550,7 +566,7 @@ export function CommunitySkillsPage() {
       h('div', { className: 'modal', style: { width: 640, maxHeight: '80vh', overflow: 'auto' }, onClick: e => e.stopPropagation() },
         h('div', { className: 'modal-header' },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
-            skillIcon(detail.icon, 28),
+            skillIcon(detail.icon, 28, detail.category),
             h('div', null,
               h('h2', null, detail.name),
               h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'by ' + detail.author + ' \u00B7 v' + detail.version)
