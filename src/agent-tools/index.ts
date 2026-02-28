@@ -376,19 +376,28 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     }
   }
 
-  // MCP skill adapter bridge — loads tools for integrations with vault credentials
-  var mcpBridgeTools: AnyAgentTool[] = [];
+  // ─── Integration Tools (Slack, GitHub, Jira, Stripe, etc.) ───
+  // 144 integrations — only loads tools for services with vault credentials
+  var integrationTools: AnyAgentTool[] = [];
   if ((options as any)?.vault) {
     try {
-      var { createMcpBridgeTools } = await import('./tools/mcp-bridge.js');
-      mcpBridgeTools = await createMcpBridgeTools({
+      var { createAllIntegrationTools } = await import('./tools/integrations/index.js');
+      integrationTools = await createAllIntegrationTools({
         vault: (options as any).vault,
         orgId: (options as any)?.orgId,
         agentId: options?.agentId,
-        permissionEngine: (options as any)?.permissionEngine,
       });
+      // Register with permission engine so tools aren't blocked as "Unknown tool"
+      if ((options as any)?.permissionEngine && integrationTools.length > 0) {
+        const toolDefs = integrationTools.map(t => ({
+          id: t.name, name: t.name, description: t.description || t.name,
+          category: 'utility' as any, risk: 'medium' as any,
+          skillId: 'mcp-bridge', sideEffects: ['external_api'] as any[],
+        }));
+        (options as any).permissionEngine.registerDynamicTools('mcp-bridge', toolDefs);
+      }
     } catch (e: any) {
-      console.warn(`[tools] MCP bridge load failed: ${e.message}`);
+      console.warn(`[tools] Integration tools load failed: ${e.message}`);
     }
   }
 
@@ -413,7 +422,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     .concat(agenticmailTools)
     .concat(workspaceTools)
     .concat(enterpriseBrowserTools)
-    .concat(mcpBridgeTools)
+    .concat(integrationTools)
     .concat(messagingTools);
 
   // Wrap with middleware if configured

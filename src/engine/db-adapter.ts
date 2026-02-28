@@ -123,7 +123,57 @@ export class EngineDatabase {
       } catch { /* ignore */ }
     }
 
+    // Auto-seed community skills on first run or when empty
+    await this.seedCommunitySkills();
+
     return { applied: count, total: MIGRATIONS.length };
+  }
+
+  /**
+   * Seed community_skill_index with all MCP integration skills.
+   * Uses INSERT ... ON CONFLICT DO NOTHING so it's safe to re-run.
+   * Only seeds if the table has fewer entries than the seed data.
+   */
+  private async seedCommunitySkills(): Promise<void> {
+    try {
+      const countRow = await this.db.get<any>('SELECT COUNT(*) as c FROM community_skill_index');
+      const existingCount = countRow?.c || 0;
+
+      // Load seed data (compiled into dist by bundler)
+      const { SEED_SKILLS } = await import('../agent-tools/tools/integrations/_seed-data.js');
+      if (!SEED_SKILLS?.length) return;
+      await this._doSeed(SEED_SKILLS, existingCount);
+    } catch (e: any) {
+      console.warn(`[engine] Community skill seeding failed: ${e.message}`);
+    }
+  }
+
+  private async _doSeed(seedData: any[], existingCount: number): Promise<void> {
+    if (existingCount >= seedData.length) return; // Already seeded
+
+    let seeded = 0;
+    for (const skill of seedData) {
+      try {
+        const onConflict = this.dialect === 'postgres'
+          ? 'ON CONFLICT (id) DO NOTHING'
+          : 'ON CONFLICT(id) DO NOTHING';
+
+        await this.db.run(
+          `INSERT INTO community_skill_index (id, name, description, version, author, repository, license, category, risk, tags, tools, verified, featured)
+           VALUES (?, ?, ?, '1.0.0', 'agenticmail', 'https://github.com/agenticmail/enterprise', 'MIT', ?, 'medium', '[]', ?, 1, 0)
+           ${onConflict}`,
+          [
+            skill.id,
+            skill.name,
+            `${skill.name} integration — ${skill.toolCount} tools for ${skill.category} workflows`,
+            skill.category,
+            JSON.stringify(skill.tools),
+          ]
+        );
+        seeded++;
+      } catch { /* skip duplicates */ }
+    }
+    if (seeded > 0) console.log(`[engine] Seeded ${seeded} community skills (${seedData.length} total available)`);
   }
 
   /**

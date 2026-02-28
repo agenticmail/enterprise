@@ -1,0 +1,4548 @@
+[
+  {
+    "id": "activecampaign",
+    "name": "ActiveCampaign",
+    "category": "marketing",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "ac_list_contacts",
+        "name": "ac list contacts",
+        "description": "ac_list_contacts"
+      },
+      {
+        "id": "ac_create_contact",
+        "name": "ac create contact",
+        "description": "ac_create_contact"
+      },
+      {
+        "id": "ac_list_deals",
+        "name": "ac list deals",
+        "description": "ac_list_deals"
+      },
+      {
+        "id": "ac_list_automations",
+        "name": "ac list automations",
+        "description": "ac_list_automations"
+      },
+      {
+        "id": "ac_create_deal",
+        "name": "ac create deal",
+        "description": "ac_create_deal"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "adobe-sign",
+    "name": "Adobe Acrobat Sign",
+    "category": "design",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "adobesign_list_agreements",
+        "name": "adobesign list agreements",
+        "description": "adobesign_list_agreements"
+      },
+      {
+        "id": "adobesign_create_agreement",
+        "name": "adobesign create agreement",
+        "description": "adobesign_create_agreement"
+      },
+      {
+        "id": "adobesign_get_agreement",
+        "name": "adobesign get agreement",
+        "description": "adobesign_get_agreement"
+      },
+      {
+        "id": "adobesign_send_reminder",
+        "name": "adobesign send reminder",
+        "description": "adobesign_send_reminder"
+      },
+      {
+        "id": "adobesign_list_templates",
+        "name": "adobesign list templates",
+        "description": "adobesign_list_templates"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "adp",
+    "name": "ADP Workforce",
+    "category": "hr",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "adp_list_workers",
+        "name": "adp list workers",
+        "description": "adp_list_workers"
+      },
+      {
+        "id": "adp_get_worker",
+        "name": "adp get worker",
+        "description": "adp_get_worker"
+      },
+      {
+        "id": "adp_get_payroll",
+        "name": "adp get payroll",
+        "description": "adp_get_payroll"
+      },
+      {
+        "id": "adp_list_org_units",
+        "name": "adp list org units",
+        "description": "adp_list_org_units"
+      },
+      {
+        "id": "adp_get_benefits",
+        "name": "adp get benefits",
+        "description": "adp_get_benefits"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "airtable-bases",
+    "name": "Airtable",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "airtable_list_records",
+        "name": "airtable list records",
+        "description": "airtable_list_records"
+      },
+      {
+        "id": "airtable_create_record",
+        "name": "airtable create record",
+        "description": "airtable_create_record"
+      },
+      {
+        "id": "airtable_update_record",
+        "name": "airtable update record",
+        "description": "airtable_update_record"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "apollo-io",
+    "name": "Apollo.io Sales Intelligence",
+    "category": "crm",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "apollo_search_people",
+        "name": "apollo search people",
+        "description": "apollo_search_people"
+      },
+      {
+        "id": "apollo_enrich_person",
+        "name": "apollo enrich person",
+        "description": "apollo_enrich_person"
+      },
+      {
+        "id": "apollo_search_organizations",
+        "name": "apollo search organizations",
+        "description": "apollo_search_organizations"
+      },
+      {
+        "id": "apollo_create_contact",
+        "name": "apollo create contact",
+        "description": "apollo_create_contact"
+      },
+      {
+        "id": "apollo_list_sequences",
+        "name": "apollo list sequences",
+        "description": "apollo_list_sequences"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "asana-tasks",
+    "name": "Asana",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "asana_create_task",
+        "name": "asana create task",
+        "description": "asana_create_task"
+      },
+      {
+        "id": "asana_list_tasks",
+        "name": "asana list tasks",
+        "description": "asana_list_tasks"
+      },
+      {
+        "id": "asana_update_task",
+        "name": "asana update task",
+        "description": "asana_update_task"
+      },
+      {
+        "id": "asana_list_projects",
+        "name": "asana list projects",
+        "description": "asana_list_projects"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "auth0",
+    "name": "Auth0",
+    "category": "security",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "auth0_list_users",
+        "name": "auth0 list users",
+        "description": "auth0_list_users"
+      },
+      {
+        "id": "auth0_get_user",
+        "name": "auth0 get user",
+        "description": "auth0_get_user"
+      },
+      {
+        "id": "auth0_list_connections",
+        "name": "auth0 list connections",
+        "description": "auth0_list_connections"
+      },
+      {
+        "id": "auth0_list_clients",
+        "name": "auth0 list clients",
+        "description": "auth0_list_clients"
+      },
+      {
+        "id": "auth0_block_user",
+        "name": "auth0 block user",
+        "description": "auth0_block_user"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "aws-services",
+    "name": "AWS Services",
+    "category": "infrastructure",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "aws_list_s3_buckets",
+        "name": "aws list s3 buckets",
+        "description": "aws_list_s3_buckets"
+      },
+      {
+        "id": "aws_list_lambda_functions",
+        "name": "aws list lambda functions",
+        "description": "aws_list_lambda_functions"
+      },
+      {
+        "id": "aws_invoke_lambda",
+        "name": "aws invoke lambda",
+        "description": "aws_invoke_lambda"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "azure-devops",
+    "name": "Azure DevOps",
+    "category": "devops",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "azdo_list_projects",
+        "name": "azdo list projects",
+        "description": "azdo_list_projects"
+      },
+      {
+        "id": "azdo_list_work_items",
+        "name": "azdo list work items",
+        "description": "azdo_list_work_items"
+      },
+      {
+        "id": "azdo_create_work_item",
+        "name": "azdo create work item",
+        "description": "azdo_create_work_item"
+      },
+      {
+        "id": "azdo_list_repos",
+        "name": "azdo list repos",
+        "description": "azdo_list_repos"
+      },
+      {
+        "id": "azdo_list_pipelines",
+        "name": "azdo list pipelines",
+        "description": "azdo_list_pipelines"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "bamboohr",
+    "name": "BambooHR",
+    "category": "hr",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "bamboohr_list_employees",
+        "name": "bamboohr list employees",
+        "description": "bamboohr_list_employees"
+      },
+      {
+        "id": "bamboohr_get_employee",
+        "name": "bamboohr get employee",
+        "description": "bamboohr_get_employee"
+      },
+      {
+        "id": "bamboohr_get_directory",
+        "name": "bamboohr get directory",
+        "description": "bamboohr_get_directory"
+      },
+      {
+        "id": "bamboohr_request_time_off",
+        "name": "bamboohr request time off",
+        "description": "bamboohr_request_time_off"
+      },
+      {
+        "id": "bamboohr_list_time_off",
+        "name": "bamboohr list time off",
+        "description": "bamboohr_list_time_off"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "basecamp",
+    "name": "Basecamp",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "basecamp_list_projects",
+        "name": "basecamp list projects",
+        "description": "basecamp_list_projects"
+      },
+      {
+        "id": "basecamp_list_todos",
+        "name": "basecamp list todos",
+        "description": "basecamp_list_todos"
+      },
+      {
+        "id": "basecamp_create_todo",
+        "name": "basecamp create todo",
+        "description": "basecamp_create_todo"
+      },
+      {
+        "id": "basecamp_list_messages",
+        "name": "basecamp list messages",
+        "description": "basecamp_list_messages"
+      },
+      {
+        "id": "basecamp_create_message",
+        "name": "basecamp create message",
+        "description": "basecamp_create_message"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "bigcommerce",
+    "name": "BigCommerce",
+    "category": "ecommerce",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "bc_list_products",
+        "name": "bc list products",
+        "description": "bc_list_products"
+      },
+      {
+        "id": "bc_create_product",
+        "name": "bc create product",
+        "description": "bc_create_product"
+      },
+      {
+        "id": "bc_list_orders",
+        "name": "bc list orders",
+        "description": "bc_list_orders"
+      },
+      {
+        "id": "bc_list_customers",
+        "name": "bc list customers",
+        "description": "bc_list_customers"
+      },
+      {
+        "id": "bc_get_store_info",
+        "name": "bc get store info",
+        "description": "bc_get_store_info"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "bitbucket-repos",
+    "name": "Bitbucket",
+    "category": "devops",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "bitbucket_list_repos",
+        "name": "bitbucket list repos",
+        "description": "bitbucket_list_repos"
+      },
+      {
+        "id": "bitbucket_create_pull_request",
+        "name": "bitbucket create pull request",
+        "description": "bitbucket_create_pull_request"
+      },
+      {
+        "id": "bitbucket_list_pull_requests",
+        "name": "bitbucket list pull requests",
+        "description": "bitbucket_list_pull_requests"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "box",
+    "name": "Box",
+    "category": "design",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "box_list_files",
+        "name": "box list files",
+        "description": "box_list_files"
+      },
+      {
+        "id": "box_get_file",
+        "name": "box get file",
+        "description": "box_get_file"
+      },
+      {
+        "id": "box_upload_file",
+        "name": "box upload file",
+        "description": "box_upload_file"
+      },
+      {
+        "id": "box_search",
+        "name": "box search",
+        "description": "box_search"
+      },
+      {
+        "id": "box_create_folder",
+        "name": "box create folder",
+        "description": "box_create_folder"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "brex",
+    "name": "Brex",
+    "category": "finance",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "brex_list_transactions",
+        "name": "brex list transactions",
+        "description": "brex_list_transactions"
+      },
+      {
+        "id": "brex_list_cards",
+        "name": "brex list cards",
+        "description": "brex_list_cards"
+      },
+      {
+        "id": "brex_list_users",
+        "name": "brex list users",
+        "description": "brex_list_users"
+      },
+      {
+        "id": "brex_get_account",
+        "name": "brex get account",
+        "description": "brex_get_account"
+      },
+      {
+        "id": "brex_list_vendors",
+        "name": "brex list vendors",
+        "description": "brex_list_vendors"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "buffer",
+    "name": "Buffer Social Media",
+    "category": "marketing",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "buffer_list_profiles",
+        "name": "buffer list profiles",
+        "description": "buffer_list_profiles"
+      },
+      {
+        "id": "buffer_create_update",
+        "name": "buffer create update",
+        "description": "buffer_create_update"
+      },
+      {
+        "id": "buffer_list_updates",
+        "name": "buffer list updates",
+        "description": "buffer_list_updates"
+      },
+      {
+        "id": "buffer_get_analytics",
+        "name": "buffer get analytics",
+        "description": "buffer_get_analytics"
+      },
+      {
+        "id": "buffer_shuffle_queue",
+        "name": "buffer shuffle queue",
+        "description": "buffer_shuffle_queue"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "calendly",
+    "name": "Calendly",
+    "category": "communication",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "calendly_list_events",
+        "name": "calendly list events",
+        "description": "calendly_list_events"
+      },
+      {
+        "id": "calendly_get_event",
+        "name": "calendly get event",
+        "description": "calendly_get_event"
+      },
+      {
+        "id": "calendly_list_event_types",
+        "name": "calendly list event types",
+        "description": "calendly_list_event_types"
+      },
+      {
+        "id": "calendly_cancel_event",
+        "name": "calendly cancel event",
+        "description": "calendly_cancel_event"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "canva-design",
+    "name": "Canva",
+    "category": "design",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "canva_list_designs",
+        "name": "canva list designs",
+        "description": "canva_list_designs"
+      },
+      {
+        "id": "canva_get_design",
+        "name": "canva get design",
+        "description": "canva_get_design"
+      },
+      {
+        "id": "canva_create_design",
+        "name": "canva create design",
+        "description": "canva_create_design"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "chargebee",
+    "name": "Chargebee",
+    "category": "finance",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "chargebee_list_subscriptions",
+        "name": "chargebee list subscriptions",
+        "description": "chargebee_list_subscriptions"
+      },
+      {
+        "id": "chargebee_create_subscription",
+        "name": "chargebee create subscription",
+        "description": "chargebee_create_subscription"
+      },
+      {
+        "id": "chargebee_list_customers",
+        "name": "chargebee list customers",
+        "description": "chargebee_list_customers"
+      },
+      {
+        "id": "chargebee_list_invoices",
+        "name": "chargebee list invoices",
+        "description": "chargebee_list_invoices"
+      },
+      {
+        "id": "chargebee_cancel_subscription",
+        "name": "chargebee cancel subscription",
+        "description": "chargebee_cancel_subscription"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "circleci-pipelines",
+    "name": "CircleCI",
+    "category": "devops",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "circleci_list_pipelines",
+        "name": "circleci list pipelines",
+        "description": "circleci_list_pipelines"
+      },
+      {
+        "id": "circleci_get_pipeline",
+        "name": "circleci get pipeline",
+        "description": "circleci_get_pipeline"
+      },
+      {
+        "id": "circleci_trigger_pipeline",
+        "name": "circleci trigger pipeline",
+        "description": "circleci_trigger_pipeline"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "clickup",
+    "name": "ClickUp",
+    "category": "productivity",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "clickup_list_tasks",
+        "name": "clickup list tasks",
+        "description": "clickup_list_tasks"
+      },
+      {
+        "id": "clickup_create_task",
+        "name": "clickup create task",
+        "description": "clickup_create_task"
+      },
+      {
+        "id": "clickup_update_task",
+        "name": "clickup update task",
+        "description": "clickup_update_task"
+      },
+      {
+        "id": "clickup_list_spaces",
+        "name": "clickup list spaces",
+        "description": "clickup_list_spaces"
+      },
+      {
+        "id": "clickup_list_lists",
+        "name": "clickup list lists",
+        "description": "clickup_list_lists"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "close-crm",
+    "name": "Close CRM",
+    "category": "crm",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "close_list_leads",
+        "name": "close list leads",
+        "description": "close_list_leads"
+      },
+      {
+        "id": "close_create_lead",
+        "name": "close create lead",
+        "description": "close_create_lead"
+      },
+      {
+        "id": "close_search_leads",
+        "name": "close search leads",
+        "description": "close_search_leads"
+      },
+      {
+        "id": "close_create_activity",
+        "name": "close create activity",
+        "description": "close_create_activity"
+      },
+      {
+        "id": "close_list_opportunities",
+        "name": "close list opportunities",
+        "description": "close_list_opportunities"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "cloudflare-cdn",
+    "name": "Cloudflare",
+    "category": "infrastructure",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "cloudflare_list_zones",
+        "name": "cloudflare list zones",
+        "description": "cloudflare_list_zones"
+      },
+      {
+        "id": "cloudflare_list_dns_records",
+        "name": "cloudflare list dns records",
+        "description": "cloudflare_list_dns_records"
+      },
+      {
+        "id": "cloudflare_create_dns_record",
+        "name": "cloudflare create dns record",
+        "description": "cloudflare_create_dns_record"
+      },
+      {
+        "id": "cloudflare_purge_cache",
+        "name": "cloudflare purge cache",
+        "description": "cloudflare_purge_cache"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "confluence-wiki",
+    "name": "Confluence",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "confluence_search",
+        "name": "confluence search",
+        "description": "confluence_search"
+      },
+      {
+        "id": "confluence_get_page",
+        "name": "confluence get page",
+        "description": "confluence_get_page"
+      },
+      {
+        "id": "confluence_create_page",
+        "name": "confluence create page",
+        "description": "confluence_create_page"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "contentful",
+    "name": "Contentful CMS",
+    "category": "marketing",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "contentful_list_entries",
+        "name": "contentful list entries",
+        "description": "contentful_list_entries"
+      },
+      {
+        "id": "contentful_get_entry",
+        "name": "contentful get entry",
+        "description": "contentful_get_entry"
+      },
+      {
+        "id": "contentful_create_entry",
+        "name": "contentful create entry",
+        "description": "contentful_create_entry"
+      },
+      {
+        "id": "contentful_list_content_types",
+        "name": "contentful list content types",
+        "description": "contentful_list_content_types"
+      },
+      {
+        "id": "contentful_publish_entry",
+        "name": "contentful publish entry",
+        "description": "contentful_publish_entry"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "copper-crm",
+    "name": "Copper CRM",
+    "category": "crm",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "copper_list_people",
+        "name": "copper list people",
+        "description": "copper_list_people"
+      },
+      {
+        "id": "copper_create_person",
+        "name": "copper create person",
+        "description": "copper_create_person"
+      },
+      {
+        "id": "copper_search_leads",
+        "name": "copper search leads",
+        "description": "copper_search_leads"
+      },
+      {
+        "id": "copper_list_opportunities",
+        "name": "copper list opportunities",
+        "description": "copper_list_opportunities"
+      },
+      {
+        "id": "copper_create_task",
+        "name": "copper create task",
+        "description": "copper_create_task"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "crisp",
+    "name": "Crisp Chat",
+    "category": "communication",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "crisp_list_conversations",
+        "name": "crisp list conversations",
+        "description": "crisp_list_conversations"
+      },
+      {
+        "id": "crisp_send_message",
+        "name": "crisp send message",
+        "description": "crisp_send_message"
+      },
+      {
+        "id": "crisp_get_conversation",
+        "name": "crisp get conversation",
+        "description": "crisp_get_conversation"
+      },
+      {
+        "id": "crisp_list_people",
+        "name": "crisp list people",
+        "description": "crisp_list_people"
+      },
+      {
+        "id": "crisp_update_conversation",
+        "name": "crisp update conversation",
+        "description": "crisp_update_conversation"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "crowdstrike",
+    "name": "CrowdStrike",
+    "category": "security",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "cs_list_detections",
+        "name": "cs list detections",
+        "description": "cs_list_detections"
+      },
+      {
+        "id": "cs_get_detection",
+        "name": "cs get detection",
+        "description": "cs_get_detection"
+      },
+      {
+        "id": "cs_list_hosts",
+        "name": "cs list hosts",
+        "description": "cs_list_hosts"
+      },
+      {
+        "id": "cs_contain_host",
+        "name": "cs contain host",
+        "description": "cs_contain_host"
+      },
+      {
+        "id": "cs_search_iocs",
+        "name": "cs search iocs",
+        "description": "cs_search_iocs"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "datadog-monitoring",
+    "name": "Datadog",
+    "category": "monitoring",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "datadog_list_monitors",
+        "name": "datadog list monitors",
+        "description": "datadog_list_monitors"
+      },
+      {
+        "id": "datadog_get_monitor",
+        "name": "datadog get monitor",
+        "description": "datadog_get_monitor"
+      },
+      {
+        "id": "datadog_query_metrics",
+        "name": "datadog query metrics",
+        "description": "datadog_query_metrics"
+      },
+      {
+        "id": "datadog_list_events",
+        "name": "datadog list events",
+        "description": "datadog_list_events"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "digitalocean",
+    "name": "DigitalOcean",
+    "category": "infrastructure",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "do_list_droplets",
+        "name": "do list droplets",
+        "description": "do_list_droplets"
+      },
+      {
+        "id": "do_create_droplet",
+        "name": "do create droplet",
+        "description": "do_create_droplet"
+      },
+      {
+        "id": "do_list_databases",
+        "name": "do list databases",
+        "description": "do_list_databases"
+      },
+      {
+        "id": "do_list_domains",
+        "name": "do list domains",
+        "description": "do_list_domains"
+      },
+      {
+        "id": "do_get_account",
+        "name": "do get account",
+        "description": "do_get_account"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "discord",
+    "name": "Discord",
+    "category": "communication",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "discord_send_message",
+        "name": "discord send message",
+        "description": "discord_send_message"
+      },
+      {
+        "id": "discord_list_channels",
+        "name": "discord list channels",
+        "description": "discord_list_channels"
+      },
+      {
+        "id": "discord_create_channel",
+        "name": "discord create channel",
+        "description": "discord_create_channel"
+      },
+      {
+        "id": "discord_get_guild",
+        "name": "discord get guild",
+        "description": "discord_get_guild"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "docker-containers",
+    "name": "Docker Hub",
+    "category": "devops",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "docker_search_images",
+        "name": "docker search images",
+        "description": "docker_search_images"
+      },
+      {
+        "id": "docker_list_repos",
+        "name": "docker list repos",
+        "description": "docker_list_repos"
+      },
+      {
+        "id": "docker_list_tags",
+        "name": "docker list tags",
+        "description": "docker_list_tags"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "docusign-esign",
+    "name": "DocuSign",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "docusign_list_envelopes",
+        "name": "docusign list envelopes",
+        "description": "docusign_list_envelopes"
+      },
+      {
+        "id": "docusign_get_envelope",
+        "name": "docusign get envelope",
+        "description": "docusign_get_envelope"
+      },
+      {
+        "id": "docusign_send_envelope",
+        "name": "docusign send envelope",
+        "description": "docusign_send_envelope"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "drift",
+    "name": "Drift Conversational Marketing",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "drift_list_conversations",
+        "name": "drift list conversations",
+        "description": "drift_list_conversations"
+      },
+      {
+        "id": "drift_send_message",
+        "name": "drift send message",
+        "description": "drift_send_message"
+      },
+      {
+        "id": "drift_list_contacts",
+        "name": "drift list contacts",
+        "description": "drift_list_contacts"
+      },
+      {
+        "id": "drift_get_conversation",
+        "name": "drift get conversation",
+        "description": "drift_get_conversation"
+      },
+      {
+        "id": "drift_create_contact",
+        "name": "drift create contact",
+        "description": "drift_create_contact"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "dropbox-storage",
+    "name": "Dropbox",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "dropbox_list_folder",
+        "name": "dropbox list folder",
+        "description": "dropbox_list_folder"
+      },
+      {
+        "id": "dropbox_search",
+        "name": "dropbox search",
+        "description": "dropbox_search"
+      },
+      {
+        "id": "dropbox_create_folder",
+        "name": "dropbox create folder",
+        "description": "dropbox_create_folder"
+      },
+      {
+        "id": "dropbox_upload_file",
+        "name": "dropbox upload file",
+        "description": "dropbox_upload_file"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "figma-design",
+    "name": "Figma",
+    "category": "design",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "figma_get_file",
+        "name": "figma get file",
+        "description": "figma_get_file"
+      },
+      {
+        "id": "figma_list_projects",
+        "name": "figma list projects",
+        "description": "figma_list_projects"
+      },
+      {
+        "id": "figma_get_comments",
+        "name": "figma get comments",
+        "description": "figma_get_comments"
+      },
+      {
+        "id": "figma_post_comment",
+        "name": "figma post comment",
+        "description": "figma_post_comment"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "firebase",
+    "name": "Firebase",
+    "category": "data-ai",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "firebase_list_documents",
+        "name": "firebase list documents",
+        "description": "firebase_list_documents"
+      },
+      {
+        "id": "firebase_get_document",
+        "name": "firebase get document",
+        "description": "firebase_get_document"
+      },
+      {
+        "id": "firebase_create_document",
+        "name": "firebase create document",
+        "description": "firebase_create_document"
+      },
+      {
+        "id": "firebase_update_document",
+        "name": "firebase update document",
+        "description": "firebase_update_document"
+      },
+      {
+        "id": "firebase_query",
+        "name": "firebase query",
+        "description": "firebase_query"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "flyio",
+    "name": "Fly.io",
+    "category": "infrastructure",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "fly_list_apps",
+        "name": "fly list apps",
+        "description": "fly_list_apps"
+      },
+      {
+        "id": "fly_get_app",
+        "name": "fly get app",
+        "description": "fly_get_app"
+      },
+      {
+        "id": "fly_list_machines",
+        "name": "fly list machines",
+        "description": "fly_list_machines"
+      },
+      {
+        "id": "fly_start_machine",
+        "name": "fly start machine",
+        "description": "fly_start_machine"
+      },
+      {
+        "id": "fly_stop_machine",
+        "name": "fly stop machine",
+        "description": "fly_stop_machine"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "freshbooks",
+    "name": "FreshBooks",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "freshbooks_list_clients",
+        "name": "freshbooks list clients",
+        "description": "freshbooks_list_clients"
+      },
+      {
+        "id": "freshbooks_create_invoice",
+        "name": "freshbooks create invoice",
+        "description": "freshbooks_create_invoice"
+      },
+      {
+        "id": "freshbooks_list_invoices",
+        "name": "freshbooks list invoices",
+        "description": "freshbooks_list_invoices"
+      },
+      {
+        "id": "freshbooks_list_expenses",
+        "name": "freshbooks list expenses",
+        "description": "freshbooks_list_expenses"
+      },
+      {
+        "id": "freshbooks_get_profit_loss",
+        "name": "freshbooks get profit loss",
+        "description": "freshbooks_get_profit_loss"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "freshdesk",
+    "name": "Freshdesk Support",
+    "category": "crm",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "freshdesk_list_tickets",
+        "name": "freshdesk list tickets",
+        "description": "freshdesk_list_tickets"
+      },
+      {
+        "id": "freshdesk_create_ticket",
+        "name": "freshdesk create ticket",
+        "description": "freshdesk_create_ticket"
+      },
+      {
+        "id": "freshdesk_update_ticket",
+        "name": "freshdesk update ticket",
+        "description": "freshdesk_update_ticket"
+      },
+      {
+        "id": "freshdesk_list_contacts",
+        "name": "freshdesk list contacts",
+        "description": "freshdesk_list_contacts"
+      },
+      {
+        "id": "freshdesk_add_reply",
+        "name": "freshdesk add reply",
+        "description": "freshdesk_add_reply"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "freshsales",
+    "name": "Freshsales CRM",
+    "category": "crm",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "freshsales_list_contacts",
+        "name": "freshsales list contacts",
+        "description": "freshsales_list_contacts"
+      },
+      {
+        "id": "freshsales_create_contact",
+        "name": "freshsales create contact",
+        "description": "freshsales_create_contact"
+      },
+      {
+        "id": "freshsales_list_deals",
+        "name": "freshsales list deals",
+        "description": "freshsales_list_deals"
+      },
+      {
+        "id": "freshsales_create_deal",
+        "name": "freshsales create deal",
+        "description": "freshsales_create_deal"
+      },
+      {
+        "id": "freshsales_search",
+        "name": "freshsales search",
+        "description": "freshsales_search"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "freshservice",
+    "name": "Freshservice ITSM",
+    "category": "general",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "fs_list_tickets",
+        "name": "fs list tickets",
+        "description": "fs_list_tickets"
+      },
+      {
+        "id": "fs_create_ticket",
+        "name": "fs create ticket",
+        "description": "fs_create_ticket"
+      },
+      {
+        "id": "fs_update_ticket",
+        "name": "fs update ticket",
+        "description": "fs_update_ticket"
+      },
+      {
+        "id": "fs_list_assets",
+        "name": "fs list assets",
+        "description": "fs_list_assets"
+      },
+      {
+        "id": "fs_list_changes",
+        "name": "fs list changes",
+        "description": "fs_list_changes"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "front",
+    "name": "Front",
+    "category": "communication",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "front_list_conversations",
+        "name": "front list conversations",
+        "description": "front_list_conversations"
+      },
+      {
+        "id": "front_send_reply",
+        "name": "front send reply",
+        "description": "front_send_reply"
+      },
+      {
+        "id": "front_list_inboxes",
+        "name": "front list inboxes",
+        "description": "front_list_inboxes"
+      },
+      {
+        "id": "front_assign_conversation",
+        "name": "front assign conversation",
+        "description": "front_assign_conversation"
+      },
+      {
+        "id": "front_tag_conversation",
+        "name": "front tag conversation",
+        "description": "front_tag_conversation"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "github-actions",
+    "name": "GitHub Actions",
+    "category": "devops",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "actions_list_workflows",
+        "name": "actions list workflows",
+        "description": "actions_list_workflows"
+      },
+      {
+        "id": "actions_trigger_workflow",
+        "name": "actions trigger workflow",
+        "description": "actions_trigger_workflow"
+      },
+      {
+        "id": "actions_list_runs",
+        "name": "actions list runs",
+        "description": "actions_list_runs"
+      },
+      {
+        "id": "actions_get_run",
+        "name": "actions get run",
+        "description": "actions_get_run"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "github",
+    "name": "GitHub",
+    "category": "devops",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "github_create_issue",
+        "name": "github create issue",
+        "description": "github_create_issue"
+      },
+      {
+        "id": "github_list_issues",
+        "name": "github list issues",
+        "description": "github_list_issues"
+      },
+      {
+        "id": "github_update_issue",
+        "name": "github update issue",
+        "description": "github_update_issue"
+      },
+      {
+        "id": "github_create_pull_request",
+        "name": "github create pull request",
+        "description": "github_create_pull_request"
+      },
+      {
+        "id": "github_list_repos",
+        "name": "github list repos",
+        "description": "github_list_repos"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "gitlab-ci",
+    "name": "GitLab",
+    "category": "devops",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "gitlab_create_issue",
+        "name": "gitlab create issue",
+        "description": "gitlab_create_issue"
+      },
+      {
+        "id": "gitlab_list_issues",
+        "name": "gitlab list issues",
+        "description": "gitlab_list_issues"
+      },
+      {
+        "id": "gitlab_list_projects",
+        "name": "gitlab list projects",
+        "description": "gitlab_list_projects"
+      },
+      {
+        "id": "gitlab_list_pipelines",
+        "name": "gitlab list pipelines",
+        "description": "gitlab_list_pipelines"
+      },
+      {
+        "id": "gitlab_trigger_pipeline",
+        "name": "gitlab trigger pipeline",
+        "description": "gitlab_trigger_pipeline"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "gong",
+    "name": "Gong Revenue Intelligence",
+    "category": "crm",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "gong_list_calls",
+        "name": "gong list calls",
+        "description": "gong_list_calls"
+      },
+      {
+        "id": "gong_get_call",
+        "name": "gong get call",
+        "description": "gong_get_call"
+      },
+      {
+        "id": "gong_get_call_transcript",
+        "name": "gong get call transcript",
+        "description": "gong_get_call_transcript"
+      },
+      {
+        "id": "gong_list_users",
+        "name": "gong list users",
+        "description": "gong_list_users"
+      },
+      {
+        "id": "gong_search_calls",
+        "name": "gong search calls",
+        "description": "gong_search_calls"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "google-ads",
+    "name": "Google Ads",
+    "category": "marketing",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "google_ads_list_campaigns",
+        "name": "google ads list campaigns",
+        "description": "google_ads_list_campaigns"
+      },
+      {
+        "id": "google_ads_get_campaign",
+        "name": "google ads get campaign",
+        "description": "google_ads_get_campaign"
+      },
+      {
+        "id": "google_ads_list_ad_groups",
+        "name": "google ads list ad groups",
+        "description": "google_ads_list_ad_groups"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "google-analytics",
+    "name": "Google Analytics",
+    "category": "monitoring",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "ga_run_report",
+        "name": "ga run report",
+        "description": "ga_run_report"
+      },
+      {
+        "id": "ga_get_realtime",
+        "name": "ga get realtime",
+        "description": "ga_get_realtime"
+      },
+      {
+        "id": "ga_list_properties",
+        "name": "ga list properties",
+        "description": "ga_list_properties"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "google-cloud",
+    "name": "Google Cloud Platform",
+    "category": "infrastructure",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "gcloud_list_projects",
+        "name": "gcloud list projects",
+        "description": "gcloud_list_projects"
+      },
+      {
+        "id": "gcloud_list_instances",
+        "name": "gcloud list instances",
+        "description": "gcloud_list_instances"
+      },
+      {
+        "id": "gcloud_list_functions",
+        "name": "gcloud list functions",
+        "description": "gcloud_list_functions"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "gotomeeting",
+    "name": "GoTo Meeting",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "goto_list_meetings",
+        "name": "goto list meetings",
+        "description": "goto_list_meetings"
+      },
+      {
+        "id": "goto_create_meeting",
+        "name": "goto create meeting",
+        "description": "goto_create_meeting"
+      },
+      {
+        "id": "goto_get_meeting",
+        "name": "goto get meeting",
+        "description": "goto_get_meeting"
+      },
+      {
+        "id": "goto_delete_meeting",
+        "name": "goto delete meeting",
+        "description": "goto_delete_meeting"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "grafana",
+    "name": "Grafana",
+    "category": "monitoring",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "grafana_list_dashboards",
+        "name": "grafana list dashboards",
+        "description": "grafana_list_dashboards"
+      },
+      {
+        "id": "grafana_get_dashboard",
+        "name": "grafana get dashboard",
+        "description": "grafana_get_dashboard"
+      },
+      {
+        "id": "grafana_list_alerts",
+        "name": "grafana list alerts",
+        "description": "grafana_list_alerts"
+      },
+      {
+        "id": "grafana_list_datasources",
+        "name": "grafana list datasources",
+        "description": "grafana_list_datasources"
+      },
+      {
+        "id": "grafana_search",
+        "name": "grafana search",
+        "description": "grafana_search"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "greenhouse",
+    "name": "Greenhouse Recruiting",
+    "category": "hr",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "greenhouse_list_candidates",
+        "name": "greenhouse list candidates",
+        "description": "greenhouse_list_candidates"
+      },
+      {
+        "id": "greenhouse_get_candidate",
+        "name": "greenhouse get candidate",
+        "description": "greenhouse_get_candidate"
+      },
+      {
+        "id": "greenhouse_list_jobs",
+        "name": "greenhouse list jobs",
+        "description": "greenhouse_list_jobs"
+      },
+      {
+        "id": "greenhouse_list_applications",
+        "name": "greenhouse list applications",
+        "description": "greenhouse_list_applications"
+      },
+      {
+        "id": "greenhouse_add_note",
+        "name": "greenhouse add note",
+        "description": "greenhouse_add_note"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "gusto",
+    "name": "Gusto Payroll",
+    "category": "hr",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "gusto_list_employees",
+        "name": "gusto list employees",
+        "description": "gusto_list_employees"
+      },
+      {
+        "id": "gusto_get_employee",
+        "name": "gusto get employee",
+        "description": "gusto_get_employee"
+      },
+      {
+        "id": "gusto_list_payrolls",
+        "name": "gusto list payrolls",
+        "description": "gusto_list_payrolls"
+      },
+      {
+        "id": "gusto_get_company",
+        "name": "gusto get company",
+        "description": "gusto_get_company"
+      },
+      {
+        "id": "gusto_list_benefits",
+        "name": "gusto list benefits",
+        "description": "gusto_list_benefits"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "hashicorp-vault",
+    "name": "HashiCorp Vault",
+    "category": "infrastructure",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "vault_read_secret",
+        "name": "vault read secret",
+        "description": "vault_read_secret"
+      },
+      {
+        "id": "vault_list_secrets",
+        "name": "vault list secrets",
+        "description": "vault_list_secrets"
+      },
+      {
+        "id": "vault_write_secret",
+        "name": "vault write secret",
+        "description": "vault_write_secret"
+      },
+      {
+        "id": "vault_list_mounts",
+        "name": "vault list mounts",
+        "description": "vault_list_mounts"
+      },
+      {
+        "id": "vault_get_health",
+        "name": "vault get health",
+        "description": "vault_get_health"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "heroku",
+    "name": "Heroku",
+    "category": "infrastructure",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "heroku_list_apps",
+        "name": "heroku list apps",
+        "description": "heroku_list_apps"
+      },
+      {
+        "id": "heroku_get_app",
+        "name": "heroku get app",
+        "description": "heroku_get_app"
+      },
+      {
+        "id": "heroku_list_dynos",
+        "name": "heroku list dynos",
+        "description": "heroku_list_dynos"
+      },
+      {
+        "id": "heroku_restart_dyno",
+        "name": "heroku restart dyno",
+        "description": "heroku_restart_dyno"
+      },
+      {
+        "id": "heroku_get_config",
+        "name": "heroku get config",
+        "description": "heroku_get_config"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "hibob",
+    "name": "HiBob",
+    "category": "hr",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "hibob_list_employees",
+        "name": "hibob list employees",
+        "description": "hibob_list_employees"
+      },
+      {
+        "id": "hibob_get_employee",
+        "name": "hibob get employee",
+        "description": "hibob_get_employee"
+      },
+      {
+        "id": "hibob_search_employees",
+        "name": "hibob search employees",
+        "description": "hibob_search_employees"
+      },
+      {
+        "id": "hibob_list_time_off",
+        "name": "hibob list time off",
+        "description": "hibob_list_time_off"
+      },
+      {
+        "id": "hibob_get_company_info",
+        "name": "hibob get company info",
+        "description": "hibob_get_company_info"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "hootsuite",
+    "name": "Hootsuite",
+    "category": "marketing",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "hootsuite_list_profiles",
+        "name": "hootsuite list profiles",
+        "description": "hootsuite_list_profiles"
+      },
+      {
+        "id": "hootsuite_schedule_message",
+        "name": "hootsuite schedule message",
+        "description": "hootsuite_schedule_message"
+      },
+      {
+        "id": "hootsuite_list_messages",
+        "name": "hootsuite list messages",
+        "description": "hootsuite_list_messages"
+      },
+      {
+        "id": "hootsuite_get_analytics",
+        "name": "hootsuite get analytics",
+        "description": "hootsuite_get_analytics"
+      },
+      {
+        "id": "hootsuite_list_streams",
+        "name": "hootsuite list streams",
+        "description": "hootsuite_list_streams"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "hubspot-crm",
+    "name": "HubSpot CRM",
+    "category": "crm",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "hubspot_create_contact",
+        "name": "hubspot create contact",
+        "description": "hubspot_create_contact"
+      },
+      {
+        "id": "hubspot_list_contacts",
+        "name": "hubspot list contacts",
+        "description": "hubspot_list_contacts"
+      },
+      {
+        "id": "hubspot_create_deal",
+        "name": "hubspot create deal",
+        "description": "hubspot_create_deal"
+      },
+      {
+        "id": "hubspot_list_deals",
+        "name": "hubspot list deals",
+        "description": "hubspot_list_deals"
+      },
+      {
+        "id": "hubspot_search",
+        "name": "hubspot search",
+        "description": "hubspot_search"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "huggingface",
+    "name": "HuggingFace",
+    "category": "data-ai",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "hf_inference",
+        "name": "hf inference",
+        "description": "hf_inference"
+      },
+      {
+        "id": "hf_list_models",
+        "name": "hf list models",
+        "description": "hf_list_models"
+      },
+      {
+        "id": "hf_get_model",
+        "name": "hf get model",
+        "description": "hf_get_model"
+      },
+      {
+        "id": "hf_list_datasets",
+        "name": "hf list datasets",
+        "description": "hf_list_datasets"
+      },
+      {
+        "id": "hf_list_spaces",
+        "name": "hf list spaces",
+        "description": "hf_list_spaces"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "intercom-support",
+    "name": "Intercom Support",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "intercom_create_contact",
+        "name": "intercom create contact",
+        "description": "intercom_create_contact"
+      },
+      {
+        "id": "intercom_list_conversations",
+        "name": "intercom list conversations",
+        "description": "intercom_list_conversations"
+      },
+      {
+        "id": "intercom_reply_conversation",
+        "name": "intercom reply conversation",
+        "description": "intercom_reply_conversation"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "jira",
+    "name": "Jira",
+    "category": "general",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "jira_create_issue",
+        "name": "jira create issue",
+        "description": "jira_create_issue"
+      },
+      {
+        "id": "jira_search",
+        "name": "jira search",
+        "description": "jira_search"
+      },
+      {
+        "id": "jira_get_issue",
+        "name": "jira get issue",
+        "description": "jira_get_issue"
+      },
+      {
+        "id": "jira_transition_issue",
+        "name": "jira transition issue",
+        "description": "jira_transition_issue"
+      },
+      {
+        "id": "jira_add_comment",
+        "name": "jira add comment",
+        "description": "jira_add_comment"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "klaviyo",
+    "name": "Klaviyo",
+    "category": "marketing",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "klaviyo_list_profiles",
+        "name": "klaviyo list profiles",
+        "description": "klaviyo_list_profiles"
+      },
+      {
+        "id": "klaviyo_create_event",
+        "name": "klaviyo create event",
+        "description": "klaviyo_create_event"
+      },
+      {
+        "id": "klaviyo_list_campaigns",
+        "name": "klaviyo list campaigns",
+        "description": "klaviyo_list_campaigns"
+      },
+      {
+        "id": "klaviyo_list_flows",
+        "name": "klaviyo list flows",
+        "description": "klaviyo_list_flows"
+      },
+      {
+        "id": "klaviyo_get_metrics",
+        "name": "klaviyo get metrics",
+        "description": "klaviyo_get_metrics"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "kubernetes-cluster",
+    "name": "Kubernetes",
+    "category": "infrastructure",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "k8s_list_pods",
+        "name": "k8s list pods",
+        "description": "k8s_list_pods"
+      },
+      {
+        "id": "k8s_list_deployments",
+        "name": "k8s list deployments",
+        "description": "k8s_list_deployments"
+      },
+      {
+        "id": "k8s_list_services",
+        "name": "k8s list services",
+        "description": "k8s_list_services"
+      },
+      {
+        "id": "k8s_get_pod_logs",
+        "name": "k8s get pod logs",
+        "description": "k8s_get_pod_logs"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "lattice",
+    "name": "Lattice Performance",
+    "category": "hr",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "lattice_list_users",
+        "name": "lattice list users",
+        "description": "lattice_list_users"
+      },
+      {
+        "id": "lattice_get_user",
+        "name": "lattice get user",
+        "description": "lattice_get_user"
+      },
+      {
+        "id": "lattice_list_goals",
+        "name": "lattice list goals",
+        "description": "lattice_list_goals"
+      },
+      {
+        "id": "lattice_list_reviews",
+        "name": "lattice list reviews",
+        "description": "lattice_list_reviews"
+      },
+      {
+        "id": "lattice_get_feedback",
+        "name": "lattice get feedback",
+        "description": "lattice_get_feedback"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "launchdarkly",
+    "name": "LaunchDarkly",
+    "category": "devops",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "ld_list_flags",
+        "name": "ld list flags",
+        "description": "ld_list_flags"
+      },
+      {
+        "id": "ld_get_flag",
+        "name": "ld get flag",
+        "description": "ld_get_flag"
+      },
+      {
+        "id": "ld_toggle_flag",
+        "name": "ld toggle flag",
+        "description": "ld_toggle_flag"
+      },
+      {
+        "id": "ld_list_projects",
+        "name": "ld list projects",
+        "description": "ld_list_projects"
+      },
+      {
+        "id": "ld_list_environments",
+        "name": "ld list environments",
+        "description": "ld_list_environments"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "lever",
+    "name": "Lever Recruiting",
+    "category": "hr",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "lever_list_opportunities",
+        "name": "lever list opportunities",
+        "description": "lever_list_opportunities"
+      },
+      {
+        "id": "lever_create_opportunity",
+        "name": "lever create opportunity",
+        "description": "lever_create_opportunity"
+      },
+      {
+        "id": "lever_list_postings",
+        "name": "lever list postings",
+        "description": "lever_list_postings"
+      },
+      {
+        "id": "lever_get_candidate",
+        "name": "lever get candidate",
+        "description": "lever_get_candidate"
+      },
+      {
+        "id": "lever_add_note",
+        "name": "lever add note",
+        "description": "lever_add_note"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "linear",
+    "name": "Linear",
+    "category": "general",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "linear_create_issue",
+        "name": "linear create issue",
+        "description": "linear_create_issue"
+      },
+      {
+        "id": "linear_list_issues",
+        "name": "linear list issues",
+        "description": "linear_list_issues"
+      },
+      {
+        "id": "linear_search_issues",
+        "name": "linear search issues",
+        "description": "linear_search_issues"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "linkedin",
+    "name": "LinkedIn",
+    "category": "social",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "linkedin_get_profile",
+        "name": "linkedin get profile",
+        "description": "linkedin_get_profile"
+      },
+      {
+        "id": "linkedin_create_post",
+        "name": "linkedin create post",
+        "description": "linkedin_create_post"
+      },
+      {
+        "id": "linkedin_list_connections",
+        "name": "linkedin list connections",
+        "description": "linkedin_list_connections"
+      },
+      {
+        "id": "linkedin_search_people",
+        "name": "linkedin search people",
+        "description": "linkedin_search_people"
+      },
+      {
+        "id": "linkedin_get_company",
+        "name": "linkedin get company",
+        "description": "linkedin_get_company"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "livechat",
+    "name": "LiveChat",
+    "category": "communication",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "livechat_list_chats",
+        "name": "livechat list chats",
+        "description": "livechat_list_chats"
+      },
+      {
+        "id": "livechat_send_event",
+        "name": "livechat send event",
+        "description": "livechat_send_event"
+      },
+      {
+        "id": "livechat_list_agents",
+        "name": "livechat list agents",
+        "description": "livechat_list_agents"
+      },
+      {
+        "id": "livechat_get_chat",
+        "name": "livechat get chat",
+        "description": "livechat_get_chat"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "loom-video",
+    "name": "Loom",
+    "category": "communication",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "loom_list_videos",
+        "name": "loom list videos",
+        "description": "loom_list_videos"
+      },
+      {
+        "id": "loom_get_video",
+        "name": "loom get video",
+        "description": "loom_get_video"
+      },
+      {
+        "id": "loom_delete_video",
+        "name": "loom delete video",
+        "description": "loom_delete_video"
+      },
+      {
+        "id": "loom_get_transcript",
+        "name": "loom get transcript",
+        "description": "loom_get_transcript"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "mailchimp-campaigns",
+    "name": "Mailchimp",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "mailchimp_list_campaigns",
+        "name": "mailchimp list campaigns",
+        "description": "mailchimp_list_campaigns"
+      },
+      {
+        "id": "mailchimp_list_audiences",
+        "name": "mailchimp list audiences",
+        "description": "mailchimp_list_audiences"
+      },
+      {
+        "id": "mailchimp_create_campaign",
+        "name": "mailchimp create campaign",
+        "description": "mailchimp_create_campaign"
+      },
+      {
+        "id": "mailchimp_send_campaign",
+        "name": "mailchimp send campaign",
+        "description": "mailchimp_send_campaign"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "mailgun",
+    "name": "Mailgun",
+    "category": "communication",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "mailgun_send_email",
+        "name": "mailgun send email",
+        "description": "mailgun_send_email"
+      },
+      {
+        "id": "mailgun_list_events",
+        "name": "mailgun list events",
+        "description": "mailgun_list_events"
+      },
+      {
+        "id": "mailgun_validate_email",
+        "name": "mailgun validate email",
+        "description": "mailgun_validate_email"
+      },
+      {
+        "id": "mailgun_list_domains",
+        "name": "mailgun list domains",
+        "description": "mailgun_list_domains"
+      },
+      {
+        "id": "mailgun_get_stats",
+        "name": "mailgun get stats",
+        "description": "mailgun_get_stats"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "miro-boards",
+    "name": "Miro",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "miro_list_boards",
+        "name": "miro list boards",
+        "description": "miro_list_boards"
+      },
+      {
+        "id": "miro_create_board",
+        "name": "miro create board",
+        "description": "miro_create_board"
+      },
+      {
+        "id": "miro_create_sticky_note",
+        "name": "miro create sticky note",
+        "description": "miro_create_sticky_note"
+      },
+      {
+        "id": "miro_list_items",
+        "name": "miro list items",
+        "description": "miro_list_items"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "mixpanel-analytics",
+    "name": "Mixpanel",
+    "category": "monitoring",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "mixpanel_query_events",
+        "name": "mixpanel query events",
+        "description": "mixpanel_query_events"
+      },
+      {
+        "id": "mixpanel_get_funnels",
+        "name": "mixpanel get funnels",
+        "description": "mixpanel_get_funnels"
+      },
+      {
+        "id": "mixpanel_get_retention",
+        "name": "mixpanel get retention",
+        "description": "mixpanel_get_retention"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "monday-boards",
+    "name": "Monday.com",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "monday_list_boards",
+        "name": "monday list boards",
+        "description": "monday_list_boards"
+      },
+      {
+        "id": "monday_list_items",
+        "name": "monday list items",
+        "description": "monday_list_items"
+      },
+      {
+        "id": "monday_create_item",
+        "name": "monday create item",
+        "description": "monday_create_item"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "mongodb-atlas",
+    "name": "MongoDB Atlas",
+    "category": "data-ai",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "atlas_list_clusters",
+        "name": "atlas list clusters",
+        "description": "atlas_list_clusters"
+      },
+      {
+        "id": "atlas_get_cluster",
+        "name": "atlas get cluster",
+        "description": "atlas_get_cluster"
+      },
+      {
+        "id": "atlas_list_databases",
+        "name": "atlas list databases",
+        "description": "atlas_list_databases"
+      },
+      {
+        "id": "atlas_list_projects",
+        "name": "atlas list projects",
+        "description": "atlas_list_projects"
+      },
+      {
+        "id": "atlas_get_metrics",
+        "name": "atlas get metrics",
+        "description": "atlas_get_metrics"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "neon",
+    "name": "Neon Serverless Postgres",
+    "category": "data-ai",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "neon_list_projects",
+        "name": "neon list projects",
+        "description": "neon_list_projects"
+      },
+      {
+        "id": "neon_get_project",
+        "name": "neon get project",
+        "description": "neon_get_project"
+      },
+      {
+        "id": "neon_list_branches",
+        "name": "neon list branches",
+        "description": "neon_list_branches"
+      },
+      {
+        "id": "neon_create_branch",
+        "name": "neon create branch",
+        "description": "neon_create_branch"
+      },
+      {
+        "id": "neon_list_endpoints",
+        "name": "neon list endpoints",
+        "description": "neon_list_endpoints"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "netlify",
+    "name": "Netlify",
+    "category": "infrastructure",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "netlify_list_sites",
+        "name": "netlify list sites",
+        "description": "netlify_list_sites"
+      },
+      {
+        "id": "netlify_get_site",
+        "name": "netlify get site",
+        "description": "netlify_get_site"
+      },
+      {
+        "id": "netlify_list_deploys",
+        "name": "netlify list deploys",
+        "description": "netlify_list_deploys"
+      },
+      {
+        "id": "netlify_create_deploy",
+        "name": "netlify create deploy",
+        "description": "netlify_create_deploy"
+      },
+      {
+        "id": "netlify_list_forms",
+        "name": "netlify list forms",
+        "description": "netlify_list_forms"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "netsuite",
+    "name": "NetSuite ERP",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "netsuite_search",
+        "name": "netsuite search",
+        "description": "netsuite_search"
+      },
+      {
+        "id": "netsuite_get_record",
+        "name": "netsuite get record",
+        "description": "netsuite_get_record"
+      },
+      {
+        "id": "netsuite_create_record",
+        "name": "netsuite create record",
+        "description": "netsuite_create_record"
+      },
+      {
+        "id": "netsuite_list_saved_searches",
+        "name": "netsuite list saved searches",
+        "description": "netsuite_list_saved_searches"
+      },
+      {
+        "id": "netsuite_run_suiteql",
+        "name": "netsuite run suiteql",
+        "description": "netsuite_run_suiteql"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "newrelic",
+    "name": "New Relic",
+    "category": "monitoring",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "nr_list_applications",
+        "name": "nr list applications",
+        "description": "nr_list_applications"
+      },
+      {
+        "id": "nr_get_application",
+        "name": "nr get application",
+        "description": "nr_get_application"
+      },
+      {
+        "id": "nr_query_nrql",
+        "name": "nr query nrql",
+        "description": "nr_query_nrql"
+      },
+      {
+        "id": "nr_list_alerts",
+        "name": "nr list alerts",
+        "description": "nr_list_alerts"
+      },
+      {
+        "id": "nr_get_synthetics",
+        "name": "nr get synthetics",
+        "description": "nr_get_synthetics"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "notion",
+    "name": "Notion",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "notion_search",
+        "name": "notion search",
+        "description": "notion_search"
+      },
+      {
+        "id": "notion_get_page",
+        "name": "notion get page",
+        "description": "notion_get_page"
+      },
+      {
+        "id": "notion_create_page",
+        "name": "notion create page",
+        "description": "notion_create_page"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "okta",
+    "name": "Okta Identity",
+    "category": "security",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "okta_list_users",
+        "name": "okta list users",
+        "description": "okta_list_users"
+      },
+      {
+        "id": "okta_get_user",
+        "name": "okta get user",
+        "description": "okta_get_user"
+      },
+      {
+        "id": "okta_list_groups",
+        "name": "okta list groups",
+        "description": "okta_list_groups"
+      },
+      {
+        "id": "okta_list_apps",
+        "name": "okta list apps",
+        "description": "okta_list_apps"
+      },
+      {
+        "id": "okta_deactivate_user",
+        "name": "okta deactivate user",
+        "description": "okta_deactivate_user"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "category": "data-ai",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "openai_chat_completion",
+        "name": "openai chat completion",
+        "description": "openai_chat_completion"
+      },
+      {
+        "id": "openai_create_embedding",
+        "name": "openai create embedding",
+        "description": "openai_create_embedding"
+      },
+      {
+        "id": "openai_list_models",
+        "name": "openai list models",
+        "description": "openai_list_models"
+      },
+      {
+        "id": "openai_create_image",
+        "name": "openai create image",
+        "description": "openai_create_image"
+      },
+      {
+        "id": "openai_moderate",
+        "name": "openai moderate",
+        "description": "openai_moderate"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "opsgenie",
+    "name": "OpsGenie",
+    "category": "monitoring",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "opsgenie_list_alerts",
+        "name": "opsgenie list alerts",
+        "description": "opsgenie_list_alerts"
+      },
+      {
+        "id": "opsgenie_create_alert",
+        "name": "opsgenie create alert",
+        "description": "opsgenie_create_alert"
+      },
+      {
+        "id": "opsgenie_acknowledge_alert",
+        "name": "opsgenie acknowledge alert",
+        "description": "opsgenie_acknowledge_alert"
+      },
+      {
+        "id": "opsgenie_close_alert",
+        "name": "opsgenie close alert",
+        "description": "opsgenie_close_alert"
+      },
+      {
+        "id": "opsgenie_list_schedules",
+        "name": "opsgenie list schedules",
+        "description": "opsgenie_list_schedules"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "outreach",
+    "name": "Outreach Sales Engagement",
+    "category": "crm",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "outreach_list_prospects",
+        "name": "outreach list prospects",
+        "description": "outreach_list_prospects"
+      },
+      {
+        "id": "outreach_create_prospect",
+        "name": "outreach create prospect",
+        "description": "outreach_create_prospect"
+      },
+      {
+        "id": "outreach_list_sequences",
+        "name": "outreach list sequences",
+        "description": "outreach_list_sequences"
+      },
+      {
+        "id": "outreach_add_to_sequence",
+        "name": "outreach add to sequence",
+        "description": "outreach_add_to_sequence"
+      },
+      {
+        "id": "outreach_list_mailings",
+        "name": "outreach list mailings",
+        "description": "outreach_list_mailings"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "paddle",
+    "name": "Paddle",
+    "category": "finance",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "paddle_list_products",
+        "name": "paddle list products",
+        "description": "paddle_list_products"
+      },
+      {
+        "id": "paddle_list_prices",
+        "name": "paddle list prices",
+        "description": "paddle_list_prices"
+      },
+      {
+        "id": "paddle_list_subscriptions",
+        "name": "paddle list subscriptions",
+        "description": "paddle_list_subscriptions"
+      },
+      {
+        "id": "paddle_list_transactions",
+        "name": "paddle list transactions",
+        "description": "paddle_list_transactions"
+      },
+      {
+        "id": "paddle_list_customers",
+        "name": "paddle list customers",
+        "description": "paddle_list_customers"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "pagerduty",
+    "name": "PagerDuty",
+    "category": "monitoring",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "pd_list_incidents",
+        "name": "pd list incidents",
+        "description": "pd_list_incidents"
+      },
+      {
+        "id": "pd_create_incident",
+        "name": "pd create incident",
+        "description": "pd_create_incident"
+      },
+      {
+        "id": "pd_acknowledge_incident",
+        "name": "pd acknowledge incident",
+        "description": "pd_acknowledge_incident"
+      },
+      {
+        "id": "pd_resolve_incident",
+        "name": "pd resolve incident",
+        "description": "pd_resolve_incident"
+      },
+      {
+        "id": "pd_list_services",
+        "name": "pd list services",
+        "description": "pd_list_services"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "pandadoc",
+    "name": "PandaDoc",
+    "category": "design",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "pandadoc_list_documents",
+        "name": "pandadoc list documents",
+        "description": "pandadoc_list_documents"
+      },
+      {
+        "id": "pandadoc_create_document",
+        "name": "pandadoc create document",
+        "description": "pandadoc_create_document"
+      },
+      {
+        "id": "pandadoc_send_document",
+        "name": "pandadoc send document",
+        "description": "pandadoc_send_document"
+      },
+      {
+        "id": "pandadoc_get_document",
+        "name": "pandadoc get document",
+        "description": "pandadoc_get_document"
+      },
+      {
+        "id": "pandadoc_list_templates",
+        "name": "pandadoc list templates",
+        "description": "pandadoc_list_templates"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "paypal",
+    "name": "PayPal",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "paypal_list_transactions",
+        "name": "paypal list transactions",
+        "description": "paypal_list_transactions"
+      },
+      {
+        "id": "paypal_create_payment",
+        "name": "paypal create payment",
+        "description": "paypal_create_payment"
+      },
+      {
+        "id": "paypal_get_order",
+        "name": "paypal get order",
+        "description": "paypal_get_order"
+      },
+      {
+        "id": "paypal_create_payout",
+        "name": "paypal create payout",
+        "description": "paypal_create_payout"
+      },
+      {
+        "id": "paypal_list_disputes",
+        "name": "paypal list disputes",
+        "description": "paypal_list_disputes"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "personio",
+    "name": "Personio",
+    "category": "hr",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "personio_list_employees",
+        "name": "personio list employees",
+        "description": "personio_list_employees"
+      },
+      {
+        "id": "personio_get_employee",
+        "name": "personio get employee",
+        "description": "personio_get_employee"
+      },
+      {
+        "id": "personio_list_absences",
+        "name": "personio list absences",
+        "description": "personio_list_absences"
+      },
+      {
+        "id": "personio_create_absence",
+        "name": "personio create absence",
+        "description": "personio_create_absence"
+      },
+      {
+        "id": "personio_list_attendances",
+        "name": "personio list attendances",
+        "description": "personio_list_attendances"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "pinecone",
+    "name": "Pinecone",
+    "category": "data-ai",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "pinecone_list_indexes",
+        "name": "pinecone list indexes",
+        "description": "pinecone_list_indexes"
+      },
+      {
+        "id": "pinecone_query",
+        "name": "pinecone query",
+        "description": "pinecone_query"
+      },
+      {
+        "id": "pinecone_upsert",
+        "name": "pinecone upsert",
+        "description": "pinecone_upsert"
+      },
+      {
+        "id": "pinecone_describe_index",
+        "name": "pinecone describe index",
+        "description": "pinecone_describe_index"
+      },
+      {
+        "id": "pinecone_delete_vectors",
+        "name": "pinecone delete vectors",
+        "description": "pinecone_delete_vectors"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "pipedrive-deals",
+    "name": "Pipedrive Deals",
+    "category": "crm",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "pipedrive_create_deal",
+        "name": "pipedrive create deal",
+        "description": "pipedrive_create_deal"
+      },
+      {
+        "id": "pipedrive_list_deals",
+        "name": "pipedrive list deals",
+        "description": "pipedrive_list_deals"
+      },
+      {
+        "id": "pipedrive_create_person",
+        "name": "pipedrive create person",
+        "description": "pipedrive_create_person"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "plaid",
+    "name": "Plaid",
+    "category": "finance",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "plaid_get_accounts",
+        "name": "plaid get accounts",
+        "description": "plaid_get_accounts"
+      },
+      {
+        "id": "plaid_get_transactions",
+        "name": "plaid get transactions",
+        "description": "plaid_get_transactions"
+      },
+      {
+        "id": "plaid_get_balance",
+        "name": "plaid get balance",
+        "description": "plaid_get_balance"
+      },
+      {
+        "id": "plaid_get_identity",
+        "name": "plaid get identity",
+        "description": "plaid_get_identity"
+      },
+      {
+        "id": "plaid_get_institutions",
+        "name": "plaid get institutions",
+        "description": "plaid_get_institutions"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "postmark",
+    "name": "Postmark",
+    "category": "communication",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "postmark_send_email",
+        "name": "postmark send email",
+        "description": "postmark_send_email"
+      },
+      {
+        "id": "postmark_list_templates",
+        "name": "postmark list templates",
+        "description": "postmark_list_templates"
+      },
+      {
+        "id": "postmark_send_template",
+        "name": "postmark send template",
+        "description": "postmark_send_template"
+      },
+      {
+        "id": "postmark_get_delivery_stats",
+        "name": "postmark get delivery stats",
+        "description": "postmark_get_delivery_stats"
+      },
+      {
+        "id": "postmark_search_messages",
+        "name": "postmark search messages",
+        "description": "postmark_search_messages"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "power-automate",
+    "name": "Microsoft Power Automate",
+    "category": "enterprise",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "pa_list_flows",
+        "name": "pa list flows",
+        "description": "pa_list_flows"
+      },
+      {
+        "id": "pa_run_flow",
+        "name": "pa run flow",
+        "description": "pa_run_flow"
+      },
+      {
+        "id": "pa_get_flow",
+        "name": "pa get flow",
+        "description": "pa_get_flow"
+      },
+      {
+        "id": "pa_list_runs",
+        "name": "pa list runs",
+        "description": "pa_list_runs"
+      },
+      {
+        "id": "pa_get_run",
+        "name": "pa get run",
+        "description": "pa_get_run"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "quickbooks-accounting",
+    "name": "QuickBooks",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "quickbooks_query",
+        "name": "quickbooks query",
+        "description": "quickbooks_query"
+      },
+      {
+        "id": "quickbooks_create_invoice",
+        "name": "quickbooks create invoice",
+        "description": "quickbooks_create_invoice"
+      },
+      {
+        "id": "quickbooks_list_customers",
+        "name": "quickbooks list customers",
+        "description": "quickbooks_list_customers"
+      },
+      {
+        "id": "quickbooks_get_company_info",
+        "name": "quickbooks get company info",
+        "description": "quickbooks_get_company_info"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "recurly",
+    "name": "Recurly",
+    "category": "finance",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "recurly_list_accounts",
+        "name": "recurly list accounts",
+        "description": "recurly_list_accounts"
+      },
+      {
+        "id": "recurly_list_subscriptions",
+        "name": "recurly list subscriptions",
+        "description": "recurly_list_subscriptions"
+      },
+      {
+        "id": "recurly_list_invoices",
+        "name": "recurly list invoices",
+        "description": "recurly_list_invoices"
+      },
+      {
+        "id": "recurly_get_account",
+        "name": "recurly get account",
+        "description": "recurly_get_account"
+      },
+      {
+        "id": "recurly_list_plans",
+        "name": "recurly list plans",
+        "description": "recurly_list_plans"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "reddit",
+    "name": "Reddit",
+    "category": "social",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "reddit_search",
+        "name": "reddit search",
+        "description": "reddit_search"
+      },
+      {
+        "id": "reddit_get_subreddit",
+        "name": "reddit get subreddit",
+        "description": "reddit_get_subreddit"
+      },
+      {
+        "id": "reddit_submit_post",
+        "name": "reddit submit post",
+        "description": "reddit_submit_post"
+      },
+      {
+        "id": "reddit_get_comments",
+        "name": "reddit get comments",
+        "description": "reddit_get_comments"
+      },
+      {
+        "id": "reddit_get_user",
+        "name": "reddit get user",
+        "description": "reddit_get_user"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "render",
+    "name": "Render",
+    "category": "infrastructure",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "render_list_services",
+        "name": "render list services",
+        "description": "render_list_services"
+      },
+      {
+        "id": "render_get_service",
+        "name": "render get service",
+        "description": "render_get_service"
+      },
+      {
+        "id": "render_list_deploys",
+        "name": "render list deploys",
+        "description": "render_list_deploys"
+      },
+      {
+        "id": "render_trigger_deploy",
+        "name": "render trigger deploy",
+        "description": "render_trigger_deploy"
+      },
+      {
+        "id": "render_list_envs",
+        "name": "render list envs",
+        "description": "render_list_envs"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "ringcentral",
+    "name": "RingCentral",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "ringcentral_send_sms",
+        "name": "ringcentral send sms",
+        "description": "ringcentral_send_sms"
+      },
+      {
+        "id": "ringcentral_list_extensions",
+        "name": "ringcentral list extensions",
+        "description": "ringcentral_list_extensions"
+      },
+      {
+        "id": "ringcentral_get_call_log",
+        "name": "ringcentral get call log",
+        "description": "ringcentral_get_call_log"
+      },
+      {
+        "id": "ringcentral_send_fax",
+        "name": "ringcentral send fax",
+        "description": "ringcentral_send_fax"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "rippling",
+    "name": "Rippling HR",
+    "category": "hr",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "rippling_list_employees",
+        "name": "rippling list employees",
+        "description": "rippling_list_employees"
+      },
+      {
+        "id": "rippling_get_employee",
+        "name": "rippling get employee",
+        "description": "rippling_get_employee"
+      },
+      {
+        "id": "rippling_list_departments",
+        "name": "rippling list departments",
+        "description": "rippling_list_departments"
+      },
+      {
+        "id": "rippling_list_teams",
+        "name": "rippling list teams",
+        "description": "rippling_list_teams"
+      },
+      {
+        "id": "rippling_get_company",
+        "name": "rippling get company",
+        "description": "rippling_get_company"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "salesforce",
+    "name": "Salesforce",
+    "category": "crm",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "salesforce_query",
+        "name": "salesforce query",
+        "description": "salesforce_query"
+      },
+      {
+        "id": "salesforce_get_record",
+        "name": "salesforce get record",
+        "description": "salesforce_get_record"
+      },
+      {
+        "id": "salesforce_create_record",
+        "name": "salesforce create record",
+        "description": "salesforce_create_record"
+      },
+      {
+        "id": "salesforce_update_record",
+        "name": "salesforce update record",
+        "description": "salesforce_update_record"
+      },
+      {
+        "id": "salesforce_search",
+        "name": "salesforce search",
+        "description": "salesforce_search"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "salesloft",
+    "name": "SalesLoft",
+    "category": "crm",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "salesloft_list_people",
+        "name": "salesloft list people",
+        "description": "salesloft_list_people"
+      },
+      {
+        "id": "salesloft_create_person",
+        "name": "salesloft create person",
+        "description": "salesloft_create_person"
+      },
+      {
+        "id": "salesloft_list_cadences",
+        "name": "salesloft list cadences",
+        "description": "salesloft_list_cadences"
+      },
+      {
+        "id": "salesloft_add_to_cadence",
+        "name": "salesloft add to cadence",
+        "description": "salesloft_add_to_cadence"
+      },
+      {
+        "id": "salesloft_list_activities",
+        "name": "salesloft list activities",
+        "description": "salesloft_list_activities"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "sanity",
+    "name": "Sanity CMS",
+    "category": "marketing",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "sanity_query",
+        "name": "sanity query",
+        "description": "sanity_query"
+      },
+      {
+        "id": "sanity_create_document",
+        "name": "sanity create document",
+        "description": "sanity_create_document"
+      },
+      {
+        "id": "sanity_patch_document",
+        "name": "sanity patch document",
+        "description": "sanity_patch_document"
+      },
+      {
+        "id": "sanity_delete_document",
+        "name": "sanity delete document",
+        "description": "sanity_delete_document"
+      },
+      {
+        "id": "sanity_list_datasets",
+        "name": "sanity list datasets",
+        "description": "sanity_list_datasets"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "sap",
+    "name": "SAP S/4HANA",
+    "category": "enterprise",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "sap_list_business_partners",
+        "name": "sap list business partners",
+        "description": "sap_list_business_partners"
+      },
+      {
+        "id": "sap_get_sales_order",
+        "name": "sap get sales order",
+        "description": "sap_get_sales_order"
+      },
+      {
+        "id": "sap_list_materials",
+        "name": "sap list materials",
+        "description": "sap_list_materials"
+      },
+      {
+        "id": "sap_create_purchase_order",
+        "name": "sap create purchase order",
+        "description": "sap_create_purchase_order"
+      },
+      {
+        "id": "sap_get_financials",
+        "name": "sap get financials",
+        "description": "sap_get_financials"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "segment-cdp",
+    "name": "Segment",
+    "category": "monitoring",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "segment_list_sources",
+        "name": "segment list sources",
+        "description": "segment_list_sources"
+      },
+      {
+        "id": "segment_list_destinations",
+        "name": "segment list destinations",
+        "description": "segment_list_destinations"
+      },
+      {
+        "id": "segment_track_event",
+        "name": "segment track event",
+        "description": "segment_track_event"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "sendgrid-email",
+    "name": "SendGrid Email",
+    "category": "communication",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "sendgrid_send_email",
+        "name": "sendgrid send email",
+        "description": "sendgrid_send_email"
+      },
+      {
+        "id": "sendgrid_list_contacts",
+        "name": "sendgrid list contacts",
+        "description": "sendgrid_list_contacts"
+      },
+      {
+        "id": "sendgrid_get_stats",
+        "name": "sendgrid get stats",
+        "description": "sendgrid_get_stats"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "sentry",
+    "name": "Sentry Error Tracking",
+    "category": "monitoring",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "sentry_list_issues",
+        "name": "sentry list issues",
+        "description": "sentry_list_issues"
+      },
+      {
+        "id": "sentry_get_issue",
+        "name": "sentry get issue",
+        "description": "sentry_get_issue"
+      },
+      {
+        "id": "sentry_list_events",
+        "name": "sentry list events",
+        "description": "sentry_list_events"
+      },
+      {
+        "id": "sentry_list_projects",
+        "name": "sentry list projects",
+        "description": "sentry_list_projects"
+      },
+      {
+        "id": "sentry_resolve_issue",
+        "name": "sentry resolve issue",
+        "description": "sentry_resolve_issue"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "servicenow",
+    "name": "ServiceNow",
+    "category": "enterprise",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "snow_list_incidents",
+        "name": "snow list incidents",
+        "description": "snow_list_incidents"
+      },
+      {
+        "id": "snow_create_incident",
+        "name": "snow create incident",
+        "description": "snow_create_incident"
+      },
+      {
+        "id": "snow_update_incident",
+        "name": "snow update incident",
+        "description": "snow_update_incident"
+      },
+      {
+        "id": "snow_list_changes",
+        "name": "snow list changes",
+        "description": "snow_list_changes"
+      },
+      {
+        "id": "snow_search",
+        "name": "snow search",
+        "description": "snow_search"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "shopify",
+    "name": "Shopify",
+    "category": "ecommerce",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "shopify_list_products",
+        "name": "shopify list products",
+        "description": "shopify_list_products"
+      },
+      {
+        "id": "shopify_create_product",
+        "name": "shopify create product",
+        "description": "shopify_create_product"
+      },
+      {
+        "id": "shopify_list_orders",
+        "name": "shopify list orders",
+        "description": "shopify_list_orders"
+      },
+      {
+        "id": "shopify_get_order",
+        "name": "shopify get order",
+        "description": "shopify_get_order"
+      },
+      {
+        "id": "shopify_list_customers",
+        "name": "shopify list customers",
+        "description": "shopify_list_customers"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "shortcut",
+    "name": "Shortcut",
+    "category": "productivity",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "shortcut_list_stories",
+        "name": "shortcut list stories",
+        "description": "shortcut_list_stories"
+      },
+      {
+        "id": "shortcut_create_story",
+        "name": "shortcut create story",
+        "description": "shortcut_create_story"
+      },
+      {
+        "id": "shortcut_search_stories",
+        "name": "shortcut search stories",
+        "description": "shortcut_search_stories"
+      },
+      {
+        "id": "shortcut_list_projects",
+        "name": "shortcut list projects",
+        "description": "shortcut_list_projects"
+      },
+      {
+        "id": "shortcut_list_epics",
+        "name": "shortcut list epics",
+        "description": "shortcut_list_epics"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "slack",
+    "name": "Slack",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "slack_send_message",
+        "name": "slack send message",
+        "description": "slack_send_message"
+      },
+      {
+        "id": "slack_list_channels",
+        "name": "slack list channels",
+        "description": "slack_list_channels"
+      },
+      {
+        "id": "slack_create_channel",
+        "name": "slack create channel",
+        "description": "slack_create_channel"
+      },
+      {
+        "id": "slack_search_messages",
+        "name": "slack search messages",
+        "description": "slack_search_messages"
+      },
+      {
+        "id": "slack_add_reaction",
+        "name": "slack add reaction",
+        "description": "slack_add_reaction"
+      },
+      {
+        "id": "slack_upload_file",
+        "name": "slack upload file",
+        "description": "slack_upload_file"
+      }
+    ],
+    "toolCount": 6
+  },
+  {
+    "id": "smartsheet",
+    "name": "Smartsheet",
+    "category": "productivity",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "smartsheet_list_sheets",
+        "name": "smartsheet list sheets",
+        "description": "smartsheet_list_sheets"
+      },
+      {
+        "id": "smartsheet_get_sheet",
+        "name": "smartsheet get sheet",
+        "description": "smartsheet_get_sheet"
+      },
+      {
+        "id": "smartsheet_add_rows",
+        "name": "smartsheet add rows",
+        "description": "smartsheet_add_rows"
+      },
+      {
+        "id": "smartsheet_update_rows",
+        "name": "smartsheet update rows",
+        "description": "smartsheet_update_rows"
+      },
+      {
+        "id": "smartsheet_search",
+        "name": "smartsheet search",
+        "description": "smartsheet_search"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "snowflake-warehouse",
+    "name": "Snowflake",
+    "category": "infrastructure",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "snowflake_execute_query",
+        "name": "snowflake execute query",
+        "description": "snowflake_execute_query"
+      },
+      {
+        "id": "snowflake_list_databases",
+        "name": "snowflake list databases",
+        "description": "snowflake_list_databases"
+      },
+      {
+        "id": "snowflake_list_tables",
+        "name": "snowflake list tables",
+        "description": "snowflake_list_tables"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "snyk",
+    "name": "Snyk Security",
+    "category": "security",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "snyk_list_orgs",
+        "name": "snyk list orgs",
+        "description": "snyk_list_orgs"
+      },
+      {
+        "id": "snyk_list_projects",
+        "name": "snyk list projects",
+        "description": "snyk_list_projects"
+      },
+      {
+        "id": "snyk_list_issues",
+        "name": "snyk list issues",
+        "description": "snyk_list_issues"
+      },
+      {
+        "id": "snyk_get_project",
+        "name": "snyk get project",
+        "description": "snyk_get_project"
+      },
+      {
+        "id": "snyk_test_package",
+        "name": "snyk test package",
+        "description": "snyk_test_package"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "splunk",
+    "name": "Splunk",
+    "category": "monitoring",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "splunk_search",
+        "name": "splunk search",
+        "description": "splunk_search"
+      },
+      {
+        "id": "splunk_list_saved_searches",
+        "name": "splunk list saved searches",
+        "description": "splunk_list_saved_searches"
+      },
+      {
+        "id": "splunk_get_search_results",
+        "name": "splunk get search results",
+        "description": "splunk_get_search_results"
+      },
+      {
+        "id": "splunk_list_indexes",
+        "name": "splunk list indexes",
+        "description": "splunk_list_indexes"
+      },
+      {
+        "id": "splunk_create_alert",
+        "name": "splunk create alert",
+        "description": "splunk_create_alert"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "square",
+    "name": "Square",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "square_list_payments",
+        "name": "square list payments",
+        "description": "square_list_payments"
+      },
+      {
+        "id": "square_create_payment",
+        "name": "square create payment",
+        "description": "square_create_payment"
+      },
+      {
+        "id": "square_list_customers",
+        "name": "square list customers",
+        "description": "square_list_customers"
+      },
+      {
+        "id": "square_list_catalog",
+        "name": "square list catalog",
+        "description": "square_list_catalog"
+      },
+      {
+        "id": "square_create_invoice",
+        "name": "square create invoice",
+        "description": "square_create_invoice"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "statuspage",
+    "name": "Atlassian Statuspage",
+    "category": "monitoring",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "statuspage_list_incidents",
+        "name": "statuspage list incidents",
+        "description": "statuspage_list_incidents"
+      },
+      {
+        "id": "statuspage_create_incident",
+        "name": "statuspage create incident",
+        "description": "statuspage_create_incident"
+      },
+      {
+        "id": "statuspage_update_incident",
+        "name": "statuspage update incident",
+        "description": "statuspage_update_incident"
+      },
+      {
+        "id": "statuspage_list_components",
+        "name": "statuspage list components",
+        "description": "statuspage_list_components"
+      },
+      {
+        "id": "statuspage_update_component",
+        "name": "statuspage update component",
+        "description": "statuspage_update_component"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "stripe",
+    "name": "Stripe",
+    "category": "finance",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "stripe_list_customers",
+        "name": "stripe list customers",
+        "description": "stripe_list_customers"
+      },
+      {
+        "id": "stripe_create_customer",
+        "name": "stripe create customer",
+        "description": "stripe_create_customer"
+      },
+      {
+        "id": "stripe_create_invoice",
+        "name": "stripe create invoice",
+        "description": "stripe_create_invoice"
+      },
+      {
+        "id": "stripe_list_subscriptions",
+        "name": "stripe list subscriptions",
+        "description": "stripe_list_subscriptions"
+      },
+      {
+        "id": "stripe_create_payment_link",
+        "name": "stripe create payment link",
+        "description": "stripe_create_payment_link"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "supabase",
+    "name": "Supabase",
+    "category": "data-ai",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "supabase_query",
+        "name": "supabase query",
+        "description": "supabase_query"
+      },
+      {
+        "id": "supabase_insert",
+        "name": "supabase insert",
+        "description": "supabase_insert"
+      },
+      {
+        "id": "supabase_update",
+        "name": "supabase update",
+        "description": "supabase_update"
+      },
+      {
+        "id": "supabase_delete",
+        "name": "supabase delete",
+        "description": "supabase_delete"
+      },
+      {
+        "id": "supabase_rpc",
+        "name": "supabase rpc",
+        "description": "supabase_rpc"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "teamwork",
+    "name": "Teamwork",
+    "category": "productivity",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "teamwork_list_projects",
+        "name": "teamwork list projects",
+        "description": "teamwork_list_projects"
+      },
+      {
+        "id": "teamwork_list_tasks",
+        "name": "teamwork list tasks",
+        "description": "teamwork_list_tasks"
+      },
+      {
+        "id": "teamwork_create_task",
+        "name": "teamwork create task",
+        "description": "teamwork_create_task"
+      },
+      {
+        "id": "teamwork_list_milestones",
+        "name": "teamwork list milestones",
+        "description": "teamwork_list_milestones"
+      },
+      {
+        "id": "teamwork_log_time",
+        "name": "teamwork log time",
+        "description": "teamwork_log_time"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "telegram-bot",
+    "name": "Telegram Bot",
+    "category": "communication",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "telegram_send_message",
+        "name": "telegram send message",
+        "description": "telegram_send_message"
+      },
+      {
+        "id": "telegram_send_photo",
+        "name": "telegram send photo",
+        "description": "telegram_send_photo"
+      },
+      {
+        "id": "telegram_get_updates",
+        "name": "telegram get updates",
+        "description": "telegram_get_updates"
+      },
+      {
+        "id": "telegram_get_chat",
+        "name": "telegram get chat",
+        "description": "telegram_get_chat"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "terraform-iac",
+    "name": "Terraform Cloud",
+    "category": "infrastructure",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "terraform_list_workspaces",
+        "name": "terraform list workspaces",
+        "description": "terraform_list_workspaces"
+      },
+      {
+        "id": "terraform_get_workspace",
+        "name": "terraform get workspace",
+        "description": "terraform_get_workspace"
+      },
+      {
+        "id": "terraform_trigger_run",
+        "name": "terraform trigger run",
+        "description": "terraform_trigger_run"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "todoist-tasks",
+    "name": "Todoist",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "todoist_create_task",
+        "name": "todoist create task",
+        "description": "todoist_create_task"
+      },
+      {
+        "id": "todoist_list_tasks",
+        "name": "todoist list tasks",
+        "description": "todoist_list_tasks"
+      },
+      {
+        "id": "todoist_close_task",
+        "name": "todoist close task",
+        "description": "todoist_close_task"
+      },
+      {
+        "id": "todoist_list_projects",
+        "name": "todoist list projects",
+        "description": "todoist_list_projects"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "trello-cards",
+    "name": "Trello",
+    "category": "productivity",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "trello_create_card",
+        "name": "trello create card",
+        "description": "trello_create_card"
+      },
+      {
+        "id": "trello_list_cards",
+        "name": "trello list cards",
+        "description": "trello_list_cards"
+      },
+      {
+        "id": "trello_list_boards",
+        "name": "trello list boards",
+        "description": "trello_list_boards"
+      },
+      {
+        "id": "trello_move_card",
+        "name": "trello move card",
+        "description": "trello_move_card"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "twilio-sms",
+    "name": "Twilio SMS",
+    "category": "communication",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "twilio_send_sms",
+        "name": "twilio send sms",
+        "description": "twilio_send_sms"
+      },
+      {
+        "id": "twilio_list_messages",
+        "name": "twilio list messages",
+        "description": "twilio_list_messages"
+      },
+      {
+        "id": "twilio_get_message",
+        "name": "twilio get message",
+        "description": "twilio_get_message"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "twitter",
+    "name": "Twitter/X",
+    "category": "social",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "twitter_post_tweet",
+        "name": "twitter post tweet",
+        "description": "twitter_post_tweet"
+      },
+      {
+        "id": "twitter_search_tweets",
+        "name": "twitter search tweets",
+        "description": "twitter_search_tweets"
+      },
+      {
+        "id": "twitter_get_user",
+        "name": "twitter get user",
+        "description": "twitter_get_user"
+      },
+      {
+        "id": "twitter_list_followers",
+        "name": "twitter list followers",
+        "description": "twitter_list_followers"
+      },
+      {
+        "id": "twitter_get_timeline",
+        "name": "twitter get timeline",
+        "description": "twitter_get_timeline"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "vercel-deployments",
+    "name": "Vercel",
+    "category": "devops",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "vercel_list_deployments",
+        "name": "vercel list deployments",
+        "description": "vercel_list_deployments"
+      },
+      {
+        "id": "vercel_get_deployment",
+        "name": "vercel get deployment",
+        "description": "vercel_get_deployment"
+      },
+      {
+        "id": "vercel_list_projects",
+        "name": "vercel list projects",
+        "description": "vercel_list_projects"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "weaviate",
+    "name": "Weaviate",
+    "category": "data-ai",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "weaviate_query",
+        "name": "weaviate query",
+        "description": "weaviate_query"
+      },
+      {
+        "id": "weaviate_create_object",
+        "name": "weaviate create object",
+        "description": "weaviate_create_object"
+      },
+      {
+        "id": "weaviate_get_schema",
+        "name": "weaviate get schema",
+        "description": "weaviate_get_schema"
+      },
+      {
+        "id": "weaviate_list_classes",
+        "name": "weaviate list classes",
+        "description": "weaviate_list_classes"
+      },
+      {
+        "id": "weaviate_search",
+        "name": "weaviate search",
+        "description": "weaviate_search"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "webex",
+    "name": "Webex",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "webex_send_message",
+        "name": "webex send message",
+        "description": "webex_send_message"
+      },
+      {
+        "id": "webex_list_rooms",
+        "name": "webex list rooms",
+        "description": "webex_list_rooms"
+      },
+      {
+        "id": "webex_create_room",
+        "name": "webex create room",
+        "description": "webex_create_room"
+      },
+      {
+        "id": "webex_list_people",
+        "name": "webex list people",
+        "description": "webex_list_people"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "webflow",
+    "name": "Webflow",
+    "category": "marketing",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "webflow_list_sites",
+        "name": "webflow list sites",
+        "description": "webflow_list_sites"
+      },
+      {
+        "id": "webflow_list_collections",
+        "name": "webflow list collections",
+        "description": "webflow_list_collections"
+      },
+      {
+        "id": "webflow_list_items",
+        "name": "webflow list items",
+        "description": "webflow_list_items"
+      },
+      {
+        "id": "webflow_create_item",
+        "name": "webflow create item",
+        "description": "webflow_create_item"
+      },
+      {
+        "id": "webflow_publish_site",
+        "name": "webflow publish site",
+        "description": "webflow_publish_site"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "whatsapp-business",
+    "name": "WhatsApp Business",
+    "category": "communication",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "whatsapp_send_message",
+        "name": "whatsapp send message",
+        "description": "whatsapp_send_message"
+      },
+      {
+        "id": "whatsapp_send_template",
+        "name": "whatsapp send template",
+        "description": "whatsapp_send_template"
+      },
+      {
+        "id": "whatsapp_get_media",
+        "name": "whatsapp get media",
+        "description": "whatsapp_get_media"
+      },
+      {
+        "id": "whatsapp_list_templates",
+        "name": "whatsapp list templates",
+        "description": "whatsapp_list_templates"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "whereby",
+    "name": "Whereby",
+    "category": "communication",
+    "authType": "api_key",
+    "tools": [
+      {
+        "id": "whereby_create_meeting",
+        "name": "whereby create meeting",
+        "description": "whereby_create_meeting"
+      },
+      {
+        "id": "whereby_get_meeting",
+        "name": "whereby get meeting",
+        "description": "whereby_get_meeting"
+      },
+      {
+        "id": "whereby_delete_meeting",
+        "name": "whereby delete meeting",
+        "description": "whereby_delete_meeting"
+      },
+      {
+        "id": "whereby_list_meetings",
+        "name": "whereby list meetings",
+        "description": "whereby_list_meetings"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "woocommerce",
+    "name": "WooCommerce",
+    "category": "ecommerce",
+    "authType": "credentials",
+    "tools": [
+      {
+        "id": "woo_list_products",
+        "name": "woo list products",
+        "description": "woo_list_products"
+      },
+      {
+        "id": "woo_create_product",
+        "name": "woo create product",
+        "description": "woo_create_product"
+      },
+      {
+        "id": "woo_list_orders",
+        "name": "woo list orders",
+        "description": "woo_list_orders"
+      },
+      {
+        "id": "woo_update_order",
+        "name": "woo update order",
+        "description": "woo_update_order"
+      },
+      {
+        "id": "woo_list_customers",
+        "name": "woo list customers",
+        "description": "woo_list_customers"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "wordpress",
+    "name": "WordPress",
+    "category": "cms",
+    "authType": "token",
+    "tools": [
+      {
+        "id": "wp_list_posts",
+        "name": "wp list posts",
+        "description": "wp_list_posts"
+      },
+      {
+        "id": "wp_create_post",
+        "name": "wp create post",
+        "description": "wp_create_post"
+      },
+      {
+        "id": "wp_update_post",
+        "name": "wp update post",
+        "description": "wp_update_post"
+      },
+      {
+        "id": "wp_list_pages",
+        "name": "wp list pages",
+        "description": "wp_list_pages"
+      },
+      {
+        "id": "wp_list_comments",
+        "name": "wp list comments",
+        "description": "wp_list_comments"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "workday",
+    "name": "Workday",
+    "category": "hr",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "workday_list_workers",
+        "name": "workday list workers",
+        "description": "workday_list_workers"
+      },
+      {
+        "id": "workday_get_worker",
+        "name": "workday get worker",
+        "description": "workday_get_worker"
+      },
+      {
+        "id": "workday_search_workers",
+        "name": "workday search workers",
+        "description": "workday_search_workers"
+      },
+      {
+        "id": "workday_list_organizations",
+        "name": "workday list organizations",
+        "description": "workday_list_organizations"
+      },
+      {
+        "id": "workday_get_time_off_balance",
+        "name": "workday get time off balance",
+        "description": "workday_get_time_off_balance"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "wrike",
+    "name": "Wrike",
+    "category": "productivity",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "wrike_list_tasks",
+        "name": "wrike list tasks",
+        "description": "wrike_list_tasks"
+      },
+      {
+        "id": "wrike_create_task",
+        "name": "wrike create task",
+        "description": "wrike_create_task"
+      },
+      {
+        "id": "wrike_list_folders",
+        "name": "wrike list folders",
+        "description": "wrike_list_folders"
+      },
+      {
+        "id": "wrike_list_projects",
+        "name": "wrike list projects",
+        "description": "wrike_list_projects"
+      },
+      {
+        "id": "wrike_update_task",
+        "name": "wrike update task",
+        "description": "wrike_update_task"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "xero",
+    "name": "Xero Accounting",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "xero_list_invoices",
+        "name": "xero list invoices",
+        "description": "xero_list_invoices"
+      },
+      {
+        "id": "xero_create_invoice",
+        "name": "xero create invoice",
+        "description": "xero_create_invoice"
+      },
+      {
+        "id": "xero_list_contacts",
+        "name": "xero list contacts",
+        "description": "xero_list_contacts"
+      },
+      {
+        "id": "xero_get_balance_sheet",
+        "name": "xero get balance sheet",
+        "description": "xero_get_balance_sheet"
+      },
+      {
+        "id": "xero_list_payments",
+        "name": "xero list payments",
+        "description": "xero_list_payments"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "youtube",
+    "name": "YouTube",
+    "category": "social",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "youtube_search",
+        "name": "youtube search",
+        "description": "youtube_search"
+      },
+      {
+        "id": "youtube_list_videos",
+        "name": "youtube list videos",
+        "description": "youtube_list_videos"
+      },
+      {
+        "id": "youtube_get_channel",
+        "name": "youtube get channel",
+        "description": "youtube_get_channel"
+      },
+      {
+        "id": "youtube_list_playlists",
+        "name": "youtube list playlists",
+        "description": "youtube_list_playlists"
+      },
+      {
+        "id": "youtube_get_analytics",
+        "name": "youtube get analytics",
+        "description": "youtube_get_analytics"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "zendesk-tickets",
+    "name": "Zendesk Tickets",
+    "category": "crm",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "zendesk_create_ticket",
+        "name": "zendesk create ticket",
+        "description": "zendesk_create_ticket"
+      },
+      {
+        "id": "zendesk_list_tickets",
+        "name": "zendesk list tickets",
+        "description": "zendesk_list_tickets"
+      },
+      {
+        "id": "zendesk_update_ticket",
+        "name": "zendesk update ticket",
+        "description": "zendesk_update_ticket"
+      },
+      {
+        "id": "zendesk_add_comment",
+        "name": "zendesk add comment",
+        "description": "zendesk_add_comment"
+      }
+    ],
+    "toolCount": 4
+  },
+  {
+    "id": "zoho-crm",
+    "name": "Zoho CRM",
+    "category": "crm",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "zoho_list_records",
+        "name": "zoho list records",
+        "description": "zoho_list_records"
+      },
+      {
+        "id": "zoho_get_record",
+        "name": "zoho get record",
+        "description": "zoho_get_record"
+      },
+      {
+        "id": "zoho_create_record",
+        "name": "zoho create record",
+        "description": "zoho_create_record"
+      },
+      {
+        "id": "zoho_update_record",
+        "name": "zoho update record",
+        "description": "zoho_update_record"
+      },
+      {
+        "id": "zoho_search_records",
+        "name": "zoho search records",
+        "description": "zoho_search_records"
+      }
+    ],
+    "toolCount": 5
+  },
+  {
+    "id": "zoom-meetings",
+    "name": "Zoom Meetings",
+    "category": "communication",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "zoom_create_meeting",
+        "name": "zoom create meeting",
+        "description": "zoom_create_meeting"
+      },
+      {
+        "id": "zoom_list_meetings",
+        "name": "zoom list meetings",
+        "description": "zoom_list_meetings"
+      },
+      {
+        "id": "zoom_get_meeting",
+        "name": "zoom get meeting",
+        "description": "zoom_get_meeting"
+      }
+    ],
+    "toolCount": 3
+  },
+  {
+    "id": "zuora",
+    "name": "Zuora",
+    "category": "finance",
+    "authType": "oauth2",
+    "tools": [
+      {
+        "id": "zuora_list_subscriptions",
+        "name": "zuora list subscriptions",
+        "description": "zuora_list_subscriptions"
+      },
+      {
+        "id": "zuora_create_subscription",
+        "name": "zuora create subscription",
+        "description": "zuora_create_subscription"
+      },
+      {
+        "id": "zuora_list_accounts",
+        "name": "zuora list accounts",
+        "description": "zuora_list_accounts"
+      },
+      {
+        "id": "zuora_list_invoices",
+        "name": "zuora list invoices",
+        "description": "zuora_list_invoices"
+      },
+      {
+        "id": "zuora_query",
+        "name": "zuora query",
+        "description": "zuora_query"
+      }
+    ],
+    "toolCount": 5
+  }
+]

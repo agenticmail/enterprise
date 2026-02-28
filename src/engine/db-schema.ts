@@ -1375,6 +1375,16 @@ CREATE INDEX IF NOT EXISTS idx_ksl_ts ON knowledge_search_log(timestamp);
     mysql: `ALTER TABLE company_settings ADD COLUMN signature_template TEXT;`,
     nosql: async () => {},
   },
+  {
+    version: 22,
+    name: 'seed_community_skills',
+    // Marker migration — actual seeding is done by seedCommunitySkills() in db-adapter.ts
+    // which runs after all migrations complete. Uses INSERT ... ON CONFLICT DO NOTHING.
+    sql: `SELECT 1;`,
+    postgres: `SELECT 1;`,
+    mysql: `SELECT 1;`,
+    nosql: async () => {},
+  },
 ];
 
 // ─── Dynamic Table Definitions ─────────────────────────

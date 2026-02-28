@@ -1,0 +1,14 @@
+/**
+ * QuickBooks Integration Tools
+ *
+ * Native agent tools for QuickBooks API.
+ * Auto-generated from MCP adapter. Do not edit manually.
+ */
+
+import type { AnyAgentTool } from '../../types.js';
+import { createToolsFromAdapter, type IntegrationConfig } from './_factory.js';
+import { quickbooksAdapter } from '../../../mcp/adapters/quickbooks.adapter.js';
+
+export function createQuickbooksAccountingTools(config: IntegrationConfig): Promise<AnyAgentTool[]> {
+  return createToolsFromAdapter(quickbooksAdapter, config);
+}

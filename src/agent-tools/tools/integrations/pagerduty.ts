@@ -1,0 +1,14 @@
+/**
+ * PagerDuty Integration Tools
+ *
+ * Native agent tools for PagerDuty API.
+ * Auto-generated from MCP adapter. Do not edit manually.
+ */
+
+import type { AnyAgentTool } from '../../types.js';
+import { createToolsFromAdapter, type IntegrationConfig } from './_factory.js';
+import { pagerdutyAdapter } from '../../../mcp/adapters/pagerduty.adapter.js';
+
+export function createPagerdutyTools(config: IntegrationConfig): Promise<AnyAgentTool[]> {
+  return createToolsFromAdapter(pagerdutyAdapter, config);
+}
