@@ -186,8 +186,9 @@ function htmlToText(html: string): string {
     // Strip all remaining tags
     .replace(/<[^>]+>/g, '')
     // Decode HTML entities
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&rsquo;/g, '\u2019').replace(/&lsquo;/g, '\u2018').replace(/&rdquo;/g, '\u201D').replace(/&ldquo;/g, '\u201C').replace(/&mdash;/g, '\u2014').replace(/&ndash;/g, '\u2013').replace(/&hellip;/g, '...').replace(/&trade;/g, '').replace(/&reg;/g, '').replace(/&copy;/g, '')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/gi, "'").replace(/&#x2F;/gi, '/').replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)))
     .replace(/&[a-z]+;/gi, ' '); // catch-all for remaining entities
 
@@ -208,9 +209,9 @@ function cleanContent(text: string): string {
     // Remove "Written by ... Updated ..." bylines
     .replace(/written\s+by\s+[\w\s.]+updated\s+[\w\s]+ago/gi, '')
     // Remove "Did this answer your question?" feedback prompts
-    .replace(/did\s+this\s+answer\s+your\s+question\s*[😞😐😃🙁😊👍👎\s]*/gi, '')
-    // Remove emoji-only lines
-    .replace(/^[\s]*[😞😐😃🙁😊👍👎🎉✅❌⭐️💡🔥\s]+[\s]*$/gm, '')
+    .replace(/did\s+this\s+answer\s+your\s+question[^.\n]*/gi, '')
+    // Remove emoji-only lines (full Unicode emoji range)
+    .replace(/^[\s]*[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\s]+[\s]*$/gmu, '')
     // Remove breadcrumb-style navigation (< "Page" < "Section")
     .replace(/(?:<\s*"[^"]*"\s*)+/g, '')
     // Remove "- - - - -" separator lines
@@ -221,6 +222,14 @@ function cleanContent(text: string): string {
     .replace(/(?:share\s+this\s+article|was\s+this\s+(?:article\s+)?helpful)[^.]*[.?]?/gi, '')
     // Remove standalone URLs on their own line
     .replace(/^https?:\/\/[^\s]+$/gm, '')
+    // Normalize smart quotes to regular quotes
+    .replace(/[\u2018\u2019\u201A]/g, "'")
+    .replace(/[\u201C\u201D\u201E]/g, '"')
+    .replace(/\u2014/g, ' - ')
+    .replace(/\u2013/g, '-')
+    .replace(/\u2026/g, '...')
+    // Strip decorative emojis (keep text content clean for RAG)
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu, '')
     // Collapse multiple blank lines
     .replace(/\n{3,}/g, '\n\n')
     // Collapse multiple spaces
