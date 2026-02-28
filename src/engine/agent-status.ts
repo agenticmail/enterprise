@@ -250,6 +250,23 @@ export class AgentStatusTracker {
     }
   }
 
+  /** Accept a full status update from an external agent process */
+  externalUpdate(agentId: string, update: {
+    status?: AgentOnlineStatus;
+    clockedIn?: boolean;
+    currentActivity?: AgentActivity | null;
+    activeSessions?: number;
+  }): void {
+    const snap = this.getOrCreate(agentId);
+    if (update.status != null) snap.status = update.status;
+    if (update.clockedIn != null) snap.clockedIn = update.clockedIn;
+    if (update.currentActivity !== undefined) snap.currentActivity = update.currentActivity;
+    if (update.activeSessions != null) snap.activeSessions = update.activeSessions;
+    snap.lastHeartbeat = new Date().toISOString();
+    if (snap.status !== 'offline' && !snap.onlineSince) snap.onlineSince = new Date().toISOString();
+    this.emit(agentId, snap);
+  }
+
   destroy(): void {
     if (this.staleCheckTimer) clearInterval(this.staleCheckTimer);
     this.listeners.clear();

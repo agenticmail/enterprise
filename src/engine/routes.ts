@@ -228,6 +228,15 @@ engine.get('/agent-status/:agentId', (c) => {
   return c.json(agentStatus.getStatus(c.req.param('agentId')));
 });
 
+// Agents POST their status here (internal API, no auth needed for agent-to-server)
+engine.post('/agent-status/:agentId', async (c) => {
+  try {
+    const body = await c.req.json();
+    agentStatus.externalUpdate(c.req.param('agentId'), body);
+    return c.json({ ok: true });
+  } catch (err: any) { return c.json({ error: err.message }, 400); }
+});
+
 engine.get('/agent-status-stream', (c) => {
   const filterAgent = c.req.query('agentId');
   const stream = new ReadableStream({

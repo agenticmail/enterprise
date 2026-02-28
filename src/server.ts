@@ -187,6 +187,11 @@ export function createServer(config: ServerConfig): ServerInstance {
       return next();
     }
 
+    // Skip auth for agent status updates (internal agent→server communication)
+    if (c.req.path.includes('/engine/agent-status/') && c.req.method === 'POST') {
+      return next();
+    }
+
     // Check API key first
     const apiKeyHeader = c.req.header('X-API-Key');
     if (apiKeyHeader) {

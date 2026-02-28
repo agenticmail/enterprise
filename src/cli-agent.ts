@@ -565,12 +565,25 @@ export async function runAgent(_args: string[]) {
   await runtime.start();
   const runtimeApp = runtime.getApp();
 
-  // Send initial heartbeat to mark agent as online
-  routes.agentStatus.heartbeat(AGENT_ID);
-  // Store agent ID for periodic heartbeats
-  (runtime as any)._knownAgentIds = [AGENT_ID];
-  // Send heartbeat every 30s
-  setInterval(() => routes.agentStatus.heartbeat(AGENT_ID), 30_000).unref();
+  // ─── Real-Time Status Reporting ─────────────────────────
+  // Report status to the enterprise server (separate process)
+  const ENTERPRISE_URL = process.env.ENTERPRISE_URL || 'http://localhost:3100';
+  const _reportStatus = (update: any) => {
+    fetch(`${ENTERPRISE_URL}/api/engine/agent-status/${AGENT_ID}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(update),
+    }).catch(() => {}); // fire-and-forget
+  };
+  // Mark online immediately
+  _reportStatus({ status: 'idle', clockedIn: false, activeSessions: 0, currentActivity: null });
+  // Heartbeat every 30s
+  setInterval(() => {
+    const sessions = (runtime as any).activeSessions?.size || 0;
+    _reportStatus({ status: sessions > 0 ? 'online' : 'idle', activeSessions: sessions });
+  }, 30_000).unref();
+  // Expose reporter for runtime to use
+  (runtime as any)._reportStatus = _reportStatus;
 
   // 7b. Initialize remaining shared singletons from routes.js so hooks work in standalone mode
   // Note: lifecycle was already initialized in step 4 (we use routes.lifecycle as the single instance)

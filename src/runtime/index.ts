@@ -290,23 +290,6 @@ export class AgentRuntime {
     }, DEFAULT_SSE_KEEPALIVE_MS);
     this.sseKeepaliveTimer.unref();
 
-    // Send initial heartbeat for all known agents
-    if (this.config.agentStatusTracker && this.config.getAgentConfig) {
-      // Heartbeat all agents periodically
-      setInterval(() => {
-        for (const [_sid] of this.activeSessions) {
-          // Find agent for this session and heartbeat them
-        }
-        // Heartbeat all agents that have this runtime
-        try {
-          const agents = (this as any)._knownAgentIds || [];
-          for (const aid of agents) {
-            this.config.agentStatusTracker?.heartbeat(aid);
-          }
-        } catch {}
-      }, 30_000).unref();
-    }
-
     this.started = true;
     console.log('[runtime] Agent runtime started');
 
@@ -353,9 +336,13 @@ export class AgentRuntime {
     var toolStats = getToolSetStats(tools);
     console.log(`[runtime] Session ${session.id} tools: ${toolStats.total} (context: ${sessionContext})${toolStats.unregistered.length ? `, unregistered: ${toolStats.unregistered.join(',')}` : ''}`);
 
-    // Track real-time status
-    if (this.config.agentStatusTracker) {
-      this.config.agentStatusTracker.sessionStart(agentId, session.id, sessionContext, opts.message?.slice(0, 100));
+    // Track real-time status — report to enterprise server
+    if ((this as any)._reportStatus) {
+      (this as any)._reportStatus({
+        status: 'online',
+        activeSessions: this.activeSessions.size,
+        currentActivity: { type: sessionContext, detail: opts.message?.slice(0, 100), sessionId: session.id, startedAt: new Date().toISOString() },
+      });
     }
 
     // Per-context model override — resolves from agent's modelRouting config
@@ -484,10 +471,13 @@ export class AgentRuntime {
     if (this.sessionManager) {
       await this.sessionManager.updateSession(sessionId, { status: 'completed' });
     }
-    // Track session end for all agents (we don't know agentId here, so check session)
-    if (this.config.agentStatusTracker && this.sessionManager) {
-      var _s = await this.sessionManager.getSession(sessionId).catch(() => null);
-      if (_s) this.config.agentStatusTracker.sessionEnd(_s.agentId, sessionId);
+    // Track session end
+    if ((this as any)._reportStatus) {
+      (this as any)._reportStatus({
+        status: this.activeSessions.size > 0 ? 'online' : 'idle',
+        activeSessions: this.activeSessions.size,
+        currentActivity: null,
+      });
     }
   }
 
@@ -689,6 +679,7 @@ export class AgentRuntime {
           signal: abortController.signal,
           sessionId,
           retryConfig: self.config.retry,
+          runtime: self,
 
           // Incremental persistence — save messages after every turn
           onCheckpoint: async function(data) {

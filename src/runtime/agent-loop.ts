@@ -442,9 +442,13 @@ export async function runAgentLoop(
 
         // Track tool start in real-time status
         try {
-          const { agentStatus: _as, describeToolActivity: _dta } = await import('../engine/routes.js').then(r => ({ agentStatus: r.agentStatus, describeToolActivity: null }));
-          const { describeToolActivity: _dta2 } = await import('../engine/agent-status.js');
-          _as?.toolStart(config.agentId, toolCall.name, _dta2(toolCall.name));
+          const { describeToolActivity } = await import('../engine/agent-status.js');
+          if ((options as any).runtime?._reportStatus) {
+            (options as any).runtime._reportStatus({
+              status: 'online',
+              currentActivity: { type: 'tool_call', detail: describeToolActivity(toolCall.name), tool: toolCall.name, startedAt: new Date().toISOString() },
+            });
+          }
         } catch { /* non-blocking */ }
 
         var { result, content } = await executeTool(tool, effectiveToolCall, {
@@ -470,8 +474,9 @@ export async function runAgentLoop(
 
         // Track tool end in real-time status
         try {
-          const { agentStatus: _as2 } = await import('../engine/routes.js');
-          _as2?.toolEnd(config.agentId);
+          if ((options as any).runtime?._reportStatus) {
+            (options as any).runtime._reportStatus({ currentActivity: null });
+          }
         } catch { /* non-blocking */ }
 
         // Dynamic tool injection — request_tools returns new tools to add to the session
