@@ -773,31 +773,31 @@ export function SettingsPage() {
 // INTEGRATIONS TAB
 // ═══════════════════════════════════════════════════════════
 
-var INTEGRATIONS = [
-  { skillId: 'slack-notifications', name: 'Slack', desc: 'Send and receive messages in Slack workspaces', authType: 'oauth', provider: 'slack' },
-  { skillId: 'github-repos', name: 'GitHub', desc: 'PR reviews, issue management, CI/CD automation', authType: 'oauth', provider: 'github' },
-  { skillId: 'discord-communication', name: 'Discord', desc: 'Bot integration for Discord servers', authType: 'token', tokenLabel: 'Bot Token' },
-  { skillId: 'jira-project-management', name: 'Jira', desc: 'Issue tracking and project management', authType: 'oauth', provider: 'atlassian' },
-  { skillId: 'notion', name: 'Notion', desc: 'Knowledge base and documentation', authType: 'oauth', provider: 'notion' },
-  { skillId: 'salesforce-crm', name: 'Salesforce', desc: 'CRM integration for sales and support agents', authType: 'oauth', provider: 'salesforce' },
-  { skillId: 'hubspot-crm', name: 'HubSpot', desc: 'Marketing, sales, and CRM platform', authType: 'oauth', provider: 'hubspot' },
-  { skillId: 'zoom-meetings', name: 'Zoom', desc: 'Video meetings and webinars', authType: 'oauth', provider: 'zoom' },
-  { skillId: 'dropbox-storage', name: 'Dropbox', desc: 'Cloud file storage and sharing', authType: 'oauth', provider: 'dropbox' },
-  { skillId: 'figma-design', name: 'Figma', desc: 'Collaborative design and prototyping', authType: 'oauth', provider: 'figma' },
-  { skillId: 'linear-issues', name: 'Linear', desc: 'Issue tracking for engineering teams', authType: 'token', tokenLabel: 'API Key' },
-  { skillId: 'asana-tasks', name: 'Asana', desc: 'Task and project management', authType: 'oauth', provider: 'asana' },
-  { skillId: 'confluence-wiki', name: 'Confluence', desc: 'Team wiki and documentation', authType: 'oauth', provider: 'atlassian' },
-  { skillId: 'airtable-databases', name: 'Airtable', desc: 'Spreadsheet-database for structured data', authType: 'token', tokenLabel: 'API Key' },
-  { skillId: 'google-maps', name: 'Google Maps', desc: 'Places search, directions, distances, geocoding, and maps', authType: 'token', tokenLabel: 'Maps API Key' },
-  { skillId: 'elevenlabs', name: 'ElevenLabs', desc: 'AI voices for meeting participation and text-to-speech', authType: 'token', tokenLabel: 'API Key' },
-];
+// Category display names and order
+var CATEGORY_LABELS = {
+  communication: 'Communication', crm: 'CRM & Sales', productivity: 'Productivity',
+  devops: 'DevOps & CI/CD', infrastructure: 'Cloud & Infrastructure', 'data-ai': 'Database & AI/ML',
+  monitoring: 'Analytics & Monitoring', security: 'Security & Identity', marketing: 'Marketing & Content',
+  design: 'Design & Documents', finance: 'Finance & Payments', hr: 'HR & Recruiting',
+  social: 'Social Media', ecommerce: 'E-commerce', cms: 'CMS', enterprise: 'Enterprise',
+  general: 'Other'
+};
+
+// Auth type display labels
+var AUTH_LABELS = { oauth2: 'OAuth', api_key: 'API Key', token: 'Token', credentials: 'Credentials' };
 
 function IntegrationsTab(props) {
   var toast = props.toast;
-  var _statuses = useState({});
-  var statuses = _statuses[0]; var setStatuses = _statuses[1];
+  var _catalog = useState([]);
+  var catalog = _catalog[0]; var setCatalog = _catalog[1];
+  var _categories = useState([]);
+  var categories = _categories[0]; var setCategories = _categories[1];
   var _loading = useState(true);
   var loading = _loading[0]; var setLoading = _loading[1];
+  var _search = useState('');
+  var search = _search[0]; var setSearch = _search[1];
+  var _activeCategory = useState('all');
+  var activeCategory = _activeCategory[0]; var setActiveCategory = _activeCategory[1];
   var _tokenModal = useState(null);
   var tokenModal = _tokenModal[0]; var setTokenModal = _tokenModal[1];
   var _tokenValue = useState('');
@@ -805,38 +805,56 @@ function IntegrationsTab(props) {
   var _actionLoading = useState(null);
   var actionLoading = _actionLoading[0]; var setActionLoading = _actionLoading[1];
 
-  var loadStatuses = useCallback(function() {
-    var promises = INTEGRATIONS.map(function(int) {
-      return engineCall('/oauth/status/' + int.skillId + '?orgId=' + getOrgId())
-        .then(function(d) { return { skillId: int.skillId, connected: d.connected, expiresAt: d.expiresAt }; })
-        .catch(function() { return { skillId: int.skillId, connected: false }; });
-    });
-    Promise.all(promises).then(function(results) {
-      var map = {};
-      results.forEach(function(r) { map[r.skillId] = r; });
-      setStatuses(map);
-      setLoading(false);
-    });
+  var loadCatalog = useCallback(function() {
+    engineCall('/integrations/catalog?orgId=' + getOrgId())
+      .then(function(d) {
+        setCatalog(d.catalog || []);
+        setCategories(d.categories || []);
+        setLoading(false);
+      })
+      .catch(function(e) {
+        console.error('Failed to load integration catalog:', e);
+        setLoading(false);
+      });
   }, []);
 
-  useEffect(function() { loadStatuses(); }, [loadStatuses]);
+  useEffect(function() { loadCatalog(); }, [loadCatalog]);
+
+  // Filter integrations
+  var filtered = catalog.filter(function(int) {
+    var matchesCategory = activeCategory === 'all' || int.category === activeCategory;
+    var matchesSearch = !search || int.name.toLowerCase().indexOf(search.toLowerCase()) !== -1 || int.skillId.toLowerCase().indexOf(search.toLowerCase()) !== -1;
+    return matchesCategory && matchesSearch;
+  });
+
+  // Sort: connected first, then alphabetically
+  filtered.sort(function(a, b) {
+    if (a.connected !== b.connected) return a.connected ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  var connectedCount = catalog.filter(function(i) { return i.connected; }).length;
 
   var handleConnect = function(int) {
-    if (int.authType === 'token') {
+    if (int.authType === 'api_key' || int.authType === 'token') {
       setTokenModal(int);
       setTokenValue('');
+      return;
+    }
+    if (int.authType === 'credentials') {
+      toast(int.name + ' requires multi-field credentials. Configure via CLI or API.', 'info');
       return;
     }
     setActionLoading(int.skillId);
     engineCall('/oauth/authorize/' + int.skillId + '?orgId=' + getOrgId())
       .then(function(d) {
-        if (d.authorizationUrl) {
-          var popup = window.open(d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
+        if (d.authorizationUrl || d.authUrl) {
+          var popup = window.open(d.authorizationUrl || d.authUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
           var checkInterval = setInterval(function() {
             if (popup && popup.closed) {
               clearInterval(checkInterval);
               setActionLoading(null);
-              loadStatuses();
+              loadCatalog();
             }
           }, 500);
           setTimeout(function() { clearInterval(checkInterval); setActionLoading(null); }, 120000);
@@ -856,8 +874,8 @@ function IntegrationsTab(props) {
       .then(function(ok) {
         if (!ok) return;
         setActionLoading(int.skillId);
-        engineCall('/oauth/disconnect/' + int.skillId + '?orgId=' + getOrgId() + '', { method: 'DELETE' })
-          .then(function() { toast(int.name + ' disconnected', 'success'); loadStatuses(); })
+        engineCall('/oauth/disconnect/' + int.skillId + '?orgId=' + getOrgId(), { method: 'DELETE' })
+          .then(function() { toast(int.name + ' disconnected', 'success'); loadCatalog(); })
           .catch(function(e) { toast('Failed: ' + e.message, 'error'); })
           .finally(function() { setActionLoading(null); });
       });
@@ -866,61 +884,97 @@ function IntegrationsTab(props) {
   var handleSaveToken = function() {
     if (!tokenModal || !tokenValue.trim()) return;
     setActionLoading(tokenModal.skillId);
-    engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId() + '', {
+    engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId(), {
       method: 'POST',
       body: JSON.stringify({ token: tokenValue.trim() })
     })
-      .then(function() { toast(tokenModal.name + ' connected', 'success'); setTokenModal(null); loadStatuses(); })
+      .then(function() { toast(tokenModal.name + ' connected', 'success'); setTokenModal(null); loadCatalog(); })
       .catch(function(e) { toast('Failed: ' + e.message, 'error'); })
       .finally(function() { setActionLoading(null); });
   };
 
   return h('div', null,
     h('div', { className: 'card' },
-      h('div', { className: 'card-header' }, h('h3', { style: { display: 'inline-flex', alignItems: 'center' } }, 'Integrations', h(HelpButton, { label: SETTINGS_HELP.integrations.label }, SETTINGS_HELP.integrations.content()))),
+      h('div', { className: 'card-header' },
+        h('h3', { style: { display: 'inline-flex', alignItems: 'center' } }, 'Integrations',
+          h('span', { className: 'badge badge-neutral', style: { marginLeft: 8, fontSize: 11 } }, catalog.length + ' available'),
+          connectedCount > 0 && h('span', { className: 'badge badge-success', style: { marginLeft: 6, fontSize: 11 } }, connectedCount + ' connected'),
+          h(HelpButton, { label: SETTINGS_HELP.integrations.label }, SETTINGS_HELP.integrations.content())
+        )
+      ),
       h('div', { className: 'card-body' },
-        h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 } }, 'Connect external services to extend agent capabilities. OAuth integrations open a popup for authorization. Token-based integrations require you to paste an API key or bot token.'),
+        h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } },
+          'Connect external services to extend agent capabilities. 144 integrations available — agents automatically get tools for connected services.'
+        ),
+
+        // Search + category filter bar
+        h('div', { style: { display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' } },
+          h('input', {
+            type: 'text', placeholder: 'Search integrations...', value: search,
+            onInput: function(e) { setSearch(e.target.value); },
+            style: { flex: '1 1 200px', minWidth: 150, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
+          }),
+          h('select', {
+            value: activeCategory,
+            onChange: function(e) { setActiveCategory(e.target.value); },
+            style: { padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
+          },
+            h('option', { value: 'all' }, 'All Categories (' + catalog.length + ')'),
+            categories.map(function(cat) {
+              var count = catalog.filter(function(i) { return i.category === cat; }).length;
+              return h('option', { key: cat, value: cat }, (CATEGORY_LABELS[cat] || cat) + ' (' + count + ')');
+            })
+          )
+        ),
+
         loading
           ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }, 'Loading integrations...')
-          : h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 } },
-              INTEGRATIONS.map(function(int) {
-                var status = statuses[int.skillId] || {};
-                var connected = status.connected === true;
-                var isLoading = actionLoading === int.skillId;
-                return h('div', { key: int.skillId, style: {
-                  padding: 16, border: '1px solid ' + (connected ? 'var(--brand-color, #6366f1)' : 'var(--border)'),
-                  borderRadius: 'var(--radius)', background: connected ? 'var(--bg-secondary)' : 'transparent',
-                  opacity: isLoading ? 0.6 : 1, transition: 'border-color 0.2s, background 0.2s'
-                } },
-                  h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
-                    h('strong', { style: { fontSize: 14 } }, int.name),
-                    h('span', { className: 'badge badge-' + (connected ? 'success' : 'neutral') }, connected ? 'Connected' : (int.authType === 'oauth' ? 'OAuth' : 'Token'))
-                  ),
-                  h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, minHeight: 32 } }, int.desc),
-                  connected
-                    ? h('button', {
-                        className: 'btn btn-secondary btn-sm',
-                        disabled: isLoading,
-                        onClick: function() { handleDisconnect(int); }
-                      }, isLoading ? 'Disconnecting...' : 'Disconnect')
-                    : h('button', {
-                        className: 'btn btn-primary btn-sm',
-                        disabled: isLoading,
-                        onClick: function() { handleConnect(int); }
-                      }, isLoading ? 'Connecting...' : 'Connect')
-                );
-              })
-            )
+          : filtered.length === 0
+            ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }, 'No integrations match your search.')
+            : h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 } },
+                filtered.map(function(int) {
+                  var connected = int.connected === true;
+                  var isLoading = actionLoading === int.skillId;
+                  var authLabel = AUTH_LABELS[int.authType] || int.authType;
+                  return h('div', { key: int.skillId, style: {
+                    padding: 14, border: '1px solid ' + (connected ? 'var(--brand-color, #6366f1)' : 'var(--border)'),
+                    borderRadius: 'var(--radius)', background: connected ? 'var(--bg-secondary)' : 'transparent',
+                    opacity: isLoading ? 0.6 : 1, transition: 'border-color 0.2s, background 0.2s'
+                  } },
+                    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
+                      h('strong', { style: { fontSize: 13 } }, int.name),
+                      h('span', { className: 'badge badge-' + (connected ? 'success' : 'neutral'), style: { fontSize: 10 } },
+                        connected ? 'Connected' : authLabel)
+                    ),
+                    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
+                      h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } },
+                        (CATEGORY_LABELS[int.category] || int.category) + ' \u00B7 ' + int.toolCount + ' tool' + (int.toolCount !== 1 ? 's' : '')
+                      )
+                    ),
+                    connected
+                      ? h('button', {
+                          className: 'btn btn-secondary btn-sm',
+                          disabled: isLoading,
+                          onClick: function() { handleDisconnect(int); }
+                        }, isLoading ? 'Disconnecting...' : 'Disconnect')
+                      : h('button', {
+                          className: 'btn btn-primary btn-sm',
+                          disabled: isLoading,
+                          onClick: function() { handleConnect(int); }
+                        }, isLoading ? 'Connecting...' : 'Connect')
+                  );
+                })
+              )
       )
     ),
 
     tokenModal && h(Modal, { title: 'Connect ' + tokenModal.name, onClose: function() { setTokenModal(null); } },
       h('div', { style: { padding: 20 } },
         h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 } },
-          'Enter your ', h('strong', null, tokenModal.tokenLabel || 'API Token'), ' for ', tokenModal.name, '. This will be stored securely in the vault.'
+          'Enter your ', h('strong', null, AUTH_LABELS[tokenModal.authType] || 'API Token'), ' for ', tokenModal.name, '. This will be stored securely in the vault.'
         ),
         h('div', { className: 'form-group' },
-          h('label', null, tokenModal.tokenLabel || 'API Token'),
+          h('label', null, AUTH_LABELS[tokenModal.authType] || 'API Token'),
           h('input', {
             className: 'input', type: 'password',
             value: tokenValue,

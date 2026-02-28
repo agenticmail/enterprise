@@ -20,6 +20,8 @@ export interface McpBridgeConfig {
   agentId?: string;
   /** Optional: only load these skill IDs (if empty/undefined, load all with credentials) */
   enabledSkills?: string[];
+  /** PermissionEngine instance — if provided, dynamically registers loaded tools */
+  permissionEngine?: any;
 }
 
 /**
@@ -86,6 +88,26 @@ export async function createMcpBridgeTools(config: McpBridgeConfig): Promise<Any
 
     // Convert MCP tools to native agent tools
     const mcpTools = framework.getTools();
+
+    // Register with permission engine so tools aren't blocked as "Unknown tool"
+    if (config.permissionEngine && mcpTools.length > 0) {
+      try {
+        const toolDefs = mcpTools.map(t => ({
+          id: t.toolId,
+          name: t.toolId,
+          description: t.description,
+          category: 'utility' as any,
+          risk: 'medium' as any,
+          skillId: 'mcp-bridge',
+          sideEffects: ['external_api'] as any[],
+        }));
+        config.permissionEngine.registerDynamicTools('mcp-bridge', toolDefs);
+        console.log(`[mcp-bridge] Registered ${toolDefs.length} tools with permission engine`);
+      } catch (e: any) {
+        console.warn(`[mcp-bridge] Failed to register with permission engine: ${e.message}`);
+      }
+    }
+
     return mcpTools.map(tool => ({
       name: tool.toolId,
       description: tool.description,

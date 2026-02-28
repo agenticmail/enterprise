@@ -298,6 +298,7 @@ export function createServer(config: ServerConfig): ServerInstance {
                 };
               }
             } catch {}
+            const { vault: vaultRef, permissionEngine: permRef } = await import('./engine/routes.js');
             const runtime = createAgentRuntime({
               engineDb,
               adminDb: config.db,
@@ -307,6 +308,8 @@ export function createServer(config: ServerConfig): ServerInstance {
               getEmailConfig,
               onTokenRefresh,
               agentMemoryManager: agentMemoryMgr,
+              vault: vaultRef,
+              permissionEngine: permRef,
             });
             await runtime.start();
             const runtimeApp = runtime.getApp();
@@ -522,6 +525,7 @@ export function createServer(config: ServerConfig): ServerInstance {
                             };
                           }
                         } catch {}
+                        const { vault: vaultRef2, permissionEngine: permRef2 } = await import('./engine/routes.js');
                         const runtime = createAgentRuntime({
                           engineDb,
                           adminDb: config.db,
@@ -531,6 +535,8 @@ export function createServer(config: ServerConfig): ServerInstance {
                           getEmailConfig,
                           onTokenRefresh,
                           agentMemoryManager: agentMemoryMgr,
+                          vault: vaultRef2,
+                          permissionEngine: permRef2,
                         });
                         await runtime.start();
                         const runtimeApp = runtime.getApp();

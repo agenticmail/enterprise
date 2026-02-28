@@ -57,6 +57,7 @@ import * as KnowledgeSearch from './knowledge-search.js';
 
 import { MESSAGING_SKILLS } from './messaging.js';
 import { LOCAL_SYSTEM_SKILLS } from './local-system.js';
+import { MCP_BRIDGE_SKILL } from './mcp-bridge.js';
 
 // ─── All M365 modules ───────────────────────────────────
 
@@ -134,6 +135,7 @@ export const FULL_SKILL_DEFINITIONS: SkillDefinition[] = [
   })),
   ...MESSAGING_SKILLS,
   ...LOCAL_SYSTEM_SKILLS,
+  MCP_BRIDGE_SKILL,
 ];
 
 // ─── Re-export individual modules for direct access ─────

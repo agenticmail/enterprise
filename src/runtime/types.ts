@@ -136,6 +136,8 @@ export interface RuntimeConfig {
   getIntegrationKey?: (skillId: string, orgId?: string) => Promise<string | null>;
   /** SecureVault instance for MCP skill credential resolution */
   vault?: any;
+  /** PermissionEngine for dynamic MCP tool registration */
+  permissionEngine?: any;
   /** Knowledge base engine for RAG search tools */
   knowledgeEngine?: any;
   /** Real-time agent status tracker */

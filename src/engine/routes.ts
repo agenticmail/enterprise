@@ -286,6 +286,31 @@ engine.route('/knowledge-import', createKnowledgeImportRoutes(knowledgeImport));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
 engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
 
+// ─── Integration catalog (serves all 144 MCP adapter integrations) ──
+engine.get('/integrations/catalog', async (c) => {
+  try {
+    const { INTEGRATION_CATALOG, INTEGRATION_CATEGORIES } = await import('../mcp/integration-catalog.js');
+    const orgId = c.req.query('orgId') || 'default';
+    // Check which integrations have credentials in the vault
+    let connectedSkillIds: Set<string>;
+    try {
+      const entries = await vault.getSecretsByOrg(orgId, 'skill_credential');
+      connectedSkillIds = new Set(
+        entries
+          .map((e: any) => e.name?.match(/^skill:([^:]+):/)?.[1])
+          .filter(Boolean)
+      );
+    } catch { connectedSkillIds = new Set(); }
+    const catalog = INTEGRATION_CATALOG.map(e => ({
+      ...e,
+      connected: connectedSkillIds.has(e.skillId),
+    }));
+    return c.json({ catalog, categories: INTEGRATION_CATEGORIES });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // ─── Integration-specific proxy endpoints ───────────────
 engine.get('/integrations/elevenlabs/voices', async (c) => {
   try {

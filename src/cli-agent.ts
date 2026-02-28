@@ -557,6 +557,7 @@ export async function runAgent(_args: string[]) {
         return null;
       } catch { return null; }
     },
+    permissionEngine: routes.permissionEngine,
     knowledgeEngine: routes.knowledgeBase,
     agentStatusTracker: routes.agentStatus,
     resumeOnStartup: false, // Disabled: zombie sessions exhaust Supabase pool on restart

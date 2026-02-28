@@ -199,6 +199,10 @@ export class AgentRuntime {
     if (this.config.vault) {
       base.vault = this.config.vault;
     }
+    // Pass permission engine for dynamic MCP tool registration
+    if (this.config.permissionEngine) {
+      base.permissionEngine = this.config.permissionEngine;
+    }
     // API key resolvers from vault
     if (this.config.getIntegrationKey) {
       const getKey = this.config.getIntegrationKey;

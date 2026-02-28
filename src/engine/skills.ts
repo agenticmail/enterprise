@@ -366,6 +366,30 @@ export class PermissionEngine {
     this.skills.set(skill.id, skill);
   }
 
+  /**
+   * Register tools dynamically at runtime (e.g., MCP bridge tools loaded after init).
+   * Merges into an existing skill definition or creates a new one.
+   */
+  registerDynamicTools(skillId: string, tools: ToolDefinition[]) {
+    const existing = this.skills.get(skillId);
+    if (existing) {
+      // Merge — add tools that aren't already registered
+      const existingIds = new Set(existing.tools.map(t => t.id));
+      const newTools = tools.filter(t => !existingIds.has(t.id));
+      existing.tools = [...existing.tools, ...newTools];
+    } else {
+      this.skills.set(skillId, {
+        id: skillId,
+        name: `Dynamic: ${skillId}`,
+        description: 'Dynamically registered tools',
+        category: 'integration' as any,
+        risk: 'medium' as any,
+        tools,
+        source: 'builtin',
+      });
+    }
+  }
+
   setProfile(agentId: string, profile: AgentPermissionProfile, orgId?: string) {
     this.profiles.set(agentId, profile);
     if (this.engineDb && orgId) {

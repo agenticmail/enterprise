@@ -385,6 +385,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
         vault: (options as any).vault,
         orgId: (options as any)?.orgId,
         agentId: options?.agentId,
+        permissionEngine: (options as any)?.permissionEngine,
       });
     } catch (e: any) {
       console.warn(`[tools] MCP bridge load failed: ${e.message}`);
