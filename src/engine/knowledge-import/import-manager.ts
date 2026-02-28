@@ -15,6 +15,8 @@ import type {
   ImportDocument, ImportSource, ImportChunk,
 } from './types.js';
 import { chunkDocument } from './chunker.js';
+import { processDocument } from './processors/pipeline.js';
+import type { ProcessedDocument } from './processors/types.js';
 import { GitHubImportProvider } from './provider-github.js';
 import { SharePointImportProvider } from './provider-sharepoint.js';
 import { GoogleSitesImportProvider } from './provider-google-sites.js';
@@ -243,7 +245,7 @@ export class KnowledgeImportManager {
       return;
     }
 
-    // Phase 2: Process and import each document
+    // Phase 2: Process each document through 3-layer pipeline
     job.progress.phase = 'processing';
 
     for (const doc of documents) {
@@ -252,31 +254,63 @@ export class KnowledgeImportManager {
       job.progress.currentItem = doc.sourcePath;
 
       try {
-        // Chunk the document
-        const chunks = chunkDocument(doc, {
-          categoryId: categoryId || 'best-practices',
-          confidence: 0.85,
-        });
+        // Run 3-layer processing pipeline: EXTRACT → CLEAN → VALIDATE
+        const processed = processDocument(doc);
 
-        if (chunks.length === 0) {
+        if (!processed) {
+          // Rejected by quality gate
           job.progress.skippedItems++;
           job.progress.processedItems++;
           continue;
         }
 
-        // Import chunks into knowledge base
+        // Log pipeline stats
+        const { metadata: meta, quality } = processed;
+        console.log(`[knowledge-import] Processed "${processed.title}": ${meta.originalSize}→${meta.cleanedSize} bytes (${(meta.compressionRatio * 100).toFixed(0)}% removed), quality ${quality.score}/100, ${processed.sections.length} sections, ${meta.processingMs}ms`);
+
+        // Chunk sections and import
         job.progress.phase = 'importing';
         let importedForDoc = 0;
 
-        for (const chunk of chunks) {
-          if (this.cancelledJobs.has(job.id)) return;
+        // Also chunk via old chunker for backward compat, but use processed content
+        const processedDoc = { ...doc, content: processed.content, contentType: 'text' as const, title: processed.title };
+        const chunks = chunkDocument(processedDoc, {
+          categoryId: categoryId || 'best-practices',
+          confidence: Math.max(0.5, quality.score / 100),
+        });
 
-          try {
-            await this.insertChunk(job, chunk);
-            importedForDoc++;
-          } catch (chunkErr: any) {
-            console.error(`[knowledge-import] Chunk import failed:`, chunkErr?.message || chunkErr);
-            job.progress.failedItems++;
+        if (chunks.length === 0) {
+          // Fallback: use sections directly
+          for (const section of processed.sections) {
+            if (this.cancelledJobs.has(job.id)) return;
+            try {
+              await this.insertChunk(job, {
+                documentId: doc.id,
+                title: section.title || processed.title,
+                content: section.content,
+                summary: section.content.slice(0, 200).replace(/\s+\S*$/, '') + '...',
+                tags: [],
+                categoryId: categoryId || 'best-practices',
+                confidence: Math.max(0.5, quality.score / 100),
+                sourceUrl: doc.sourceUrl,
+                sourcePath: doc.sourcePath,
+              });
+              importedForDoc++;
+            } catch (chunkErr: any) {
+              console.error(`[knowledge-import] Section import failed:`, chunkErr?.message || chunkErr);
+              job.progress.failedItems++;
+            }
+          }
+        } else {
+          for (const chunk of chunks) {
+            if (this.cancelledJobs.has(job.id)) return;
+            try {
+              await this.insertChunk(job, chunk);
+              importedForDoc++;
+            } catch (chunkErr: any) {
+              console.error(`[knowledge-import] Chunk import failed:`, chunkErr?.message || chunkErr);
+              job.progress.failedItems++;
+            }
           }
         }
 
