@@ -32,6 +32,17 @@ export function WorkforceSection(props) {
   var _saving = useState(false);
   var saving = _saving[0]; var setSaving = _saving[1];
 
+  // Clock history state
+  var _clockPage = useState(0);
+  var clockPage = _clockPage[0]; var setClockPage = _clockPage[1];
+  var _clockSearch = useState('');
+  var clockSearch = _clockSearch[0]; var setClockSearch = _clockSearch[1];
+  var _clockFilter = useState('all');
+  var clockFilter = _clockFilter[0]; var setClockFilter = _clockFilter[1];
+  var _selectedRecord = useState(null);
+  var selectedRecord = _selectedRecord[0]; var setSelectedRecord = _selectedRecord[1];
+  var CLOCK_PAGE_SIZE = 15;
+
   var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   var defaultSchedForm = {
@@ -397,35 +408,157 @@ export function WorkforceSection(props) {
     ),
 
     // ─── Clock History ──────────────────────────────────
-    h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Clock History')),
-      clockRecords.length > 0
-        ? h('div', { className: 'card-body-flush' },
-            h('table', { className: 'data-table' },
-              h('thead', null,
-                h('tr', null,
-                  h('th', null, 'Time'),
-                  h('th', null, 'Type'),
-                  h('th', null, 'Duration')
+    (function() {
+      // Filter + search
+      var filtered = clockRecords.filter(function(rec) {
+        var recType = rec.type || rec.action || 'clock-in';
+        var isClockIn = recType === 'clock-in' || recType === 'clockIn';
+        if (clockFilter === 'in' && !isClockIn) return false;
+        if (clockFilter === 'out' && isClockIn) return false;
+        if (clockSearch) {
+          var s = clockSearch.toLowerCase();
+          var recTime = rec.timestamp || rec.createdAt || rec.time || '';
+          var note = rec.note || rec.reason || rec.source || '';
+          return recTime.toLowerCase().includes(s) || recType.toLowerCase().includes(s) || note.toLowerCase().includes(s);
+        }
+        return true;
+      });
+      var totalFiltered = filtered.length;
+      var totalPages = Math.ceil(totalFiltered / CLOCK_PAGE_SIZE) || 1;
+      var safePage = Math.min(clockPage, totalPages - 1);
+      var paged = filtered.slice(safePage * CLOCK_PAGE_SIZE, (safePage + 1) * CLOCK_PAGE_SIZE);
+
+      return h('div', { className: 'card', style: { marginBottom: 20 } },
+        h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+          h('span', null, 'Clock History'),
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, totalFiltered + ' record' + (totalFiltered !== 1 ? 's' : ''))
+        ),
+        // Filters
+        h('div', { style: { display: 'flex', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', alignItems: 'center' } },
+          h('input', {
+            type: 'text', placeholder: 'Search records...',
+            value: clockSearch,
+            onInput: function(e) { setClockSearch(e.target.value); setClockPage(0); },
+            style: { flex: '1 1 180px', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 12, minWidth: 140, outline: 'none' }
+          }),
+          h('select', {
+            value: clockFilter,
+            onChange: function(e) { setClockFilter(e.target.value); setClockPage(0); },
+            style: { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 12, cursor: 'pointer', outline: 'none' }
+          },
+            h('option', { value: 'all' }, 'All Types'),
+            h('option', { value: 'in' }, 'Clock In'),
+            h('option', { value: 'out' }, 'Clock Out')
+          )
+        ),
+        paged.length > 0
+          ? h('div', { className: 'card-body-flush' },
+              h('table', { className: 'data-table' },
+                h('thead', null,
+                  h('tr', null,
+                    h('th', null, 'Time'),
+                    h('th', null, 'Type'),
+                    h('th', null, 'Duration'),
+                    h('th', null, 'Source'),
+                    h('th', null, 'Note')
+                  )
+                ),
+                h('tbody', null,
+                  paged.map(function(rec, i) {
+                    var recTime = rec.timestamp || rec.createdAt || rec.time;
+                    var recType = rec.type || rec.action || 'clock-in';
+                    var isClockIn = recType === 'clock-in' || recType === 'clockIn';
+                    return h('tr', { key: rec.id || i, onClick: function() { setSelectedRecord(rec); }, style: { cursor: 'pointer' } },
+                      h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, recTime ? new Date(recTime).toLocaleString() : '-'),
+                      h('td', null, h('span', { className: isClockIn ? 'badge badge-success' : 'badge badge-neutral' }, isClockIn ? 'Clock In' : 'Clock Out')),
+                      h('td', { style: { fontSize: 12 } }, rec.duration || rec.durationMinutes ? (rec.durationMinutes || rec.duration) + ' min' : '-'),
+                      h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, rec.source || rec.triggeredBy || '-'),
+                      h('td', { style: { fontSize: 12, color: 'var(--text-muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, rec.note || rec.reason || '-')
+                    );
+                  })
                 )
               ),
-              h('tbody', null,
-                clockRecords.map(function(rec, i) {
-                  var recTime = rec.timestamp || rec.createdAt || rec.time;
-                  var recType = rec.type || rec.action || 'clock-in';
-                  var isClockIn = recType === 'clock-in' || recType === 'clockIn';
-                  return h('tr', { key: rec.id || i },
-                    h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, recTime ? new Date(recTime).toLocaleString() : '-'),
-                    h('td', null, h('span', { className: isClockIn ? 'badge badge-success' : 'badge badge-neutral' }, isClockIn ? 'Clock In' : 'Clock Out')),
-                    h('td', { style: { fontSize: 12 } }, rec.duration || rec.durationMinutes ? (rec.durationMinutes || rec.duration) + ' min' : '-')
-                  );
-                })
+              // Pagination
+              totalPages > 1 && h('div', {
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px', fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }
+              },
+                h('span', null, 'Showing ' + (safePage * CLOCK_PAGE_SIZE + 1) + '-' + Math.min((safePage + 1) * CLOCK_PAGE_SIZE, totalFiltered) + ' of ' + totalFiltered),
+                h('div', { style: { display: 'flex', gap: 4 } },
+                  h('button', {
+                    className: 'btn btn-ghost btn-sm', disabled: safePage === 0,
+                    onClick: function() { setClockPage(function(p) { return Math.max(0, p - 1); }); }
+                  }, '\u2039 Prev'),
+                  h('span', { style: { padding: '4px 8px' } }, (safePage + 1) + ' / ' + totalPages),
+                  h('button', {
+                    className: 'btn btn-ghost btn-sm', disabled: safePage >= totalPages - 1,
+                    onClick: function() { setClockPage(function(p) { return Math.min(totalPages - 1, p + 1); }); }
+                  }, 'Next \u203A')
+                )
               )
             )
-          )
-        : h('div', { className: 'card-body' },
-            h('div', { style: { textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 13 } }, 'No clock records.')
-          )
+          : h('div', { className: 'card-body' },
+              h('div', { style: { textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 13 } },
+                clockSearch || clockFilter !== 'all' ? 'No matching records.' : 'No clock records.')
+            )
+      );
+    })(),
+
+    // ─── Clock Record Detail Modal ──────────────────────
+    selectedRecord && h('div', { className: 'modal-overlay', onClick: function() { setSelectedRecord(null); } },
+      h('div', { className: 'modal', style: { maxWidth: 500 }, onClick: function(e) { e.stopPropagation(); } },
+        h('div', { className: 'modal-header' },
+          h('h2', null, 'Clock Record Detail'),
+          h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setSelectedRecord(null); } }, I.x())
+        ),
+        h('div', { className: 'modal-body' },
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            (function() {
+              var rec = selectedRecord;
+              var recTime = rec.timestamp || rec.createdAt || rec.time;
+              var recType = rec.type || rec.action || 'clock-in';
+              var isClockIn = recType === 'clock-in' || recType === 'clockIn';
+              return h(Fragment, null,
+                h('div', null,
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Type'),
+                  h('span', { className: isClockIn ? 'badge badge-success' : 'badge badge-neutral' }, isClockIn ? 'Clock In' : 'Clock Out')
+                ),
+                h('div', null,
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Time'),
+                  h('div', { style: { fontSize: 14, fontWeight: 500 } }, recTime ? new Date(recTime).toLocaleString() : '-')
+                ),
+                h('div', null,
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Duration'),
+                  h('div', null, rec.duration || rec.durationMinutes ? (rec.durationMinutes || rec.duration) + ' min' : '-')
+                ),
+                h('div', null,
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Source'),
+                  h('div', null, rec.source || rec.triggeredBy || 'Manual')
+                ),
+                rec.ip && h('div', null,
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'IP Address'),
+                  h('div', { style: { fontFamily: 'monospace', fontSize: 13 } }, rec.ip)
+                ),
+                rec.sessionId && h('div', null,
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Session ID'),
+                  h('div', { style: { fontFamily: 'monospace', fontSize: 11 } }, rec.sessionId)
+                )
+              );
+            })()
+          ),
+          selectedRecord.note || selectedRecord.reason ? h('div', { style: { marginTop: 16 } },
+            h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Note'),
+            h('div', { style: { padding: 10, background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, whiteSpace: 'pre-wrap' } }, selectedRecord.note || selectedRecord.reason)
+          ) : null,
+          selectedRecord.metadata || selectedRecord.data ? h('div', { style: { marginTop: 16 } },
+            h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Metadata'),
+            h('pre', { style: { padding: 10, background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, overflow: 'auto', maxHeight: 200 } },
+              JSON.stringify(selectedRecord.metadata || selectedRecord.data, null, 2))
+          ) : null
+        ),
+        h('div', { className: 'modal-footer' },
+          h('button', { className: 'btn btn-secondary', onClick: function() { setSelectedRecord(null); } }, 'Close')
+        )
+      )
     ),
 
     // ─── Add Task Modal ─────────────────────────────────
