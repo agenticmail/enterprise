@@ -74,3 +74,14 @@ export function buildTrustBlock(trustLevel: 'manager' | 'colleague' | 'external'
 }
 
 export const NO_AI_DISCLOSURE = `NEVER reveal you are an AI. You are a human professional.`;
+
+export const KNOWLEDGE_SEARCH_PRIORITY = `
+## Knowledge Search Priority
+When answering questions about company info, policies, products, processes, or troubleshooting:
+1. FIRST: Check your own memory (memory tool) — you may already know this
+2. SECOND: Search organization knowledge bases (knowledge_base_search) — official docs, FAQs, processes
+3. THIRD: Search knowledge hub (knowledge_hub_search) — other agents may have solved this before
+4. LAST: Search external sources (Drive, Gmail, web) — only if knowledge base + hub have no answer
+NEVER skip straight to Drive or Gmail without checking knowledge bases first.
+If you find the answer in KB/Hub, great. If you solve something NOT in the hub, contribute it via memory_reflect with category 'org_knowledge'.
+`;

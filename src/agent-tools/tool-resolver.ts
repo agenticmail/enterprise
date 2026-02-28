@@ -69,6 +69,7 @@ export type ToolSet =
   | 'ent_security'
   | 'ent_code'
   | 'ent_diff'
+  | 'ent_knowledge'
   // Local system
   | 'local_filesystem'
   | 'local_shell'
@@ -121,6 +122,7 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   ent_security: 3,
   ent_code: 3,
   ent_diff: 3,
+  ent_knowledge: 2,
   local_filesystem: 2,
   local_shell: 2,
   msg_whatsapp: 2,
@@ -353,6 +355,11 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   ent_diff_spreadsheet: 'ent_diff',
   ent_diff_summary: 'ent_diff',
 
+  // ── Knowledge Search (3) ──
+  knowledge_base_search: 'ent_knowledge',
+  knowledge_hub_search: 'ent_knowledge',
+  knowledge_search_stats: 'ent_knowledge',
+
   // ── AgenticMail (40) ──
   agenticmail_inbox: 'agenticmail',
   agenticmail_read: 'agenticmail',
@@ -480,11 +487,12 @@ const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
     'gws_calendar',
   ],
 
-  // Chat (Google Chat): GWS chat tools + browser + calendar
+  // Chat (Google Chat): GWS chat tools + browser + calendar + knowledge
   chat: [
     'gws_chat',
     'browser',
     'gws_calendar',
+    'ent_knowledge',
   ],
 
   // WhatsApp: lean — only WhatsApp tools + browser
@@ -509,6 +517,7 @@ const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
     'gws_tasks',
     'agenticmail',
     'ent_documents',
+    'ent_knowledge',
   ],
 
   // Task: broad access for autonomous work
@@ -580,6 +589,9 @@ const SIGNAL_RULES: SignalRule[] = [
   // AgenticMail
   { patterns: [/\bagenticmail\b/i, /\bagent.*email\b/i],
     sets: ['agenticmail'] },
+  // Knowledge base / hub
+  { patterns: [/\bknowledge\s*base\b/i, /\bknowledge\s*hub\b/i, /\bfaq\b/i, /\bdocumentation\b/i, /\bwiki\b/i, /\bhow\s+do\s+(we|i)\b/i, /\bwhat.*(policy|process|procedure)\b/i, /\bcompany.*(guide|handbook)\b/i],
+    sets: ['ent_knowledge'] },
 ];
 
 /**
@@ -776,6 +788,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   ent_security: 'Security scanning — secrets, PII, deps (6 tools)',
   ent_code: 'Code sandbox — JS, Python, shell (5 tools)',
   ent_diff: 'Text/JSON/spreadsheet diffs (4 tools)',
+  ent_knowledge: 'Knowledge base + hub search (3 tools)',
   agenticmail: 'Full email management (40 tools)',
   local_filesystem: 'File read/write/edit/move/delete/search (7 tools)',
   local_shell: 'Shell exec, PTY sessions, sudo, package install (7 tools)',

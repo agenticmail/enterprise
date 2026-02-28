@@ -33,6 +33,11 @@ export function KnowledgeContributionsPage() {
   var [contribAgent, setContribAgent] = useState('');
   var CONTRIB_PAGE_SIZE = 20;
 
+  // Search metrics state
+  var [searchMetrics, setSearchMetrics] = useState(null);
+  var [searchDays, setSearchDays] = useState(7);
+  var [searchAgentFilter, setSearchAgentFilter] = useState('');
+
   var loadBases = useCallback(function() {
     Promise.all([
       engineCall('/knowledge-contribution/bases?orgId=' + getOrgId()).catch(function() { return { bases: [] }; }),
@@ -1162,12 +1167,157 @@ export function KnowledgeContributionsPage() {
     );
   };
 
+  // ── Search Metrics Tab ─────────────────────────
+
+  var loadSearchMetrics = function() {
+    var url = '/knowledge-contribution/search-metrics?days=' + searchDays;
+    if (searchAgentFilter) url += '&agentId=' + searchAgentFilter;
+    engineCall(url).then(function(d) { setSearchMetrics(d); }).catch(function() { setSearchMetrics(null); });
+  };
+
+  var renderSearchMetrics = function() {
+    if (!searchMetrics && tab === 'searchMetrics') {
+      loadSearchMetrics();
+    }
+    var m = searchMetrics;
+
+    return h('div', null,
+      // Filters
+      h('div', { style: { display: 'flex', gap: 12, marginBottom: 20 } },
+        h('select', {
+          className: 'input', style: { width: 140 },
+          value: searchDays,
+          onChange: function(e) { setSearchDays(parseInt(e.target.value)); setTimeout(loadSearchMetrics, 100); }
+        },
+          h('option', { value: 7 }, 'Last 7 days'),
+          h('option', { value: 14 }, 'Last 14 days'),
+          h('option', { value: 30 }, 'Last 30 days')
+        ),
+        agents.length > 0 && h('select', {
+          className: 'input', style: { width: 180 },
+          value: searchAgentFilter,
+          onChange: function(e) { setSearchAgentFilter(e.target.value); setTimeout(loadSearchMetrics, 100); }
+        },
+          h('option', { value: '' }, 'All Agents'),
+          agents.map(function(a) { return h('option', { key: a.id, value: a.id }, a.name || a.id); })
+        ),
+        h('button', { className: 'btn btn-ghost', onClick: loadSearchMetrics }, I.refresh(), ' Refresh')
+      ),
+
+      !m ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }, 'Loading search metrics...') :
+      m.totalSearches === 0 ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } },
+        h('div', { style: { fontSize: 48, marginBottom: 12 } }, I.search()),
+        h('div', { style: { fontSize: 18, fontWeight: 600, marginBottom: 8 } }, 'No searches yet'),
+        h('div', null, 'Agents will show up here once they start using knowledge_base_search and knowledge_hub_search tools.')
+      ) :
+      h(Fragment, null,
+        // Summary cards
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 } },
+          _metricCard('Total Searches', m.totalSearches, I.search()),
+          _metricCard('KB Searches', m.kbSearches, I.database()),
+          _metricCard('Hub Searches', m.hubSearches, I.brain()),
+          _metricCard('Hit Rate', m.hitRate + '%', I.check(), m.hitRate >= 50 ? 'var(--success)' : m.hitRate >= 25 ? 'var(--warning)' : 'var(--error)')
+        ),
+
+        // By agent breakdown
+        Object.keys(m.byAgent || {}).length > 0 && h('div', { className: 'card', style: { marginBottom: 20, padding: 16 } },
+          h('h3', { style: { marginBottom: 12 } }, 'Search Efficiency by Agent'),
+          h('table', { className: 'table', style: { width: '100%' } },
+            h('thead', null,
+              h('tr', null,
+                h('th', null, 'Agent'),
+                h('th', { style: { textAlign: 'right' } }, 'Total'),
+                h('th', { style: { textAlign: 'right' } }, 'Helpful'),
+                h('th', { style: { textAlign: 'right' } }, 'Hit Rate')
+              )
+            ),
+            h('tbody', null,
+              Object.entries(m.byAgent).map(function(entry) {
+                var aid = entry[0], d = entry[1];
+                var agentName = (agents.find(function(a) { return a.id === aid; }) || {}).name || aid;
+                return h('tr', { key: aid },
+                  h('td', null, agentName),
+                  h('td', { style: { textAlign: 'right' } }, d.total),
+                  h('td', { style: { textAlign: 'right' } }, d.helpful),
+                  h('td', { style: { textAlign: 'right', color: d.hitRate >= 50 ? 'var(--success)' : d.hitRate >= 25 ? 'var(--warning)' : 'var(--error)' } },
+                    d.hitRate + '%')
+                );
+              })
+            )
+          )
+        ),
+
+        // Timeline
+        (m.timeline || []).length > 0 && h('div', { className: 'card', style: { marginBottom: 20, padding: 16 } },
+          h('h3', { style: { marginBottom: 12 } }, 'Search Activity Over Time'),
+          h('div', { style: { display: 'flex', gap: 4, alignItems: 'flex-end', height: 120 } },
+            m.timeline.map(function(day) {
+              var maxVal = Math.max.apply(null, m.timeline.map(function(d) { return d.kb + d.hub; })) || 1;
+              var total = day.kb + day.hub;
+              var height = Math.max(4, (total / maxVal) * 100);
+              var helpfulPct = total > 0 ? day.helpful / total : 0;
+              return h('div', { key: day.date, style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' } },
+                h('div', { style: { fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 } }, total),
+                h('div', {
+                  style: {
+                    width: '100%', maxWidth: 40, height: height + '%', minHeight: 4,
+                    background: helpfulPct >= 0.5 ? 'var(--success)' : helpfulPct >= 0.25 ? 'var(--warning)' : 'var(--primary)',
+                    borderRadius: 3, opacity: 0.8
+                  },
+                  title: day.date + ': ' + total + ' searches (' + day.helpful + ' helpful)'
+                }),
+                h('div', { style: { fontSize: 9, color: 'var(--text-muted)', marginTop: 4, transform: 'rotate(-45deg)', whiteSpace: 'nowrap' } },
+                  day.date.slice(5))
+              );
+            })
+          )
+        ),
+
+        // Recent searches
+        (m.recent || []).length > 0 && h('div', { className: 'card', style: { padding: 16 } },
+          h('h3', { style: { marginBottom: 12 } }, 'Recent Searches'),
+          h('table', { className: 'table', style: { width: '100%' } },
+            h('thead', null,
+              h('tr', null,
+                h('th', null, 'Agent'),
+                h('th', null, 'Type'),
+                h('th', null, 'Query'),
+                h('th', { style: { textAlign: 'right' } }, 'Results'),
+                h('th', { style: { textAlign: 'right' } }, 'Score'),
+                h('th', null, 'Helpful'),
+                h('th', null, 'Time')
+              )
+            ),
+            h('tbody', null,
+              m.recent.map(function(r) {
+                var agentName = (agents.find(function(a) { return a.id === r.agentId; }) || {}).name || r.agentId;
+                return h('tr', { key: r.id },
+                  h('td', null, agentName),
+                  h('td', null, h('span', {
+                    className: 'badge',
+                    style: { background: r.type === 'knowledge_base' ? 'var(--primary)' : 'var(--info)', color: 'white', fontSize: 11 }
+                  }, r.type === 'knowledge_base' ? 'KB' : 'Hub')),
+                  h('td', { style: { maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.query),
+                  h('td', { style: { textAlign: 'right' } }, r.results),
+                  h('td', { style: { textAlign: 'right' } }, r.topScore ? (r.topScore * 100).toFixed(0) + '%' : '-'),
+                  h('td', null, r.helpful ? h('span', { style: { color: 'var(--success)' } }, '\u2713') : h('span', { style: { color: 'var(--text-muted)' } }, '\u2717')),
+                  h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, _fmtSearchTime(r.timestamp))
+                );
+              })
+            )
+          )
+        )
+      )
+    );
+  };
+
   // ── Tab labels ──────────────────────────────
   var tabLabels = {
     bases: 'Knowledge Bases',
     contributions: 'Contributions',
     schedules: 'Schedules',
-    stats: 'Stats'
+    stats: 'Stats',
+    searchMetrics: 'Search Metrics'
   };
 
   return h(Fragment, null,
@@ -1198,6 +1348,7 @@ export function KnowledgeContributionsPage() {
     tab === 'contributions' && renderContributions(),
     tab === 'schedules' && renderSchedules(),
     tab === 'stats' && renderStats(),
+    tab === 'searchMetrics' && renderSearchMetrics(),
 
     // Tooltip overlay
     renderTooltip(),
@@ -1352,4 +1503,20 @@ function _pgBtn(active) {
     background: active ? 'var(--accent)' : 'var(--bg-card)', color: active ? '#fff' : 'var(--text)',
     cursor: 'pointer', fontSize: 12,
   };
+}
+
+function _metricCard(label, value, icon, color) {
+  return h('div', { className: 'card', style: { padding: 16, textAlign: 'center' } },
+    h('div', { style: { fontSize: 14, color: 'var(--text-muted)', marginBottom: 4 } }, icon, ' ', label),
+    h('div', { style: { fontSize: 28, fontWeight: 700, color: color || 'var(--text)' } }, value)
+  );
+}
+
+function _fmtSearchTime(ts) {
+  if (!ts) return '-';
+  var d = new Date(ts);
+  var now = new Date();
+  var isToday = d.toDateString() === now.toDateString();
+  if (isToday) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }

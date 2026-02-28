@@ -6,7 +6,7 @@
  */
 
 import { buildScheduleBlock, type PromptContext, type ScheduleInfo } from '../index.js';
-import { BROWSER_RULES, buildTrustBlock, NO_AI_DISCLOSURE } from '../shared-blocks.js';
+import { BROWSER_RULES, buildTrustBlock, NO_AI_DISCLOSURE, KNOWLEDGE_SEARCH_PRIORITY } from '../shared-blocks.js';
 
 export interface GoogleChatContext extends PromptContext {
   senderName: string;
@@ -66,6 +66,8 @@ After taking action, confirm via chat. Keep responses short and conversational.
 
 ${buildTrustBlock(ctx.trustLevel)}
 ${BROWSER_RULES}
+
+${KNOWLEDGE_SEARCH_PRIORITY}
 
 ## Meeting Participation — CRITICAL RULES
 ALWAYS use meeting_join(url) to join meetings. NEVER use browser navigate to open a Meet URL.

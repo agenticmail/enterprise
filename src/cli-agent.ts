@@ -557,6 +557,7 @@ export async function runAgent(_args: string[]) {
         return null;
       } catch { return null; }
     },
+    knowledgeEngine: routes.knowledgeBase,
     resumeOnStartup: false, // Disabled: zombie sessions exhaust Supabase pool on restart
   });
 

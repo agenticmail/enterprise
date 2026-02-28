@@ -543,5 +543,80 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
     }
   });
 
+  // ─── Knowledge Search Metrics ─────────────────────────
+
+  router.get('/search-metrics', async (c) => {
+    try {
+      const days = parseInt(c.req.query('days') || '7');
+      const agentId = c.req.query('agentId');
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+
+      let sql = `SELECT * FROM knowledge_search_log WHERE timestamp >= $1`;
+      const params: any[] = [since];
+      if (agentId) {
+        sql += ` AND agent_id = $2`;
+        params.push(agentId);
+      }
+      sql += ` ORDER BY timestamp DESC LIMIT 500`;
+
+      const rows = await db.query<any>(sql, params);
+
+      // Aggregate metrics
+      const totalSearches = rows.length;
+      const kbSearches = rows.filter((r: any) => r.search_type === 'knowledge_base').length;
+      const hubSearches = rows.filter((r: any) => r.search_type === 'knowledge_hub').length;
+      const helpfulSearches = rows.filter((r: any) => r.was_helpful).length;
+      const hitRate = totalSearches > 0 ? Math.round((helpfulSearches / totalSearches) * 100) : 0;
+
+      // By agent
+      const byAgent: Record<string, { total: number; helpful: number; hitRate: number }> = {};
+      for (const r of rows) {
+        const aid = r.agent_id;
+        if (!byAgent[aid]) byAgent[aid] = { total: 0, helpful: 0, hitRate: 0 };
+        byAgent[aid].total++;
+        if (r.was_helpful) byAgent[aid].helpful++;
+      }
+      for (const a of Object.values(byAgent)) {
+        a.hitRate = a.total > 0 ? Math.round((a.helpful / a.total) * 100) : 0;
+      }
+
+      // Timeline (daily)
+      const timeline: Record<string, { date: string; kb: number; hub: number; helpful: number }> = {};
+      for (const r of rows) {
+        const day = (r.timestamp || '').slice(0, 10);
+        if (!timeline[day]) timeline[day] = { date: day, kb: 0, hub: 0, helpful: 0 };
+        if (r.search_type === 'knowledge_base') timeline[day].kb++;
+        else timeline[day].hub++;
+        if (r.was_helpful) timeline[day].helpful++;
+      }
+
+      // Recent searches
+      const recent = rows.slice(0, 20).map((r: any) => ({
+        id: r.id,
+        agentId: r.agent_id,
+        type: r.search_type,
+        query: r.query,
+        results: r.results_count,
+        topScore: r.top_score,
+        helpful: r.was_helpful,
+        durationMs: r.duration_ms,
+        timestamp: r.timestamp,
+      }));
+
+      return c.json({
+        totalSearches,
+        kbSearches,
+        hubSearches,
+        helpfulSearches,
+        hitRate,
+        byAgent,
+        timeline: Object.values(timeline).sort((a, b) => a.date.localeCompare(b.date)),
+        recent,
+      });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   return router;
 }

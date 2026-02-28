@@ -149,6 +149,7 @@ export class AgentRuntime {
       agenticmailManager: this.config.agenticmailManager,
       agentMemoryManager: this.config.agentMemoryManager,
       engineDb: this.config.engineDb,
+      knowledgeEngine: this.config.knowledgeEngine,
       orgId: 'default', // TODO: resolve from agent's org
       runtimeRef: {
         sendMessage: (sid: string, message: string) => self.sendMessage(sid, message),

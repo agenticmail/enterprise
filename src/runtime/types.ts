@@ -136,6 +136,8 @@ export interface RuntimeConfig {
   getIntegrationKey?: (skillId: string, orgId?: string) => Promise<string | null>;
   /** SecureVault instance for MCP skill credential resolution */
   vault?: any;
+  /** Knowledge base engine for RAG search tools */
+  knowledgeEngine?: any;
   /** Resume active sessions on startup (default: true) */
   resumeOnStartup?: boolean;
   /** Heartbeat interval in ms (default: 30000 = 30s) */

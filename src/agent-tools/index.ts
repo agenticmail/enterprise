@@ -119,6 +119,7 @@ export { createSpreadsheetTools } from './tools/enterprise-spreadsheet.js';
 export { createDocumentTools } from './tools/enterprise-documents.js';
 export { createEnterpriseHttpTools } from './tools/enterprise-http.js';
 export { createSecurityScanTools } from './tools/enterprise-security-scan.js';
+export { createKnowledgeSearchTools } from './tools/knowledge-search.js';
 export { createCodeSandboxTools } from './tools/enterprise-code-sandbox.js';
 export { createDiffTools } from './tools/enterprise-diff.js';
 
@@ -156,6 +157,7 @@ import { createEnterpriseHttpTools } from './tools/enterprise-http.js';
 import { createSecurityScanTools } from './tools/enterprise-security-scan.js';
 import { createCodeSandboxTools } from './tools/enterprise-code-sandbox.js';
 import { createDiffTools } from './tools/enterprise-diff.js';
+import { createKnowledgeSearchTools } from './tools/knowledge-search.js';
 import { createAgenticMailTools } from './tools/agenticmail.js';
 import { createWhatsAppTools } from './tools/messaging/whatsapp.js';
 import { createTelegramTools } from './tools/messaging/telegram.js';
@@ -312,6 +314,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     ...createSecurityScanTools(options),
     ...createCodeSandboxTools(options),
     ...createDiffTools(options),
+    ...createKnowledgeSearchTools(options),
   ];
 
   // AgenticMail tools (if manager + agentId provided)

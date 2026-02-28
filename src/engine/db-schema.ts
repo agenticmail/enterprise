@@ -1331,6 +1331,44 @@ CREATE INDEX IF NOT EXISTS idx_ki_jobs_org ON knowledge_import_jobs(org_id);
   },
   {
     version: 20,
+    name: 'knowledge_search_log',
+    sql: `
+CREATE TABLE IF NOT EXISTS knowledge_search_log (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  search_type TEXT NOT NULL,
+  query TEXT NOT NULL,
+  results_count INTEGER DEFAULT 0,
+  top_score REAL DEFAULT 0,
+  kb_ids TEXT,
+  duration_ms INTEGER DEFAULT 0,
+  was_helpful BOOLEAN DEFAULT FALSE,
+  timestamp TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ksl_agent ON knowledge_search_log(agent_id);
+CREATE INDEX IF NOT EXISTS idx_ksl_ts ON knowledge_search_log(timestamp);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS knowledge_search_log (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  search_type TEXT NOT NULL,
+  query TEXT NOT NULL,
+  results_count INTEGER DEFAULT 0,
+  top_score REAL DEFAULT 0,
+  kb_ids JSONB,
+  duration_ms INTEGER DEFAULT 0,
+  was_helpful BOOLEAN DEFAULT FALSE,
+  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ksl_agent ON knowledge_search_log(agent_id);
+CREATE INDEX IF NOT EXISTS idx_ksl_ts ON knowledge_search_log(timestamp);
+    `,
+    mysql: `SELECT 1;`,
+    nosql: async () => {},
+  },
+  {
+    version: 21,
     name: 'signature_template',
     sql: `ALTER TABLE company_settings ADD COLUMN signature_template TEXT;`,
     postgres: `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS signature_template TEXT;`,
