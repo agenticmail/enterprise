@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getO
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { BrandLogo, SKILL_BRAND_MAP } from '../assets/brand-logos.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function CommunitySkillsPage() {
   const { toast, user } = useApp();
@@ -531,7 +532,49 @@ export function CommunitySkillsPage() {
     // Header
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Community Skills Marketplace'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 } }, 'Community Skills Marketplace',
+          h(HelpButton, { label: 'How Skills Work' },
+            h('div', { style: { fontSize: 13, lineHeight: 1.6 } },
+              h('h4', { style: { marginBottom: 8 } }, 'How the Skill Marketplace Works'),
+              h('p', null, 'Skills are ', h('strong', null, 'integration packages'), ' that give your agents new capabilities — like managing GitHub issues, sending Slack messages, or querying Salesforce.'),
+
+              h('h4', { style: { marginTop: 12, marginBottom: 6 } }, 'Skill Types'),
+              h('ul', { style: { paddingLeft: 20, margin: '4px 0' } },
+                h('li', null, h('strong', null, 'Built-in skills'), ' (Gmail, Calendar, Drive, etc.) — fully implemented, work out of the box with Google OAuth.'),
+                h('li', null, h('strong', null, 'Community skills'), ' — integration manifests that define tools. They connect via the MCP bridge or OAuth to external APIs.'),
+                h('li', null, h('strong', null, 'GitHub imports'), ' — custom skills you or others build. They define tool schemas and connect to MCP servers or REST APIs.')
+              ),
+
+              h('h4', { style: { marginTop: 12, marginBottom: 6 } }, 'Install + Configure Flow'),
+              h('ol', { style: { paddingLeft: 20, margin: '4px 0' } },
+                h('li', null, h('strong', null, 'Install'), ' — adds the skill to your org. Does NOT require credentials yet.'),
+                h('li', null, h('strong', null, 'Configure credentials'), ' — add API key, OAuth token, or bot token for the service.'),
+                h('li', null, h('strong', null, 'Assign to agents'), ' — enable the skill per-agent or org-wide in the agent Skills tab.'),
+                h('li', null, 'Agent can now use the skill\'s tools.')
+              ),
+
+              h('h4', { style: { marginTop: 12, marginBottom: 6 } }, 'Credential Scopes'),
+              h('ul', { style: { paddingLeft: 20, margin: '4px 0' } },
+                h('li', null, h('strong', null, 'Organization-wide'), ' — one API key shared by all agents.'),
+                h('li', null, h('strong', null, 'Per-Agent'), ' — different API keys per agent (e.g., agent A has read-only GitHub, agent B has write access).')
+              ),
+
+              h('h4', { style: { marginTop: 12, marginBottom: 6 } }, 'GitHub Imports'),
+              h('p', null, 'When you import from GitHub, the skill manifest (agenticmail-skill.json) is fetched and registered. The skill definition is stored in your database — NOT in your codebase. Package updates don\'t affect imported skills.'),
+              h('p', { style: { color: 'var(--warning)' } }, 'Note: Imported skills need an MCP server or API endpoint to actually execute tools. The manifest alone only defines the tool schemas.'),
+
+              h('h4', { style: { marginTop: 12, marginBottom: 6 } }, 'Where Things Show Up'),
+              h('ul', { style: { paddingLeft: 20, margin: '4px 0' } },
+                h('li', null, h('strong', null, 'Settings > Integrations'), ' — credentials for OAuth/token integrations'),
+                h('li', null, h('strong', null, 'Agent > Skills tab'), ' — which skills are enabled per agent'),
+                h('li', null, h('strong', null, 'Agent > Tools tab'), ' — individual tool permissions within skills')
+              ),
+
+              h('h4', { style: { marginTop: 12, marginBottom: 6 } }, 'Package Updates'),
+              h('p', null, 'Community skills stored in the ', h('code', null, 'community-skills/'), ' directory are bundled with the enterprise package. On update, new skills are added and existing ones are refreshed. Skills imported from external GitHub repos are stored in the database only and are ', h('strong', null, 'NOT affected'), ' by package updates.')
+            )
+          )
+        ),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } },
           (stats.totalPublished || 0) + ' skills published \u00B7 ' +
           (stats.totalInstalls || 0) + ' total installs')
@@ -741,7 +784,16 @@ export function CommunitySkillsPage() {
             skillIcon(credModal.icon, 24, credModal.category, credModal.id),
             h('div', null,
               h('h2', { style: { margin: 0, fontSize: 16 } }, 'Configure ' + (credModal.name || credModal.id)),
-              h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Set up credentials for this integration')
+              h('span', { style: { fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 } }, 'Set up credentials for this integration',
+                h(HelpButton, { label: 'Credential Scopes' },
+                  h('div', { style: { fontSize: 13, lineHeight: 1.6 } },
+                    h('p', null, h('strong', null, 'Organization-wide:'), ' One API key shared by all agents. Best for services where all agents should have the same access level.'),
+                    h('p', null, h('strong', null, 'Per-Agent:'), ' Each agent gets their own API key. Use when agents need different permission levels (e.g., one agent has read-only, another has admin access).'),
+                    h('p', null, 'Per-agent credentials override org-wide credentials. If an agent has no per-agent key, it falls back to the org-wide key.'),
+                    h('p', null, 'Credentials are encrypted with AES-256-GCM and stored in the secure vault. They are never exposed in logs or API responses.')
+                  )
+                )
+              )
             )
           ),
           h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setCredModal(null); } }, I.x())
