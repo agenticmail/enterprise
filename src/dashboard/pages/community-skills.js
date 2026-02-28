@@ -623,7 +623,7 @@ export function CommunitySkillsPage() {
               credStatuses[inst.skillId]
                 ? h('span', { className: 'badge badge-success', style: { fontSize: 10 } }, I.check(), ' Connected')
                 : h('span', { className: 'badge badge-neutral', style: { fontSize: 10 } }, 'No credentials'),
-              h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { openCredSetup(meta || { id: inst.skillId, name: inst.skillId }); } }, I.gear(), ' Configure'),
+              h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { openCredSetup(meta || { id: inst.skillId, name: inst.skillId }); } }, I.settings(), ' Configure'),
               h('span', {
                 className: 'status-badge',
                 style: { background: inst.enabled ? 'var(--success)' : 'var(--warning)', color: 'white', padding: '2px 8px', borderRadius: 12, fontSize: 11 }
@@ -721,7 +721,7 @@ export function CommunitySkillsPage() {
             installedIds.has(detail.id) && h('button', {
               className: 'btn btn-secondary btn-sm',
               onClick: function() { setDetail(null); openCredSetup(detail); }
-            }, I.gear(), ' Configure Credentials')
+            }, I.settings(), ' Configure Credentials')
           ),
           h('div', { style: { display: 'flex', gap: 8 } },
             installedIds.has(detail.id)
@@ -766,11 +766,11 @@ export function CommunitySkillsPage() {
               h('button', {
                 className: 'btn btn-sm ' + (credScope === 'org' ? 'btn-primary' : 'btn-ghost'),
                 onClick: function() { setCredScope('org'); }
-              }, I.people(), ' Organization-wide'),
+              }, I.users(), ' Organization-wide'),
               h('button', {
                 className: 'btn btn-sm ' + (credScope === 'agent' ? 'btn-primary' : 'btn-ghost'),
                 onClick: function() { setCredScope('agent'); }
-              }, I.user(), ' Per-Agent')
+              }, I.agents(), ' Per-Agent')
             ),
             h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
               credScope === 'org'
