@@ -168,7 +168,7 @@ export function AgentDetailPage(props) {
       marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24,
       marginBottom: 20,
     } },
-    h('div', { className: 'tabs', style: { marginBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } },
+    h('div', { className: 'tabs', style: { marginBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' } },
       TABS.map(function(t) {
         return h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: function() { setTab(t); } }, TAB_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1));
       })

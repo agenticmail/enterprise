@@ -361,13 +361,17 @@ tbody tr:hover { background: var(--bg-hover); }
   .main-content { margin-left: 0 !important; width: 100% !important; padding-top: 56px; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   /* Tabs scroll horizontally */
-  .tabs, .tab-bar, [class*="tabs"] { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap !important; white-space: nowrap; scrollbar-width: none; }
-  .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { display: none; }
+  .tabs, .tab-bar, [class*="tabs"] { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap !important; white-space: nowrap; scrollbar-width: thin; }
+  .tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { height: 4px; }
+  .tabs::-webkit-scrollbar-thumb, .tab-bar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .tabs::-webkit-scrollbar-track, .tab-bar::-webkit-scrollbar-track { background: transparent; }
   /* Cards stack */
   .card { overflow-x: auto; }
   /* Agent detail tabs */
-  .agent-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap !important; }
-  .agent-tabs::-webkit-scrollbar { display: none; }
+  .agent-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; flex-wrap: nowrap !important; }
+  .agent-tabs::-webkit-scrollbar { height: 4px; }
+  .agent-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .agent-tabs::-webkit-scrollbar-track { background: transparent; }
 }
 
 /* Onboarding Wizard */
