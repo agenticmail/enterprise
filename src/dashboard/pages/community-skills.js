@@ -236,22 +236,23 @@ export function CommunitySkillsPage() {
     sales: E.people, analytics: E.barChart, devops: E.gear, security: E.shield, ai: E.brain,
     infrastructure: E.server, monitoring: E.eye, marketing: E.megaphone, hr: E.people, design: E.palette,
   };
+  const _catIcon = (category, size) => {
+    var fn = category && CATEGORY_ICONS[category];
+    if (fn && typeof fn === 'function') return fn(size);
+    return E.puzzle ? E.puzzle(size) : h('span', { style: { fontSize: size } }, '\ud83e\udde9');
+  };
   const skillIcon = (icon, size, category) => {
     size = size || 28;
     if (icon && (icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:'))) {
-      var fallbackHtml = category && CATEGORY_ICONS[category] ? CATEGORY_ICONS[category] : E.puzzle;
-      return h('span', null,
+      return h('span', { style: { display: 'inline-flex' } },
         h('img', { src: icon, alt: '', style: { width: size, height: size, objectFit: 'contain', borderRadius: 6 },
-          onError: function(e) { e.target.style.display = 'none'; e.target.parentNode.querySelector('._skill_fb') && (e.target.parentNode.querySelector('._skill_fb').style.display = ''); }
+          onError: function(e) { e.target.style.display = 'none'; var fb = e.target.parentNode.querySelector('._skill_fb'); if (fb) fb.style.display = ''; }
         }),
-        h('span', { className: '_skill_fb', style: { display: 'none', fontSize: size - 4 }, dangerouslySetInnerHTML: { __html: fallbackHtml } })
+        h('span', { className: '_skill_fb', style: { display: 'none' } }, _catIcon(category, size))
       );
     }
     if (icon) return h('span', { style: { fontSize: size } }, icon);
-    // Category-based fallback
-    var fallback = category && CATEGORY_ICONS[category];
-    if (fallback) return h('span', { style: { fontSize: size - 4 }, dangerouslySetInnerHTML: { __html: fallback } });
-    return h('span', { style: { fontSize: size } }, '\ud83e\udde9');
+    return _catIcon(category, size);
   };
 
   var updateStatusColor = function(s) {
