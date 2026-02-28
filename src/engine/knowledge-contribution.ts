@@ -346,7 +346,9 @@ export class KnowledgeContributionManager {
     this.memoryCallback = opts?.memoryCallback;
   }
 
-  async setDb(db: any): Promise<void> {
+  async setDb(engineDb: any): Promise<void> {
+    // Accept EngineDatabase wrapper or raw adapter
+    const db = engineDb?.db || engineDb;
     this.db = db;
     // Load persisted bases
     try {

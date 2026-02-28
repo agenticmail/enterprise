@@ -19,23 +19,37 @@ export function createActivityRoutes(opts: {
   // ─── Activity & Monitoring ──────────────────────────────
 
   router.get('/activity/events', (c) => {
-    const events = activity.getEvents({
+    const limit = parseInt(c.req.query('limit') || '50');
+    const offset = parseInt(c.req.query('offset') || '0');
+    const typeFilter = c.req.query('type') || undefined;
+    const allEvents = activity.getEvents({
       agentId: c.req.query('agentId') || undefined,
       orgId: c.req.query('orgId') || undefined,
       since: c.req.query('since') || undefined,
-      limit: parseInt(c.req.query('limit') || '50'),
+      types: typeFilter ? [typeFilter as any] : undefined,
+      limit: 10000, // get all matching, paginate below
     });
-    return c.json({ events, total: events.length });
+    const search = (c.req.query('search') || '').toLowerCase();
+    const filtered = search
+      ? allEvents.filter(e => (e.type || '').toLowerCase().includes(search) || JSON.stringify(e.data || '').toLowerCase().includes(search))
+      : allEvents;
+    return c.json({ events: filtered.slice(offset, offset + limit), total: filtered.length });
   });
 
   router.get('/activity/tool-calls', (c) => {
-    const calls = activity.getToolCalls({
+    const limit = parseInt(c.req.query('limit') || '50');
+    const offset = parseInt(c.req.query('offset') || '0');
+    const allCalls = activity.getToolCalls({
       agentId: c.req.query('agentId') || undefined,
       orgId: c.req.query('orgId') || undefined,
       toolId: c.req.query('toolId') || undefined,
-      limit: parseInt(c.req.query('limit') || '50'),
+      limit: 10000,
     });
-    return c.json({ toolCalls: calls, total: calls.length });
+    const search = (c.req.query('search') || '').toLowerCase();
+    const filtered = search
+      ? allCalls.filter(tc => (tc.tool || tc.toolId || '').toLowerCase().includes(search))
+      : allCalls;
+    return c.json({ toolCalls: filtered.slice(offset, offset + limit), total: filtered.length });
   });
 
   router.get('/activity/conversation/:sessionId', async (c) => {
@@ -90,6 +104,30 @@ export function createActivityRoutes(opts: {
         'Connection': 'keep-alive',
       },
     });
+  });
+
+  // ─── Knowledge Contributions (org_knowledge memories) ───
+
+  router.get('/activity/knowledge-contributions', async (c) => {
+    const orgId = c.req.query('orgId');
+    const agentId = c.req.query('agentId');
+    const limit = parseInt(c.req.query('limit') || '50');
+    const offset = parseInt(c.req.query('offset') || '0');
+    try {
+      const db = (activity as any).engineDb;
+      if (!db) return c.json({ contributions: [], total: 0 });
+      let where = "WHERE category = 'org_knowledge'";
+      const params: any[] = [];
+      if (orgId) { params.push(orgId); where += ` AND org_id = $${params.length}`; }
+      if (agentId) { params.push(agentId); where += ` AND agent_id = $${params.length}`; }
+      const countResult = await db.db.get<any>(`SELECT COUNT(*) as c FROM agent_memory ${where}`, params);
+      const total = parseInt(countResult?.c || '0');
+      params.push(limit, offset);
+      const rows = await db.db.all<any>(`SELECT * FROM agent_memory ${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+      return c.json({ contributions: rows || [], total });
+    } catch (e: any) {
+      return c.json({ contributions: [], total: 0, error: e.message });
+    }
   });
 
   // ─── Engine Stats (Dashboard Overview) ──────────────────

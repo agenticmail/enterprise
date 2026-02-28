@@ -20,8 +20,14 @@
 import { Hono } from 'hono';
 import type { KnowledgeContributionManager } from './knowledge-contribution.js';
 
-export function createKnowledgeContributionRoutes(manager: KnowledgeContributionManager) {
+export function createKnowledgeContributionRoutes(manager: KnowledgeContributionManager, opts?: { lifecycle?: any }) {
   const router = new Hono();
+  const getAgentName = (agentId: string) => {
+    try {
+      const agent = opts?.lifecycle?.getAgent?.(agentId);
+      return agent?.config?.identity?.name || agent?.config?.displayName || agent?.config?.name || agent?.name || null;
+    } catch { return null; }
+  };
 
   // ─── Knowledge Bases ───────────────────────────────────
 
@@ -217,7 +223,17 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
       const orgId = c.req.query('orgId');
       if (!orgId) return c.json({ error: 'orgId query parameter is required' }, 400);
       const schedules = await manager.listSchedules(orgId);
-      return c.json({ schedules });
+      const enriched = schedules.map((s: any) => {
+        const base = manager.getBase(s.baseId);
+        return {
+          ...s,
+          agentName: getAgentName(s.agentId),
+          targetBaseId: s.baseId,
+          baseName: base?.name || s.baseId,
+          nextRun: s.nextRunAt,
+        };
+      });
+      return c.json({ schedules: enriched });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }
@@ -239,18 +255,32 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
       const body = await c.req.json();
       if (!body.orgId) return c.json({ error: 'orgId is required' }, 400);
       if (!body.agentId) return c.json({ error: 'agentId is required' }, 400);
-      if (!body.baseId) return c.json({ error: 'baseId is required' }, 400);
+      const baseId = body.baseId || body.targetBaseId;
+      if (!baseId) return c.json({ error: 'baseId is required' }, 400);
       if (!body.frequency) return c.json({ error: 'frequency is required' }, 400);
       const schedule = await manager.createSchedule({
         orgId: body.orgId,
         agentId: body.agentId,
-        baseId: body.baseId,
+        baseId,
         frequency: body.frequency,
         dayOfWeek: body.dayOfWeek ?? undefined,
         filters: body.filters || {},
         createdBy: userId,
       });
       return c.json({ schedule }, 201);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // Support both PATCH and PUT (dashboard sends PUT)
+  router.put('/schedules/:id', async (c) => {
+    try {
+      const userId = c.req.header('X-User-Id') || 'admin';
+      const body = await c.req.json();
+      const schedule = await manager.updateSchedule(c.req.param('id'), body, userId);
+      if (!schedule) return c.json({ error: 'Schedule not found' }, 404);
+      return c.json({ schedule });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }
@@ -308,8 +338,43 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
       const orgId = c.req.query('orgId') || undefined;
       const agentId = c.req.query('agentId') || undefined;
       const limit = parseInt(c.req.query('limit') || '50');
+      
+      // Get formal cycles
       const cycles = await manager.listCycles({ orgId, agentId, limit });
-      return c.json({ contributions: cycles, cycles });
+      
+      // Also pull org_knowledge from agent_memory (where agents actually store contributions)
+      let memoryContribs: any[] = [];
+      try {
+        const db = (manager as any).db;
+        if (db) {
+          let where = "WHERE category = 'org_knowledge'";
+          const params: any[] = [];
+          if (agentId) { params.push(agentId); where += ` AND agent_id = $${params.length}`; }
+          params.push(limit);
+          const rows = await db.all(`SELECT * FROM agent_memory ${where} ORDER BY created_at DESC LIMIT $${params.length}`, params);
+          memoryContribs = (rows || []).map((r: any) => ({
+            id: r.id,
+            agentId: r.agent_id,
+            agentName: getAgentName(r.agent_id),
+            baseId: null,
+            baseName: 'Organizational Knowledge',
+            category: r.category,
+            title: (r.title || '').replace(/^knowledge-contrib-/, '').replace(/-/g, ' '),
+            content: r.content,
+            importance: r.importance,
+            confidence: r.confidence,
+            status: 'approved',
+            createdAt: r.created_at,
+            source: 'memory',
+          }));
+        }
+      } catch { /* non-blocking */ }
+      
+      const all = [...memoryContribs, ...cycles].sort((a, b) => 
+        new Date(b.createdAt || b.created_at || 0).getTime() - new Date(a.createdAt || a.created_at || 0).getTime()
+      ).slice(0, limit);
+      
+      return c.json({ contributions: all, cycles, total: all.length });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }
@@ -354,7 +419,91 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
     try {
       const orgId = c.req.query('orgId') || undefined;
       const stats = await manager.getStats(orgId);
+      // Supplement with agent_memory org_knowledge count
+      try {
+        const db = (manager as any).db;
+        if (db) {
+          const r = await db.get("SELECT COUNT(*) as c FROM agent_memory WHERE category = 'org_knowledge'");
+          stats.totalContributions = (stats.totalContributions || 0) + parseInt(r?.c || '0');
+          if (!stats.totalEntries) stats.totalEntries = parseInt(r?.c || '0');
+        }
+      } catch {}
       return c.json({ stats });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // Timeline data for charts
+  router.get('/stats/timeline', async (c) => {
+    try {
+      const db = (manager as any).db;
+      if (!db) return c.json({ timeline: [], byAgent: [], byCategory: [], confidenceOverTime: [] });
+
+      const days = parseInt(c.req.query('days') || '30');
+      const agentId = c.req.query('agentId') || undefined;
+
+      // Contributions per day
+      let timelineQuery = `SELECT DATE(created_at) as day, COUNT(*) as count, AVG(confidence) as avg_confidence FROM agent_memory WHERE category = 'org_knowledge'`;
+      const params: any[] = [];
+      if (agentId) { params.push(agentId); timelineQuery += ` AND agent_id = $${params.length}`; }
+      params.push(days);
+      timelineQuery += ` AND created_at >= NOW() - INTERVAL '1 day' * $${params.length} GROUP BY DATE(created_at) ORDER BY day`;
+      const timeline = await db.all(timelineQuery, params).catch(() => []) || [];
+
+      // By agent
+      let byAgentQuery = `SELECT agent_id, COUNT(*) as count, AVG(confidence) as avg_confidence FROM agent_memory WHERE category = 'org_knowledge'`;
+      const params2: any[] = [];
+      params2.push(days);
+      byAgentQuery += ` AND created_at >= NOW() - INTERVAL '1 day' * $${params2.length} GROUP BY agent_id ORDER BY count DESC`;
+      const byAgentRows = await db.all(byAgentQuery, params2).catch(() => []) || [];
+      const byAgent = byAgentRows.map((r: any) => ({
+        agentId: r.agent_id,
+        agentName: getAgentName(r.agent_id) || r.agent_id,
+        count: parseInt(r.count),
+        avgConfidence: parseFloat(r.avg_confidence || '0'),
+      }));
+
+      // By category (from content/title patterns)
+      let byCatQuery = `SELECT importance, COUNT(*) as count FROM agent_memory WHERE category = 'org_knowledge'`;
+      const params3: any[] = [];
+      params3.push(days);
+      byCatQuery += ` AND created_at >= NOW() - INTERVAL '1 day' * $${params3.length} GROUP BY importance ORDER BY count DESC`;
+      const byCategory = await db.all(byCatQuery, params3).catch(() => []) || [];
+
+      // Confidence over time (weekly buckets)
+      let confQuery = `SELECT DATE_TRUNC('week', created_at) as week, AVG(confidence) as avg_confidence, MIN(confidence) as min_confidence, MAX(confidence) as max_confidence, COUNT(*) as count FROM agent_memory WHERE category = 'org_knowledge'`;
+      const params4: any[] = [];
+      params4.push(days);
+      confQuery += ` AND created_at >= NOW() - INTERVAL '1 day' * $${params4.length} GROUP BY DATE_TRUNC('week', created_at) ORDER BY week`;
+      const confidenceOverTime = await db.all(confQuery, params4).catch(() => []) || [];
+
+      // Per-agent daily breakdown
+      let agentDailyQuery = `SELECT DATE(created_at) as day, agent_id, COUNT(*) as count FROM agent_memory WHERE category = 'org_knowledge'`;
+      const params5: any[] = [];
+      params5.push(days);
+      agentDailyQuery += ` AND created_at >= NOW() - INTERVAL '1 day' * $${params5.length} GROUP BY DATE(created_at), agent_id ORDER BY day`;
+      const agentDaily = await db.all(agentDailyQuery, params5).catch(() => []) || [];
+      const agentDailyEnriched = (agentDaily || []).map((r: any) => ({
+        day: r.day,
+        agentId: r.agent_id,
+        agentName: getAgentName(r.agent_id) || r.agent_id,
+        count: parseInt(r.count),
+      }));
+
+      return c.json({
+        timeline: (timeline || []).map((r: any) => ({ day: r.day, count: parseInt(r.count), avgConfidence: parseFloat(r.avg_confidence || '0') })),
+        byAgent,
+        byCategory: (byCategory || []).map((r: any) => ({ category: r.importance || 'unset', count: parseInt(r.count) })),
+        confidenceOverTime: (confidenceOverTime || []).map((r: any) => ({
+          week: r.week,
+          avgConfidence: parseFloat(r.avg_confidence || '0'),
+          minConfidence: parseFloat(r.min_confidence || '0'),
+          maxConfidence: parseFloat(r.max_confidence || '0'),
+          count: parseInt(r.count),
+        })),
+        agentDaily: agentDailyEnriched,
+      });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }

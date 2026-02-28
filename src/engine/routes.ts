@@ -72,6 +72,7 @@ import { KnowledgeContributionManager } from './knowledge-contribution.js';
 import { createKnowledgeContributionRoutes } from './knowledge-contribution-routes.js';
 import { SkillAutoUpdater } from './skill-updater.js';
 import { createSkillUpdaterRoutes } from './skill-updater-routes.js';
+import { KnowledgeImportManager, createKnowledgeImportRoutes } from './knowledge-import/index.js';
 import { createMemoryRoutes } from './memory-routes.js';
 import { createOnboardingRoutes } from './onboarding-routes.js';
 import { SecureVault } from './vault.js';
@@ -120,6 +121,7 @@ const vault = new SecureVault();
 const storageManager = new StorageManager({ vault });
 const policyImporter = new PolicyImporter({ policyEngine, storageManager });
 const knowledgeContribution = new KnowledgeContributionManager({ memoryCallback: async (agentId: string) => memoryManager.queryMemories({ agentId }) });
+const knowledgeImport = new KnowledgeImportManager({ knowledgeContribution });
 const skillUpdater = new SkillAutoUpdater({ registry: communityRegistry });
 
 // Wire onboarding into guardrails for onboarding gate checks
@@ -223,7 +225,8 @@ engine.route('/onboarding', createOnboardingRoutes(onboarding));
 engine.route('/vault', createVaultRoutes(vault, dlp));
 engine.route('/storage', createStorageRoutes(storageManager));
 engine.route('/policies', createPolicyImportRoutes(policyImporter));
-engine.route('/knowledge-contribution', createKnowledgeContributionRoutes(knowledgeContribution));
+engine.route('/knowledge-contribution', createKnowledgeContributionRoutes(knowledgeContribution, { lifecycle }));
+engine.route('/knowledge-import', createKnowledgeImportRoutes(knowledgeImport));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
 engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
 
@@ -346,6 +349,7 @@ export async function setEngineDb(
     compliance.setDb(db),
     communityRegistry.setDb(db),
     knowledgeContribution.setDb(db),
+    (async () => { knowledgeImport.setDb(db?.db || db); await knowledgeImport.loadJobs(); })(),
     workforce.setDb(db),
     policyEngine.setDb(db),
     memoryManager.setDb(db),
@@ -357,6 +361,33 @@ export async function setEngineDb(
   guardrails.startAnomalyDetection();
   workforce.startScheduler();
   knowledgeContribution.startScheduler();
+
+  // Auto-create contribution schedules for all agents if none exist
+  try {
+    const agents = lifecycle.getAllAgents();
+    const orgId = agents[0]?.orgId;
+    const allBases = orgId ? knowledgeContribution.listBases(orgId) : [];
+    // Debug removed - schedules auto-create silently
+    if (allBases.length > 0) {
+      const base = allBases[0];
+      for (const agent of agents) {
+        const existing = knowledgeContribution.getSchedule(agent.id);
+        if (!existing) {
+          try {
+            knowledgeContribution.createSchedule({
+              orgId: agent.orgId || base.orgId,
+              agentId: agent.id,
+              baseId: base.id,
+              frequency: 'daily',
+              filters: { minConfidence: 0.6 },
+            });
+            console.log(`[knowledge-contribution] Auto-created daily schedule for ${agent.config?.identity?.name || agent.id}`);
+          } catch { /* skip if base not found etc */ }
+        }
+      }
+    }
+  } catch (e: any) { console.log(`[knowledge-contribution] Auto-schedule setup: ${e.message}`); }
+
   skillUpdater.startScheduler();
 
   // Load community skills from the local community-skills/ directory (if running from git clone)

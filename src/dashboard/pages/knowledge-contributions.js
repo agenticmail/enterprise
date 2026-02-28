@@ -1,6 +1,7 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function KnowledgeContributionsPage() {
   var { toast } = useApp();
@@ -23,6 +24,14 @@ export function KnowledgeContributionsPage() {
   var [showCreateSchedule, setShowCreateSchedule] = useState(false);
   var [scheduleForm, setScheduleForm] = useState({ agentId: '', targetBaseId: '', frequency: 'weekly', dayOfWeek: 'monday', minConfidence: 0.7 });
   var [editSchedule, setEditSchedule] = useState(null);
+
+  // Agents for badges + filters
+  var [agents, setAgents] = useState([]);
+  // Contributions pagination/filter
+  var [contribPage, setContribPage] = useState(0);
+  var [contribSearch, setContribSearch] = useState('');
+  var [contribAgent, setContribAgent] = useState('');
+  var CONTRIB_PAGE_SIZE = 20;
 
   var loadBases = useCallback(function() {
     Promise.all([
@@ -71,6 +80,7 @@ export function KnowledgeContributionsPage() {
     loadStats();
     loadContributions();
     loadSchedules();
+    engineCall('/agents?orgId=' + getOrgId()).then(function(d) { setAgents(d.agents || []); }).catch(function() {});
   }, [loadBases, loadRoles, loadStats, loadContributions, loadSchedules]);
 
   useEffect(function() { load(); }, [load]);
@@ -406,43 +416,83 @@ export function KnowledgeContributionsPage() {
   };
 
   // ── Contributions Tab ──────────────────────────────
+  var agentData = buildAgentDataMap(agents);
+
   var renderContributions = function() {
+    // Filter
+    var filtered = contributions;
+    if (contribAgent) filtered = filtered.filter(function(c) { return c.agentId === contribAgent; });
+    if (contribSearch) {
+      var s = contribSearch.toLowerCase();
+      filtered = filtered.filter(function(c) {
+        return (c.title || '').toLowerCase().includes(s) || (c.agentName || '').toLowerCase().includes(s)
+          || (c.content || '').toLowerCase().includes(s) || (c.category || '').toLowerCase().includes(s);
+      });
+    }
+    var totalFiltered = filtered.length;
+    var totalPages = Math.ceil(totalFiltered / CONTRIB_PAGE_SIZE);
+    var paged = filtered.slice(contribPage * CONTRIB_PAGE_SIZE, (contribPage + 1) * CONTRIB_PAGE_SIZE);
+
     return h(Fragment, null,
-      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
-        h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, contributions.length + ' contribution cycle' + (contributions.length !== 1 ? 's' : '')),
-        h('button', { className: 'btn btn-primary', onClick: function() { setShowTrigger(true); } }, I.play(), ' Trigger Contribution')
+      // Filter bar
+      h('div', { style: { display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' } },
+        h('input', {
+          type: 'text', placeholder: 'Search contributions...',
+          value: contribSearch,
+          onInput: function(e) { setContribSearch(e.target.value); setContribPage(0); },
+          style: { flex: '1 1 200px', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 13, minWidth: 180, outline: 'none' },
+        }),
+        h('select', {
+          value: contribAgent,
+          onChange: function(e) { setContribAgent(e.target.value); setContribPage(0); },
+          style: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 13, cursor: 'pointer', outline: 'none' },
+        },
+          h('option', { value: '' }, 'All agents'),
+          agents.map(function(a) { return h('option', { key: a.id, value: a.id }, a.config && a.config.identity && a.config.identity.name || a.config && a.config.displayName || a.name || a.id); })
+        ),
+        h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, totalFiltered + ' contribution' + (totalFiltered !== 1 ? 's' : '')),
+        h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setShowTrigger(true); } }, I.play(), ' Trigger')
       ),
-      contributions.length === 0
-        ? h('div', { style: { textAlign: 'center', padding: 60, color: 'var(--text-muted)' } }, 'No contribution cycles yet.')
+
+      paged.length === 0
+        ? h('div', { style: { textAlign: 'center', padding: 60, color: 'var(--text-muted)' } }, contribSearch || contribAgent ? 'No matching contributions.' : 'No contributions yet.')
         : h('table', { className: 'data-table' },
             h('thead', null,
               h('tr', null,
                 h('th', null, 'Agent'),
-                h('th', null, 'Knowledge Base'),
+                h('th', null, 'Title'),
+                h('th', null, 'Importance'),
                 h('th', null, 'Status'),
-                h('th', null, 'Scanned'),
-                h('th', null, 'Contributed'),
-                h('th', null, 'Duplicates Skipped'),
                 h('th', null, 'Date')
               )
             ),
             h('tbody', null,
-              contributions.map(function(c) {
+              paged.map(function(c) {
                 return h('tr', { key: c.id },
-                  h('td', null, h('span', { style: { fontWeight: 500 } }, c.agentName || c.agentId || '-')),
-                  h('td', null, c.baseName || c.targetBaseId || '-'),
+                  h('td', null, renderAgentBadge(c.agentId, agentData)),
+                  h('td', { style: { fontWeight: 500, fontSize: 13 } }, c.title || '-'),
+                  h('td', null, c.importance ? h('span', { className: 'badge badge-' + (c.importance === 'high' ? 'danger' : c.importance === 'medium' ? 'warning' : 'info') }, c.importance) : '-'),
                   h('td', null, h('span', {
                     className: 'badge',
                     style: { background: statusColor(c.status), color: '#fff', fontSize: 10 }
                   }, c.status || 'unknown')),
-                  h('td', null, c.memoriesScanned != null ? c.memoriesScanned : '-'),
-                  h('td', null, c.entriesContributed != null ? c.entriesContributed : '-'),
-                  h('td', null, c.duplicatesSkipped != null ? c.duplicatesSkipped : '-'),
-                  h('td', null, c.createdAt || c.date ? new Date(c.createdAt || c.date).toLocaleString() : '-')
+                  h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, c.createdAt || c.date ? new Date(c.createdAt || c.date).toLocaleString() : '-')
                 );
               })
             )
-          )
+          ),
+
+      // Pagination
+      totalPages > 1 && h('div', {
+        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', fontSize: 13, color: 'var(--text-muted)' }
+      },
+        h('span', null, 'Showing ' + (contribPage * CONTRIB_PAGE_SIZE + 1) + '-' + Math.min((contribPage + 1) * CONTRIB_PAGE_SIZE, totalFiltered) + ' of ' + totalFiltered),
+        h('div', { style: { display: 'flex', gap: 4 } },
+          h('button', { onClick: function() { setContribPage(function(p) { return Math.max(0, p - 1); }); }, disabled: contribPage === 0, style: _pgBtn(false) }, '\u2039 Prev'),
+          h('span', { style: { padding: '4px 8px', fontSize: 12 } }, (contribPage + 1) + ' / ' + totalPages),
+          h('button', { onClick: function() { setContribPage(function(p) { return Math.min(totalPages - 1, p + 1); }); }, disabled: contribPage >= totalPages - 1, style: _pgBtn(false) }, 'Next \u203A')
+        )
+      )
     );
   };
 
@@ -469,7 +519,7 @@ export function KnowledgeContributionsPage() {
             h('tbody', null,
               schedules.map(function(sched) {
                 return h('tr', { key: sched.id },
-                  h('td', null, h('span', { style: { fontWeight: 500 } }, sched.agentName || sched.agentId || '-')),
+                  h('td', null, renderAgentBadge(sched.agentId, agentData)),
                   h('td', null, sched.baseName || sched.targetBaseId || '-'),
                   h('td', null, h('span', { className: 'badge badge-neutral', style: { fontSize: 10 } }, sched.frequency || '-')),
                   h('td', null, sched.nextRun ? new Date(sched.nextRun).toLocaleString() : '-'),
@@ -509,84 +559,604 @@ export function KnowledgeContributionsPage() {
     );
   };
 
-  // ── Stats Tab ──────────────────────────────
+  // ── Stats Tab (Charts) ──────────────────────────────
+  var [timelineData, setTimelineData] = useState(null);
+  var [chartDays, setChartDays] = useState(30);
+  var [chartAgent, setChartAgent] = useState('');
+
+  var loadTimeline = useCallback(function() {
+    var url = '/knowledge-contribution/stats/timeline?days=' + chartDays;
+    if (chartAgent) url += '&agentId=' + chartAgent;
+    engineCall(url).then(function(d) { setTimelineData(d); }).catch(function() {});
+  }, [chartDays, chartAgent]);
+
+  useEffect(function() { if (tab === 'stats') loadTimeline(); }, [tab, loadTimeline]);
+
+  // SVG chart helpers — clean background, dark mode, hover tooltips
+  var CHART_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
+  var [tooltip, setTooltip] = useState(null); // { x, y, lines: [] }
+
+  // Shared tooltip overlay (rendered once, positioned absolutely)
+  var renderTooltip = function() {
+    if (!tooltip) return null;
+    return h('div', {
+      style: {
+        position: 'fixed', left: tooltip.x + 12, top: tooltip.y - 10,
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: 8, padding: '8px 12px', fontSize: 11, lineHeight: 1.6,
+        color: 'var(--text)', boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+        pointerEvents: 'none', zIndex: 9999, maxWidth: 220, whiteSpace: 'nowrap'
+      }
+    }, tooltip.lines.map(function(l, i) {
+      return h('div', { key: i, style: l.bold ? { fontWeight: 600, marginBottom: 2 } : l.color ? { color: l.color } : {} },
+        l.dot ? h('span', { style: { display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: l.dot, marginRight: 6 } }) : null,
+        l.text
+      );
+    }));
+  };
+
+  var _fmtDate = function(raw) {
+    if (!raw) return '';
+    var d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var day = d.getDate(), mon = months[d.getMonth()], yr = d.getFullYear();
+    var h = d.getHours(), m = d.getMinutes();
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    var mm = m < 10 ? '0' + m : m;
+    return (day < 10 ? '0' : '') + day + ' ' + mon + ' ' + yr + ' at ' + h + ':' + mm + ampm;
+  };
+
+  var showTip = function(e, lines) {
+    setTooltip({ x: e.clientX, y: e.clientY, lines: lines });
+  };
+  var hideTip = function() { setTooltip(null); };
+
+  var _noData = function(msg) {
+    return h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 } }, msg || 'No data yet');
+  };
+
+  // Chart help content for HelpButton modals
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
+  var renderLineChart = function(data, opts) {
+    if (!data || data.length === 0) return _noData();
+    // Single data point: expand into 3 so we get a visible line
+    if (data.length === 1) {
+      var _d0 = data[0];
+      data = [Object.assign({}, _d0, { _synth: true }), _d0, Object.assign({}, _d0, { _synth: true })];
+    }
+    var W = opts.width || 600, H = opts.height || 200, pad = { top: 16, right: 16, bottom: 32, left: 44 };
+    var cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+    var vals = data.map(function(d) { return d[opts.valueKey] || 0; });
+    var maxV = Math.max.apply(null, vals.concat([1]));
+    var minV = opts.minVal != null ? opts.minVal : 0;
+    var range = maxV - minV || 1;
+
+    var points = data.map(function(d, i) {
+      var x = pad.left + (data.length === 1 ? cW / 2 : (i / (data.length - 1)) * cW);
+      var y = pad.top + cH - ((d[opts.valueKey] - minV) / range) * cH;
+      return { x: x, y: y, d: d };
+    });
+
+    // Smooth curve (catmull-rom → cubic bezier)
+    var smoothPath = function(pts) {
+      if (pts.length < 2) return 'M' + pts[0].x + ',' + pts[0].y;
+      if (pts.length === 2) return 'M' + pts[0].x + ',' + pts[0].y + ' L' + pts[1].x + ',' + pts[1].y;
+      var d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+      for (var i = 0; i < pts.length - 1; i++) {
+        var p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+        var cp1x = p1.x + (p2.x - p0.x) / 6, cp1y = p1.y + (p2.y - p0.y) / 6;
+        var cp2x = p2.x - (p3.x - p1.x) / 6, cp2y = p2.y - (p3.y - p1.y) / 6;
+        d += ' C' + cp1x.toFixed(1) + ',' + cp1y.toFixed(1) + ' ' + cp2x.toFixed(1) + ',' + cp2y.toFixed(1) + ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+      }
+      return d;
+    };
+
+    var linePath = smoothPath(points);
+    // Build area from smooth line — append bottom closure
+    var areaPath = linePath + ' L' + points[points.length - 1].x.toFixed(1) + ',' + (pad.top + cH) + ' L' + points[0].x.toFixed(1) + ',' + (pad.top + cH) + ' Z';
+    var color = opts.color || '#6366f1';
+
+    // Y-axis: just min and max labels, no grid lines
+    var yLabels = [
+      { val: opts.formatY ? opts.formatY(minV) : Math.round(minV), y: pad.top + cH },
+      { val: opts.formatY ? opts.formatY(maxV) : Math.round(maxV), y: pad.top }
+    ];
+
+    // X-axis labels (max 6)
+    var xStep = Math.max(1, Math.ceil(data.length / 6));
+    var xLabels = [];
+    data.forEach(function(d, i) {
+      if (i % xStep === 0 || i === data.length - 1) {
+        var x = pad.left + (data.length === 1 ? cW / 2 : (i / (data.length - 1)) * cW);
+        var raw = d[opts.labelKey] || '';
+        var dateObj = new Date(raw);
+        var label = isNaN(dateObj.getTime()) ? raw : dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        xLabels.push({ x: x, label: label });
+      }
+    });
+
+    return h('div', { style: { position: 'relative' } },
+      h('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', maxWidth: W, height: 'auto', display: 'block' } },
+        // Gradient fill
+        h('defs', null,
+          h('linearGradient', { id: 'lineGrad-' + (opts.id || 'default'), x1: 0, y1: 0, x2: 0, y2: 1 },
+            h('stop', { offset: '0%', stopColor: color, stopOpacity: 0.2 }),
+            h('stop', { offset: '100%', stopColor: color, stopOpacity: 0.02 })
+          )
+        ),
+        // Y labels
+        yLabels.map(function(yl, i) {
+          return h('text', { key: 'yl' + i, x: pad.left - 8, y: yl.y + 4, textAnchor: 'end', fill: 'var(--text-muted)', fontSize: 10 }, yl.val);
+        }),
+        // X labels
+        xLabels.map(function(xl, i) {
+          return h('text', { key: 'xl' + i, x: xl.x, y: H - 6, textAnchor: 'middle', fill: 'var(--text-muted)', fontSize: 10 }, xl.label);
+        }),
+        // Area
+        h('path', { d: areaPath, fill: 'url(#lineGrad-' + (opts.id || 'default') + ')' }),
+        // Line
+        h('path', { d: linePath, fill: 'none', stroke: color, strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+        // Invisible hit areas for hover (wider than dots) — skip synthetic points
+        points.map(function(p, i) {
+          if (p.d._synth) return null;
+          var d = p.d;
+          var label = d[opts.labelKey] || '';
+          var val = d[opts.valueKey] || 0;
+          var extra = d.avgConfidence != null ? [{ text: 'Avg Confidence: ' + Math.round(d.avgConfidence * 100) + '%', color: 'var(--text-muted)' }] : [];
+          return h('circle', {
+            key: 'hit' + i, cx: p.x, cy: p.y, r: 14, fill: 'transparent', cursor: 'pointer',
+            onMouseEnter: function(e) { showTip(e, [{ text: _fmtDate(d[opts.labelKey]) || label, bold: true }].concat([{ text: (opts.valueLabel || 'Value') + ': ' + val }]).concat(extra)); },
+            onMouseMove: function(e) { showTip(e, [{ text: _fmtDate(d[opts.labelKey]) || label, bold: true }].concat([{ text: (opts.valueLabel || 'Value') + ': ' + val }]).concat(extra)); },
+            onMouseLeave: hideTip
+          });
+        }),
+        // Visible dots — skip synthetic points
+        points.map(function(p, i) {
+          if (p.d._synth) return null;
+          return h('circle', { key: 'dot' + i, cx: p.x, cy: p.y, r: 4, fill: color, stroke: 'var(--bg-card)', strokeWidth: 2, style: { pointerEvents: 'none' } });
+        })
+      )
+    );
+  };
+
+  var renderBarChart = function(data, opts) {
+    if (!data || data.length === 0) return _noData();
+    // Horizontal bar chart — better for agent names (no truncation, scales to any count)
+    var labelMaxLen = data.reduce(function(m, d) { return Math.max(m, (d[opts.labelKey] || '').length); }, 0);
+    var labelW = Math.max(80, Math.min(160, labelMaxLen * 7.5));
+    var barH = 28, rowGap = 8;
+    var W = opts.width || 560;
+    var H = data.length * (barH + rowGap) + 24;
+    var barAreaW = W - labelW - 60; // space for label + value text
+
+    var vals = data.map(function(d) { return d[opts.valueKey] || 0; });
+    var maxV = Math.max.apply(null, vals.concat([1]));
+
+    return h('div', { style: { position: 'relative' } },
+      data.map(function(d, i) {
+        var val = d[opts.valueKey] || 0;
+        var pct = (val / maxV) * 100;
+        var color = CHART_COLORS[i % CHART_COLORS.length];
+        var label = d[opts.labelKey] || '';
+        var extra = d.avgConfidence != null ? [{ text: 'Confidence: ' + Math.round(d.avgConfidence * 100) + '%', color: 'var(--text-muted)' }] : [];
+        return h('div', {
+          key: 'bar' + i,
+          style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: rowGap, cursor: 'pointer' },
+          onMouseEnter: function(e) { showTip(e, [{ text: label, bold: true }, { text: 'Contributions: ' + val, dot: color }].concat(extra)); },
+          onMouseMove: function(e) { showTip(e, [{ text: label, bold: true }, { text: 'Contributions: ' + val, dot: color }].concat(extra)); },
+          onMouseLeave: hideTip
+        },
+          // Agent name
+          h('span', { style: { fontSize: 13, fontWeight: 500, minWidth: labelW, maxWidth: labelW, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, label),
+          // Bar
+          h('div', { style: { flex: 1, height: barH, background: 'var(--bg-tertiary)', borderRadius: 6, overflow: 'hidden', position: 'relative' } },
+            h('div', {
+              style: {
+                width: Math.max(pct, 2) + '%', height: '100%', borderRadius: 6,
+                background: 'linear-gradient(90deg, ' + color + ', ' + color + 'aa)',
+                transition: 'width 0.4s ease'
+              }
+            })
+          ),
+          // Value
+          h('span', { style: { fontSize: 13, fontWeight: 700, minWidth: 36, textAlign: 'right', color: color } }, val)
+        );
+      })
+    );
+  };
+
+  var renderDonutChart = function(data, opts) {
+    if (!data || data.length === 0) return _noData();
+    var size = opts.size || 180, cx = size / 2, cy = size / 2, r = size * 0.38, inner = r * 0.58;
+    var total = data.reduce(function(s, d) { return s + (d[opts.valueKey] || 0); }, 0) || 1;
+    var slices = [];
+    var angle = -Math.PI / 2;
+    data.forEach(function(d, i) {
+      var pct = (d[opts.valueKey] || 0) / total;
+      var startAngle = angle;
+      var endAngle = angle + pct * Math.PI * 2;
+      var large = pct > 0.5 ? 1 : 0;
+      var x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+      var x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle);
+      var ix1 = cx + inner * Math.cos(startAngle), iy1 = cy + inner * Math.sin(startAngle);
+      var ix2 = cx + inner * Math.cos(endAngle), iy2 = cy + inner * Math.sin(endAngle);
+      if (pct > 0.001) {
+        slices.push({
+          d: 'M' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' A' + r + ',' + r + ' 0 ' + large + ' 1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' L' + ix2.toFixed(2) + ',' + iy2.toFixed(2) + ' A' + inner + ',' + inner + ' 0 ' + large + ' 0 ' + ix1.toFixed(2) + ',' + iy1.toFixed(2) + ' Z',
+          color: CHART_COLORS[i % CHART_COLORS.length],
+          label: d[opts.labelKey] || '',
+          count: d[opts.valueKey] || 0,
+          pct: Math.round(pct * 100)
+        });
+      }
+      angle = endAngle;
+    });
+
+    return h('div', { style: { display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' } },
+      h('svg', { viewBox: '0 0 ' + size + ' ' + size, style: { width: size, height: size, flexShrink: 0 } },
+        slices.map(function(s, i) {
+          return h('path', {
+            key: i, d: s.d, fill: s.color, cursor: 'pointer',
+            style: { transition: 'opacity 0.15s' },
+            onMouseEnter: function(e) { showTip(e, [{ text: s.label, bold: true }, { text: s.count + ' contributions (' + s.pct + '%)', dot: s.color }]); e.target.style.opacity = '0.8'; },
+            onMouseMove: function(e) { showTip(e, [{ text: s.label, bold: true }, { text: s.count + ' contributions (' + s.pct + '%)', dot: s.color }]); },
+            onMouseLeave: function(e) { hideTip(); e.target.style.opacity = '1'; }
+          });
+        }),
+        h('text', { x: cx, y: cy - 6, textAnchor: 'middle', fill: 'var(--text)', fontSize: 20, fontWeight: 700 }, total),
+        h('text', { x: cx, y: cy + 12, textAnchor: 'middle', fill: 'var(--text-muted)', fontSize: 10 }, 'total')
+      ),
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+        slices.map(function(s, i) {
+          return h('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 } },
+            h('div', { style: { width: 10, height: 10, borderRadius: 2, background: s.color, flexShrink: 0 } }),
+            h('span', { style: { fontWeight: 500, color: 'var(--text)' } }, s.label),
+            h('span', { style: { color: 'var(--text-muted)' } }, s.count + ' (' + s.pct + '%)')
+          );
+        })
+      )
+    );
+  };
+
+  var renderConfidenceBand = function(data) {
+    if (!data || data.length === 0) return _noData();
+    var W = 560, H = 200, pad = { top: 16, right: 16, bottom: 32, left: 44 };
+    var cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+    var color = '#8b5cf6';
+
+    // Single data point: expand into 3 so we get a visible line
+    if (data.length === 1) {
+      var d0 = data[0];
+      data = [
+        Object.assign({}, d0, { _synth: true }),
+        d0,
+        Object.assign({}, d0, { _synth: true })
+      ];
+    }
+
+    // Map data to points — same structure as line chart
+    var points = data.map(function(d, i) {
+      var x = pad.left + (i / (data.length - 1)) * cW;
+      return { x: x, y: pad.top + cH - (d.avgConfidence || 0) * cH, d: d };
+    });
+
+    // Reuse line chart's smooth curve function (catmull-rom)
+    var smoothPath = function(pts) {
+      if (pts.length < 2) return 'M' + pts[0].x + ',' + pts[0].y;
+      if (pts.length === 2) return 'M' + pts[0].x + ',' + pts[0].y + ' L' + pts[1].x + ',' + pts[1].y;
+      var d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+      for (var i = 0; i < pts.length - 1; i++) {
+        var p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+        var cp1x = p1.x + (p2.x - p0.x) / 6, cp1y = p1.y + (p2.y - p0.y) / 6;
+        var cp2x = p2.x - (p3.x - p1.x) / 6, cp2y = p2.y - (p3.y - p1.y) / 6;
+        d += ' C' + cp1x.toFixed(1) + ',' + cp1y.toFixed(1) + ' ' + cp2x.toFixed(1) + ',' + cp2y.toFixed(1) + ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+      }
+      return d;
+    };
+
+    var linePath = smoothPath(points);
+    var areaPath = linePath + ' L' + points[points.length - 1].x.toFixed(1) + ',' + (pad.top + cH) + ' L' + points[0].x.toFixed(1) + ',' + (pad.top + cH) + ' Z';
+
+    // Y labels
+    var yLabels = [
+      { val: '0%', y: pad.top + cH },
+      { val: '50%', y: pad.top + cH / 2 },
+      { val: '100%', y: pad.top }
+    ];
+
+    // X labels
+    var xStep = Math.max(1, Math.ceil(data.length / 6));
+    var xLabels = [];
+    data.forEach(function(d, i) {
+      if (i % xStep === 0 || i === data.length - 1) {
+        var x = pad.left + (data.length === 1 ? cW / 2 : (i / (data.length - 1)) * cW);
+        var raw = d.week || '';
+        var label = raw ? new Date(raw).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+        xLabels.push({ x: x, label: label });
+      }
+    });
+
+    var _confTip = function(d) {
+      return [
+        { text: 'Week of ' + _fmtDate(d.week), bold: true },
+        { text: 'Avg: ' + Math.round((d.avgConfidence || 0) * 100) + '%', dot: color },
+        { text: 'Min: ' + Math.round((d.minConfidence || 0) * 100) + '%', color: 'var(--text-muted)' },
+        { text: 'Max: ' + Math.round((d.maxConfidence || 0) * 100) + '%', color: 'var(--text-muted)' },
+        { text: d.count + ' contributions' }
+      ];
+    };
+
+    return h('div', { style: { position: 'relative' } },
+      h('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', maxWidth: W, height: 'auto', display: 'block' } },
+        h('defs', null,
+          h('linearGradient', { id: 'confGrad', x1: 0, y1: 0, x2: 0, y2: 1 },
+            h('stop', { offset: '0%', stopColor: color, stopOpacity: 0.2 }),
+            h('stop', { offset: '100%', stopColor: color, stopOpacity: 0.02 })
+          )
+        ),
+        // Y labels
+        yLabels.map(function(yl, i) {
+          return h('text', { key: 'yl' + i, x: pad.left - 8, y: yl.y + 4, textAnchor: 'end', fill: 'var(--text-muted)', fontSize: 10 }, yl.val);
+        }),
+        // X labels
+        xLabels.map(function(xl, i) {
+          return h('text', { key: 'xl' + i, x: xl.x, y: H - 6, textAnchor: 'middle', fill: 'var(--text-muted)', fontSize: 10 }, xl.label);
+        }),
+        // Area fill
+        h('path', { d: areaPath, fill: 'url(#confGrad)' }),
+        // Line
+        h('path', { d: linePath, fill: 'none', stroke: color, strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+        // Hit areas (invisible, wide) — skip synthetic
+        points.map(function(p, i) {
+          if (p.d._synth) return null;
+          return h('circle', {
+            key: 'hit' + i, cx: p.x, cy: p.y, r: 14, fill: 'transparent', cursor: 'pointer',
+            onMouseEnter: function(e) { showTip(e, _confTip(p.d)); },
+            onMouseMove: function(e) { showTip(e, _confTip(p.d)); },
+            onMouseLeave: hideTip
+          });
+        }),
+        // Visible dots — skip synthetic
+        points.map(function(p, i) {
+          if (p.d._synth) return null;
+          return h('circle', { key: 'dot' + i, cx: p.x, cy: p.y, r: 4, fill: color, stroke: 'var(--bg-card)', strokeWidth: 2, style: { pointerEvents: 'none' } });
+        })
+      )
+    );
+  };
+
   var renderStats = function() {
-    var topCategories = stats.topCategories || stats.categories || [];
-    var maxCatCount = topCategories.reduce(function(mx, c) { return Math.max(mx, c.count || 0); }, 1);
-    var recentTimeline = stats.recentContributions || stats.timeline || [];
+    var td = timelineData || {};
+    var timeline = td.timeline || [];
+    var byAgent = td.byAgent || [];
+    var byCategory = td.byCategory || [];
+    var confOverTime = td.confidenceOverTime || [];
+    var agentDaily = td.agentDaily || [];
 
     return h(Fragment, null,
-      // Stat cards
+      // Summary stat cards
       h('div', { className: 'stat-grid', style: { marginBottom: 24 } },
         h('div', { className: 'stat-card' },
           h('div', { className: 'stat-value' }, stats.totalBases != null ? stats.totalBases : bases.length),
-          h('div', { className: 'stat-label' }, 'Total Bases')
+          h('div', { className: 'stat-label' }, 'Knowledge Bases')
         ),
         h('div', { className: 'stat-card' },
           h('div', { className: 'stat-value' }, stats.totalEntries != null ? stats.totalEntries : 0),
-          h('div', { className: 'stat-label' }, 'Total Entries')
+          h('div', { className: 'stat-label' }, 'Total Contributions')
         ),
         h('div', { className: 'stat-card' },
           h('div', { className: 'stat-value' }, stats.totalContributors != null ? stats.totalContributors : 0),
-          h('div', { className: 'stat-label' }, 'Total Contributors')
+          h('div', { className: 'stat-label' }, 'Active Contributors')
         ),
         h('div', { className: 'stat-card' },
-          h('div', { className: 'stat-value' }, stats.totalSchedules != null ? stats.totalSchedules : schedules.length),
-          h('div', { className: 'stat-label' }, 'Total Schedules')
+          h('div', { className: 'stat-value' },
+            byAgent.length > 0 ? Math.round(byAgent.reduce(function(s, a) { return s + a.avgConfidence; }, 0) / byAgent.length * 100) + '%' : '-'
+          ),
+          h('div', { className: 'stat-label' }, 'Avg Confidence')
         )
       ),
 
-      // Top categories chart
-      topCategories.length > 0 && h('div', { className: 'card', style: { marginBottom: 24 } },
-        h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600 } }, 'Top Categories')),
-        h('div', { className: 'card-body' },
-          topCategories.map(function(cat) {
-            var pct = Math.round(((cat.count || 0) / maxCatCount) * 100);
-            return h('div', { key: cat.category || cat.name, style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 } },
-              h('span', { style: { fontSize: 12, fontWeight: 500, minWidth: 100 } }, cat.category || cat.name),
-              h('div', { style: { flex: 1, height: 18, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' } },
-                h('div', { style: { width: pct + '%', height: '100%', background: 'var(--brand-color)', borderRadius: 4, transition: 'width 0.3s' } })
+      // Filter bar
+      h('div', { style: { display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' } },
+        h('select', {
+          value: chartDays,
+          onChange: function(e) { setChartDays(parseInt(e.target.value)); },
+          style: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 12 }
+        },
+          h('option', { value: 7 }, 'Last 7 days'),
+          h('option', { value: 14 }, 'Last 14 days'),
+          h('option', { value: 30 }, 'Last 30 days'),
+          h('option', { value: 60 }, 'Last 60 days'),
+          h('option', { value: 90 }, 'Last 90 days')
+        ),
+        h('select', {
+          value: chartAgent,
+          onChange: function(e) { setChartAgent(e.target.value); },
+          style: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 12 }
+        },
+          h('option', { value: '' }, 'All agents'),
+          agents.map(function(a) { return h('option', { key: a.id, value: a.id }, a.config && a.config.identity && a.config.identity.name || a.name || a.id); })
+        ),
+        h('button', { className: 'btn btn-ghost btn-sm', onClick: loadTimeline }, I.refresh(), ' Refresh')
+      ),
+
+      // Row 1: two charts side by side
+      h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 } },
+        h('div', { className: 'card' },
+          h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Contributions Over Time', h(HelpButton, { label: 'Contributions Over Time' },
+            h('p', null, 'Shows how many knowledge entries agents contributed each day over the selected time period.'),
+            h('h4', { style: _h4 }, 'What to look for'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Rising trend'), ' \u2014 Your team is actively learning and sharing more knowledge over time.'),
+              h('li', null, h('strong', null, 'Spikes'), ' \u2014 May indicate specific events (new product launch, incident resolution) that generated lots of insights.'),
+              h('li', null, h('strong', null, 'Gaps'), ' \u2014 Days with zero contributions. Consider encouraging agents to share what they learn daily.')
+            ),
+            h('div', { style: _tip }, 'Tip: Hover over any data point to see the exact date and contribution count.')
+          ))),
+          h('div', { className: 'card-body', style: { padding: 16 } },
+            renderLineChart(timeline, { valueKey: 'count', labelKey: 'day', color: '#6366f1', width: 560, height: 200, id: 'contribs', valueLabel: 'Contributions' })
+          )
+        ),
+        h('div', { className: 'card' },
+          h('div', { className: 'card-header' },
+            h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Confidence Level Over Time', h(HelpButton, { label: 'Confidence Level Over Time' },
+              h('p', null, 'Tracks the average confidence level of agent contributions over time. Confidence is a 0\u2013100% score indicating how certain the agent is about the accuracy of the knowledge it shared.'),
+              h('h4', { style: _h4 }, 'What to look for'),
+              h('ul', { style: _ul },
+                h('li', null, h('strong', null, 'High confidence (80%+)'), ' \u2014 Agents are sharing well-verified, reliable knowledge.'),
+                h('li', null, h('strong', null, 'Low confidence (<50%)'), ' \u2014 Agents may be sharing uncertain or speculative information. Consider reviewing those entries.'),
+                h('li', null, h('strong', null, 'Rising trend'), ' \u2014 Knowledge quality is improving as agents learn and refine what they share.')
               ),
-              h('span', { style: { fontSize: 11, color: 'var(--text-muted)', minWidth: 30, textAlign: 'right' } }, cat.count || 0)
+              h('div', { style: _tip }, 'Tip: Hover over data points to see the exact average, min, and max confidence for each week.')
+            )),
+            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'Average confidence across all contributions')
+          ),
+          h('div', { className: 'card-body', style: { padding: 16 } },
+            renderConfidenceBand(confOverTime)
+          )
+        )
+      ),
+
+      // Row 2: two charts side by side
+      h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 } },
+        h('div', { className: 'card' },
+          h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Contributions by Agent', h(HelpButton, { label: 'Contributions by Agent' },
+            h('p', null, 'Compares how much each agent is contributing to the shared knowledge base over the selected time period.'),
+            h('h4', { style: _h4 }, 'What to look for'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Even distribution'), ' \u2014 All agents are actively contributing. Healthy knowledge-sharing culture.'),
+              h('li', null, h('strong', null, 'One dominant agent'), ' \u2014 Knowledge may be siloed. Encourage other agents to share their learnings.'),
+              h('li', null, h('strong', null, 'Agents with zero'), ' \u2014 May need a contribution schedule or prompting to capture what they learn.')
+            ),
+            h('div', { style: _tip }, 'Tip: Hover over any bar to see the agent\'s total count and average confidence score.')
+          ))),
+          h('div', { className: 'card-body', style: { padding: 16 } },
+            renderBarChart(byAgent, { valueKey: 'count', labelKey: 'agentName', width: 560, height: 220 })
+          )
+        ),
+        h('div', { className: 'card' },
+          h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Category Distribution', h(HelpButton, { label: 'Category Distribution' },
+            h('p', null, 'Breaks down contributions by their importance category. Shows what type of knowledge agents are capturing most frequently.'),
+            h('h4', { style: _h4 }, 'What to look for'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Mostly "high" importance'), ' \u2014 Agents are focused on capturing critical knowledge. Great for incident response and decision-making.'),
+              h('li', null, h('strong', null, 'Mostly "low" importance'), ' \u2014 Consider guiding agents to prioritize more impactful insights.'),
+              h('li', null, h('strong', null, 'Balanced mix'), ' \u2014 Healthy distribution across all knowledge types.')
+            ),
+            h('div', { style: _tip }, 'Tip: Hover over any slice to see the exact count and percentage for that category.')
+          ))),
+          h('div', { className: 'card-body', style: { padding: 16, display: 'flex', justifyContent: 'center' } },
+            renderDonutChart(byCategory, { valueKey: 'count', labelKey: 'category', size: 180 })
+          )
+        )
+      ),
+
+      // 5. Agent Confidence Comparison (horizontal bars)
+      byAgent.length > 0 && h('div', { className: 'card', style: { marginBottom: 20 } },
+        h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Agent Quality Comparison', h(HelpButton, { label: 'Agent Quality Comparison' },
+          h('p', null, 'A side-by-side view of each agent\'s contribution volume and average confidence score. Helps assess both the quantity and quality of knowledge sharing.'),
+          h('h4', { style: _h4 }, 'Reading the bars'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Contributions bar'), ' \u2014 How many entries the agent contributed, relative to the top contributor.'),
+            h('li', null, h('strong', null, 'Confidence bar'), ' \u2014 The agent\'s average confidence. Green (80%+) = high quality, yellow (50\u201380%) = moderate, red (<50%) = needs review.')
+          ),
+          h('div', { style: _tip }, 'Tip: An agent with fewer contributions but high confidence may be more valuable than one with many low-confidence entries.')
+        ))),
+        h('div', { className: 'card-body' },
+          byAgent.map(function(agent, i) {
+            var confPct = Math.round((agent.avgConfidence || 0) * 100);
+            var confColor = confPct >= 80 ? 'var(--success)' : confPct >= 50 ? 'var(--warning)' : 'var(--danger)';
+            return h('div', { key: agent.agentId, style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 } },
+              h('div', { style: { width: 10, height: 10, borderRadius: '50%', background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 } }),
+              h('span', { style: { fontSize: 13, fontWeight: 500, minWidth: 100 } }, agent.agentName),
+              h('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: 3 } },
+                // Contribution count bar
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+                  h('span', { style: { fontSize: 10, color: 'var(--text-muted)', minWidth: 70 } }, 'Contributions'),
+                  h('div', { style: { flex: 1, height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' } },
+                    h('div', { style: { width: Math.round((agent.count / (byAgent[0].count || 1)) * 100) + '%', height: '100%', background: CHART_COLORS[i % CHART_COLORS.length], borderRadius: 4 } })
+                  ),
+                  h('span', { style: { fontSize: 11, fontWeight: 600, minWidth: 30 } }, agent.count)
+                ),
+                // Confidence bar
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+                  h('span', { style: { fontSize: 10, color: 'var(--text-muted)', minWidth: 70 } }, 'Confidence'),
+                  h('div', { style: { flex: 1, height: 8, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' } },
+                    h('div', { style: { width: confPct + '%', height: '100%', background: confColor, borderRadius: 4 } })
+                  ),
+                  h('span', { style: { fontSize: 11, fontWeight: 600, minWidth: 30 } }, confPct + '%')
+                )
+              )
             );
           })
         )
       ),
 
-      // Recent contributions timeline
-      h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600 } }, 'Recent Contributions')),
-        h('div', { className: 'card-body' },
-          recentTimeline.length === 0
-            ? h('div', { style: { textAlign: 'center', padding: 20, color: 'var(--text-muted)' } }, 'No recent contributions')
-            : recentTimeline.map(function(item, idx) {
-                return h('div', {
-                  key: idx,
-                  style: {
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-                    borderBottom: idx < recentTimeline.length - 1 ? '1px solid var(--border)' : 'none'
-                  }
-                },
-                  h('div', {
-                    style: {
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: statusColor(item.status), flexShrink: 0
-                    }
-                  }),
-                  h('div', { style: { flex: 1 } },
-                    h('div', { style: { fontSize: 13, fontWeight: 500 } },
-                      (item.agentName || item.agentId || 'Unknown agent') + ' contributed to ' + (item.baseName || item.targetBaseId || 'unknown base')
-                    ),
-                    h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } },
-                      (item.entriesContributed || 0) + ' entries' +
-                      (item.duplicatesSkipped ? ' \u00B7 ' + item.duplicatesSkipped + ' duplicates skipped' : '')
-                    )
-                  ),
-                  h('span', { style: { fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 } },
-                    item.createdAt || item.date ? new Date(item.createdAt || item.date).toLocaleDateString() : ''
-                  )
-                );
-              })
+      // 6. Daily heatmap-style table if multiple agents
+      agentDaily.length > 0 && h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Daily Activity Breakdown', h(HelpButton, { label: 'Daily Activity Breakdown' },
+          h('p', null, 'A heatmap showing which agents contributed on which days. Each cell represents one agent\'s activity on one day.'),
+          h('h4', { style: _h4 }, 'Reading the heatmap'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Darker cells'), ' \u2014 More contributions on that day. The color intensity scales with the count.'),
+            h('li', null, h('strong', null, 'Empty cells'), ' \u2014 No contributions from that agent on that day.'),
+            h('li', null, h('strong', null, 'Patterns'), ' \u2014 Look for weekday vs weekend differences, or agents that contribute in bursts vs steadily.')
+          ),
+          h('div', { style: _tip }, 'Tip: Each agent gets a unique color so you can quickly scan across rows to see activity patterns.')
+        ))),
+        h('div', { className: 'card-body', style: { overflowX: 'auto' } },
+          function() {
+            // Build a grid: rows = agents, columns = days
+            var agentNames = {};
+            var daySet = {};
+            agentDaily.forEach(function(r) {
+              agentNames[r.agentId] = r.agentName;
+              daySet[r.day] = true;
+            });
+            var uniqueAgents = Object.keys(agentNames);
+            var days = Object.keys(daySet).sort();
+            var maxCount = agentDaily.reduce(function(m, r) { return Math.max(m, r.count); }, 1);
+
+            return h('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: 12 } },
+              h('thead', null,
+                h('tr', null,
+                  h('th', { style: { textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)' } }, 'Agent'),
+                  days.map(function(d) {
+                    return h('th', { key: d, style: { textAlign: 'center', padding: '6px 4px', borderBottom: '1px solid var(--border)', fontSize: 10, color: 'var(--text-muted)' } },
+                      new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                    );
+                  })
+                )
+              ),
+              h('tbody', null,
+                uniqueAgents.map(function(agId, ai) {
+                  return h('tr', { key: agId },
+                    h('td', { style: { padding: '6px 8px', fontWeight: 500 } }, agentNames[agId]),
+                    days.map(function(d) {
+                      var match = agentDaily.find(function(r) { return r.agentId === agId && r.day === d; });
+                      var cnt = match ? match.count : 0;
+                      var opacity = cnt > 0 ? 0.2 + (cnt / maxCount) * 0.8 : 0;
+                      var bg = cnt > 0 ? CHART_COLORS[ai % CHART_COLORS.length] : 'transparent';
+                      return h('td', { key: d, style: { textAlign: 'center', padding: '4px' } },
+                        h('div', {
+                          style: {
+                            width: 28, height: 28, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            background: bg, opacity: opacity > 0 ? opacity : undefined,
+                            color: opacity > 0.5 ? '#fff' : 'var(--text-muted)', fontSize: 10, fontWeight: 600
+                          }
+                        }, cnt > 0 ? cnt : '')
+                      );
+                    })
+                  );
+                })
+              )
+            );
+          }()
         )
       )
     );
@@ -628,6 +1198,9 @@ export function KnowledgeContributionsPage() {
     tab === 'contributions' && renderContributions(),
     tab === 'schedules' && renderSchedules(),
     tab === 'stats' && renderStats(),
+
+    // Tooltip overlay
+    renderTooltip(),
 
     // ── Create Base Modal ──────────────────────────────
     showCreateBase && h(Modal, {
@@ -771,4 +1344,12 @@ export function KnowledgeContributionsPage() {
       )
     )
   );
+}
+
+function _pgBtn(active) {
+  return {
+    padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
+    background: active ? 'var(--accent)' : 'var(--bg-card)', color: active ? '#fff' : 'var(--text)',
+    cursor: 'pointer', fontSize: 12,
+  };
 }

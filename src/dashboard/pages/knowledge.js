@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
+import { KnowledgeImportWizard, ImportJobsList } from './knowledge-import.js';
 
 export function KnowledgeBasePage() {
   const { toast } = useApp();
@@ -14,6 +15,7 @@ export function KnowledgeBasePage() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
   const [loading, setLoading] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const load = useCallback(() => {
     engineCall('/knowledge-bases').then(d => setKbs(d.knowledgeBases || [])).catch(() => {});
@@ -101,6 +103,7 @@ export function KnowledgeBasePage() {
                 h('button', { className: 'btn btn-primary btn-sm', onClick: saveEdit }, 'Save')
               )
             : h(Fragment, null,
+                h('button', { className: 'btn btn-primary btn-sm', onClick: () => setShowImport(true) }, I.plus(), ' Import Docs'),
                 h('button', { className: 'btn btn-secondary btn-sm', onClick: () => setEditing(true) }, I.journal(), ' Edit'),
                 h('button', { className: 'btn btn-danger btn-sm', onClick: () => deleteKb(selected.id) }, I.trash(), ' Delete')
               )
@@ -190,7 +193,18 @@ export function KnowledgeBasePage() {
                   )
           )
         )
-      )
+      ),
+
+      // Import history
+      h(ImportJobsList, { kbId: selected.id }),
+
+      // Import wizard modal
+      showImport && h(KnowledgeImportWizard, {
+        kbId: selected.id,
+        kbName: selected.name,
+        onClose: () => setShowImport(false),
+        onDone: () => selectKb(selected),
+      }),
     );
   }
 
@@ -228,4 +242,128 @@ export function KnowledgeBasePage() {
           )
         ))
   );
+}
+
+/* ContributionsTab removed — contributions live in Knowledge Contributions page */
+/* DEAD CODE BELOW — kept as reference, will be cleaned up */
+function _ContributionsTab_UNUSED({ toast, onBack }) {
+  const [contributions, setContributions] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [agents, setAgents] = useState([]);
+  const [agentFilter, setAgentFilter] = useState('');
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const PAGE_SIZE = 25;
+
+  useEffect(() => {
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
+  }, []);
+
+  const agentData = buildAgentDataMap(agents);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
+    if (agentFilter) params.set('agentId', agentFilter);
+    engineCall('/activity/knowledge-contributions?' + params).then(d => {
+      setContributions(d.contributions || []);
+      setTotal(d.total || 0);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [page, agentFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const pages = Math.ceil(total / PAGE_SIZE);
+
+  return h(Fragment, null,
+    h('div', { style: { marginBottom: 20 } },
+      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Knowledge Hub'),
+      h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Knowledge contributed by agents to the organization')
+    ),
+
+    h('div', { className: 'tabs', style: { marginBottom: 16 } },
+      h('div', { className: 'tab', onClick: onBack }, 'Knowledge Bases'),
+      h('div', { className: 'tab active' }, 'Agent Contributions')
+    ),
+
+    // Filter bar
+    h('div', { style: { display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' } },
+      h('select', {
+        value: agentFilter,
+        onChange: e => { setAgentFilter(e.target.value); setPage(0); },
+        style: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' },
+      },
+        h('option', { value: '' }, 'All agents'),
+        ...agents.map(a => h('option', { key: a.id, value: a.id }, a.config?.identity?.name || a.config?.displayName || a.name || a.id))
+      ),
+      h('span', { style: { color: 'var(--text-muted)', fontSize: 13 } }, total + ' contribution(s)')
+    ),
+
+    // Contributions grid
+    h('div', { className: 'card', style: { position: 'relative' } },
+      loading && h('div', { style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 12 } },
+        h('div', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Loading...')
+      ),
+      h('div', { className: 'card-body-flush' },
+        contributions.length === 0
+          ? h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }, loading ? 'Loading...' : 'No contributions yet')
+          : h('table', null,
+              h('thead', null, h('tr', null,
+                h('th', null, 'Time'),
+                h('th', null, 'Title'),
+                h('th', null, 'Agent'),
+                h('th', null, 'Importance'),
+              )),
+              h('tbody', null, contributions.map((c, i) =>
+                h('tr', { key: c.id || i, onClick: () => setSelected(c), style: { cursor: 'pointer' }, title: 'Click to view details' },
+                  h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, new Date(c.created_at).toLocaleString()),
+                  h('td', { style: { fontWeight: 500, fontSize: 13 } }, (c.title || '').replace(/^knowledge-contrib-/, '').replace(/-/g, ' ')),
+                  h('td', null, renderAgentBadge(c.agent_id, agentData)),
+                  h('td', null, h('span', { className: 'badge badge-' + (c.importance === 'high' ? 'danger' : c.importance === 'medium' ? 'warning' : 'info') }, c.importance || 'normal')),
+                )
+              ))
+            )
+      ),
+
+      // Pagination
+      pages > 1 && h('div', {
+        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)' }
+      },
+        h('span', null, 'Showing ' + (page * PAGE_SIZE + 1) + '-' + Math.min((page + 1) * PAGE_SIZE, total) + ' of ' + total),
+        h('div', { style: { display: 'flex', gap: 4 } },
+          h('button', { onClick: () => setPage(p => Math.max(0, p - 1)), disabled: page === 0, style: pgBtn(false) }, '\u2039 Prev'),
+          h('span', { style: { padding: '4px 8px', fontSize: 12 } }, (page + 1) + ' / ' + pages),
+          h('button', { onClick: () => setPage(p => Math.min(pages - 1, p + 1)), disabled: page >= pages - 1, style: pgBtn(false) }, 'Next \u203A'),
+        )
+      ),
+    ),
+
+    // Detail modal
+    selected && h(DetailModal, {
+      title: 'Knowledge Contribution',
+      onClose: () => setSelected(null),
+      data: {
+        title: (selected.title || '').replace(/^knowledge-contrib-/, '').replace(/-/g, ' '),
+        agent: agentData[selected.agent_id]?.name || selected.agent_id || '-',
+        importance: selected.importance || 'normal',
+        confidence: selected.confidence || '-',
+        category: selected.category,
+        source: selected.source || '-',
+        content: selected.content || '-',
+        tags: selected.tags ? (Array.isArray(selected.tags) ? selected.tags.join(', ') : selected.tags) : '-',
+        created: selected.created_at ? new Date(selected.created_at).toLocaleString() : '-',
+        id: selected.id,
+      },
+      badge: { label: selected.importance || 'normal', color: selected.importance === 'high' ? 'var(--danger)' : 'var(--accent)' },
+    }),
+  );
+}
+
+function pgBtn(active) {
+  return {
+    padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
+    background: active ? 'var(--accent)' : 'var(--bg-card)', color: active ? '#fff' : 'var(--text)',
+    cursor: 'pointer', fontSize: 12,
+  };
 }

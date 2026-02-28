@@ -450,6 +450,16 @@ export async function runAgentLoop(
           console.log(`[agent-loop] ✅ Tool ${toolCall.name} succeeded (${content.length} chars): ${content.slice(0, 300)}`);
         }
 
+        // Record tool call to activity tracker (single lightweight event, no extra DB writes)
+        try {
+          const { activity } = await import('../engine/routes.js');
+          activity.recordToolCallCompact({
+            agentId: config.agentId, orgId: config.orgId, sessionId,
+            tool: toolCall.name, success: !!result.success,
+            durationMs: result.durationMs, error: result.error?.slice(0, 200),
+          });
+        } catch { /* non-blocking */ }
+
         // Dynamic tool injection — request_tools returns new tools to add to the session
         if ((result as any)._dynamicTools?.length) {
           var newTools = (result as any)._dynamicTools as any[];

@@ -1299,6 +1299,38 @@ CREATE INDEX IF NOT EXISTS idx_kc_entries_base ON knowledge_contribution_entries
   },
   {
     version: 19,
+    name: 'knowledge_import_jobs',
+    sql: `
+CREATE TABLE IF NOT EXISTS knowledge_import_jobs (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  base_id TEXT NOT NULL,
+  source_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ki_jobs_org ON knowledge_import_jobs(org_id);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS knowledge_import_jobs (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  base_id TEXT NOT NULL,
+  source_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  data JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_ki_jobs_org ON knowledge_import_jobs(org_id);
+    `,
+    mysql: `SELECT 1;`,
+    nosql: async () => {},
+  },
+  {
+    version: 20,
     name: 'signature_template',
     sql: `ALTER TABLE company_settings ADD COLUMN signature_template TEXT;`,
     postgres: `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS signature_template TEXT;`,

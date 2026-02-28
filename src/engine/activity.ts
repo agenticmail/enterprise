@@ -237,6 +237,39 @@ export class ActivityTracker {
   }
 
   /**
+   * Lightweight tool call recording — single in-memory record + single DB insert.
+   * Used by agent-loop to avoid 4x DB writes per tool call.
+   */
+  recordToolCallCompact(opts: {
+    agentId: string; orgId: string; sessionId: string;
+    tool: string; success: boolean; durationMs?: number; error?: string;
+  }): void {
+    const record: ToolCallRecord = {
+      id: crypto.randomUUID(),
+      agentId: opts.agentId,
+      orgId: opts.orgId,
+      sessionId: opts.sessionId,
+      toolId: opts.tool,
+      toolName: opts.tool,
+      parameters: {},
+      timing: {
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        durationMs: opts.durationMs,
+      },
+      result: { success: opts.success, error: opts.error },
+      permission: { allowed: true },
+    };
+    this.toolCalls.set(record.id, record);
+    if (this.toolCalls.size > this.maxToolCalls) {
+      const keys = Array.from(this.toolCalls.keys());
+      for (let i = 0; i < 1000; i++) this.toolCalls.delete(keys[i]);
+    }
+    // Single DB write (fire-and-forget)
+    this.engineDb?.insertToolCall(record).catch(() => {});
+  }
+
+  /**
    * Record a tool call completing
    */
   endToolCall(toolCallId: string, result: {
