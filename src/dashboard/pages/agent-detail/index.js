@@ -113,9 +113,9 @@ export function AgentDetailPage(props) {
 
     // ─── Header Bar (sticky) ────────────────────────────
     h('div', { style: {
-      position: 'sticky', top: 0, zIndex: 20,
+      position: 'sticky', top: 56, zIndex: 20,
       background: 'var(--bg)', borderBottom: '1px solid var(--border)',
-      padding: '16px 0', marginBottom: 0,
+      padding: '12px 0', marginBottom: 0,
       marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24,
     } },
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 16 } },
@@ -163,7 +163,7 @@ export function AgentDetailPage(props) {
 
     // ─── Tab Bar (sticky, scrollable) ───────────────────
     h('div', { style: {
-      position: 'sticky', top: 77, zIndex: 19,
+      position: 'sticky', top: 124, zIndex: 19,
       background: 'var(--bg)', borderBottom: '1px solid var(--border)',
       marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24,
       marginBottom: 20,
