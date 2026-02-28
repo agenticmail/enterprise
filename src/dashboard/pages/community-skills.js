@@ -85,6 +85,71 @@ export function CommunitySkillsPage() {
     setSearchTimeout(setTimeout(() => doSearch(q), 300));
   };
 
+  // Credential setup state
+  var _credModal = useState(null);
+  var credModal = _credModal[0]; var setCredModal = _credModal[1];
+  var _credValue = useState('');
+  var credValue = _credValue[0]; var setCredValue = _credValue[1];
+  var _credScope = useState('org'); // 'org' or 'agent'
+  var credScope = _credScope[0]; var setCredScope = _credScope[1];
+  var _credAgent = useState('');
+  var credAgent = _credAgent[0]; var setCredAgent = _credAgent[1];
+  var _credSaving = useState(false);
+  var credSaving = _credSaving[0]; var setCredSaving = _credSaving[1];
+  var _credStatuses = useState({});
+  var credStatuses = _credStatuses[0]; var setCredStatuses = _credStatuses[1];
+  var _allAgents = useState([]);
+  var allAgents = _allAgents[0]; var setAllAgents = _allAgents[1];
+
+  // Load credential statuses for installed skills
+  useEffect(function() {
+    var ids = installed.map(function(i) { return i.skillId; });
+    if (!ids.length) return;
+    var promises = ids.map(function(id) {
+      return engineCall('/oauth/status/' + id + '?orgId=' + getOrgId())
+        .then(function(d) { return { id: id, connected: d.connected }; })
+        .catch(function() { return { id: id, connected: false }; });
+    });
+    Promise.all(promises).then(function(results) {
+      var map = {};
+      results.forEach(function(r) { map[r.id] = r.connected; });
+      setCredStatuses(map);
+    });
+  }, [installed]);
+
+  // Load agents list for per-agent credentials
+  useEffect(function() {
+    engineCall('/agents?orgId=' + getOrgId()).then(function(d) {
+      setAllAgents(d.agents || d || []);
+    }).catch(function() {});
+  }, []);
+
+  var saveCredential = function() {
+    if (!credModal || !credValue.trim()) return;
+    setCredSaving(true);
+    var name = credScope === 'agent' && credAgent
+      ? credModal.id + ':agent:' + credAgent
+      : credModal.id;
+    engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + getOrgId(), {
+      method: 'POST',
+      body: JSON.stringify({ token: credValue.trim(), scope: credScope, agentId: credAgent || undefined })
+    })
+      .then(function() {
+        toast(credModal.name + ' credentials saved' + (credScope === 'agent' ? ' (per-agent)' : ' (org-wide)'), 'success');
+        setCredModal(null); setCredValue(''); setCredScope('org'); setCredAgent('');
+        setCredStatuses(function(s) { var n = Object.assign({}, s); n[credModal.id] = true; return n; });
+      })
+      .catch(function(e) { toast('Failed: ' + (e.message || 'Unknown error'), 'error'); })
+      .finally(function() { setCredSaving(false); });
+  };
+
+  var openCredSetup = function(skill) {
+    setCredModal(skill);
+    setCredValue('');
+    setCredScope('org');
+    setCredAgent('');
+  };
+
   const installSkill = async (skillId) => {
     try {
       await engineCall('/community/skills/' + skillId + '/install', {
@@ -93,6 +158,11 @@ export function CommunitySkillsPage() {
       });
       toast('Skill installed', 'success');
       load();
+      // Open credential setup for the installed skill
+      var skill = skills.find(function(s) { return s.id === skillId; }) || detail;
+      if (skill) {
+        setTimeout(function() { openCredSetup(skill); }, 300);
+      }
     } catch (e) { toast(e.message || 'Install failed', 'error'); }
   };
 
@@ -550,6 +620,10 @@ export function CommunitySkillsPage() {
               )
             ),
             h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+              credStatuses[inst.skillId]
+                ? h('span', { className: 'badge badge-success', style: { fontSize: 10 } }, I.check(), ' Connected')
+                : h('span', { className: 'badge badge-neutral', style: { fontSize: 10 } }, 'No credentials'),
+              h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { openCredSetup(meta || { id: inst.skillId, name: inst.skillId }); } }, I.gear(), ' Configure'),
               h('span', {
                 className: 'status-badge',
                 style: { background: inst.enabled ? 'var(--success)' : 'var(--warning)', color: 'white', padding: '2px 8px', borderRadius: 12, fontSize: 11 }
@@ -642,15 +716,115 @@ export function CommunitySkillsPage() {
             h('button', { className: 'btn btn-primary btn-sm', onClick: submitReview }, 'Submit Review')
           )
         ),
-        h('div', { className: 'modal-footer' },
-          installedIds.has(detail.id)
-            ? h('button', { className: 'btn btn-ghost', onClick: () => { uninstallSkill(detail.id); setDetail(null); } }, 'Uninstall')
-            : h('button', { className: 'btn btn-primary', onClick: () => { installSkill(detail.id); setDetail(null); } }, 'Install Skill')
+        h('div', { className: 'modal-footer', style: { display: 'flex', justifyContent: 'space-between' } },
+          h('div', null,
+            installedIds.has(detail.id) && h('button', {
+              className: 'btn btn-secondary btn-sm',
+              onClick: function() { setDetail(null); openCredSetup(detail); }
+            }, I.gear(), ' Configure Credentials')
+          ),
+          h('div', { style: { display: 'flex', gap: 8 } },
+            installedIds.has(detail.id)
+              ? h('button', { className: 'btn btn-ghost', onClick: () => { uninstallSkill(detail.id); setDetail(null); } }, 'Uninstall')
+              : h('button', { className: 'btn btn-primary', onClick: () => { installSkill(detail.id); } }, 'Install Skill')
+          )
         )
       )
     ),
 
     // GitHub Import Modal
+    // ─── Credential Setup Modal ───────────────────────────
+    credModal && h('div', { className: 'modal-overlay', onClick: function() { setCredModal(null); } },
+      h('div', { className: 'modal', style: { width: 520 }, onClick: function(e) { e.stopPropagation(); } },
+        h('div', { className: 'modal-header' },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+            skillIcon(credModal.icon, 24, credModal.category, credModal.id),
+            h('div', null,
+              h('h2', { style: { margin: 0, fontSize: 16 } }, 'Configure ' + (credModal.name || credModal.id)),
+              h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Set up credentials for this integration')
+            )
+          ),
+          h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setCredModal(null); } }, I.x())
+        ),
+        h('div', { className: 'modal-body' },
+          // Auth help / instructions
+          credModal.authHelp && h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, marginBottom: 16, fontSize: 13 } },
+            h('div', { style: { fontWeight: 600, marginBottom: 4 } }, 'How to get credentials:'),
+            h('p', { style: { margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5 } },
+              typeof credModal.authHelp === 'string' ? credModal.authHelp : credModal.authHelp.description
+            ),
+            typeof credModal.authHelp === 'object' && credModal.authHelp.url && h('a', {
+              href: credModal.authHelp.url, target: '_blank', rel: 'noopener',
+              style: { display: 'inline-block', marginTop: 6, fontSize: 12, color: 'var(--accent)' }
+            }, 'Open ' + (credModal.authHelp.provider || 'provider') + ' docs \u2192')
+          ),
+
+          // Credential scope
+          h('div', { style: { marginBottom: 16 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 8 } }, 'Credential Scope'),
+            h('div', { style: { display: 'flex', gap: 8 } },
+              h('button', {
+                className: 'btn btn-sm ' + (credScope === 'org' ? 'btn-primary' : 'btn-ghost'),
+                onClick: function() { setCredScope('org'); }
+              }, I.people(), ' Organization-wide'),
+              h('button', {
+                className: 'btn btn-sm ' + (credScope === 'agent' ? 'btn-primary' : 'btn-ghost'),
+                onClick: function() { setCredScope('agent'); }
+              }, I.user(), ' Per-Agent')
+            ),
+            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
+              credScope === 'org'
+                ? 'All agents in this organization will use these credentials.'
+                : 'Only the selected agent will use these credentials. Other agents can have different credentials.'
+            )
+          ),
+
+          // Agent selector (per-agent mode)
+          credScope === 'agent' && h('div', { style: { marginBottom: 16 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Select Agent'),
+            h('select', {
+              className: 'input',
+              value: credAgent,
+              onChange: function(e) { setCredAgent(e.target.value); }
+            },
+              h('option', { value: '' }, '-- Select an agent --'),
+              allAgents.map(function(a) {
+                var name = a.config?.identity?.name || a.config?.displayName || a.name || a.id;
+                return h('option', { key: a.id, value: a.id }, name);
+              })
+            )
+          ),
+
+          // API Key / Token input
+          h('div', { style: { marginBottom: 16 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'API Key / Token'),
+            h('input', {
+              className: 'input', type: 'password', placeholder: 'Paste your API key or token here...',
+              value: credValue,
+              onChange: function(e) { setCredValue(e.target.value); },
+              style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
+            }),
+            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
+              'Credentials are encrypted at rest using AES-256-GCM and stored in the secure vault.'
+            )
+          ),
+
+          // Status
+          credStatuses[credModal.id] && h('div', { style: { padding: 8, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 6, marginBottom: 12, fontSize: 12, color: 'var(--success)' } },
+            I.check(), ' Organization-wide credentials are already configured. Saving new credentials will overwrite them.'
+          )
+        ),
+        h('div', { className: 'modal-footer' },
+          h('button', { className: 'btn btn-ghost', onClick: function() { setCredModal(null); } }, 'Cancel'),
+          h('button', {
+            className: 'btn btn-primary',
+            disabled: credSaving || !credValue.trim() || (credScope === 'agent' && !credAgent),
+            onClick: saveCredential
+          }, credSaving ? 'Saving...' : 'Save Credentials')
+        )
+      )
+    ),
+
     showImport && h('div', { className: 'modal-overlay', onClick: () => { setShowImport(false); setImportResult(null); } },
       h('div', { className: 'modal', style: { width: 560 }, onClick: e => e.stopPropagation() },
         h('div', { className: 'modal-header' },
