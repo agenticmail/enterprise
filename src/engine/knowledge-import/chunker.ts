@@ -147,36 +147,86 @@ function extractTags(content: string): string[] {
   return Array.from(tags).slice(0, 5);
 }
 
-/** Basic HTML to plain text conversion. */
+/** Comprehensive HTML → clean text conversion. */
 function htmlToText(html: string): string {
-  return html
-    // Remove script/style tags and content
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, '')
+  let text = html
+    // Remove script, style, nav, header, footer, aside, iframe
+    .replace(/<(script|style|nav|header|footer|aside|iframe|noscript|svg)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    // Remove hidden elements
+    .replace(/<[^>]*(?:display\s*:\s*none|visibility\s*:\s*hidden|aria-hidden\s*=\s*"true")[^>]*>[\s\S]*?<\/[^>]+>/gi, '')
+    // Remove skip-to-content links
+    .replace(/<a[^>]*skip[^>]*>.*?<\/a>/gi, '')
     // Convert headings to markdown
-    .replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (_, level, text) => '#'.repeat(parseInt(level)) + ' ' + text + '\n\n')
+    .replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, t) => '\n\n' + '#'.repeat(parseInt(level)) + ' ' + t.replace(/<[^>]+>/g, '').trim() + '\n\n')
     // Convert paragraphs
     .replace(/<p[^>]*>/gi, '\n\n')
     .replace(/<\/p>/gi, '')
     // Convert line breaks
     .replace(/<br\s*\/?>/gi, '\n')
-    // Convert lists
-    .replace(/<li[^>]*>/gi, '- ')
-    .replace(/<\/li>/gi, '\n')
-    // Convert links
-    .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '$2 ($1)')
+    // Convert ordered lists
+    .replace(/<ol[^>]*>/gi, '\n')
+    .replace(/<\/ol>/gi, '\n')
+    // Convert unordered lists
+    .replace(/<ul[^>]*>/gi, '\n')
+    .replace(/<\/ul>/gi, '\n')
+    // Convert list items (numbered handled by position)
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<\/li>/gi, '')
+    // Convert blockquotes
+    .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, t) => '\n> ' + t.replace(/<[^>]+>/g, '').trim() + '\n')
+    // Convert links — keep text, drop URL unless it's useful
+    .replace(/<a[^>]*href="(#[^"]*)"[^>]*>(.*?)<\/a>/gi, '$2')  // strip anchor-only links
+    .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '$2')    // keep link text only
     // Convert code blocks
-    .replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```')
+    .replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '\n```\n$1\n```\n')
     .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`')
-    // Strip remaining tags
+    // Convert strong/em
+    .replace(/<(strong|b)[^>]*>(.*?)<\/\1>/gi, '**$2**')
+    .replace(/<(em|i)[^>]*>(.*?)<\/\1>/gi, '*$2*')
+    // Strip all remaining tags
     .replace(/<[^>]+>/g, '')
-    // Decode entities
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    // Clean up whitespace
+    // Decode HTML entities
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)))
+    .replace(/&[a-z]+;/gi, ' '); // catch-all for remaining entities
+
+  // Post-processing: clean up junk
+  text = cleanContent(text);
+  return text;
+}
+
+/** Remove boilerplate, navigation junk, and normalize whitespace. */
+function cleanContent(text: string): string {
+  return text
+    // Remove anchor references like (#h_abc123)
+    .replace(/\(#[a-zA-Z0-9_-]+\)/g, '')
+    // Remove "Skip to main content" and similar
+    .replace(/skip\s+to\s+(main\s+)?content/gi, '')
+    // Remove "Table of contents" standalone lines
+    .replace(/^[\s]*table\s+of\s+contents[\s]*$/gim, '')
+    // Remove "Written by ... Updated ..." bylines
+    .replace(/written\s+by\s+[\w\s.]+updated\s+[\w\s]+ago/gi, '')
+    // Remove "Did this answer your question?" feedback prompts
+    .replace(/did\s+this\s+answer\s+your\s+question\s*[😞😐😃🙁😊👍👎\s]*/gi, '')
+    // Remove emoji-only lines
+    .replace(/^[\s]*[😞😐😃🙁😊👍👎🎉✅❌⭐️💡🔥\s]+[\s]*$/gm, '')
+    // Remove breadcrumb-style navigation (< "Page" < "Section")
+    .replace(/(?:<\s*"[^"]*"\s*)+/g, '')
+    // Remove "- - - - -" separator lines
+    .replace(/^[\s-]{5,}$/gm, '')
+    // Remove cookie/privacy notices
+    .replace(/(?:we\s+use\s+cookies|cookie\s+policy|accept\s+all\s+cookies|privacy\s+policy)[^.]*\./gi, '')
+    // Remove "Share this article" / "Was this helpful"
+    .replace(/(?:share\s+this\s+article|was\s+this\s+(?:article\s+)?helpful)[^.]*[.?]?/gi, '')
+    // Remove standalone URLs on their own line
+    .replace(/^https?:\/\/[^\s]+$/gm, '')
+    // Collapse multiple blank lines
     .replace(/\n{3,}/g, '\n\n')
+    // Collapse multiple spaces
+    .replace(/[^\S\n]{2,}/g, ' ')
+    // Trim lines
+    .split('\n').map(l => l.trim()).join('\n')
+    // Final trim
     .trim();
 }

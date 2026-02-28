@@ -17,6 +17,10 @@ export function KnowledgeBasePage() {
   const [loading, setLoading] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importKb, setImportKb] = useState(null);
+  const [editingDoc, setEditingDoc] = useState(null);     // doc id being renamed
+  const [editDocName, setEditDocName] = useState('');
+  const [editingChunk, setEditingChunk] = useState(null);  // chunk id being edited
+  const [editChunkContent, setEditChunkContent] = useState('');
 
   const load = useCallback(() => {
     engineCall('/knowledge-bases').then(d => setKbs(d.knowledgeBases || [])).catch(() => {});
@@ -73,6 +77,35 @@ export function KnowledgeBasePage() {
       toast('Document deleted', 'success');
       setDocs(d => d.filter(x => x.id !== docId));
       if (selectedDoc && selectedDoc.id === docId) { setSelectedDoc(null); setChunks([]); }
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const saveDocName = async (docId) => {
+    if (!selected || !editDocName.trim()) return;
+    try {
+      await engineCall('/knowledge-bases/' + selected.id + '/documents/' + docId, { method: 'PUT', body: JSON.stringify({ name: editDocName.trim() }) });
+      toast('Document renamed', 'success');
+      setEditingDoc(null);
+      selectKb(selected); // reload
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const saveChunkContent = async (chunkId) => {
+    if (!selected) return;
+    try {
+      await engineCall('/knowledge-bases/' + selected.id + '/chunks/' + chunkId, { method: 'PUT', body: JSON.stringify({ content: editChunkContent }) });
+      toast('Chunk updated', 'success');
+      setEditingChunk(null);
+      if (selectedDoc) loadDocChunks(selectedDoc); // reload chunks
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const deleteChunk = async (chunkId) => {
+    if (!selected) return;
+    try {
+      await engineCall('/knowledge-bases/' + selected.id + '/chunks/' + chunkId, { method: 'DELETE' });
+      toast('Chunk deleted', 'success');
+      setChunks(c => c.filter(x => x.id !== chunkId));
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -160,13 +193,22 @@ export function KnowledgeBasePage() {
                     transition: 'background 0.15s'
                   }, onClick: () => loadDocChunks(doc) },
                     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                      h('div', null,
-                        h('div', { style: { fontWeight: 600, fontSize: 13 } }, doc.name || doc.id),
+                      h('div', { style: { flex: 1, minWidth: 0 } },
+                        editingDoc === doc.id
+                          ? h('div', { style: { display: 'flex', gap: 4 }, onClick: e => e.stopPropagation() },
+                              h('input', { className: 'input', value: editDocName, onChange: e => setEditDocName(e.target.value), onKeyDown: e => e.key === 'Enter' && saveDocName(doc.id), style: { fontSize: 13, padding: '2px 6px', flex: 1 }, autoFocus: true }),
+                              h('button', { className: 'btn btn-sm btn-primary', style: { padding: '2px 8px', fontSize: 11 }, onClick: () => saveDocName(doc.id) }, 'Save'),
+                              h('button', { className: 'btn btn-sm', style: { padding: '2px 6px', fontSize: 11 }, onClick: () => setEditingDoc(null) }, 'X'),
+                            )
+                          : h('div', { style: { fontWeight: 600, fontSize: 13 } }, doc.name || doc.id),
                         h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } },
-                          [doc.sourceType, doc.mimeType, doc.size ? (doc.size > 1024 ? (doc.size / 1024).toFixed(1) + ' KB' : doc.size + ' B') : null, doc.status].filter(Boolean).join(' \u2022 ')
+                          [doc.sourceType, doc.mimeType, doc.size ? (doc.size > 1024 ? (doc.size / 1024).toFixed(1) + ' KB' : doc.size + ' B') : null, doc.chunks?.length ? doc.chunks.length + ' chunks' : null, doc.status].filter(Boolean).join(' \u2022 ')
                         )
                       ),
-                      h('button', { className: 'btn btn-sm', style: { padding: '2px 6px', fontSize: 11, color: 'var(--danger)' }, onClick: (e) => { e.stopPropagation(); deleteDoc(doc.id); } }, I.trash())
+                      h('div', { style: { display: 'flex', gap: 4, marginLeft: 8 } },
+                        editingDoc !== doc.id && h('button', { className: 'btn btn-sm', style: { padding: '2px 6px', fontSize: 11 }, onClick: (e) => { e.stopPropagation(); setEditingDoc(doc.id); setEditDocName(doc.name || ''); } }, I.journal()),
+                        h('button', { className: 'btn btn-sm', style: { padding: '2px 6px', fontSize: 11, color: 'var(--danger)' }, onClick: (e) => { e.stopPropagation(); deleteDoc(doc.id); } }, I.trash()),
+                      )
                     )
                   )
                 )
@@ -185,11 +227,23 @@ export function KnowledgeBasePage() {
                 ? h('div', { style: { textAlign: 'center', color: 'var(--text-muted)', padding: 24 } }, 'No chunks found. The document may not have been processed yet.')
                 : chunks.map((chunk, i) =>
                     h('div', { key: chunk.id || i, style: { padding: '10px 0', borderBottom: '1px solid var(--border)' } },
-                      h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
+                      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 } },
                         h('span', { style: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' } }, 'Chunk #' + (chunk.position ?? i + 1)),
-                        chunk.tokenCount && h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, chunk.tokenCount + ' tokens')
+                        h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
+                          chunk.tokenCount && h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, chunk.tokenCount + ' tokens'),
+                          editingChunk !== chunk.id && h('button', { className: 'btn btn-sm', style: { padding: '1px 5px', fontSize: 10 }, onClick: () => { setEditingChunk(chunk.id); setEditChunkContent(chunk.content || ''); } }, 'Edit'),
+                          editingChunk !== chunk.id && h('button', { className: 'btn btn-sm', style: { padding: '1px 5px', fontSize: 10, color: 'var(--danger)' }, onClick: () => deleteChunk(chunk.id) }, I.trash()),
+                        )
                       ),
-                      h('div', { style: { fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' } }, chunk.content || '(empty)')
+                      editingChunk === chunk.id
+                        ? h('div', null,
+                            h('textarea', { className: 'input', value: editChunkContent, onChange: e => setEditChunkContent(e.target.value), rows: 8, style: { width: '100%', fontSize: 12, fontFamily: 'monospace', lineHeight: 1.5 } }),
+                            h('div', { style: { display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' } },
+                              h('button', { className: 'btn btn-sm btn-secondary', onClick: () => setEditingChunk(null) }, 'Cancel'),
+                              h('button', { className: 'btn btn-sm btn-primary', onClick: () => saveChunkContent(chunk.id) }, 'Save'),
+                            )
+                          )
+                        : h('div', { style: { fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' } }, chunk.content || '(empty)')
                     )
                   )
           )

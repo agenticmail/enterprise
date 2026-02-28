@@ -339,6 +339,13 @@ export class KnowledgeBaseEngine {
     return this.knowledgeBases.get(id);
   }
 
+  /** Reload a single KB from DB (call after external writes like imports). */
+  async reloadKnowledgeBase(id: string): Promise<void> {
+    if (!this.engineDb) return;
+    const kb = await this.engineDb.getKnowledgeBase(id);
+    if (kb) this.knowledgeBases.set(kb.id, kb);
+  }
+
   getAllKnowledgeBases(): KnowledgeBase[] {
     return Array.from(this.knowledgeBases.values());
   }

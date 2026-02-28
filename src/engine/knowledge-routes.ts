@@ -93,6 +93,64 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
     return c.json({ chunks: docChunks, total: docChunks.length });
   });
 
+  // Edit a document (rename, update metadata)
+  router.put('/knowledge-bases/:kbId/documents/:docId', async (c) => {
+    const docId = c.req.param('docId');
+    const kbId = c.req.param('kbId');
+    const body = await c.req.json();
+    try {
+      const db = (knowledgeBase as any).engineDb;
+      if (!db) return c.json({ error: 'No database' }, 500);
+      const sets: string[] = [];
+      const vals: any[] = [];
+      let i = 1;
+      if (body.name !== undefined) { sets.push(`name = $${i++}`); vals.push(body.name); }
+      if (body.sourceUrl !== undefined) { sets.push(`source_url = $${i++}`); vals.push(body.sourceUrl); }
+      if (body.status !== undefined) { sets.push(`status = $${i++}`); vals.push(body.status); }
+      sets.push(`updated_at = $${i++}`); vals.push(new Date().toISOString());
+      vals.push(docId);
+      await db.run(`UPDATE kb_documents SET ${sets.join(', ')} WHERE id = $${i}`, vals);
+      await knowledgeBase.reloadKnowledgeBase(kbId);
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 400); }
+  });
+
+  // Edit a chunk (update content, metadata)
+  router.put('/knowledge-bases/:kbId/chunks/:chunkId', async (c) => {
+    const chunkId = c.req.param('chunkId');
+    const kbId = c.req.param('kbId');
+    const body = await c.req.json();
+    try {
+      const db = (knowledgeBase as any).engineDb;
+      if (!db) return c.json({ error: 'No database' }, 500);
+      const sets: string[] = [];
+      const vals: any[] = [];
+      let i = 1;
+      if (body.content !== undefined) {
+        sets.push(`content = $${i++}`); vals.push(body.content);
+        sets.push(`token_count = $${i++}`); vals.push(Math.ceil(body.content.length / 4));
+      }
+      if (body.metadata !== undefined) { sets.push(`metadata = $${i++}`); vals.push(JSON.stringify(body.metadata)); }
+      vals.push(chunkId);
+      await db.run(`UPDATE kb_chunks SET ${sets.join(', ')} WHERE id = $${i}`, vals);
+      await knowledgeBase.reloadKnowledgeBase(kbId);
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 400); }
+  });
+
+  // Delete a single chunk
+  router.delete('/knowledge-bases/:kbId/chunks/:chunkId', async (c) => {
+    const kbId = c.req.param('kbId');
+    const chunkId = c.req.param('chunkId');
+    try {
+      const db = (knowledgeBase as any).engineDb;
+      if (!db) return c.json({ error: 'No database' }, 500);
+      await db.run('DELETE FROM kb_chunks WHERE id = $1', [chunkId]);
+      await knowledgeBase.reloadKnowledgeBase(kbId);
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 400); }
+  });
+
   router.delete('/knowledge-bases/:id', (c) => {
     const ok = knowledgeBase.deleteKnowledgeBase(c.req.param('id'));
     return ok ? c.json({ success: true }) : c.json({ error: 'Not found' }, 404);

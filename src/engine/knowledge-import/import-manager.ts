@@ -12,7 +12,7 @@
 
 import type {
   ImportSourceType, ImportJob, ImportProgress, ImportProvider,
-  ImportDocument, ImportSource,
+  ImportDocument, ImportSource, ImportChunk,
 } from './types.js';
 import { chunkDocument } from './chunker.js';
 import { GitHubImportProvider } from './provider-github.js';
@@ -89,7 +89,8 @@ const SOURCE_CATALOG: ImportSource[] = [
 export class KnowledgeImportManager {
   private jobs = new Map<string, ImportJob>();
   private cancelledJobs = new Set<string>();
-  private knowledgeContribution?: any; // KnowledgeContributionManager
+  private knowledgeContribution?: any;
+  private knowledgeEngine?: any; // KnowledgeBaseEngine — for cache refresh
   private db?: any;
 
   constructor(opts?: { knowledgeContribution?: any }) {
@@ -102,6 +103,10 @@ export class KnowledgeImportManager {
 
   setKnowledgeContribution(kc: any): void {
     this.knowledgeContribution = kc;
+  }
+
+  setKnowledgeEngine(ke: any): void {
+    this.knowledgeEngine = ke;
   }
 
   /** Get available import sources. */
@@ -211,6 +216,8 @@ export class KnowledgeImportManager {
     job.status = 'running';
     job.startedAt = new Date().toISOString();
     job.progress.phase = 'discovering';
+    this.docIdCache.clear();
+    this.chunkPosition = 0;
 
     const documents: ImportDocument[] = [];
 
@@ -265,27 +272,10 @@ export class KnowledgeImportManager {
           if (this.cancelledJobs.has(job.id)) return;
 
           try {
-            if (this.knowledgeContribution) {
-              // Check for duplicates
-              const similars = this.knowledgeContribution.findSimilar(job.baseId, chunk.content, 0.7);
-              if (similars.length > 0) {
-                job.progress.skippedItems++;
-                continue;
-              }
-
-              this.knowledgeContribution.contributeEntry(job.baseId, {
-                categoryId: chunk.categoryId,
-                title: chunk.title,
-                content: chunk.content,
-                summary: chunk.summary,
-                tags: chunk.tags,
-                confidence: chunk.confidence,
-                sourceMemoryId: chunk.sourceUrl || chunk.sourcePath,
-                contributedBy: job.createdBy,
-              });
-              importedForDoc++;
-            }
-          } catch {
+            await this.insertChunk(job, chunk);
+            importedForDoc++;
+          } catch (chunkErr: any) {
+            console.error(`[knowledge-import] Chunk import failed:`, chunkErr?.message || chunkErr);
             job.progress.failedItems++;
           }
         }
@@ -293,7 +283,8 @@ export class KnowledgeImportManager {
         if (importedForDoc > 0) {
           job.progress.importedItems += importedForDoc;
         }
-      } catch {
+      } catch (docErr: any) {
+        console.error(`[knowledge-import] Doc processing failed for ${doc.sourcePath}:`, docErr?.message || docErr);
         job.progress.failedItems++;
       }
 
@@ -306,6 +297,46 @@ export class KnowledgeImportManager {
     job.progress.phase = 'done';
     job.progress.currentItem = undefined;
     await this.persistJob(job);
+
+    // Refresh in-memory cache so dashboard sees the new docs immediately
+    if (this.knowledgeEngine?.reloadKnowledgeBase) {
+      try { await this.knowledgeEngine.reloadKnowledgeBase(job.baseId); } catch { /* non-blocking */ }
+    }
+  }
+
+  // ─── Document + Chunk Insert (direct DB) ──────────
+
+  private docIdCache = new Map<string, string>();
+
+  /** Ensure a kb_documents row exists for this source document, return its ID. */
+  private async ensureDocument(job: ImportJob, chunk: ImportChunk): Promise<string> {
+    const key = chunk.documentId;
+    if (this.docIdCache.has(key)) return this.docIdCache.get(key)!;
+
+    const docId = uid();
+    await this.db!.run(
+      `INSERT INTO kb_documents (id, knowledge_base_id, name, source_type, source_url, mime_type, size, metadata, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+      [docId, job.baseId, chunk.title.slice(0, 200), job.sourceType, chunk.sourceUrl || '', 'text/markdown', chunk.content.length,
+       JSON.stringify({ sourcePath: chunk.sourcePath, tags: chunk.tags, importJobId: job.id }), 'ready', new Date().toISOString()]
+    );
+    this.docIdCache.set(key, docId);
+    return docId;
+  }
+
+  private chunkPosition = 0;
+
+  private async insertChunk(job: ImportJob, chunk: ImportChunk): Promise<void> {
+    if (!this.db) throw new Error('No database configured');
+    const docId = await this.ensureDocument(job, chunk);
+    const chunkId = uid();
+    const tokenCount = Math.ceil(chunk.content.length / 4); // rough estimate
+    await this.db.run(
+      `INSERT INTO kb_chunks (id, document_id, content, token_count, position, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [chunkId, docId, chunk.content, tokenCount, this.chunkPosition++,
+       JSON.stringify({ title: chunk.title, summary: chunk.summary, tags: chunk.tags, sourceUrl: chunk.sourceUrl, sourcePath: chunk.sourcePath })]
+    );
   }
 
   // ─── Persistence ──────────────────────────────────

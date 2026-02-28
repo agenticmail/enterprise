@@ -349,7 +349,7 @@ export async function setEngineDb(
     compliance.setDb(db),
     communityRegistry.setDb(db),
     knowledgeContribution.setDb(db),
-    (async () => { knowledgeImport.setDb(db?.db || db); await knowledgeImport.loadJobs(); })(),
+    (async () => { knowledgeImport.setDb(db?.db || db); knowledgeImport.setKnowledgeEngine(knowledgeBase); await knowledgeImport.loadJobs(); })(),
     workforce.setDb(db),
     policyEngine.setDb(db),
     memoryManager.setDb(db),
