@@ -131,26 +131,172 @@ export var BrandLogo = {
   },
 };
 
-// Map skill IDs to brand logos
+// More brand logos for skills with NULL icons in DB
+var _pill = function(bg, text, label, s) {
+  s = s || 28;
+  return h('svg', { viewBox: '0 0 28 28', width: s, height: s, style: { borderRadius: 4 } },
+    h('rect', { width: 28, height: 28, rx: 4, fill: bg }),
+    h('text', { x: 14, y: 18, textAnchor: 'middle', fill: text, fontFamily: 'system-ui,sans-serif', fontWeight: 700, fontSize: label.length > 3 ? 8 : label.length > 2 ? 9 : 11 }, label)
+  );
+};
+
+Object.assign(BrandLogo, {
+  asana: function(s) { return _pill('#F06A6A', '#fff', 'A', s); },
+  hubspot: function(s) { return _pill('#FF7A59', '#fff', 'HS', s); },
+  figma: function(s) { return _pill('#F24E1E', '#fff', 'F', s); },
+  trello: function(s) { return _pill('#0052CC', '#fff', 'T', s); },
+  dropbox: function(s) { return _pill('#0061FF', '#fff', 'DB', s); },
+  bitbucket: function(s) { return _pill('#0052CC', '#fff', 'BB', s); },
+  circleci: function(s) { return _pill('#343434', '#fff', 'CI', s); },
+  cloudflare: function(s) { return _pill('#F38020', '#fff', 'CF', s); },
+  confluence: function(s) { return _pill('#172B4D', '#fff', 'CW', s); },
+  intercom: function(s) { return _pill('#6AFDEF', '#000', 'IC', s); },
+  mailchimp: function(s) { return _pill('#FFE01B', '#000', 'MC', s); },
+  mixpanel: function(s) { return _pill('#7856FF', '#fff', 'MP', s); },
+  quickbooks: function(s) { return _pill('#2CA01C', '#fff', 'QB', s); },
+  snowflake: function(s) { return _pill('#29B5E8', '#fff', 'SF', s); },
+  todoist: function(s) { return _pill('#E44332', '#fff', 'TD', s); },
+  vercel: function(s) { return _pill('#000', '#fff', 'V', s); },
+  zendesk: function(s) { return _pill('#03363D', '#fff', 'ZD', s); },
+  airtable: function(s) { return _pill('#18BFFF', '#fff', 'AT', s); },
+  monday: function(s) { return _pill('#FF3D57', '#fff', 'M', s); },
+  google: function(s) { return _pill('#4285F4', '#fff', 'G', s); },
+  shopify: function(s) { return _pill('#96BF48', '#fff', 'S', s); },
+  wordpress: function(s) { return _pill('#21759B', '#fff', 'WP', s); },
+  sentry: function(s) { return _pill('#362D59', '#fff', 'SN', s); },
+  segment: function(s) { return _pill('#52BD95', '#fff', 'SG', s); },
+  pagerduty: function(s) { return _pill('#06AC38', '#fff', 'PD', s); },
+  okta: function(s) { return _pill('#007DC1', '#fff', 'OK', s); },
+  twitch: function(s) { return _pill('#9146FF', '#fff', 'TW', s); },
+  reddit: function(s) { return _pill('#FF4500', '#fff', 'R', s); },
+  supabase: function(s) { return _pill('#3ECF8E', '#fff', 'SB', s); },
+  netlify: function(s) { return _pill('#00C7B7', '#fff', 'NL', s); },
+  heroku: function(s) { return _pill('#430098', '#fff', 'H', s); },
+  firebase: function(s) { return _pill('#FFCA28', '#000', 'FB', s); },
+  openai: function(s) { return _pill('#412991', '#fff', 'AI', s); },
+  mongodb: function(s) { return _pill('#47A248', '#fff', 'MG', s); },
+  paypal: function(s) { return _pill('#003087', '#fff', 'PP', s); },
+  linkedin: function(s) { return _pill('#0A66C2', '#fff', 'in', s); },
+  twitter: function(s) { return _pill('#000', '#fff', 'X', s); },
+  whatsapp: function(s) { return _pill('#25D366', '#fff', 'WA', s); },
+  telegram: function(s) { return _pill('#26A5E4', '#fff', 'TG', s); },
+  youtube: function(s) { return _pill('#FF0000', '#fff', 'YT', s); },
+  grafana: function(s) { return _pill('#F46800', '#fff', 'GF', s); },
+  splunk: function(s) { return _pill('#000', '#65A637', 'SP', s); },
+  wrike: function(s) { return _pill('#08CF65', '#fff', 'WR', s); },
+  freshdesk: function(s) { return _pill('#25C16F', '#fff', 'FD', s); },
+  freshsales: function(s) { return _pill('#EE5A24', '#fff', 'FS', s); },
+  pipedrive: function(s) { return _pill('#1B1B1B', '#21D17C', 'PD', s); },
+  clickup: function(s) { return _pill('#7B68EE', '#fff', 'CU', s); },
+  xero: function(s) { return _pill('#13B5EA', '#fff', 'XR', s); },
+  netsuite: function(s) { return _pill('#003D6B', '#fff', 'NS', s); },
+  sap: function(s) { return _pill('#0FAAFF', '#fff', 'SAP', s); },
+  workday: function(s) { return _pill('#005CB9', '#fff', 'WD', s); },
+  servicenow: function(s) { return _pill('#81B5A1', '#fff', 'SN', s); },
+  docusign: function(s) { return _pill('#FFC829', '#000', 'DS', s); },
+  pandadoc: function(s) { return _pill('#45CE8D', '#fff', 'PD', s); },
+  calendly: function(s) { return _pill('#006BFF', '#fff', 'CL', s); },
+  loom: function(s) { return _pill('#625DF5', '#fff', 'LM', s); },
+  miro: function(s) { return _pill('#FFD02F', '#050038', 'MR', s); },
+  webflow: function(s) { return _pill('#4353FF', '#fff', 'WF', s); },
+  square: function(s) { return _pill('#000', '#fff', 'SQ', s); },
+  plaid: function(s) { return _pill('#000', '#fff', 'PL', s); },
+  render: function(s) { return _pill('#46E3B7', '#000', 'R', s); },
+  stripe2: function(s) { return _pill('#635BFF', '#fff', '$', s); },
+});
+
+// Map skill IDs to brand logos — comprehensive
 export var SKILL_BRAND_MAP = {
-  'github-issues': 'github',
-  'github-repos': 'github',
-  'slack-notifications': 'slack',
-  'jira-integration': 'jira',
-  'stripe-billing': 'stripe',
-  'notion-sync': 'notion',
-  'discord-bot': 'discord',
+  // GitHub
+  'github-issues': 'github', 'github-repos': 'github', 'github-actions': 'github', 'github-ops': 'github', 'github': 'github',
+  // Slack
+  'slack-notifications': 'slack', 'slack-bridge': 'slack', 'slack': 'slack',
+  // Atlassian
+  'jira-integration': 'jira', 'jira': 'jira', 'confluence-wiki': 'confluence', 'bitbucket-repos': 'bitbucket',
+  // Stripe
+  'stripe-billing': 'stripe', 'stripe': 'stripe',
+  // Notion
+  'notion-sync': 'notion', 'notion': 'notion',
+  // Discord
+  'discord-bot': 'discord', 'discord': 'discord',
+  // Microsoft
   'microsoft-teams': 'teams',
+  // Zoom
   'zoom-meetings': 'zoom',
+  // Salesforce
   'salesforce-crm': 'salesforce',
-  'terraform-iac': 'terraform',
-  'docker-containers': 'docker',
-  'gitlab-ci': 'gitlab',
-  'sendgrid-email': 'sendgrid',
-  'linear-issues': 'linear',
-  'twilio-sms': 'twilio',
-  'aws-s3': 'aws',
-  'aws-lambda': 'aws',
-  'datadog-monitoring': 'datadog',
-  'kubernetes-ops': 'kubernetes',
+  // DevOps
+  'terraform-iac': 'terraform', 'docker-containers': 'docker', 'gitlab-ci': 'gitlab',
+  'kubernetes-cluster': 'kubernetes', 'kubernetes-ops': 'kubernetes',
+  'circleci-pipelines': 'circleci', 'vercel-deployments': 'vercel',
+  'heroku': 'heroku', 'netlify': 'netlify', 'render': 'render',
+  // Communication
+  'sendgrid-email': 'sendgrid', 'twilio-sms': 'twilio', 'intercom-support': 'intercom',
+  'mailchimp-campaigns': 'mailchimp', 'telegram-bot': 'telegram', 'whatsapp-business': 'whatsapp',
+  // PM
+  'linear-tracker': 'linear', 'linear': 'linear', 'asana-tasks': 'asana',
+  'trello-cards': 'trello', 'monday-boards': 'monday', 'clickup': 'clickup',
+  'wrike': 'wrike', 'shortcut': 'linear', 'todoist-tasks': 'todoist',
+  // Cloud
+  'aws-services': 'aws', 'aws-s3': 'aws', 'aws-lambda': 'aws',
+  'google-cloud': 'google', 'google-drive': 'google', 'google-ads': 'google',
+  'google-analytics': 'google', 'azure-devops': 'teams', 'cloudflare-cdn': 'cloudflare',
+  'firebase': 'firebase', 'supabase': 'supabase', 'digitalocean': 'docker',
+  // Monitoring
+  'datadog-monitoring': 'datadog', 'grafana': 'grafana', 'newrelic': 'sentry',
+  'sentry': 'sentry', 'splunk': 'splunk', 'pagerduty': 'pagerduty', 'opsgenie': 'pagerduty',
+  // CRM/Sales
+  'hubspot-crm': 'hubspot', 'pipedrive-deals': 'pipedrive', 'close-crm': 'pipedrive',
+  'copper-crm': 'pipedrive', 'zoho-crm': 'pipedrive', 'gong': 'pipedrive',
+  'salesloft': 'pipedrive', 'outreach': 'pipedrive', 'apollo-io': 'pipedrive',
+  'freshsales': 'freshsales',
+  // Finance
+  'quickbooks-accounting': 'quickbooks', 'xero': 'xero', 'netsuite': 'netsuite',
+  'freshbooks': 'quickbooks', 'stripe-billing': 'stripe', 'paypal': 'paypal',
+  'square': 'square', 'paddle': 'stripe2', 'brex': 'stripe2',
+  'chargebee': 'stripe2', 'recurly': 'stripe2', 'zuora': 'stripe2',
+  'invoice-processor': 'quickbooks',
+  // HR
+  'bamboohr': 'workday', 'gusto': 'workday', 'rippling': 'workday',
+  'personio': 'workday', 'adp': 'workday', 'lattice': 'workday',
+  'hibob': 'workday', 'greenhouse': 'workday', 'lever': 'workday',
+  // Productivity
+  'airtable-bases': 'airtable', 'figma-design': 'figma', 'canva-design': 'figma',
+  'dropbox-storage': 'dropbox', 'box': 'dropbox', 'miro-boards': 'miro',
+  'loom-video': 'loom', 'calendly': 'calendly', 'smartsheet': 'airtable',
+  // Analytics
+  'mixpanel-analytics': 'mixpanel', 'snowflake-warehouse': 'snowflake',
+  'segment-cdp': 'segment', 'amplitude': 'mixpanel',
+  // Support
+  'zendesk-tickets': 'zendesk', 'freshdesk': 'freshdesk', 'freshservice': 'freshdesk',
+  'crisp': 'freshdesk', 'front': 'freshdesk', 'livechat': 'freshdesk',
+  'customer-support': 'zendesk', 'drift': 'intercom',
+  // Docs/Sign
+  'docusign-esign': 'docusign', 'pandadoc': 'pandadoc', 'adobe-sign': 'docusign',
+  'document-drafting': 'notion',
+  // E-commerce
+  'shopify': 'shopify', 'woocommerce': 'wordpress', 'bigcommerce': 'shopify',
+  // Auth
+  'okta': 'okta', 'auth0': 'okta',
+  // Social
+  'linkedin': 'linkedin', 'twitter': 'twitter', 'reddit': 'reddit',
+  'youtube': 'youtube', 'buffer': 'twitter', 'hootsuite': 'twitter',
+  // AI/ML
+  'openai': 'openai', 'huggingface': 'openai', 'pinecone': 'openai', 'weaviate': 'openai',
+  // CMS
+  'contentful': 'webflow', 'webflow': 'webflow', 'wordpress': 'wordpress', 'sanity': 'webflow',
+  // DB
+  'mongodb-atlas': 'mongodb', 'neon': 'supabase',
+  // Security
+  'crowdstrike': 'sentry', 'snyk': 'sentry', 'hashicorp-vault': 'terraform',
+  'launchdarkly': 'terraform',
+  // Misc
+  'activecampaign': 'mailchimp', 'klaviyo': 'mailchimp', 'postmark': 'sendgrid',
+  'mailgun': 'sendgrid', 'gotomeeting': 'zoom', 'webex': 'zoom', 'whereby': 'zoom',
+  'ringcentral': 'twilio', 'power-automate': 'teams', 'servicenow': 'servicenow',
+  'sap': 'sap', 'workday': 'workday', 'plaid': 'plaid',
+  // Generic agent skills
+  'web-researcher': 'openai', 'data-analyst': 'openai', 'email-triage': 'sendgrid',
+  'calendar-scheduler': 'calendly', 'compliance-monitor': 'sentry',
+  'statuspage': 'pagerduty', 'basecamp': 'trello', 'teamwork': 'trello',
 };
