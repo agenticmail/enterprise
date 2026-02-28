@@ -102,21 +102,18 @@ export function CommunitySkillsPage() {
   var _allAgents = useState([]);
   var allAgents = _allAgents[0]; var setAllAgents = _allAgents[1];
 
-  // Load credential statuses for installed skills
+  // Load credential statuses for ALL skills from the integration catalog
   useEffect(function() {
-    var ids = installed.map(function(i) { return i.skillId; });
-    if (!ids.length) return;
-    var promises = ids.map(function(id) {
-      return engineCall('/oauth/status/' + id + '?orgId=' + getOrgId())
-        .then(function(d) { return { id: id, connected: d.connected }; })
-        .catch(function() { return { id: id, connected: false }; });
-    });
-    Promise.all(promises).then(function(results) {
-      var map = {};
-      results.forEach(function(r) { map[r.id] = r.connected; });
-      setCredStatuses(map);
-    });
-  }, [installed]);
+    engineCall('/integrations/catalog?orgId=' + getOrgId())
+      .then(function(d) {
+        var map = {};
+        (d.catalog || []).forEach(function(entry) {
+          map[entry.skillId] = entry.connected === true;
+        });
+        setCredStatuses(map);
+      })
+      .catch(function() {});
+  }, [skills]);
 
   // Load agents list for per-agent credentials
   useEffect(function() {
@@ -356,31 +353,48 @@ export function CommunitySkillsPage() {
     );
   };
 
-  const SkillCard = (s) => h('div', {
-    key: s.id,
-    className: 'skill-card',
-    style: { cursor: 'pointer', position: 'relative' },
-    onClick: () => openDetail(s)
-  },
-    s.verified && h('span', {
-      style: { position: 'absolute', top: 8, right: 8, fontSize: 11, color: 'var(--brand-color)', fontWeight: 600 }
-    }, '\u2713 Verified'),
-    h('div', { style: { marginBottom: 6 } }, skillIcon(s.icon, 28, s.category, s.id)),
-    h('div', { className: 'skill-name' }, s.name),
-    h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'by ' + s.author),
-    h('div', { className: 'skill-desc' }, s.description),
-    h('div', { style: { display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' } },
-      s.category && h('span', { className: 'badge-tag' }, s.category),
-      s.risk && h('span', { style: { fontSize: 11, color: riskColor(s.risk), fontWeight: 600 } }, s.risk),
-      h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, (s.downloads || 0) + ' installs'),
-      s.rating > 0 && h('span', { style: { fontSize: 11, color: 'gold' } }, stars(s.rating))
-    ),
-    h('div', { style: { marginTop: 10 }, onClick: e => e.stopPropagation() },
-      installedIds.has(s.id)
-        ? h('button', { className: 'btn btn-ghost btn-sm', onClick: () => uninstallSkill(s.id) }, 'Uninstall')
-        : h('button', { className: 'btn btn-primary btn-sm', onClick: () => installSkill(s.id) }, 'Install')
-    )
-  );
+  var handleDisconnect = function(skill) {
+    if (!confirm('Disconnect ' + skill.name + '? Agents using this integration will lose access.')) return;
+    engineCall('/oauth/disconnect/' + skill.id + '?orgId=' + getOrgId(), { method: 'DELETE' })
+      .then(function() {
+        toast(skill.name + ' disconnected', 'success');
+        setCredStatuses(function(s) { var n = Object.assign({}, s); n[skill.id] = false; return n; });
+      })
+      .catch(function(e) { toast('Failed: ' + e.message, 'error'); });
+  };
+
+  const SkillCard = (s) => {
+    var connected = credStatuses[s.id] === true;
+    var toolCount = Array.isArray(s.tools) ? s.tools.length : 0;
+    return h('div', {
+      key: s.id,
+      className: 'skill-card',
+      style: { cursor: 'pointer', position: 'relative', borderColor: connected ? 'var(--brand-color, #6366f1)' : undefined },
+      onClick: () => openDetail(s)
+    },
+      // Status badge (top-right)
+      h('span', {
+        style: { position: 'absolute', top: 8, right: 8, fontSize: 10, fontWeight: 600,
+          color: connected ? 'var(--success)' : s.verified ? 'var(--brand-color)' : 'var(--text-muted)' }
+      }, connected ? '\u2713 Connected' : s.verified ? '\u2713 Verified' : ''),
+      h('div', { style: { marginBottom: 6 } }, skillIcon(s.icon, 28, s.category, s.id)),
+      h('div', { className: 'skill-name' }, s.name),
+      h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } },
+        toolCount > 0 ? toolCount + ' tool' + (toolCount !== 1 ? 's' : '') + ' \u00B7 ' + (s.category || 'general') : 'by ' + s.author
+      ),
+      h('div', { className: 'skill-desc' }, s.description),
+      h('div', { style: { display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' } },
+        s.category && h('span', { className: 'badge-tag' }, s.category),
+        s.risk && h('span', { style: { fontSize: 11, color: riskColor(s.risk), fontWeight: 600 } }, s.risk),
+        s.rating > 0 && h('span', { style: { fontSize: 11, color: 'gold' } }, stars(s.rating))
+      ),
+      h('div', { style: { marginTop: 10, display: 'flex', gap: 8 }, onClick: e => e.stopPropagation() },
+        connected
+          ? h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { handleDisconnect(s); } }, 'Disconnect')
+          : h('button', { className: 'btn btn-primary btn-sm', onClick: function() { openCredSetup(s); } }, 'Connect')
+      )
+    );
+  };
 
   // ── Updates Tab Content ──────────────────────────────
   var renderUpdates = function() {
@@ -761,15 +775,15 @@ export function CommunitySkillsPage() {
         ),
         h('div', { className: 'modal-footer', style: { display: 'flex', justifyContent: 'space-between' } },
           h('div', null,
-            installedIds.has(detail.id) && h('button', {
-              className: 'btn btn-secondary btn-sm',
-              onClick: function() { setDetail(null); openCredSetup(detail); }
-            }, I.settings(), ' Configure Credentials')
+            credStatuses[detail.id] && h('span', { style: { fontSize: 12, color: 'var(--success)', fontWeight: 600 } }, '\u2713 Connected')
           ),
           h('div', { style: { display: 'flex', gap: 8 } },
-            installedIds.has(detail.id)
-              ? h('button', { className: 'btn btn-ghost', onClick: () => { uninstallSkill(detail.id); setDetail(null); } }, 'Uninstall')
-              : h('button', { className: 'btn btn-primary', onClick: () => { installSkill(detail.id); } }, 'Install Skill')
+            credStatuses[detail.id]
+              ? h(Fragment, null,
+                  h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setDetail(null); openCredSetup(detail); } }, 'Reconfigure'),
+                  h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { handleDisconnect(detail); setDetail(null); } }, 'Disconnect')
+                )
+              : h('button', { className: 'btn btn-primary', onClick: function() { setDetail(null); openCredSetup(detail); } }, 'Connect')
           )
         )
       )

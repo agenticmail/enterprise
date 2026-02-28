@@ -207,8 +207,8 @@ export function SettingsPage() {
       SETTINGS_HELP[tab] && h(HelpButton, { label: SETTINGS_HELP[tab].label }, SETTINGS_HELP[tab].content())
     ),
     h('div', { className: 'tabs' },
-      ['general', 'llm-providers', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security', 'network', 'pricing', 'integrations'].map(t =>
-        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'llm-providers': 'LLM Providers', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall', pricing: 'Model Pricing', integrations: 'Integrations' }[t])
+      ['general', 'llm-providers', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security', 'network', 'pricing'].map(t =>
+        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'llm-providers': 'LLM Providers', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall', pricing: 'Model Pricing' }[t])
       )
     ),
 
@@ -765,7 +765,7 @@ export function SettingsPage() {
       toast: toast,
     }),
 
-    tab === 'integrations' && h(IntegrationsTab, { toast: toast })
+    // Integrations tab removed — now managed via Community Skills page
   );
 }
 
