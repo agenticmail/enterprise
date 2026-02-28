@@ -2,7 +2,7 @@
  * Brand logos as h() SVG elements for community skills page.
  * Each function takes (size) and returns an SVG element.
  */
-import { h } from '../../components/utils.js';
+import { h } from '../components/utils.js';
 
 var sv = function(s) { return { viewBox: '0 0 24 24', width: s || 28, height: s || 28, style: { borderRadius: 4 } }; };
 
