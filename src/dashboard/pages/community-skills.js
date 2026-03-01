@@ -141,11 +141,50 @@ export function CommunitySkillsPage() {
       .finally(function() { setCredSaving(false); });
   };
 
+  // Track auth types from integration catalog
+  var _authTypes = useState({});
+  var authTypes = _authTypes[0]; var setAuthTypes = _authTypes[1];
+  useEffect(function() {
+    engineCall('/integrations/catalog?orgId=' + getOrgId())
+      .then(function(d) {
+        var map = {};
+        (d.catalog || []).forEach(function(e) { map[e.skillId] = e.authType; });
+        setAuthTypes(map);
+      })
+      .catch(function() {});
+  }, []);
+
   var openCredSetup = function(skill) {
-    setCredModal(skill);
-    setCredValue('');
-    setCredScope('org');
-    setCredAgent('');
+    var at = authTypes[skill.id];
+    if (at === 'oauth2') {
+      // Try OAuth flow first
+      engineCall('/oauth/authorize/' + skill.id + '?orgId=' + getOrgId())
+        .then(function(d) {
+          if (d.authUrl || d.authorizationUrl) {
+            var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
+            var check = setInterval(function() {
+              if (popup && popup.closed) {
+                clearInterval(check);
+                setCredStatuses(function(s) { var n = Object.assign({}, s); n[skill.id] = true; return n; });
+              }
+            }, 500);
+            setTimeout(function() { clearInterval(check); }, 120000);
+          } else {
+            // OAuth app not configured — fall back to manual token
+            skill._oauthFallback = true;
+            setCredModal(skill);
+            setCredValue(''); setCredScope('org'); setCredAgent('');
+          }
+        })
+        .catch(function() {
+          skill._oauthFallback = true;
+          setCredModal(skill);
+          setCredValue(''); setCredScope('org'); setCredAgent('');
+        });
+    } else {
+      setCredModal(skill);
+      setCredValue(''); setCredScope('org'); setCredAgent('');
+    }
   };
 
   const installSkill = async (skillId) => {
@@ -861,9 +900,19 @@ export function CommunitySkillsPage() {
             )
           ),
 
+          // OAuth fallback notice
+          credModal._oauthFallback && h('div', {
+            style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(99,102,241,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(99,102,241,0.2)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }
+          },
+            h('strong', null, 'OAuth Note: '), 'This service normally uses OAuth2. ',
+            'Since no OAuth app is configured, you can paste an access token from the service\'s developer console as a workaround.'
+          ),
+
           // API Key / Token input
           h('div', { style: { marginBottom: 16 } },
-            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'API Key / Token'),
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } },
+              credModal._oauthFallback ? 'Access Token' : 'API Key / Token'
+            ),
             h('input', {
               className: 'input', type: 'password', placeholder: 'Paste your API key or token here...',
               value: credValue,

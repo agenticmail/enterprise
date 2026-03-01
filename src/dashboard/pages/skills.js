@@ -270,8 +270,37 @@ export function SkillsPage() {
   });
 
   var connectIntegration = function(int) {
-    setTokenModal({ skillId: int.skillId, skill: { name: int.name } });
-    setTokenValue('');
+    if (int.authType === 'oauth2') {
+      // OAuth flow — need to check if OAuth app is configured first
+      setConnectingId(int.skillId);
+      engineCall('/oauth/authorize/' + int.skillId + '?orgId=' + getOrgId())
+        .then(function(d) {
+          if (d.authUrl || d.authorizationUrl) {
+            var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
+            var check = setInterval(function() {
+              if (popup && popup.closed) { clearInterval(check); setConnectingId(null); loadIntegrations(); }
+            }, 500);
+            setTimeout(function() { clearInterval(check); setConnectingId(null); }, 120000);
+          } else {
+            // No OAuth app configured — fall back to manual token entry
+            setConnectingId(null);
+            setTokenModal({ skillId: int.skillId, skill: { name: int.name }, authType: int.authType });
+            setTokenValue('');
+          }
+        })
+        .catch(function() {
+          // OAuth not configured for this service — show token input as fallback
+          setConnectingId(null);
+          setTokenModal({ skillId: int.skillId, skill: { name: int.name }, authType: int.authType });
+          setTokenValue('');
+        });
+    } else if (int.authType === 'credentials') {
+      toast(int.name + ' requires multi-field credentials (e.g., access key + secret). Configure via the API or CLI.', 'info');
+    } else {
+      // API key / token — simple paste
+      setTokenModal({ skillId: int.skillId, skill: { name: int.name }, authType: int.authType });
+      setTokenValue('');
+    }
   };
 
   var disconnectIntegration = function(int) {
@@ -505,23 +534,34 @@ export function SkillsPage() {
 
     // Token Modal
     tokenModal && h(Modal, {
-      title: 'Enter API Key / Token',
+      title: 'Connect ' + (tokenModal.skill?.name || tokenModal.skillId),
       onClose: function() { setTokenModal(null); setTokenValue(''); },
       footer: h(Fragment, null,
         h('button', { className: 'btn btn-secondary', onClick: function() { setTokenModal(null); setTokenValue(''); } }, 'Cancel'),
-        h('button', { className: 'btn btn-primary', onClick: saveToken, disabled: !tokenValue }, 'Save Token')
+        h('button', { className: 'btn btn-primary', onClick: saveToken, disabled: !tokenValue }, 'Save & Connect')
       )
     },
       h('div', null,
+        tokenModal.authType === 'oauth2' && h('div', {
+          style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(99,102,241,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(99,102,241,0.2)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }
+        },
+          h('strong', null, 'OAuth Note: '), 'This service normally uses OAuth2 (redirect + authorize). ',
+          'If your admin has not configured an OAuth app for ' + (tokenModal.skill?.name || '') + ', ',
+          'you can paste an access token from the service\'s developer console as a workaround.'
+        ),
         h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 } },
-          'Enter the API key or bot token for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId), '. You can find this in the service\'s developer console.'
+          tokenModal.authType === 'api_key'
+            ? h(Fragment, null, 'Enter the ', h('strong', null, 'API Key'), ' for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId), '. Find it in the service\'s settings or developer portal.')
+            : tokenModal.authType === 'oauth2'
+              ? h(Fragment, null, 'Paste an ', h('strong', null, 'Access Token'), ' for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId), '.')
+              : h(Fragment, null, 'Enter the ', h('strong', null, 'Token'), ' for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId), '. Find it in the service\'s settings.')
         ),
         h('div', { className: 'form-group' },
-          h('label', { className: 'form-label' }, 'Token / API Key'),
+          h('label', { className: 'form-label' }, tokenModal.authType === 'api_key' ? 'API Key' : tokenModal.authType === 'oauth2' ? 'Access Token' : 'Token'),
           h('input', {
             className: 'input', style: { width: '100%' },
             type: 'password',
-            placeholder: 'Paste token here...',
+            placeholder: tokenModal.authType === 'api_key' ? 'sk-..., key_..., etc.' : 'Paste token here...',
             value: tokenValue,
             onChange: function(e) { setTokenValue(e.target.value); }
           })
