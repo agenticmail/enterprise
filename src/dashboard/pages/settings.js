@@ -62,6 +62,18 @@ export function SettingsPage() {
   var _orgEmailSaving = useState(false);
   var orgEmailSaving = _orgEmailSaving[0]; var setOrgEmailSaving = _orgEmailSaving[1];
 
+  // Security System Config
+  var _securityConfig = useState({});
+  var securityConfig = _securityConfig[0]; var setSecurityConfig = _securityConfig[1];
+  var _securityDirty = useState(false);
+  var securityDirty = _securityDirty[0]; var setSecurityDirty = _securityDirty[1];
+  var _securitySaving = useState(false);
+  var securitySaving = _securitySaving[0]; var setSecuritySaving = _securitySaving[1];
+  var _securityEvents = useState([]);
+  var securityEvents = _securityEvents[0]; var setSecurityEvents = _securityEvents[1];
+  var _portScanResult = useState(null);
+  var portScanResult = _portScanResult[0]; var setPortScanResult = _portScanResult[1];
+
   useEffect(() => {
     apiCall('/settings').then(d => { const s = d.settings || d || {}; setSettings(s); if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
     apiCall('/api-keys').then(d => setApiKeys(d.keys || [])).catch(() => {});
@@ -93,6 +105,9 @@ export function SettingsPage() {
     }).catch(function() {});
     apiCall('/providers').then(function(d) {
       setProviders(d.providers || d || []);
+    }).catch(function() {});
+    apiCall('/settings/security').then(function(d) {
+      setSecurityConfig(d.securityConfig || {});
     }).catch(function() {});
   }, []);
 
@@ -210,7 +225,7 @@ export function SettingsPage() {
     ),
     h('div', { className: 'tabs' },
       ['general', 'models', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security', 'network'].map(t =>
-        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', models: 'Models', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall' }[t])
+        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', models: 'Models', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', 'security-system': 'Security', 'tool-security': 'Tool Security', network: 'Network & Firewall' }[t])
       )
     ),
 
@@ -752,7 +767,17 @@ export function SettingsPage() {
       )
     ),
 
-    tab === 'security' && h(ToolSecurityTab, { toolSec: toolSec, setToolSec: function(v) { setToolSec(v); setToolSecDirty(true); }, saving: toolSecSaving, dirty: toolSecDirty, onSave: function() {
+    tab === 'security-system' && h(ComprehensiveSecurityTab, { securityConfig: securityConfig, setSecurityConfig: function(v) { setSecurityConfig(v); setSecurityDirty(true); }, saving: securitySaving, dirty: securityDirty, events: securityEvents, setEvents: setSecurityEvents, portScanResult: portScanResult, setPortScanResult: setPortScanResult, onSave: function() {
+      setSecuritySaving(true);
+      apiCall('/settings/security', { method: 'PUT', body: JSON.stringify({ securityConfig: securityConfig }) }).then(() => {
+        toast('Security settings updated', 'success');
+        setSecurityDirty(false);
+      }).catch(err => {
+        toast('Failed to save: ' + err.message, 'error');
+      }).finally(() => { setSecuritySaving(false); });
+    } }),
+
+    tab === 'tool-security' && h(ToolSecurityTab, { toolSec: toolSec, setToolSec: function(v) { setToolSec(v); setToolSecDirty(true); }, saving: toolSecSaving, dirty: toolSecDirty, onSave: function() {
       setToolSecSaving(true);
       apiCall('/settings/tool-security', { method: 'PUT', body: JSON.stringify(toolSec) })
         .then(function(d) { setToolSec({ security: (d.toolSecurityConfig || {}).security || toolSec.security, middleware: (d.toolSecurityConfig || {}).middleware || toolSec.middleware }); setToolSecDirty(false); toast('Tool security settings saved', 'success'); })
@@ -1284,6 +1309,366 @@ function CountryPicker(props) {
                 h('span', null, c.name)
               );
             })
+      )
+    )
+  );
+}
+
+function ComprehensiveSecurityTab(props) {
+  var securityConfig = props.securityConfig || {};
+  var setSecurityConfig = props.setSecurityConfig;
+  var saving = props.saving;
+  var dirty = props.dirty;
+  var onSave = props.onSave;
+  var events = props.events || [];
+  var setEvents = props.setEvents;
+  var portScanResult = props.portScanResult;
+  var setPortScanResult = props.setPortScanResult;
+
+  // Default values
+  var promptInjection = securityConfig.promptInjection || { enabled: true, mode: 'sanitize', sensitivity: 'medium', customPatterns: [], allowedOverrideAgents: [], logDetections: true, blockResponse: '' };
+  var sqlInjection = securityConfig.sqlInjection || { enabled: true, mode: 'block', scanToolInputs: true, scanApiInputs: true, logDetections: true };
+  var inputValidation = securityConfig.inputValidation || { enabled: true, maxInputLength: 100000, maxJsonDepth: 20, stripHtml: false, blockScripts: true, sanitizeUnicode: true };
+  var outputFiltering = securityConfig.outputFiltering || { enabled: true, scanForSecrets: true, scanForPii: true, mode: 'redact', customRedactPatterns: [], logDetections: true };
+  var portSecurity = securityConfig.portSecurity || { enabled: false, monitorOpenPorts: false, allowedPorts: [22, 80, 443, 3000, 8080], scanIntervalMinutes: 60, alertOnNewPort: true };
+  var bruteForce = securityConfig.bruteForce || { enabled: true, maxLoginAttempts: 5, lockoutDurationMinutes: 15, maxApiKeyAttempts: 10, trackFailedAttempts: true };
+  var contentSecurity = securityConfig.contentSecurity || { enabled: true, cspPolicy: '', frameAncestors: ['self'], scriptSrc: ['self', 'unsafe-inline'], connectSrc: ['self'] };
+  var secretScanning = securityConfig.secretScanning || { enabled: true, scanAgentOutputs: true, scanToolResults: true, patterns: 'default', customPatterns: [], alertOnDetection: true };
+  var auditSecurity = securityConfig.auditSecurity || { enabled: true, logAllToolCalls: false, logPromptInjectionAttempts: true, logApiAccess: false, retentionDays: 90 };
+
+  var _cardStyle = { border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20, marginBottom: 16 };
+  var _cardTitleStyle = { fontSize: 16, fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 };
+  var _cardDescStyle = { fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 };
+  var _sectionTitleStyle = { fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, marginTop: 8 };
+
+  function updateSection(section, updates) {
+    setSecurityConfig(function(prev) {
+      return Object.assign({}, prev, { [section]: Object.assign({}, prev[section] || {}, updates) });
+    });
+  }
+
+  function ToggleSwitch(props) {
+    return h('label', { style: { position: 'relative', display: 'inline-block', width: 40, height: 22, cursor: 'pointer' } },
+      h('input', { type: 'checkbox', checked: props.checked, onChange: function(e) { props.onChange(e.target.checked); }, style: { opacity: 0, width: 0, height: 0 } }),
+      h('span', { style: {
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        background: props.checked ? 'var(--brand-color, #6366f1)' : 'var(--bg-tertiary, #374151)',
+        borderRadius: 11, transition: 'background 0.2s'
+      } },
+        h('span', { style: {
+          position: 'absolute', top: 2, left: props.checked ? 20 : 2, width: 18, height: 18,
+          background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+        } })
+      )
+    );
+  }
+
+  return h('div', null,
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 } },
+      h('div', null,
+        h('h2', { style: { fontSize: 18, fontWeight: 700, margin: 0 } }, 'Security System'),
+        h('p', { style: { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }, 'Comprehensive security configuration for your AgenticMail deployment')
+      ),
+      h('button', {
+        className: 'btn btn-primary',
+        onClick: onSave,
+        disabled: !dirty || saving,
+        style: { minWidth: 80 }
+      }, saving ? 'Saving...' : 'Save Changes')
+    ),
+
+    // Prompt Injection Defense
+    h('div', { style: _cardStyle },
+      h('div', { style: _cardTitleStyle }, I.shield(), 'Prompt Injection Defense'),
+      h('p', { style: _cardDescStyle }, 'Multi-layer detection and prevention of prompt injection attacks'),
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        h('span', { style: { fontWeight: 500 } }, 'Enable Protection'),
+        h(ToggleSwitch, { checked: promptInjection.enabled, onChange: function(v) { updateSection('promptInjection', { enabled: v }); } })
+      ),
+      promptInjection.enabled && h('div', null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 } },
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Detection Mode'),
+            h('select', { 
+              className: 'input', 
+              value: promptInjection.mode, 
+              onChange: function(e) { updateSection('promptInjection', { mode: e.target.value }); }
+            },
+              h('option', { value: 'monitor' }, 'Monitor Only'),
+              h('option', { value: 'sanitize' }, 'Sanitize Content'),
+              h('option', { value: 'block' }, 'Block Request')
+            )
+          ),
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Sensitivity Level'),
+            h('select', { 
+              className: 'input', 
+              value: promptInjection.sensitivity, 
+              onChange: function(e) { updateSection('promptInjection', { sensitivity: e.target.value }); }
+            },
+              h('option', { value: 'low' }, 'Low'),
+              h('option', { value: 'medium' }, 'Medium'),
+              h('option', { value: 'high' }, 'High'),
+              h('option', { value: 'maximum' }, 'Maximum')
+            )
+          )
+        ),
+        h('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 12 } },
+          h('input', { 
+            type: 'checkbox', 
+            checked: promptInjection.logDetections, 
+            onChange: function(e) { updateSection('promptInjection', { logDetections: e.target.checked }); },
+            style: { marginRight: 8 }
+          }),
+          h('span', null, 'Log detection events')
+        ),
+        promptInjection.mode === 'block' && h('div', null,
+          h('label', { className: 'form-label' }, 'Block Response Message'),
+          h('textarea', { 
+            className: 'input', 
+            value: promptInjection.blockResponse || '', 
+            onChange: function(e) { updateSection('promptInjection', { blockResponse: e.target.value }); },
+            placeholder: 'Custom message when content is blocked...',
+            rows: 2
+          })
+        )
+      )
+    ),
+
+    // SQL Injection Prevention
+    h('div', { style: _cardStyle },
+      h('div', { style: _cardTitleStyle }, I.shield(), 'SQL Injection Prevention'),
+      h('p', { style: _cardDescStyle }, 'Detect and block SQL injection attempts in tool inputs and API requests'),
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        h('span', { style: { fontWeight: 500 } }, 'Enable Protection'),
+        h(ToggleSwitch, { checked: sqlInjection.enabled, onChange: function(v) { updateSection('sqlInjection', { enabled: v }); } })
+      ),
+      sqlInjection.enabled && h('div', null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 } },
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Detection Mode'),
+            h('select', { 
+              className: 'input', 
+              value: sqlInjection.mode, 
+              onChange: function(e) { updateSection('sqlInjection', { mode: e.target.value }); }
+            },
+              h('option', { value: 'monitor' }, 'Monitor Only'),
+              h('option', { value: 'block' }, 'Block Request')
+            )
+          ),
+          h('div', null,
+            h('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 8 } },
+              h('input', { 
+                type: 'checkbox', 
+                checked: sqlInjection.scanToolInputs, 
+                onChange: function(e) { updateSection('sqlInjection', { scanToolInputs: e.target.checked }); },
+                style: { marginRight: 8 }
+              }),
+              h('span', null, 'Scan tool arguments')
+            ),
+            h('div', { style: { display: 'flex', alignItems: 'center' } },
+              h('input', { 
+                type: 'checkbox', 
+                checked: sqlInjection.scanApiInputs, 
+                onChange: function(e) { updateSection('sqlInjection', { scanApiInputs: e.target.checked }); },
+                style: { marginRight: 8 }
+              }),
+              h('span', null, 'Scan API request bodies')
+            )
+          )
+        )
+      )
+    ),
+
+    // Input Validation
+    h('div', { style: _cardStyle },
+      h('div', { style: _cardTitleStyle }, I.shield(), 'Input Validation'),
+      h('p', { style: _cardDescStyle }, 'Sanitize and validate all input data'),
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        h('span', { style: { fontWeight: 500 } }, 'Enable Validation'),
+        h(ToggleSwitch, { checked: inputValidation.enabled, onChange: function(v) { updateSection('inputValidation', { enabled: v }); } })
+      ),
+      inputValidation.enabled && h('div', null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 } },
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Max Input Length'),
+            h('input', { 
+              className: 'input', 
+              type: 'number', 
+              value: inputValidation.maxInputLength, 
+              onChange: function(e) { updateSection('inputValidation', { maxInputLength: parseInt(e.target.value) || 100000 }); },
+              min: 1000,
+              max: 1000000
+            })
+          ),
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Max JSON Depth'),
+            h('input', { 
+              className: 'input', 
+              type: 'number', 
+              value: inputValidation.maxJsonDepth, 
+              onChange: function(e) { updateSection('inputValidation', { maxJsonDepth: parseInt(e.target.value) || 20 }); },
+              min: 5,
+              max: 100
+            })
+          )
+        ),
+        h('div', { style: { display: 'flex', gap: 16, marginBottom: 12 } },
+          h('div', { style: { display: 'flex', alignItems: 'center' } },
+            h('input', { 
+              type: 'checkbox', 
+              checked: inputValidation.stripHtml, 
+              onChange: function(e) { updateSection('inputValidation', { stripHtml: e.target.checked }); },
+              style: { marginRight: 8 }
+            }),
+            h('span', null, 'Strip HTML tags')
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center' } },
+            h('input', { 
+              type: 'checkbox', 
+              checked: inputValidation.blockScripts, 
+              onChange: function(e) { updateSection('inputValidation', { blockScripts: e.target.checked }); },
+              style: { marginRight: 8 }
+            }),
+            h('span', null, 'Block script tags')
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center' } },
+            h('input', { 
+              type: 'checkbox', 
+              checked: inputValidation.sanitizeUnicode, 
+              onChange: function(e) { updateSection('inputValidation', { sanitizeUnicode: e.target.checked }); },
+              style: { marginRight: 8 }
+            }),
+            h('span', null, 'Sanitize Unicode')
+          )
+        )
+      )
+    ),
+
+    // Output Filtering
+    h('div', { style: _cardStyle },
+      h('div', { style: _cardTitleStyle }, I.shield(), 'Output Filtering'),
+      h('p', { style: _cardDescStyle }, 'Scan agent outputs for secrets and personal information'),
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        h('span', { style: { fontWeight: 500 } }, 'Enable Filtering'),
+        h(ToggleSwitch, { checked: outputFiltering.enabled, onChange: function(v) { updateSection('outputFiltering', { enabled: v }); } })
+      ),
+      outputFiltering.enabled && h('div', null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 } },
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Filter Mode'),
+            h('select', { 
+              className: 'input', 
+              value: outputFiltering.mode, 
+              onChange: function(e) { updateSection('outputFiltering', { mode: e.target.value }); }
+            },
+              h('option', { value: 'monitor' }, 'Monitor Only'),
+              h('option', { value: 'redact' }, 'Redact Secrets'),
+              h('option', { value: 'block' }, 'Block Output')
+            )
+          ),
+          h('div', null,
+            h('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 8 } },
+              h('input', { 
+                type: 'checkbox', 
+                checked: outputFiltering.scanForSecrets, 
+                onChange: function(e) { updateSection('outputFiltering', { scanForSecrets: e.target.checked }); },
+                style: { marginRight: 8 }
+              }),
+              h('span', null, 'Scan for secrets')
+            ),
+            h('div', { style: { display: 'flex', alignItems: 'center' } },
+              h('input', { 
+                type: 'checkbox', 
+                checked: outputFiltering.scanForPii, 
+                onChange: function(e) { updateSection('outputFiltering', { scanForPii: e.target.checked }); },
+                style: { marginRight: 8 }
+              }),
+              h('span', null, 'Scan for PII')
+            )
+          )
+        )
+      )
+    ),
+
+    // Security Audit Log
+    h('div', { style: _cardStyle },
+      h('div', { style: _cardTitleStyle }, I.journal(), 'Security Audit Log'),
+      h('p', { style: _cardDescStyle }, 'Log and monitor security events'),
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        h('span', { style: { fontWeight: 500 } }, 'Enable Audit Logging'),
+        h(ToggleSwitch, { checked: auditSecurity.enabled, onChange: function(v) { updateSection('auditSecurity', { enabled: v }); } })
+      ),
+      auditSecurity.enabled && h('div', null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 } },
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Retention (days)'),
+            h('input', { 
+              className: 'input', 
+              type: 'number', 
+              value: auditSecurity.retentionDays, 
+              onChange: function(e) { updateSection('auditSecurity', { retentionDays: parseInt(e.target.value) || 90 }); },
+              min: 1,
+              max: 365
+            })
+          ),
+          h('div', null,
+            h('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 8 } },
+              h('input', { 
+                type: 'checkbox', 
+                checked: auditSecurity.logPromptInjectionAttempts, 
+                onChange: function(e) { updateSection('auditSecurity', { logPromptInjectionAttempts: e.target.checked }); },
+                style: { marginRight: 8 }
+              }),
+              h('span', null, 'Log prompt injection attempts')
+            ),
+            h('div', { style: { display: 'flex', alignItems: 'center' } },
+              h('input', { 
+                type: 'checkbox', 
+                checked: auditSecurity.logApiAccess, 
+                onChange: function(e) { updateSection('auditSecurity', { logApiAccess: e.target.checked }); },
+                style: { marginRight: 8 }
+              }),
+              h('span', null, 'Log API access')
+            )
+          )
+        ),
+        h('div', { style: { marginTop: 16 } },
+          h('button', {
+            className: 'btn btn-secondary btn-sm',
+            onClick: function() {
+              apiCall('/settings/security/events').then(function(d) {
+                setEvents(d.events || []);
+              });
+            }
+          }, 'Load Recent Events'),
+          events.length > 0 && h('div', { style: { marginTop: 12, maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 4 } },
+            h('table', { style: { width: '100%', fontSize: 12 } },
+              h('thead', null,
+                h('tr', { style: { background: 'var(--bg-secondary)' } },
+                  h('th', { style: { padding: '8px 12px', textAlign: 'left' } }, 'Type'),
+                  h('th', { style: { padding: '8px 12px', textAlign: 'left' } }, 'Severity'),
+                  h('th', { style: { padding: '8px 12px', textAlign: 'left' } }, 'Time'),
+                  h('th', { style: { padding: '8px 12px', textAlign: 'left' } }, 'Source IP')
+                )
+              ),
+              h('tbody', null,
+                events.slice(0, 10).map(function(event, i) {
+                  return h('tr', { key: i },
+                    h('td', { style: { padding: '6px 12px' } }, event.eventType),
+                    h('td', { style: { padding: '6px 12px' } },
+                      h('span', { 
+                        className: 'badge badge-' + (event.severity === 'critical' ? 'danger' : event.severity === 'high' ? 'warning' : event.severity === 'medium' ? 'info' : 'secondary')
+                      }, event.severity)
+                    ),
+                    h('td', { style: { padding: '6px 12px' } }, new Date(event.timestamp).toLocaleString()),
+                    h('td', { style: { padding: '6px 12px' } }, event.sourceIp || '-')
+                  );
+                })
+              )
+            )
+          )
+        )
       )
     )
   );

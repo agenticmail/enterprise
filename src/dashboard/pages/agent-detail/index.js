@@ -19,6 +19,7 @@ import { ToolsSection } from './tools.js?v=5';
 import { MeetingCapabilitiesSection, BrowserConfigCard, ToolRestrictionsCard } from './meeting-browser.js?v=5';
 import { EmailSection } from './email.js?v=5';
 import { ToolSecuritySection } from './tool-security.js?v=5';
+import { AgentSecurityTab } from './security.js?v=5';
 import { AutonomySection } from './autonomy.js?v=5';
 import { ChannelsSection } from './channels.js?v=5';
 
@@ -42,8 +43,8 @@ export function AgentDetailPage(props) {
   var _agents = useState([]);
   var agents = _agents[0]; var setAgents = _agents[1];
 
-  var TABS = ['overview', 'personal', 'email', 'channels', 'configuration', 'manager', 'tools', 'skills', 'permissions', 'activity', 'communication', 'workforce', 'memory', 'guardrails', 'autonomy', 'budget', 'tool-security', 'deployment'];
-  var TAB_LABELS = { 'tool-security': 'Security', 'manager': 'Manager', 'email': 'Email', 'channels': 'Channels', 'tools': 'Tools', 'autonomy': 'Autonomy' };
+  var TABS = ['overview', 'personal', 'email', 'channels', 'configuration', 'manager', 'tools', 'skills', 'permissions', 'activity', 'communication', 'workforce', 'memory', 'guardrails', 'autonomy', 'budget', 'security', 'tool-security', 'deployment'];
+  var TAB_LABELS = { 'security': 'Security', 'tool-security': 'Tool Security', 'manager': 'Manager', 'email': 'Email', 'channels': 'Channels', 'tools': 'Tools', 'autonomy': 'Autonomy' };
 
   var load = function() {
     setLoading(true);
@@ -192,6 +193,7 @@ export function AgentDetailPage(props) {
     tab === 'guardrails' && h(GuardrailsSection, { agentId: agentId, agents: agents }),
     tab === 'autonomy' && h(AutonomySection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'budget' && h(BudgetSection, { agentId: agentId }),
+    tab === 'security' && h(AgentSecurityTab, { agentId: agentId }),
     tab === 'tool-security' && h(ToolSecuritySection, { agentId: agentId }),
     tab === 'deployment' && h(DeploymentSection, { agentId: agentId, engineAgent: engineAgent, agent: agent, reload: load, onBack: onBack })
   );

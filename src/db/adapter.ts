@@ -39,6 +39,7 @@ export interface Agent {
   role: string;
   status: 'active' | 'archived' | 'suspended';
   metadata: Record<string, unknown>;
+  securityOverrides?: Partial<SecurityConfig>;
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
@@ -204,6 +205,7 @@ export interface CompanySettings {
   cfAccountId?: string;
   toolSecurityConfig?: Record<string, any>;
   firewallConfig?: FirewallConfig;
+  securityConfig?: SecurityConfig;
   modelPricingConfig?: ModelPricingConfig;
   orgEmailConfig?: OrgEmailConfig;
   platformCapabilities?: PlatformCapabilities;
@@ -229,6 +231,78 @@ export interface OrgEmailConfig {
   oauthScopes?: string[];
   configured: boolean;
   label?: string; // e.g. "Google Workspace" or "Microsoft 365"
+}
+
+export interface SecurityConfig {
+  promptInjection: {
+    enabled: boolean;
+    mode: 'monitor' | 'block' | 'sanitize'; // monitor=log only, block=reject, sanitize=strip
+    sensitivity: 'low' | 'medium' | 'high' | 'maximum';
+    customPatterns?: string[]; // user-defined regex patterns
+    allowedOverrideAgents?: string[]; // agent IDs allowed to receive raw content
+    logDetections: boolean;
+    blockResponse?: string; // custom message when blocked
+  };
+  sqlInjection: {
+    enabled: boolean;
+    mode: 'monitor' | 'block';
+    scanToolInputs: boolean; // scan agent tool call arguments
+    scanApiInputs: boolean; // scan API request bodies
+    logDetections: boolean;
+  };
+  inputValidation: {
+    enabled: boolean;
+    maxInputLength: number; // max chars per input (default 100000)
+    maxJsonDepth: number; // max nested object depth (default 20)
+    stripHtml: boolean; // strip HTML tags from inputs
+    blockScripts: boolean; // block <script> tags
+    sanitizeUnicode: boolean; // normalize unicode homoglyphs
+  };
+  outputFiltering: {
+    enabled: boolean;
+    scanForSecrets: boolean; // detect API keys, passwords, tokens in output
+    scanForPii: boolean; // detect emails, SSNs, phone numbers
+    mode: 'monitor' | 'redact' | 'block';
+    customRedactPatterns?: string[]; // user-defined patterns to redact
+    logDetections: boolean;
+  };
+  portSecurity: {
+    enabled: boolean;
+    monitorOpenPorts: boolean;
+    allowedPorts: number[]; // ports that should be open (e.g., 3000, 443)
+    scanIntervalMinutes: number;
+    alertOnNewPort: boolean;
+    lastScanResult?: { ports: number[]; timestamp: string };
+  };
+  bruteForce: {
+    enabled: boolean;
+    maxLoginAttempts: number; // per IP (default 5)
+    lockoutDurationMinutes: number; // (default 15)
+    maxApiKeyAttempts: number; // per IP (default 10)
+    trackFailedAttempts: boolean;
+  };
+  contentSecurity: {
+    enabled: boolean;
+    cspPolicy?: string; // Content-Security-Policy header value
+    frameAncestors?: string[]; // CSP frame-ancestors
+    scriptSrc?: string[]; // CSP script-src
+    connectSrc?: string[]; // CSP connect-src
+  };
+  secretScanning: {
+    enabled: boolean;
+    scanAgentOutputs: boolean;
+    scanToolResults: boolean;
+    patterns: 'default' | 'strict' | 'custom';
+    customPatterns?: string[];
+    alertOnDetection: boolean;
+  };
+  auditSecurity: {
+    enabled: boolean;
+    logAllToolCalls: boolean;
+    logPromptInjectionAttempts: boolean;
+    logApiAccess: boolean;
+    retentionDays: number; // how long to keep security logs (default 90)
+  };
 }
 
 export interface FirewallConfig {

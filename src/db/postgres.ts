@@ -35,6 +35,26 @@ export class PostgresAdapter extends DatabaseAdapter {
   async connect(config: DatabaseConfig): Promise<void> {
     this.ended = false;
     const { Pool } = await getPg();
+
+    // ── Smart pool sizing ──────────────────────────────
+    // Detect if using PgBouncer/Supabase pooler (port 6543) vs direct (5432)
+    // and auto-configure pool size accordingly.
+    const port = config.port || (config.connectionString ? new URL(config.connectionString).port : '5432');
+    const isPgBouncer = String(port) === '6543' || String(port) === '5433';
+
+    // Pool size logic:
+    // - PgBouncer (Supabase pooler): conservative — shared across processes
+    //   Supabase pooler limits: Free=15, Pro=15-50 per-role pool_size
+    //   With N agent processes + 1 server, use max = floor(15 / (N+1)) minimum 3
+    // - Direct connection: more generous
+    // - Override via DB_POOL_MAX env var
+    const envMax = process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : 0;
+    const defaultMax = isPgBouncer ? 4 : 10;
+    const poolMax = envMax || defaultMax;
+
+    // PgBouncer transaction mode: short idle timeout to release connections fast
+    const idleTimeout = isPgBouncer ? 5000 : 30000;
+
     this.pool = new Pool({
       connectionString: config.connectionString,
       host: config.host,
@@ -43,13 +63,29 @@ export class PostgresAdapter extends DatabaseAdapter {
       user: config.username,
       password: config.password,
       ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-      max: 15,
-      idleTimeoutMillis: 30000,
+      max: poolMax,
+      idleTimeoutMillis: idleTimeout,
       connectionTimeoutMillis: 15000,
+      // PgBouncer doesn't support prepared statements in transaction mode
+      ...(isPgBouncer ? { allowExitOnIdle: true } : {}),
     });
+
+    // Handle pool errors gracefully (don't crash on transient connection issues)
+    this.pool.on('error', (err: any) => {
+      if (this.ended) return;
+      // XX000 = Supabase connection limit — log but don't crash
+      if (err.code === 'XX000' || err.code === '53300' || err.code === '57P01') {
+        console.warn(`[postgres] Pool connection error (${err.code}): ${err.message?.slice(0, 100) || 'unknown'} — will retry`);
+      } else {
+        console.error(`[postgres] Unexpected pool error:`, err.message?.slice(0, 200));
+      }
+    });
+
     // Test connection
     const client = await this.pool.connect();
     client.release();
+
+    console.log(`[postgres] Connected (pool: max=${poolMax}, idle=${idleTimeout}ms, pgbouncer=${isPgBouncer})`);
   }
 
   async disconnect(): Promise<void> {
@@ -61,6 +97,29 @@ export class PostgresAdapter extends DatabaseAdapter {
 
   isConnected(): boolean {
     return this.pool !== null && !this.ended;
+  }
+
+  /**
+   * Execute a query with automatic retry on transient connection errors.
+   * Retries once after a 500ms delay for: connection limit exceeded (XX000, 53300),
+   * admin shutdown (57P01), connection refused, client already released.
+   */
+  private async _query(sql: string, params?: any[]): Promise<any> {
+    const RETRYABLE = new Set(['XX000', '53300', '57P01', 'ECONNREFUSED', 'ECONNRESET', '57P03']);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await this.pool.query(sql, params);
+      } catch (err: any) {
+        const code = err.code || '';
+        const msg = err.message || '';
+        const isRetryable = RETRYABLE.has(code) || msg.includes('remaining connection') || msg.includes('terminating connection') || msg.includes('Connection terminated');
+        if (isRetryable && attempt === 0) {
+          await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   // ─── Engine Integration ──────────────────────────────────
@@ -75,15 +134,15 @@ export class PostgresAdapter extends DatabaseAdapter {
       return sql.replace(/\?/g, () => `$${++i}`);
     };
     return {
-      run: async (sql: string, params?: any[]) => { if (self.ended) return; await pool.query(pgSql(sql), params); },
+      run: async (sql: string, params?: any[]) => { if (self.ended) return; await self._query(pgSql(sql), params); },
       get: async <T = any>(sql: string, params?: any[]): Promise<T | undefined> => {
         if (self.ended) return undefined;
-        const result = await pool.query(pgSql(sql), params);
+        const result = await self._query(pgSql(sql), params);
         return result.rows[0] as T | undefined;
       },
       all: async <T = any>(sql: string, params?: any[]): Promise<T[]> => {
         if (self.ended) return [];
-        const result = await pool.query(pgSql(sql), params);
+        const result = await self._query(pgSql(sql), params);
         return result.rows as T[];
       },
     };
@@ -139,7 +198,7 @@ export class PostgresAdapter extends DatabaseAdapter {
   // ─── Company ─────────────────────────────────────────────
 
   async getSettings(): Promise<CompanySettings> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this._query(
       'SELECT * FROM company_settings WHERE id = $1', ['default']
     );
     return rows[0] ? this.mapSettings(rows[0]) : null!;
@@ -196,6 +255,11 @@ export class PostgresAdapter extends DatabaseAdapter {
     if (updates.modelPricingConfig !== undefined) {
       fields.push(`model_pricing_config = $${i}`);
       values.push(JSON.stringify(updates.modelPricingConfig));
+      i++;
+    }
+    if (updates.securityConfig !== undefined) {
+      fields.push(`security_config = $${i}`);
+      values.push(JSON.stringify(updates.securityConfig));
       i++;
     }
     if (updates.orgEmailConfig !== undefined) {
@@ -265,6 +329,11 @@ export class PostgresAdapter extends DatabaseAdapter {
     if (updates.metadata) {
       fields.push(`metadata = $${i}`);
       values.push(JSON.stringify(updates.metadata));
+      i++;
+    }
+    if (updates.securityOverrides !== undefined) {
+      fields.push(`security_overrides = $${i}`);
+      values.push(JSON.stringify(updates.securityOverrides));
       i++;
     }
     fields.push('updated_at = NOW()');
@@ -421,7 +490,7 @@ export class PostgresAdapter extends DatabaseAdapter {
   async validateApiKey(plaintext: string): Promise<ApiKey | null> {
     const keyHash = createHash('sha256').update(plaintext).digest('hex');
     const { rows } = await this.pool.query(
-      'SELECT * FROM api_keys WHERE key_hash = $1 AND (revoked IS NULL OR revoked = FALSE)',
+      'SELECT * FROM api_keys WHERE key_hash = $1 AND (revoked IS NULL OR revoked = 0)',
       [keyHash]
     );
     if (!rows[0]) return null;
@@ -528,12 +597,96 @@ export class PostgresAdapter extends DatabaseAdapter {
     };
   }
 
+  // ─── Security Events ─────────────────────────────────────
+
+  async logSecurityEvent(event: { 
+    eventType: string; 
+    severity: string; 
+    agentId?: string; 
+    details: Record<string, any>; 
+    sourceIp?: string; 
+  }): Promise<void> {
+    const id = randomUUID();
+    await this.pool.query(
+      `INSERT INTO security_events (id, event_type, severity, agent_id, details, source_ip) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, event.eventType, event.severity, event.agentId, JSON.stringify(event.details), event.sourceIp]
+    );
+  }
+
+  async getSecurityEvents(filter: {
+    eventType?: string[];
+    severity?: string[];
+    agentId?: string;
+    sourceIp?: string;
+    fromDate?: string;
+    toDate?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<any[]> {
+    let query = 'SELECT * FROM security_events WHERE 1=1';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (filter.eventType && filter.eventType.length > 0) {
+      query += ` AND event_type = ANY($${paramIndex++})`;
+      params.push(filter.eventType);
+    }
+
+    if (filter.severity && filter.severity.length > 0) {
+      query += ` AND severity = ANY($${paramIndex++})`;
+      params.push(filter.severity);
+    }
+
+    if (filter.agentId) {
+      query += ` AND agent_id = $${paramIndex++}`;
+      params.push(filter.agentId);
+    }
+
+    if (filter.sourceIp) {
+      query += ` AND source_ip = $${paramIndex++}`;
+      params.push(filter.sourceIp);
+    }
+
+    if (filter.fromDate) {
+      query += ` AND created_at >= $${paramIndex++}`;
+      params.push(filter.fromDate);
+    }
+
+    if (filter.toDate) {
+      query += ` AND created_at <= $${paramIndex++}`;
+      params.push(filter.toDate);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    if (filter.limit) {
+      query += ` LIMIT ${filter.limit}`;
+    }
+
+    if (filter.offset) {
+      query += ` OFFSET ${filter.offset}`;
+    }
+
+    const { rows } = await this.pool.query(query, params);
+    return rows.map(row => ({
+      id: row.id,
+      eventType: row.event_type,
+      severity: row.severity,
+      agentId: row.agent_id,
+      details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
+      sourceIp: row.source_ip,
+      timestamp: row.created_at
+    }));
+  }
+
   // ─── Mappers ─────────────────────────────────────────────
 
   private mapAgent(r: any): Agent {
     return {
       id: r.id, name: r.name, email: r.email, role: r.role, status: r.status,
       metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
+      securityOverrides: r.security_overrides ? (typeof r.security_overrides === 'string' ? JSON.parse(r.security_overrides) : r.security_overrides) : undefined,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at), createdBy: r.created_by,
     };
   }
@@ -577,6 +730,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       ssoConfig: r.sso_config ? (typeof r.sso_config === 'string' ? JSON.parse(r.sso_config) : r.sso_config) : undefined,
       toolSecurityConfig: r.tool_security_config ? (typeof r.tool_security_config === 'string' ? JSON.parse(r.tool_security_config) : r.tool_security_config) : {},
       firewallConfig: r.firewall_config ? (typeof r.firewall_config === 'string' ? JSON.parse(r.firewall_config) : r.firewall_config) : {},
+      securityConfig: r.security_config ? (typeof r.security_config === 'string' ? JSON.parse(r.security_config) : r.security_config) : {},
       modelPricingConfig: r.model_pricing_config ? (typeof r.model_pricing_config === 'string' ? JSON.parse(r.model_pricing_config) : r.model_pricing_config) : {},
       plan: r.plan, createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
       deploymentKeyHash: r.deployment_key_hash,

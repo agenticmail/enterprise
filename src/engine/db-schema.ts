@@ -1393,6 +1393,67 @@ CREATE INDEX IF NOT EXISTS idx_ksl_ts ON knowledge_search_log(timestamp);
     mysql: `ALTER TABLE company_settings ADD COLUMN use_root_domain TINYINT DEFAULT 0;`,
     nosql: async () => {},
   },
+  {
+    version: 24,
+    name: 'comprehensive_security_system',
+    sql: `
+-- Add security config columns
+ALTER TABLE company_settings ADD COLUMN security_config TEXT DEFAULT '{}';
+ALTER TABLE managed_agents ADD COLUMN security_overrides TEXT DEFAULT '{}';
+
+-- Security events log
+CREATE TABLE IF NOT EXISTS security_events (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  agent_id TEXT,
+  details JSON NOT NULL DEFAULT '{}',
+  source_ip TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_time ON security_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_agent ON security_events(agent_id);
+CREATE INDEX IF NOT EXISTS idx_security_events_severity ON security_events(severity);
+    `,
+    postgres: `
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS security_config TEXT DEFAULT '{}';
+ALTER TABLE managed_agents ADD COLUMN IF NOT EXISTS security_overrides TEXT DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS security_events (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  agent_id TEXT,
+  details JSONB NOT NULL DEFAULT '{}',
+  source_ip TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_time ON security_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_agent ON security_events(agent_id);
+CREATE INDEX IF NOT EXISTS idx_security_events_severity ON security_events(severity);
+    `,
+    mysql: `
+ALTER TABLE company_settings ADD COLUMN security_config TEXT DEFAULT '{}';
+ALTER TABLE managed_agents ADD COLUMN security_overrides TEXT DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS security_events (
+  id VARCHAR(255) PRIMARY KEY,
+  event_type VARCHAR(100) NOT NULL,
+  severity VARCHAR(50) NOT NULL,
+  agent_id VARCHAR(255),
+  details JSON NOT NULL DEFAULT '{}',
+  source_ip VARCHAR(45),
+  created_at DATETIME NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_security_events_type ON security_events(event_type);
+CREATE INDEX idx_security_events_time ON security_events(created_at);
+CREATE INDEX idx_security_events_agent ON security_events(agent_id);
+CREATE INDEX idx_security_events_severity ON security_events(severity);
+    `,
+    nosql: async () => {},
+  },
 ];
 
 // ─── Dynamic Table Definitions ─────────────────────────

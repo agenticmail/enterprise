@@ -1247,6 +1247,99 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     return c.json({ ok: true });
   });
 
+  // ─── Security ────────────────────────────────────────
+
+  api.get('/settings/security', requireRole('admin'), async (c) => {
+    try {
+      const settings = await db.getSettings();
+      const securityConfig = (settings as any)?.securityConfig || {};
+      return c.json({ securityConfig });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  api.put('/settings/security', requireRole('admin'), async (c) => {
+    try {
+      const body = await c.req.json();
+      const { securityConfig } = body;
+
+      if (!securityConfig || typeof securityConfig !== 'object') {
+        return c.json({ error: 'securityConfig is required and must be an object' }, 400);
+      }
+
+      await db.updateSettings({ securityConfig } as any);
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  api.get('/settings/security/events', requireRole('admin'), async (c) => {
+    try {
+      const query = c.req.query();
+      const filter = {
+        eventType: query.eventType ? query.eventType.split(',') : undefined,
+        severity: query.severity ? query.severity.split(',') : undefined,
+        agentId: query.agentId,
+        sourceIp: query.sourceIp,
+        fromDate: query.fromDate,
+        toDate: query.toDate,
+        limit: query.limit ? parseInt(query.limit) : 50,
+        offset: query.offset ? parseInt(query.offset) : 0
+      };
+
+      const events = await (db as any).getSecurityEvents(filter);
+      return c.json({ events });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  api.get('/settings/security/port-scan', requireRole('admin'), async (c) => {
+    try {
+      const { scanPorts } = await import('../security/port-scanner.js');
+      const result = await scanPorts();
+      return c.json({ scanResult: result });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  api.get('/agents/:id/security', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('id');
+      const agent = await db.getAgent(agentId);
+      
+      if (!agent) {
+        return c.json({ error: 'Agent not found' }, 404);
+      }
+
+      const securityOverrides = (agent as any)?.securityOverrides || {};
+      return c.json({ securityOverrides });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  api.put('/agents/:id/security', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('id');
+      const body = await c.req.json();
+      const { securityOverrides } = body;
+
+      const agent = await db.getAgent(agentId);
+      if (!agent) {
+        return c.json({ error: 'Agent not found' }, 404);
+      }
+
+      await db.updateAgent(agentId, { securityOverrides } as any);
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   // ─── CORS Helper ────────────────────────────────────
   /** Add an origin to CORS list, optionally removing an old one */
   async function updateCorsOrigin(newOrigin: string, oldOrigin?: string) {
