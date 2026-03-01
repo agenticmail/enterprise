@@ -7,7 +7,7 @@ export function SkillsPage() {
   var toast = app.toast;
   var setPage = app.setPage;
 
-  var _tab = useState('builtin');
+  var _tab = useState('integrations');
   var tab = _tab[0]; var setTab = _tab[1];
 
   // Builtin skills
@@ -139,7 +139,7 @@ export function SkillsPage() {
   var saveToken = async function() {
     if (!tokenModal || !tokenValue) return;
     try {
-      await engineCall('/oauth/authorize/' + tokenModal.skillId, {
+      await engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId(), {
         method: 'POST',
         body: JSON.stringify({ token: tokenValue })
       });
@@ -151,6 +151,8 @@ export function SkillsPage() {
       });
       setTokenModal(null);
       setTokenValue('');
+      // Refresh integration catalog to reflect new connection
+      loadIntegrations();
     } catch (e) { toast(e.message || 'Save failed', 'error'); }
   };
 
@@ -222,6 +224,64 @@ export function SkillsPage() {
       loadInstalled();
     } catch (e) { toast(e.message || 'Install failed', 'error'); }
   };
+
+  // ── Integration catalog state ──
+  var _integrations = useState([]);
+  var integrations = _integrations[0]; var setIntegrations = _integrations[1];
+  var _intCategories = useState([]);
+  var intCategories = _intCategories[0]; var setIntCategories = _intCategories[1];
+  var _intSearch = useState('');
+  var intSearch = _intSearch[0]; var setIntSearch = _intSearch[1];
+  var _intCategory = useState('all');
+  var intCategory = _intCategory[0]; var setIntCategory = _intCategory[1];
+  var _intLoading = useState(true);
+  var intLoading = _intLoading[0]; var setIntLoading = _intLoading[1];
+
+  var CATEGORY_LABELS = {
+    communication: 'Communication', crm: 'CRM & Sales', productivity: 'Productivity',
+    devops: 'DevOps & CI/CD', infrastructure: 'Cloud & Infrastructure', 'data-ai': 'Database & AI/ML',
+    monitoring: 'Analytics & Monitoring', security: 'Security & Identity', marketing: 'Marketing & Content',
+    design: 'Design & Documents', finance: 'Finance & Payments', hr: 'HR & Recruiting',
+    social: 'Social Media', ecommerce: 'E-commerce', cms: 'CMS', enterprise: 'Enterprise', general: 'Other'
+  };
+
+  var loadIntegrations = useCallback(function() {
+    setIntLoading(true);
+    engineCall('/integrations/catalog?orgId=' + getOrgId())
+      .then(function(d) {
+        setIntegrations(d.catalog || []);
+        setIntCategories(d.categories || []);
+        setIntLoading(false);
+      })
+      .catch(function() { setIntLoading(false); });
+  }, []);
+
+  useEffect(function() { loadIntegrations(); }, [loadIntegrations]);
+
+  var intConnectedCount = integrations.filter(function(i) { return i.connected; }).length;
+
+  var filteredIntegrations = integrations.filter(function(i) {
+    var matchCat = intCategory === 'all' || i.category === intCategory;
+    var matchSearch = !intSearch || i.name.toLowerCase().indexOf(intSearch.toLowerCase()) !== -1 || i.skillId.indexOf(intSearch.toLowerCase()) !== -1;
+    return matchCat && matchSearch;
+  }).sort(function(a, b) {
+    if (a.connected !== b.connected) return a.connected ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  var connectIntegration = function(int) {
+    setTokenModal({ skillId: int.skillId, skill: { name: int.name } });
+    setTokenValue('');
+  };
+
+  var disconnectIntegration = function(int) {
+    if (!confirm('Disconnect ' + int.name + '? Agents will lose access to its tools.')) return;
+    engineCall('/oauth/disconnect/' + int.skillId + '?orgId=' + getOrgId(), { method: 'DELETE' })
+      .then(function() { toast(int.name + ' disconnected', 'success'); loadIntegrations(); })
+      .catch(function(e) { toast('Failed: ' + e.message, 'error'); });
+  };
+
+  // Note: saveToken already defined above; after saving we also refresh integrations
 
   // Computed
   var allSkills = Object.entries(skills).flatMap(function(entry) {
@@ -358,21 +418,75 @@ export function SkillsPage() {
     );
   };
 
+  // ── Integrations Tab ──
+  var renderIntegrations = function() {
+    return h(Fragment, null,
+      h('div', { style: { display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' } },
+        h('input', {
+          className: 'input', style: { flex: '1 1 200px', minWidth: 150 },
+          value: intSearch, placeholder: 'Search integrations...',
+          onInput: function(e) { setIntSearch(e.target.value); }
+        }),
+        h('select', {
+          className: 'input', style: { width: 200 },
+          value: intCategory,
+          onChange: function(e) { setIntCategory(e.target.value); }
+        },
+          h('option', { value: 'all' }, 'All Categories (' + integrations.length + ')'),
+          intCategories.map(function(cat) {
+            var count = integrations.filter(function(i) { return i.category === cat; }).length;
+            return h('option', { key: cat, value: cat }, (CATEGORY_LABELS[cat] || cat) + ' (' + count + ')');
+          })
+        )
+      ),
+      intLoading
+        ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }, 'Loading integrations...')
+        : filteredIntegrations.length === 0
+          ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }, 'No integrations match your search.')
+          : h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 } },
+              filteredIntegrations.map(function(int) {
+                var connected = int.connected === true;
+                var authLabel = { oauth2: 'OAuth', api_key: 'API Key', token: 'Token', credentials: 'Credentials' }[int.authType] || int.authType;
+                return h('div', { key: int.skillId, style: {
+                  padding: 14, border: '1px solid ' + (connected ? 'var(--brand-color, #6366f1)' : 'var(--border)'),
+                  borderRadius: 'var(--radius)', background: connected ? 'var(--bg-secondary)' : 'transparent',
+                  transition: 'border-color 0.2s, background 0.2s'
+                } },
+                  h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
+                    h('strong', { style: { fontSize: 13 } }, int.name),
+                    h('span', { style: {
+                      fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12,
+                      color: '#fff', background: connected ? 'var(--success)' : 'var(--text-muted)'
+                    } }, connected ? 'Connected' : authLabel)
+                  ),
+                  h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 } },
+                    (CATEGORY_LABELS[int.category] || int.category) + ' \u00B7 ' + int.toolCount + ' tool' + (int.toolCount !== 1 ? 's' : '')
+                  ),
+                  connected
+                    ? h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { disconnectIntegration(int); } }, 'Disconnect')
+                    : h('button', { className: 'btn btn-primary btn-sm', onClick: function() { connectIntegration(int); } }, 'Connect')
+                );
+              })
+            )
+    );
+  };
+
   return h(Fragment, null,
     // Header with stats
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Skills'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Skills & Integrations'),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } },
-          allSkills.length + ' builtin \u00B7 ' + installed.length + ' installed \u00B7 ' + connectedCount + ' connected'
+          allSkills.length + ' builtin \u00B7 ' + integrations.length + ' integrations \u00B7 ' + intConnectedCount + ' connected'
         )
       ),
-      h('button', { className: 'btn btn-secondary', onClick: function() { loadInstalled(); } }, I.refresh(), ' Refresh')
+      h('button', { className: 'btn btn-secondary', onClick: function() { loadInstalled(); loadIntegrations(); } }, I.refresh(), ' Refresh')
     ),
 
     // Tabs
     h('div', { className: 'tabs', style: { marginBottom: 16 } },
       [
+        { id: 'integrations', label: 'Integrations (' + integrations.length + ')' },
         { id: 'builtin', label: 'Builtin Skills (' + allSkills.length + ')' },
         { id: 'installed', label: 'Installed (' + installed.length + ')' }
       ].map(function(t) {
@@ -385,6 +499,7 @@ export function SkillsPage() {
     ),
 
     // Tab Content
+    tab === 'integrations' && renderIntegrations(),
     tab === 'builtin' && renderBuiltin(),
     tab === 'installed' && renderInstalled(),
 
