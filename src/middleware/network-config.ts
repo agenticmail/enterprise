@@ -72,10 +72,18 @@ async function _loadConfig(): Promise<void> {
   if (!_db) return;
   try {
     const settings = await _db.getSettings();
+    const newConfig = settings?.firewallConfig || {};
+    const oldJson = JSON.stringify(_state.config);
     _state = {
-      config: settings?.firewallConfig || {},
+      config: newConfig,
       loadedAt: Date.now(),
     };
+    // If config actually changed on cache refresh, notify listeners
+    if (JSON.stringify(newConfig) !== oldJson) {
+      for (const fn of _listeners) {
+        try { fn(newConfig); } catch {}
+      }
+    }
   } catch {
     // Keep using whatever we have (graceful degradation)
   }

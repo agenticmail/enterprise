@@ -11,6 +11,44 @@ import { compileIpMatcher } from '../lib/cidr.js';
 import { getNetworkConfig, onNetworkConfigChange } from './network-config.js';
 import type { FirewallConfig } from '../db/adapter.js';
 
+// ─── Block Page ──────────────────────────────────────────
+
+const FIREWALL_BLOCK_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Access Denied</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1117;color:#e1e4e8}
+  .container{text-align:center;max-width:480px;padding:40px 24px}
+  .icon{width:64px;height:64px;margin:0 auto 24px;border-radius:16px;background:rgba(255,107,107,0.1);display:flex;align-items:center;justify-content:center}
+  .icon svg{width:32px;height:32px;stroke:#ff6b6b;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  h1{font-size:24px;font-weight:700;margin-bottom:12px;color:#fff}
+  p{font-size:15px;line-height:1.6;color:#8b949e;margin-bottom:8px}
+  .subtle{font-size:13px;color:#484f58;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg></div>
+  <h1>Access Denied</h1>
+  <p>Your request has been blocked by the firewall. Access to this service is restricted by the administrator.</p>
+  <p>If you believe this is an error, please contact the site owner.</p>
+  <div class="subtle">Error 403</div>
+</div>
+</body>
+</html>`;
+
+function firewallBlock(c: any): Response {
+  const accept = c.req.header('accept') || '';
+  if (accept.includes('application/json') || c.req.path.startsWith('/api/')) {
+    return c.json({ error: 'Access denied by firewall policy', code: 'IP_BLOCKED' }, 403);
+  }
+  return c.html(FIREWALL_BLOCK_PAGE, 403);
+}
+
 // ─── Compiled Matchers Cache ─────────────────────────────
 
 interface CompiledFirewall {
@@ -111,13 +149,8 @@ function extractClientIp(c: any, connectingIp: string): string {
  */
 export function ipAccessControl(_getDb?: () => any): MiddlewareHandler {
   return async (c, next) => {
-    // Ensure config is fresh
-    const config = await getNetworkConfig();
-    if (_compiled.enabled === false && config.ipAccess?.enabled) {
-      recompile(config);
-    } else if (!_compiled.enabled && !config.ipAccess?.enabled) {
-      return next();
-    }
+    // Ensure config is fresh (getNetworkConfig auto-notifies listeners on change)
+    await getNetworkConfig();
 
     if (!_compiled.enabled) return next();
 
@@ -141,10 +174,7 @@ export function ipAccessControl(_getDb?: () => any): MiddlewareHandler {
     // Allowlist mode
     if (_compiled.mode === 'allowlist') {
       if (_compiled.allowlistMatcher && !_compiled.allowlistMatcher(clientIp)) {
-        return c.json(
-          { error: 'Access denied by firewall policy', code: 'IP_BLOCKED' },
-          403,
-        );
+        return firewallBlock(c);
       }
       return next();
     }
@@ -152,10 +182,7 @@ export function ipAccessControl(_getDb?: () => any): MiddlewareHandler {
     // Blocklist mode
     if (_compiled.mode === 'blocklist') {
       if (_compiled.blocklistMatcher && _compiled.blocklistMatcher(clientIp)) {
-        return c.json(
-          { error: 'Access denied by firewall policy', code: 'IP_BLOCKED' },
-          403,
-        );
+        return firewallBlock(c);
       }
       return next();
     }

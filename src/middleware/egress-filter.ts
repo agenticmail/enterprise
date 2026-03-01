@@ -40,8 +40,10 @@ function _validate(url: string, config?: FirewallConfig['egress']): void {
     ? parseInt(parsed.port, 10)
     : parsed.protocol === 'https:' ? 443 : 80;
 
+  const mode = config.mode || 'blocklist';
+
   // Host filtering
-  if (config.mode === 'allowlist') {
+  if (mode === 'allowlist') {
     const allowed = (config.allowedHosts || []).some((pattern) =>
       hostMatchesPattern(host, pattern),
     );
@@ -50,7 +52,7 @@ function _validate(url: string, config?: FirewallConfig['egress']): void {
         `Outbound request to ${host}:${port} blocked by egress policy (host not in allowlist)`,
       );
     }
-  } else if (config.mode === 'blocklist') {
+  } else if (mode === 'blocklist') {
     const blocked = (config.blockedHosts || []).some((pattern) =>
       hostMatchesPattern(host, pattern),
     );

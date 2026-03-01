@@ -73,6 +73,26 @@ export function createChatWebhookRoutes(opts: {
   const { lifecycle, getRuntime, standaloneAgents = [] } = opts;
 
   app.post('/', async (c) => {
+    // ── Webhook security (DB-backed) ──────────────────
+    try {
+      const { getNetworkConfig } = await import('../middleware/network-config.js');
+      const netConfig = await getNetworkConfig();
+      const ws = netConfig.webhookSecurity;
+      if (ws?.enabled && ws.allowedSourceIps?.length) {
+        const { compileIpMatcher } = await import('../lib/cidr.js');
+        const matcher = compileIpMatcher(ws.allowedSourceIps);
+        const sourceIp =
+          c.req.header('cf-connecting-ip') ||
+          c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+          c.req.header('x-real-ip') ||
+          'unknown';
+        if (!matcher(sourceIp)) {
+          console.log(`[chat-webhook] Blocked webhook from ${sourceIp} (not in allowed source IPs)`);
+          return c.json({ error: 'Forbidden' }, 403);
+        }
+      }
+    } catch {}
+
     let event: ChatEvent;
     try {
       event = await c.req.json<ChatEvent>();

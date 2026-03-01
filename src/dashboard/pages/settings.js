@@ -3,6 +3,7 @@ import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { Modal } from '../components/modal.js';
 import { TagInput } from '../components/tag-input.js';
+import { COUNTRIES } from '../data/countries.js';
 import { HelpButton } from '../components/help-button.js';
 import { SETTINGS_HELP } from '../components/settings-help.js';
 import { ProviderLogo } from '../assets/provider-logos.js';
@@ -1215,6 +1216,79 @@ function ToolSecurityTab(props) {
 // NETWORK & FIREWALL TAB
 // ═══════════════════════════════════════════════════════════
 
+// ─── Country Picker Component ────────────────────────────
+
+function CountryPicker(props) {
+  var selected = props.selected || [];
+  var onChange = props.onChange;
+  var _search = useState('');
+  var search = _search[0]; var setSearch = _search[1];
+  var _open = useState(false);
+  var open = _open[0]; var setOpen = _open[1];
+
+  var selectedSet = new Set(selected);
+  var filtered = search
+    ? COUNTRIES.filter(function(c) {
+        var q = search.toLowerCase();
+        return c.name.toLowerCase().indexOf(q) !== -1 || c.code.toLowerCase().indexOf(q) !== -1;
+      })
+    : COUNTRIES;
+
+  var toggle = function(code) {
+    if (selectedSet.has(code)) {
+      onChange(selected.filter(function(c) { return c !== code; }));
+    } else {
+      onChange(selected.concat([code]));
+    }
+  };
+
+  var removeCountry = function(code) {
+    onChange(selected.filter(function(c) { return c !== code; }));
+  };
+
+  return h('div', { style: { position: 'relative' } },
+    h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Countries'),
+
+    // Selected chips
+    selected.length > 0 && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 } },
+      selected.map(function(code) {
+        var c = COUNTRIES.find(function(x) { return x.code === code; });
+        var label = c ? c.name + ' (' + code + ')' : code;
+        return h('span', { key: code, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 12, fontSize: 12, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border)' } },
+          label,
+          h('span', { style: { cursor: 'pointer', fontWeight: 700, fontSize: 14, lineHeight: 1, marginLeft: 2, color: 'var(--text-muted)' }, onClick: function() { removeCountry(code); } }, '\u00d7')
+        );
+      })
+    ),
+
+    // Add button
+    h('button', { className: 'btn btn-secondary', style: { fontSize: 12, padding: '4px 12px' }, onClick: function() { setOpen(!open); setSearch(''); } },
+      open ? 'Close' : '+ Add Country'
+    ),
+
+    // Dropdown
+    open && h('div', { style: { position: 'absolute', zIndex: 100, top: '100%', left: 0, marginTop: 4, width: 320, maxHeight: 300, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', overflow: 'hidden' } },
+      h('input', { className: 'input', style: { width: '100%', borderRadius: 0, borderBottom: '1px solid var(--border)', fontSize: 13, padding: '8px 12px', boxSizing: 'border-box' }, placeholder: 'Search countries...', value: search, onInput: function(e) { setSearch(e.target.value); }, autoFocus: true }),
+      h('div', { style: { maxHeight: 250, overflowY: 'auto' } },
+        filtered.length === 0
+          ? h('div', { style: { padding: 12, fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' } }, 'No countries found')
+          : filtered.map(function(c) {
+              var isSelected = selectedSet.has(c.code);
+              return h('div', {
+                key: c.code,
+                style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13, background: isSelected ? 'var(--bg-tertiary)' : 'transparent', borderBottom: '1px solid var(--border-light, rgba(255,255,255,0.05))' },
+                onClick: function() { toggle(c.code); }
+              },
+                h('input', { type: 'checkbox', checked: isSelected, readOnly: true, style: { margin: 0, accentColor: 'var(--accent)' } }),
+                h('span', { style: { fontFamily: 'monospace', fontWeight: 600, minWidth: 28 } }, c.code),
+                h('span', null, c.name)
+              );
+            })
+      )
+    )
+  );
+}
+
 function NetworkFirewallTab(props) {
   var fw = props.fw || {};
   var setFw = props.setFw;
@@ -1309,7 +1383,7 @@ function NetworkFirewallTab(props) {
     h('div', { style: _cardStyle },
       h('div', { style: _cardTitleStyle }, I.shield(), ' Inbound IP Filtering'),
       h('div', { style: _cardDescStyle }, 'Restrict which IP addresses can access the dashboard, APIs, and engine endpoints. Supports individual IPs and CIDR ranges.'),
-      h(ToggleSwitch, { label: 'Enable IP access control', checked: ipAccess.enabled === true, onChange: function(v) { patchIp('enabled', v); } }),
+      h(ToggleSwitch, { label: 'Enable IP access control', checked: ipAccess.enabled === true, onChange: function(v) { var next = Object.assign({}, ipAccess, { enabled: v }); if (!next.mode) next.mode = 'allowlist'; patchFw('ipAccess', next); } }),
       ipAccess.enabled && h(Fragment, null,
         h('div', { style: { marginBottom: 12 } },
           h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Mode'),
@@ -1341,7 +1415,7 @@ function NetworkFirewallTab(props) {
     h('div', { style: _cardStyle },
       h('div', { style: _cardTitleStyle }, I.globe(), ' Egress Filtering'),
       h('div', { style: _cardDescStyle }, 'Control which external hosts and ports agents can reach when using web fetch, browser, and other network tools.'),
-      h(ToggleSwitch, { label: 'Enable egress filtering', checked: egress.enabled === true, onChange: function(v) { patchEgress('enabled', v); } }),
+      h(ToggleSwitch, { label: 'Enable egress filtering', checked: egress.enabled === true, onChange: function(v) { var next = Object.assign({}, egress, { enabled: v }); if (!next.mode) next.mode = 'blocklist'; patchFw('egress', next); } }),
       egress.enabled && h(Fragment, null,
         h('div', { style: { marginBottom: 12 } },
           h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Mode'),
@@ -1468,7 +1542,7 @@ function NetworkFirewallTab(props) {
 
       // Request Body Size Limit
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.file(), ' Request Body Limits'),
+        h('div', { style: _cardTitleStyle }, I.shield(), ' Request Body Limits'),
         h('div', { style: _cardDescStyle }, 'Maximum request body size for API endpoints. Prevents excessively large payloads from consuming server resources.'),
         h('div', { className: 'form-group', style: { marginBottom: 12 } },
           h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Max Body Size (KB)'),
@@ -1480,8 +1554,8 @@ function NetworkFirewallTab(props) {
       // Geo-IP Restrictions
       h('div', { style: _cardStyle },
         h('div', { style: _cardTitleStyle }, I.globe(), ' Geo-IP Restrictions'),
-        h('div', { style: _cardDescStyle }, 'Restrict access by country. Uses ISO 3166-1 alpha-2 country codes (e.g. US, GB, DE). Requires a reverse proxy that sets the CF-IPCountry or X-Country-Code header.'),
-        h(ToggleSwitch, { label: 'Enable geo-IP filtering', checked: geoIp.enabled === true, onChange: function(v) { patchFw('geoIp', Object.assign({}, geoIp, { enabled: v })); } }),
+        h('div', { style: _cardDescStyle }, 'Restrict access by country using built-in IP geolocation. Works with any setup — no reverse proxy headers required.'),
+        h(ToggleSwitch, { label: 'Enable geo-IP filtering', checked: geoIp.enabled === true, onChange: function(v) { patchFw('geoIp', Object.assign({}, geoIp, { enabled: v, mode: geoIp.mode || 'blocklist' })); } }),
         geoIp.enabled && h(Fragment, null,
           h('div', { style: { marginBottom: 8 } },
             h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Mode'),
@@ -1490,7 +1564,10 @@ function NetworkFirewallTab(props) {
               h('option', { value: 'blocklist' }, 'Block these countries')
             )
           ),
-          h(TagInput, { label: 'Country Codes', value: geoIp.countries || [], onChange: function(v) { patchFw('geoIp', Object.assign({}, geoIp, { countries: v.map(function(c) { return c.toUpperCase().trim(); }) })); }, placeholder: 'US', mono: true })
+          h(CountryPicker, {
+            selected: geoIp.countries || [],
+            onChange: function(v) { patchFw('geoIp', Object.assign({}, geoIp, { countries: v })); }
+          })
         )
       ),
 
