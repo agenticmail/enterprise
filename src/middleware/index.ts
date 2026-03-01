@@ -45,18 +45,31 @@ export function requestLogger(): MiddlewareHandler {
 // ─── HTTPS Enforcement ──────────────────────────────────
 
 /**
- * Require HTTPS for sensitive routes (vault, credentials).
- * Skipped in development mode (NODE_ENV !== 'production').
+ * Require HTTPS for all requests (DB-backed).
+ * Reads enabled flag + exclude paths from firewallConfig.network.httpsEnforcement.
+ * Falls back to NODE_ENV check if DB config not set.
  */
 export function requireHttps(): MiddlewareHandler {
   return async (c: Context, next: Next) => {
-    if (process.env.NODE_ENV !== 'production') return next();
+    const netConfig = await getNetworkConfig();
+    const https = netConfig.network?.httpsEnforcement;
+
+    // If DB config exists, respect it; otherwise fall back to NODE_ENV
+    const enforcing = https?.enabled ?? (process.env.NODE_ENV === 'production');
+    if (!enforcing) return next();
+
+    // Check exclude paths from DB
+    const excludePaths = https?.excludePaths || [];
+    if (excludePaths.some((p: string) => c.req.path.startsWith(p))) {
+      return next();
+    }
+
     const isSecure =
       c.req.url.startsWith('https://') ||
       c.req.header('x-forwarded-proto') === 'https' ||
       c.req.header('x-forwarded-ssl') === 'on';
     if (!isSecure) {
-      return c.json({ error: 'HTTPS required for credential operations', code: 'HTTPS_REQUIRED' }, 403);
+      return c.json({ error: 'HTTPS required by security policy', code: 'HTTPS_REQUIRED' }, 403);
     }
     await next();
   };
@@ -76,18 +89,41 @@ interface RateLimitConfig {
 }
 
 export function rateLimiter(config: RateLimitConfig): MiddlewareHandler {
-  const limiter = new KeyedRateLimiter({
+  let limiter = new KeyedRateLimiter({
     maxTokens: config.limit,
     refillRate: config.limit / config.windowSec,
   });
+  let _currentLimit = config.limit;
+  let _currentSkipPaths = config.skipPaths || [];
 
   return async (c: Context, next: Next) => {
-    // Skip health checks
-    if (config.skipPaths?.some(p => c.req.path.startsWith(p))) {
+    // Read DB config for dynamic overrides
+    const netConfig = await getNetworkConfig();
+    const dbRl = netConfig.network?.rateLimit;
+
+    // If DB says disabled, pass through
+    if (dbRl?.enabled === false) return next();
+
+    // Hot-reload: if DB limit changed, rebuild the limiter
+    const effectiveLimit = dbRl?.requestsPerMinute || config.limit;
+    if (effectiveLimit !== _currentLimit) {
+      _currentLimit = effectiveLimit;
+      limiter = new KeyedRateLimiter({
+        maxTokens: _currentLimit,
+        refillRate: _currentLimit / config.windowSec,
+      });
+    }
+
+    // Merge skip paths: startup defaults + DB overrides
+    const skipPaths = [...(config.skipPaths || []), ...(dbRl?.skipPaths || [])];
+
+    // Skip configured paths
+    if (skipPaths.some(p => c.req.path.startsWith(p))) {
       return next();
     }
 
     const key = config.keyFn?.(c) ||
+      (c as any).get?.('clientIp') ||
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
       c.req.header('x-real-ip') ||
       'unknown';
@@ -95,7 +131,7 @@ export function rateLimiter(config: RateLimitConfig): MiddlewareHandler {
     if (!limiter.tryConsume(key)) {
       const retryAfter = Math.ceil(limiter.getRetryAfterMs(key) / 1000);
       c.header('Retry-After', String(retryAfter));
-      c.header('X-RateLimit-Limit', String(config.limit));
+      c.header('X-RateLimit-Limit', String(_currentLimit));
       c.header('X-RateLimit-Remaining', '0');
       return c.json(
         { error: 'Too many requests', retryAfter },
@@ -107,21 +143,43 @@ export function rateLimiter(config: RateLimitConfig): MiddlewareHandler {
   };
 }
 
-// ─── Security Headers ────────────────────────────────────
+// ─── Security Headers (DB-backed) ────────────────────────
+
+import { getNetworkConfig } from './network-config.js';
 
 export function securityHeaders(): MiddlewareHandler {
   return async (c: Context, next: Next) => {
     await next();
 
-    c.header('X-Content-Type-Options', 'nosniff');
-    c.header('X-Frame-Options', 'DENY');
-    c.header('X-XSS-Protection', '0'); // Modern browsers: CSP is better
-    c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
-    c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    // Read security header config from DB (cached 15s)
+    const netConfig = await getNetworkConfig();
+    const sh = netConfig.network?.securityHeaders;
 
-    // Only set HSTS if behind TLS
-    if (c.req.url.startsWith('https://') || c.req.header('x-forwarded-proto') === 'https') {
-      c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    // X-Content-Type-Options
+    if (sh?.xContentTypeOptions !== false) {
+      c.header('X-Content-Type-Options', 'nosniff');
+    }
+
+    // X-Frame-Options
+    const xfo = sh?.xFrameOptions || 'DENY';
+    if (xfo !== 'ALLOW') {
+      c.header('X-Frame-Options', xfo);
+    }
+
+    // XSS Protection (legacy — CSP is better, but configurable)
+    c.header('X-XSS-Protection', '0');
+
+    // Referrer-Policy
+    c.header('Referrer-Policy', sh?.referrerPolicy || 'strict-origin-when-cross-origin');
+
+    // Permissions-Policy
+    c.header('Permissions-Policy', sh?.permissionsPolicy || 'camera=(), microphone=(), geolocation=()');
+
+    // HSTS — only behind TLS, respects DB toggle + max-age
+    const isTls = c.req.url.startsWith('https://') || c.req.header('x-forwarded-proto') === 'https';
+    if (isTls && sh?.hsts !== false) {
+      const maxAge = sh?.hstsMaxAge || 31536000;
+      c.header('Strict-Transport-Security', `max-age=${maxAge}; includeSubDomains`);
     }
   };
 }
@@ -316,4 +374,9 @@ export function requireRole(minRole: Role): MiddlewareHandler {
 // ─── Re-exports ──────────────────────────────────────────
 
 export { ipAccessControl, invalidateFirewallCache } from './firewall.js';
-export { createEgressFilter } from './egress-filter.js';
+export { createEgressFilter, validateEgress, type EgressFilter } from './egress-filter.js';
+export { setNetworkDb, invalidateNetworkConfig, getNetworkConfig, getNetworkConfigSync, onNetworkConfigChange } from './network-config.js';
+export { dnsRebindingProtection } from './dns-rebinding.js';
+export { requestBodyLimit, requestTimeout } from './request-limits.js';
+export { geoIpRestriction } from './geo-ip.js';
+export { initProxyConfig } from './proxy-config.js';

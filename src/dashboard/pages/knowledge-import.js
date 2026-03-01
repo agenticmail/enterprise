@@ -10,6 +10,7 @@
 
 import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { ProviderLogo } from '../assets/provider-logos.js';
 import { Modal } from '../components/modal.js';
 
 // ─── Platform Definitions ────────────────────────────
@@ -18,9 +19,7 @@ const PLATFORMS = [
   {
     id: 'github', label: 'GitHub', color: '#24292e',
     desc: 'Import from a repository',
-    icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'currentColor' },
-      h('path', { d: 'M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z' })
-    ),
+    icon: () => ProviderLogo.github(28),
     placeholder: 'https://github.com/owner/repo',
     helpText: 'Paste a GitHub repo URL. We\'ll import README and all docs.',
     extraFields: [
@@ -34,12 +33,7 @@ const PLATFORMS = [
   {
     id: 'google-drive', label: 'Google Drive', color: '#4285F4',
     desc: 'Import from a Drive folder',
-    icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 },
-      h('path', { d: 'M7.71 3.5L1.15 15l3.43 5.96h6.56L4.57 9.46z', fill: '#0066DA' }),
-      h('path', { d: 'M16.29 3.5H7.71l6.57 11.5h8.57z', fill: '#00AC47' }),
-      h('path', { d: 'M22.85 15H14.28l-3.42 5.96h8.56z', fill: '#EA4335' }),
-      h('path', { d: 'M7.71 3.5l-3.14 5.96L14.28 15l3.43-5.96z', fill: '#00832D', opacity: 0.5 })
-    ),
+    icon: () => ProviderLogo.googleDrive(28),
     placeholder: 'https://drive.google.com/drive/folders/...',
     helpText: 'Paste a Google Drive folder link. Make sure the folder is shared.',
     extraFields: [
@@ -51,12 +45,7 @@ const PLATFORMS = [
   {
     id: 'google-sites', label: 'Google Sites', color: '#4285F4',
     desc: 'Import a published site',
-    icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 },
-      h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 3, fill: '#4285F4' }),
-      h('rect', { x: 6, y: 7, width: 12, height: 2, rx: 1, fill: '#fff' }),
-      h('rect', { x: 6, y: 11, width: 8, height: 2, rx: 1, fill: '#fff', opacity: 0.7 }),
-      h('rect', { x: 6, y: 15, width: 10, height: 2, rx: 1, fill: '#fff', opacity: 0.5 })
-    ),
+    icon: () => ProviderLogo.googleSites(28),
     placeholder: 'https://sites.google.com/view/your-site',
     helpText: 'Paste the published Google Site URL. Must be publicly accessible.',
     extraFields: [],
@@ -66,11 +55,7 @@ const PLATFORMS = [
   {
     id: 'sharepoint', label: 'SharePoint', color: '#038387',
     desc: 'Import from SharePoint Online',
-    icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 },
-      h('circle', { cx: 10, cy: 8, r: 6, fill: '#038387' }),
-      h('circle', { cx: 15, cy: 13, r: 5, fill: '#05a6a6' }),
-      h('circle', { cx: 10, cy: 16, r: 4, fill: '#37c6d0' })
-    ),
+    icon: () => ProviderLogo.sharepoint(28),
     placeholder: 'https://contoso.sharepoint.com/sites/docs',
     helpText: 'Paste a SharePoint site URL.',
     extraFields: [
@@ -85,10 +70,7 @@ const PLATFORMS = [
   {
     id: 'onedrive', label: 'OneDrive', color: '#0078D4',
     desc: 'Import from OneDrive folder',
-    icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 },
-      h('path', { d: 'M10.5 18.5h8.5a4 4 0 001.26-7.8 5.5 5.5 0 00-10.17-1.82A4.5 4.5 0 005.5 18.5h5z', fill: '#0078D4' }),
-      h('path', { d: 'M10.5 18.5h8.5a4 4 0 001.26-7.8 5.5 5.5 0 00-5.76-4.2 4.5 4.5 0 00-8.5 1.38A4.5 4.5 0 005.5 18.5h5z', fill: '#0078D4', opacity: 0.7 })
-    ),
+    icon: () => ProviderLogo.onedrive(28),
     placeholder: 'https://onedrive.live.com/...',
     helpText: 'Paste a OneDrive shared folder link.',
     extraFields: [
@@ -102,10 +84,7 @@ const PLATFORMS = [
   {
     id: 'confluence', label: 'Confluence', color: '#0052CC',
     desc: 'Import from Confluence space',
-    icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: '#0052CC' },
-      h('path', { d: 'M3.24 16.57c-.2.33-.43.71-.63 1a.49.49 0 00.18.68l3.37 2.07a.49.49 0 00.68-.16c.17-.29.39-.65.65-1.05 1.84-2.84 3.68-2.5 7-1l3.5 1.58a.49.49 0 00.65-.24l1.6-3.6a.49.49 0 00-.24-.64c-.54-.25-1.58-.71-2.7-1.2-5.12-2.24-9.02-2.3-14.06 2.56z' }),
-      h('path', { d: 'M20.76 7.43c.2-.33.43-.71.63-1a.49.49 0 00-.18-.68L17.84 3.7a.49.49 0 00-.68.16c-.17.29-.39.65-.65 1.05-1.84 2.84-3.68 2.5-7 1l-3.5-1.58a.49.49 0 00-.65.24l-1.6 3.6a.49.49 0 00.24.64c.54.25 1.58.71 2.7 1.2 5.12 2.24 9.02 2.3 14.06-2.56z' })
-    ),
+    icon: () => ProviderLogo.confluence(28),
     placeholder: 'https://yourcompany.atlassian.net/wiki/spaces/DOCS',
     helpText: 'Paste a Confluence space URL.',
     extraFields: [
@@ -119,9 +98,7 @@ const PLATFORMS = [
   {
     id: 'notion', label: 'Notion', color: '#000',
     desc: 'Import Notion pages',
-    icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'currentColor' },
-      h('path', { d: 'M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L18.56 2.41c-.42-.326-.98-.7-2.055-.607L3.68 2.932c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.84-.046.933-.56.933-1.167V6.354c0-.606-.233-.933-.746-.886l-15.177.886c-.56.047-.747.327-.747.934zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.747 0-.933-.234-1.494-.934l-4.577-7.186v6.952l1.448.327s0 .84-1.168.84l-3.222.187c-.093-.187 0-.653.327-.746l.84-.234V8.72L7.36 8.58c-.093-.42.14-1.026.793-1.073l3.456-.234 4.764 7.28V8.253l-1.214-.14c-.093-.514.28-.886.747-.933z' })
-    ),
+    icon: () => ProviderLogo.notion(28),
     placeholder: 'https://notion.so/your-page-id',
     helpText: 'Paste a Notion page or database URL.',
     extraFields: [

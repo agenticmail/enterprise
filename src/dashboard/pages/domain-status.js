@@ -1,123 +1,503 @@
-import { h, useState, useEffect, useCallback, useApp, engineCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, showConfirm } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 
 export function DomainStatusPage() {
-  const { toast } = useApp();
-  const [state, setState] = useState(window.__EM_DOMAIN_STATE__ || null);
-  const [checking, setChecking] = useState(false);
+  var { toast } = useApp();
+  var [data, setData] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [checking, setChecking] = useState(false);
 
-  const checkVerification = useCallback(async () => {
-    if (!state?.domain) return;
+  // Forms
+  var [showRegister, setShowRegister] = useState(false);
+  var [showChangeDomain, setShowChangeDomain] = useState(false);
+  var [showEditSub, setShowEditSub] = useState(false);
+  var [newDomain, setNewDomain] = useState('');
+  var [newSub, setNewSub] = useState('');
+  var [subError, setSubError] = useState('');
+  var [isRootDomain, setIsRootDomain] = useState(false);
+  var [contactEmail, setContactEmail] = useState('');
+  var [registering, setRegistering] = useState(false);
+  var [savingSub, setSavingSub] = useState(false);
+  var [deploymentKey, setDeploymentKey] = useState(null);
+  // CORS (read-only, managed in Settings > Network)
+  var [corsOrigins, setCorsOrigins] = useState([]);
+
+  function reload() {
+    apiCall('/domain/cors').then(function(r) { setCorsOrigins(r.origins || []); }).catch(function() {});
+    return apiCall('/domain/status').then(function(r) {
+      setData(r);
+    }).catch(function() {
+      var s = window.__EM_DOMAIN_STATE__;
+      if (s) setData({ domain: s.domain, status: s.status, verifiedAt: s.verifiedAt, dnsChallenge: s.dnsChallenge, subdomain: null });
+    }).finally(function() { setLoading(false); });
+  }
+
+  useEffect(function() { reload(); }, []);
+
+  // The ACTUAL deployment URL is always window.location.host — that's where they're accessing from
+  var actualHost = window.location.host;
+  var actualUrl = window.location.origin;
+
+  // ─── DNS Verify ─────────────────────────────────────
+  var checkVerification = useCallback(function() {
+    if (!data || !data.domain) return;
     setChecking(true);
-    try {
-      const r = await engineCall('/domain/verify', { method: 'POST', body: JSON.stringify({ domain: state.domain }) });
-      if (r.verified) {
-        setState(s => ({ ...s, status: 'verified', verifiedAt: new Date().toISOString() }));
-        toast('Domain verified successfully!', 'success');
-      } else {
-        toast('DNS record not detected yet. Changes can take up to 48 hours.', 'warning');
-      }
-    } catch {
-      toast('Could not check verification status', 'error');
-    } finally {
-      setChecking(false);
-    }
-  }, [state?.domain, toast]);
+    apiCall('/domain/verify', { method: 'POST', body: JSON.stringify({ domain: data.domain }) })
+      .then(function(r) {
+        if (r.verified) {
+          setData(function(d) { return Object.assign({}, d, { status: 'verified', verifiedAt: new Date().toISOString() }); });
+          toast('Domain verified!', 'success');
+        } else {
+          toast('DNS record not detected yet. Changes can take up to 48 hours.', 'warning');
+        }
+      })
+      .catch(function() { toast('Could not check verification status', 'error'); })
+      .finally(function() { setChecking(false); });
+  }, [data, toast]);
 
-  // Unregistered / no domain state
-  if (!state || !state.domain) {
-    return h('div', { className: 'page-content' },
-      h('div', { style: { maxWidth: 640, margin: '40px auto' } },
-        h('div', { className: 'card', style: { textAlign: 'center', padding: 48 } },
-          h('div', { style: { marginBottom: 20, opacity: 0.5 } }, I.shield()),
-          h('h2', { style: { marginBottom: 8 } }, 'Domain Protection'),
-          h('p', { style: { color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 480, margin: '0 auto' } },
-            'Domain registration locks your deployment to a specific domain, preventing unauthorized duplication. Register your domain during setup or using the CLI:'
-          ),
-          h('pre', { style: { marginTop: 20, padding: 16, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 13, textAlign: 'left', overflow: 'auto' } },
-            'npx @agenticmail/enterprise recover --domain your.domain.com'
-          )
-        )
+  // ─── Register / Change Domain ───────────────────────
+  var registerDomain = useCallback(function() {
+    var d = newDomain.trim().toLowerCase();
+    if (!d || !d.includes('.')) { toast('Enter a valid domain', 'error'); return; }
+    if (d.startsWith('http')) { toast('Enter just the domain, not a URL', 'error'); return; }
+
+    function doRegister() {
+      setRegistering(true);
+      var endpoint = data && data.domain ? '/domain/change' : '/domain/register';
+      apiCall(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ domain: d, contactEmail: contactEmail || undefined, useRootDomain: isRootDomain }),
+      })
+        .then(function(r) {
+          if (r.error) { toast(r.error, 'error'); return; }
+          setDeploymentKey(r.deploymentKey);
+          setShowRegister(false);
+          setShowChangeDomain(false);
+          setNewDomain('');
+          setContactEmail('');
+          setIsRootDomain(false);
+          reload();
+          toast('Domain registered! Add the DNS records below to verify ownership.', 'success');
+        })
+        .catch(function(err) { toast(err.message || 'Registration failed', 'error'); })
+        .finally(function() { setRegistering(false); });
+    }
+
+    if (data && data.domain && data.status === 'verified') {
+      showConfirm('Change Domain', 'You are changing your verified domain from "' + data.domain + '" to "' + d + '". You will need to re-verify DNS. Continue?').then(function(ok) { if (ok) doRegister(); });
+    } else {
+      doRegister();
+    }
+  }, [newDomain, contactEmail, isRootDomain, data, toast]);
+
+  // ─── Save Subdomain ─────────────────────────────────
+  var saveSubdomain = useCallback(function() {
+    var s = newSub.trim().toLowerCase().replace(/\.agenticmail\.io$/, '');
+    setSubError('');
+    if (!s || s.length < 2) { setSubError('Subdomain must be at least 2 characters.'); return; }
+    if (s.length > 63) { setSubError('Subdomain must be 63 characters or fewer.'); return; }
+    if (/^-|-$/.test(s)) { setSubError('Cannot start or end with a hyphen.'); return; }
+    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(s)) { setSubError('Only lowercase letters, numbers, and hyphens.'); return; }
+
+    var oldSub = data && data.subdomain;
+    var isActive = oldSub && actualHost === oldSub + '.agenticmail.io';
+
+    function doSave() {
+      setSavingSub(true);
+      apiCall('/domain/subdomain', { method: 'POST', body: JSON.stringify({ subdomain: s }) })
+        .then(function(r) {
+          if (r.error) { setSubError(r.error); return; }
+          setData(function(d) { return Object.assign({}, d, { subdomain: s }); });
+          setShowEditSub(false);
+          setSubError('');
+
+          // Reload CORS to show updated list
+          apiCall('/domain/cors').then(function(r) { setCorsOrigins(r.origins || []); }).catch(function() {});
+          if (isActive) {
+            toast('Subdomain updated to ' + s + '.agenticmail.io — CORS has been auto-updated. Update your DNS and access the dashboard from the new URL.', 'warning');
+          } else {
+            toast('Subdomain updated to ' + s + '.agenticmail.io — CORS has been auto-updated.', 'success');
+          }
+        })
+        .catch(function(err) { setSubError(err.message || 'Failed to update subdomain'); })
+        .finally(function() { setSavingSub(false); });
+    }
+
+    if (isActive) {
+      showConfirm(
+        'Change Active Subdomain',
+        'You are currently accessing this dashboard from "' + oldSub + '.agenticmail.io". Changing the subdomain will NOT automatically redirect traffic to the new URL.\n\nYou will need to:\n1. Update DNS records to point "' + s + '.agenticmail.io" to your server\n2. Update any bookmarks, integrations, or agent configs that reference the old URL\n3. Access the dashboard from the new URL after DNS propagates\n\nThe old URL will stop working once DNS is updated. Continue?'
+      ).then(function(ok) { if (ok) doSave(); });
+    } else {
+      doSave();
+    }
+  }, [newSub, data, actualHost, toast]);
+
+  // ─── Remove Domain ─────────────────────────────────
+  var removeDomain = useCallback(function() {
+    showConfirm('Remove Custom Domain', 'This will remove "' + data.domain + '" from your deployment. Your domain registration and DNS verification will be cleared. Continue?').then(function(ok) {
+      if (!ok) return;
+      apiCall('/domain', { method: 'DELETE' })
+        .then(function() {
+          setDeploymentKey(null);
+          setShowChangeDomain(false);
+          reload();
+          toast('Custom domain removed', 'success');
+        })
+        .catch(function() { toast('Failed to remove domain', 'error'); });
+    });
+  }, [data, toast]);
+
+  if (loading) {
+    return h(Fragment, null,
+      h('div', { style: { marginBottom: 20 } },
+        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Domain & Deployment'),
+        h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Loading...')
       )
     );
   }
 
-  // Verified state
-  if (state.status === 'verified') {
-    return h('div', { className: 'page-content' },
-      h('div', { style: { maxWidth: 640, margin: '40px auto' } },
-        h('div', { className: 'card', style: { padding: 32 } },
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 } },
-            h('div', { style: { width: 48, height: 48, borderRadius: '50%', background: 'var(--success-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--success)', flexShrink: 0 } }, I.shield()),
-            h('div', null,
-              h('h2', { style: { margin: 0 } }, 'Domain Verified'),
-              h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 14 } }, 'Your deployment is protected')
+  var hasDomain = data && data.domain;
+  var isDomainVerified = hasDomain && data.status === 'verified';
+  var isDomainPending = hasDomain && data.status === 'pending_dns';
+  var sub = data && data.subdomain;
+
+  // ─── Styles ──────────────────────────────────
+  var card = { padding: 24, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', marginBottom: 16 };
+  var labelSt = { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 };
+  var rowSt = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' };
+
+  return h(Fragment, null,
+    // ─── Page Header ──────────────────────────────
+    h('div', { style: { marginBottom: 24 } },
+      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Domain & Deployment'),
+      h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage the domain and URL for your AgenticMail Enterprise deployment')
+    ),
+
+    // ═══════════════════════════════════════════════
+    // SECTION 1: Current Deployment
+    // ═══════════════════════════════════════════════
+    h('div', { style: card },
+      h('div', { style: labelSt }, 'Current Deployment'),
+      h('div', { style: { padding: '14px 16px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid var(--border)', marginBottom: 12 } },
+        h('span', { style: { fontSize: 15, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent)', wordBreak: 'break-all' } }, actualUrl),
+        h('button', { className: 'btn btn-sm', onClick: function() { navigator.clipboard.writeText(actualUrl); toast('Copied!', 'success'); } }, 'Copy')
+      ),
+      h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: 0 } },
+        'This is where your dashboard is currently running. Share this URL with your team.'
+      )
+    ),
+
+    // ═══════════════════════════════════════════════
+    // SECTION 2: AgenticMail Subdomain
+    // ═══════════════════════════════════════════════
+    h('div', { style: card },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        h('div', { style: labelSt }, 'AgenticMail Subdomain'),
+        !showEditSub && sub && h('button', { className: 'btn btn-sm', onClick: function() { setShowEditSub(true); setNewSub(sub || ''); setSubError(''); } }, 'Change')
+      ),
+
+      // View mode
+      !showEditSub && h(Fragment, null,
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 } },
+          h('span', { style: { fontSize: 15, fontWeight: 500 } }, sub ? sub + '.agenticmail.io' : h('span', { style: { color: 'var(--text-muted)', fontStyle: 'italic' } }, 'Not configured')),
+          sub && actualHost === sub + '.agenticmail.io' && h('span', { style: { fontSize: 10, padding: '2px 8px', borderRadius: 99, background: 'var(--success-soft)', color: 'var(--success)', fontWeight: 600 } }, 'ACTIVE')
+        ),
+        h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 } },
+          'Your default AgenticMail-hosted URL. Changing this requires DNS updates on your hosting side.'
+        )
+      ),
+
+      // Edit mode
+      showEditSub && h(Fragment, null,
+        // Warning if currently active
+        sub && actualHost === sub + '.agenticmail.io' && h('div', { style: { padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius)', marginBottom: 14, fontSize: 12, lineHeight: 1.6, color: 'var(--warning)' } },
+          h('strong', null, 'Warning:'), ' You are currently accessing this dashboard from ', h('strong', null, sub + '.agenticmail.io'),
+          '. Changing the subdomain will update the database but will NOT automatically redirect traffic. You will need to update your DNS records and access the dashboard from the new URL.'
+        ),
+
+        h('div', { style: { marginBottom: 12 } },
+          h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 } }, 'New Subdomain'),
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+            h('input', {
+              className: 'input', value: newSub, style: { flex: 1, maxWidth: 280 },
+              onInput: function(e) { setNewSub(e.target.value.toLowerCase()); setSubError(''); },
+              onKeyDown: function(e) { if (e.key === 'Enter') saveSubdomain(); },
+              placeholder: 'your-company',
+            }),
+            h('span', { style: { color: 'var(--text-muted)', fontSize: 14, whiteSpace: 'nowrap' } }, '.agenticmail.io')
+          ),
+          // Preview
+          newSub.trim() && newSub.trim() !== sub && h('div', { style: { marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' } },
+            'New URL: ', h('strong', null, 'https://' + newSub.trim().toLowerCase() + '.agenticmail.io')
+          ),
+          // Validation error
+          subError && h('div', { style: { marginTop: 6, fontSize: 12, color: 'var(--danger)' } }, subError)
+        ),
+
+        // What you need to do after
+        h('div', { style: { padding: '10px 14px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 14, fontSize: 12, lineHeight: 1.6, color: 'var(--text-muted)' } },
+          h('strong', { style: { color: 'var(--text-secondary)' } }, 'After changing:'), h('br'),
+          '1. Update your DNS — point ', h('strong', null, (newSub.trim() || 'new-sub') + '.agenticmail.io'), ' to your server', h('br'),
+          '2. Update your reverse proxy / load balancer (if self-hosted)', h('br'),
+          '3. Update any bookmarks, agent configs, or integrations referencing the old URL', h('br'),
+          '4. Access the dashboard from the new URL once DNS propagates'
+        ),
+
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('button', {
+            className: 'btn btn-primary btn-sm',
+            onClick: saveSubdomain,
+            disabled: savingSub || !newSub.trim() || newSub.trim().toLowerCase() === sub,
+          }, savingSub ? 'Saving...' : 'Change Subdomain'),
+          h('button', { className: 'btn btn-sm', onClick: function() { setShowEditSub(false); setSubError(''); } }, 'Cancel')
+        )
+      )
+    ),
+
+    // ═══════════════════════════════════════════════
+    // SECTION 3: Custom Domain
+    // ═══════════════════════════════════════════════
+    h('div', { style: card },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 } },
+        h('div', null,
+          h('div', { style: labelSt }, 'Custom Domain'),
+          h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: -6 } }, 'Deploy on your own domain — either a subdomain (agents.yourcompany.com) or root domain (yourcompany.com)')
+        )
+      ),
+
+      // === Verified domain ===
+      isDomainVerified && !showChangeDomain && h(Fragment, null,
+        h('div', { style: { marginBottom: 16 } },
+          h('div', { style: rowSt },
+            h('span', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, 'Domain'),
+            h('span', { style: { fontSize: 14, fontWeight: 500 } }, data.domain)
+          ),
+          h('div', { style: rowSt },
+            h('span', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, 'Type'),
+            h('span', { style: { fontSize: 13 } }, data.useRootDomain ? 'Root domain (apex)' : 'Subdomain')
+          ),
+          h('div', { style: rowSt },
+            h('span', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, 'Status'),
+            h('span', { style: { color: 'var(--success)', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 } },
+              h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' } }),
+              'Verified'
             )
           ),
-          h('div', { style: { display: 'grid', gap: 16 } },
-            infoRow('Domain', state.domain),
-            infoRow('Status', h('span', { style: { color: 'var(--success)', fontWeight: 600 } }, 'Verified')),
-            state.verifiedAt && infoRow('Verified', new Date(state.verifiedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))
+          data.verifiedAt && h('div', { style: Object.assign({}, rowSt, { borderBottom: 'none' }) },
+            h('span', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, 'Verified On'),
+            h('span', { style: { fontSize: 13 } }, new Date(data.verifiedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }))
+          )
+        ),
+        // ACTIVE badge if custom domain matches actual host
+        actualHost === data.domain && h('div', { style: { marginBottom: 12, padding: '8px 12px', background: 'rgba(34,197,94,0.08)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--success)' } },
+          'This domain is currently serving your deployment.'
+        ),
+        h('div', { style: { marginBottom: 12, padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 } },
+          'Domain is locked to your deployment. The system operates fully offline after verification — no outbound calls are made.'
+        ),
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('button', { className: 'btn btn-sm', onClick: function() { setShowChangeDomain(true); setNewDomain(''); } }, 'Change Domain'),
+          h('button', { className: 'btn btn-sm', style: { color: 'var(--danger)' }, onClick: removeDomain }, 'Remove')
+        )
+      ),
+
+      // === Pending DNS ===
+      isDomainPending && !showChangeDomain && h(Fragment, null,
+        h('div', { style: { marginBottom: 16 } },
+          h('div', { style: rowSt },
+            h('span', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, 'Domain'),
+            h('span', { style: { fontSize: 14, fontWeight: 500 } }, data.domain)
           ),
-          h('div', { style: { marginTop: 24, padding: 16, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 } },
-            'This domain is locked to your deployment. No other AgenticMail Enterprise instance can claim it. Your system operates fully offline — no outbound calls are made after verification.'
-          )
-        )
-      )
-    );
-  }
-
-  // Pending DNS state
-  return h('div', { className: 'page-content' },
-    h('div', { style: { maxWidth: 640, margin: '40px auto' } },
-      h('div', { className: 'card', style: { padding: 32 } },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 } },
-          h('div', { style: { width: 48, height: 48, borderRadius: '50%', background: 'var(--warning-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--warning)', flexShrink: 0 } }, I.shield()),
-          h('div', null,
-            h('h2', { style: { margin: 0 } }, 'DNS Verification Pending'),
-            h('p', { style: { margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 14 } }, 'Add the TXT record below to verify ownership')
+          h('div', { style: Object.assign({}, rowSt, { borderBottom: 'none' }) },
+            h('span', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, 'Status'),
+            h('span', { style: { color: 'var(--warning)', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 } },
+              h('span', { style: { width: 8, height: 8, borderRadius: '50%', background: 'var(--warning)', display: 'inline-block' } }),
+              'Pending DNS Verification'
+            )
           )
         ),
 
-        h('div', { style: { padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', marginBottom: 20 } },
-          h('div', { style: { fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, fontWeight: 600 } }, 'DNS Record to Add'),
-          dnsRow('Host', '_agenticmail-verify.' + state.domain),
-          dnsRow('Type', 'TXT'),
-          state.dnsChallenge
-            ? dnsRow('Value', state.dnsChallenge)
-            : dnsRow('Value', '(check your setup records or CLI output)')
+        // DNS instructions
+        h('div', { style: { padding: 16, background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginBottom: 16 } },
+          h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 } }, 'Step 1: Ownership Verification (TXT Record)'),
+          dnsField('Type', 'TXT'),
+          dnsField('Host / Name', '_agenticmail-verify.' + data.domain),
+          data.dnsChallenge ? dnsField('Value', data.dnsChallenge, true) : dnsField('Value', '(check your CLI setup output)', false),
+
+          h('div', { style: { marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' } },
+            h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 } }, 'Step 2: Route Traffic (' + (data.useRootDomain ? 'A Record' : 'CNAME') + ')'),
+            data.useRootDomain
+              ? h(Fragment, null,
+                  dnsField('Type', 'A'),
+                  dnsField('Host / Name', data.domain + ' (or @)'),
+                  dnsField('Value', 'Your server IP address', false),
+                  h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0, lineHeight: 1.5 } },
+                    'Root/apex domains typically require an A record. Some DNS providers (Cloudflare, Route 53) support CNAME flattening at the apex.'
+                  )
+                )
+              : h(Fragment, null,
+                  dnsField('Type', 'CNAME'),
+                  dnsField('Host / Name', data.domain),
+                  dnsField('Value', sub ? sub + '.agenticmail.io' : 'Your server hostname', false)
+                )
+          )
         ),
 
-        h('div', { style: { display: 'grid', gap: 16, marginBottom: 24 } },
-          infoRow('Domain', state.domain),
-          infoRow('Status', h('span', { style: { color: 'var(--warning)', fontWeight: 600 } }, 'Pending DNS Verification'))
-        ),
-
-        h('div', { style: { display: 'flex', gap: 12 } },
+        h('div', { style: { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' } },
           h('button', { className: 'btn btn-primary', onClick: checkVerification, disabled: checking },
-            checking ? 'Checking...' : 'Check DNS Now'
-          )
-        ),
-
-        h('div', { style: { marginTop: 20, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 } },
-          'DNS changes can take up to 48 hours to propagate. You can also verify from the CLI: ',
-          h('code', { style: { fontSize: 12 } }, 'npx @agenticmail/enterprise verify-domain')
+            checking ? 'Checking...' : 'Verify DNS Now'
+          ),
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'DNS changes can take up to 48 hours to propagate'),
+          h('div', { style: { width: '100%' } }),
+          h('button', { className: 'btn btn-sm', style: { marginTop: 4 }, onClick: function() { setShowChangeDomain(true); setNewDomain(''); } }, 'Change Domain'),
+          h('button', { className: 'btn btn-sm', style: { marginTop: 4, color: 'var(--danger)' }, onClick: removeDomain }, 'Remove')
         )
+      ),
+
+      // === No domain — show add button ===
+      !hasDomain && !showRegister && h('div', null,
+        h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5, marginBottom: 16 } },
+          'No custom domain configured. Add one to serve your deployment from your own branded URL.'
+        ),
+        h('button', { className: 'btn btn-primary', onClick: function() { setShowRegister(true); setIsRootDomain(false); } }, 'Add Custom Domain')
+      ),
+
+      // === Register / Change form ===
+      (showRegister || showChangeDomain) && renderDomainForm()
+    ),
+
+    // ═══════════════════════════════════════════════
+    // Deployment Key (shown after registration)
+    // ═══════════════════════════════════════════════
+    deploymentKey && h('div', { style: Object.assign({}, card, { border: '2px solid var(--warning)' }) },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 } },
+        E.key(20),
+        h('span', { style: { fontWeight: 700, color: 'var(--warning)', fontSize: 14 } }, 'SAVE YOUR DEPLOYMENT KEY')
+      ),
+      h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 } },
+        'This key is shown ONCE. Save it securely — you need it to recover your domain if you redeploy or migrate servers.'
+      ),
+      h('div', { style: { padding: 12, background: 'var(--bg-primary)', borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--border)' } },
+        h('code', { style: { fontSize: 11, wordBreak: 'break-all', flex: 1 } }, deploymentKey),
+        h('button', { className: 'btn btn-sm', onClick: function() { navigator.clipboard.writeText(deploymentKey); toast('Key copied!', 'success'); } }, 'Copy')
+      ),
+      h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text-muted)' } },
+        'Recovery: ', h('code', { style: { fontSize: 11 } }, 'npx @agenticmail/enterprise recover --domain ' + (data && data.domain || 'your.domain.com'))
+      )
+    ),
+
+    // ═══════════════════════════════════════════════
+    // SECTION: CORS (read-only summary, links to Settings)
+    // ═══════════════════════════════════════════════
+    h('div', { style: card },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        h('div', { style: labelSt }, 'Allowed Origins (CORS)'),
+        h('a', { href: '/dashboard/settings#network', style: { fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 } }, 'Manage in Settings \u2192')
+      ),
+      corsOrigins.length === 0
+        ? h('div', { style: { padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 } },
+            h('strong', null, 'Open access:'), ' No CORS restrictions configured. Any domain can make API requests. ',
+            h('a', { href: '/dashboard/settings#network', style: { color: 'var(--warning)', fontWeight: 600 } }, 'Configure in Settings \u2192 Network & Firewall')
+          )
+        : h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+            corsOrigins.map(function(o) {
+              return h('span', { key: o, style: { padding: '4px 10px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 12, fontFamily: 'var(--font-mono, monospace)' } }, o);
+            })
+          ),
+      h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 10, marginBottom: 0, lineHeight: 1.5 } },
+        'CORS is auto-updated when you change your subdomain or custom domain. To manually edit, go to Settings \u2192 Network & Firewall.'
+      )
+    ),
+
+    // ═══════════════════════════════════════════════
+    // CLI Reference
+    // ═══════════════════════════════════════════════
+    h('div', { style: card },
+      h('div', { style: labelSt }, 'CLI Commands'),
+      h('div', { style: { display: 'grid', gap: 8 } },
+        cliRow('Initial setup', 'npx @agenticmail/enterprise setup'),
+        cliRow('Verify DNS ownership', 'npx @agenticmail/enterprise verify-domain'),
+        cliRow('Recover on new server', 'npx @agenticmail/enterprise recover --domain your.domain.com')
       )
     )
   );
+
+  // ─── Domain Registration Form (inline) ────────
+  function renderDomainForm() {
+    return h('div', { style: { marginTop: showChangeDomain ? 0 : 0 } },
+      showChangeDomain && h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5, marginBottom: 16 } },
+        'Enter a new domain to replace ', h('strong', null, data.domain), '. A new DNS challenge will be issued and you will need to re-verify.'
+      ),
+
+      // Domain type selector
+      h('div', { style: { display: 'flex', gap: 10, marginBottom: 16 } },
+        domainTypeBtn('Subdomain', 'e.g. agents.yourcompany.com', !isRootDomain, function() { setIsRootDomain(false); }),
+        domainTypeBtn('Root Domain', 'e.g. yourcompany.com', isRootDomain, function() { setIsRootDomain(true); })
+      ),
+
+      isRootDomain && h('div', { style: { padding: 10, background: 'rgba(59,130,246,0.08)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--accent)', marginBottom: 12, lineHeight: 1.5 } },
+        'Root domain deployment means the entire domain is dedicated to AgenticMail. You will need an A record pointing to your server IP (CNAME is not supported at most DNS providers for apex domains).'
+      ),
+
+      h('div', { style: { display: 'grid', gap: 12 } },
+        h('div', null,
+          h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Domain'),
+          h('input', {
+            className: 'input', value: newDomain,
+            onInput: function(e) { setNewDomain(e.target.value); },
+            placeholder: isRootDomain ? 'yourcompany.com' : 'agents.yourcompany.com',
+            onKeyDown: function(e) { if (e.key === 'Enter') registerDomain(); }
+          })
+        ),
+        h('div', null,
+          h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Contact Email ', h('span', { style: { fontWeight: 400, color: 'var(--text-muted)' } }, '(optional)')),
+          h('input', { className: 'input', value: contactEmail, onInput: function(e) { setContactEmail(e.target.value); }, placeholder: 'admin@yourcompany.com' })
+        ),
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('button', { className: 'btn btn-primary', onClick: registerDomain, disabled: registering || !newDomain.trim() },
+            registering ? 'Registering...' : (showChangeDomain ? 'Change Domain' : 'Register Domain')
+          ),
+          h('button', { className: 'btn', onClick: function() { setShowRegister(false); setShowChangeDomain(false); } }, 'Cancel')
+        )
+      )
+    );
+  }
 }
 
-function infoRow(label, value) {
-  return h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' } },
-    h('span', { style: { color: 'var(--text-secondary)', fontSize: 13 } }, label),
-    h('span', { style: { fontSize: 14 } }, value)
+// ─── Helpers ─────────────────────────────────────
+
+function domainTypeBtn(label, hint, active, onClick) {
+  return h('div', {
+    onClick: onClick,
+    style: {
+      flex: 1, padding: '12px 16px', borderRadius: 'var(--radius)',
+      border: active ? '2px solid var(--accent)' : '1px solid var(--border)',
+      background: active ? 'var(--accent-soft)' : 'var(--bg-primary)',
+      cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center'
+    }
+  },
+    h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 2 } }, label),
+    h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, hint)
   );
 }
 
-function dnsRow(label, value) {
-  return h('div', { style: { display: 'flex', gap: 12, alignItems: 'baseline', marginBottom: 8 } },
-    h('span', { style: { fontWeight: 600, fontSize: 13, minWidth: 48, color: 'var(--text-secondary)' } }, label),
-    h('code', { style: { fontSize: 13, wordBreak: 'break-all', color: 'var(--primary)' } }, value)
+function dnsField(label, value, copyable) {
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 } },
+    h('span', { style: { fontWeight: 600, fontSize: 12, minWidth: 90, color: 'var(--text-muted)' } }, label),
+    h('code', { style: { fontSize: 12, wordBreak: 'break-all', color: 'var(--accent)', flex: 1 } }, value),
+    copyable !== false && value && !String(value).startsWith('(') && h('button', {
+      className: 'btn btn-sm',
+      style: { fontSize: 10, padding: '2px 8px', flexShrink: 0 },
+      onClick: function() { navigator.clipboard.writeText(value); }
+    }, 'Copy')
+  );
+}
+
+function cliRow(label, cmd) {
+  return h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+    h('span', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, label),
+    h('code', { style: { fontSize: 12, color: 'var(--accent)' } }, cmd)
   );
 }

@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
+import { ProviderLogo } from '../../assets/provider-logos.js';
 import { Badge, EmptyState } from './shared.js?v=4';
 
 export function EmailSection(props) {
@@ -243,8 +244,8 @@ export function EmailSection(props) {
         h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 } },
           [
             { id: 'imap', label: 'Email + Password', desc: 'IMAP/SMTP — works with any email provider', icon: E.email(24) },
-            { id: 'microsoft', label: 'Microsoft OAuth', desc: 'Azure AD / Entra ID — for M365 orgs', icon: E.building(24) },
-            { id: 'google', label: 'Google OAuth', desc: 'Google Workspace — for GWS orgs', icon: E.google(24) },
+            { id: 'microsoft', label: 'Microsoft OAuth', desc: 'Azure AD / Entra ID — for M365 orgs', icon: ProviderLogo.microsoft(24) },
+            { id: 'google', label: 'Google OAuth', desc: 'Google Workspace — for GWS orgs', icon: ProviderLogo.google(24) },
           ].map(function(m) {
             var selected = form.provider === m.id;
             return h('div', {

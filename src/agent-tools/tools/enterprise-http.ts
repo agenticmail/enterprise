@@ -13,6 +13,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { readStringParam, readNumberParam, readStringArrayParam, textResult, jsonResult, errorResult } from '../common.js';
+import { validateEgress } from '../../middleware/egress-filter.js';
 
 var MAX_RESPONSE_SIZE = 50 * 1024; // 50KB response body cap
 var DEFAULT_TIMEOUT_MS = 30000;
@@ -145,6 +146,11 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
             return errorResult('SSRF protection: requests to private/internal addresses are blocked.');
           }
 
+          // Egress filter (DB-backed, hot-reloaded)
+          try { validateEgress(url); } catch (egressErr: any) {
+            return errorResult(egressErr.message);
+          }
+
           var validMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
           var upperMethod = method.toUpperCase();
           if (validMethods.indexOf(upperMethod) === -1) {
@@ -228,6 +234,7 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
           if (isPrivateUrl(url)) {
             return errorResult('SSRF protection: requests to private/internal addresses are blocked.');
           }
+          try { validateEgress(url); } catch (egressErr: any) { return errorResult(egressErr.message); }
 
           var variables: Record<string, unknown> | undefined;
           if (variablesRaw) {
@@ -316,6 +323,8 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
               if (isPrivateUrl(req.url)) {
                 throw new Error('SSRF protection: private/internal URL blocked');
               }
+              // Egress filter
+              validateEgress(req.url);
               var fetchOpts: RequestInit = {
                 method: (req.method || 'GET').toUpperCase(),
                 headers: req.headers || {},
@@ -387,6 +396,7 @@ export function createEnterpriseHttpTools(options?: ToolCreationOptions): AnyAge
           if (isPrivateUrl(url)) {
             return errorResult('SSRF protection: requests to private/internal addresses are blocked.');
           }
+          try { validateEgress(url); } catch (egressErr: any) { return errorResult(egressErr.message); }
 
           // Resolve relative paths
           if (!path.isAbsolute(outputPath) && options?.workspaceDir) {

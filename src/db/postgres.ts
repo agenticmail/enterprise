@@ -166,6 +166,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       domainVerifiedAt: 'domain_verified_at',
       domainRegisteredAt: 'domain_registered_at',
       domainStatus: 'domain_status',
+      useRootDomain: 'use_root_domain',
       cfApiToken: 'cf_api_token',
       cfAccountId: 'cf_account_id',
       signatureTemplate: 'signature_template',
@@ -441,7 +442,7 @@ export class PostgresAdapter extends DatabaseAdapter {
   }
 
   async revokeApiKey(id: string): Promise<void> {
-    await this.pool.query('UPDATE api_keys SET revoked = TRUE WHERE id = $1', [id]);
+    await this.pool.query('UPDATE api_keys SET revoked = 1 WHERE id = $1', [id]);
   }
 
   // ─── Rules ───────────────────────────────────────────────
@@ -584,6 +585,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       domainVerifiedAt: r.domain_verified_at || undefined,
       domainRegisteredAt: r.domain_registered_at || undefined,
       domainStatus: r.domain_status || 'unregistered',
+      useRootDomain: r.use_root_domain || false,
       cfApiToken: r.cf_api_token || undefined,
       cfAccountId: r.cf_account_id || undefined,
       orgEmailConfig: r.org_email_config ? (typeof r.org_email_config === 'string' ? JSON.parse(r.org_email_config) : r.org_email_config) : undefined,

@@ -198,6 +198,8 @@ export interface CompanySettings {
   domainVerifiedAt?: string;
   domainRegisteredAt?: string;
   domainStatus?: 'unregistered' | 'pending_dns' | 'verified' | 'failed';
+  /** If true, deployment uses root domain (no subdomain prefix) */
+  useRootDomain?: boolean;
   cfApiToken?: string;
   cfAccountId?: string;
   toolSecurityConfig?: Record<string, any>;
@@ -273,6 +275,31 @@ export interface FirewallConfig {
       referrerPolicy?: string;
       permissionsPolicy?: string;
     };
+    /** Maximum request body size in KB (default: 10240 = 10MB) */
+    maxBodySizeKb?: number;
+    /** Request timeout in seconds for API endpoints (default: 30) */
+    requestTimeoutSec?: number;
+  };
+  /** DNS rebinding protection */
+  dnsRebinding?: {
+    enabled?: boolean;
+    /** Allowed Host header values */
+    allowedHosts?: string[];
+  };
+  /** Geo-IP restrictions (country-level) */
+  geoIp?: {
+    enabled?: boolean;
+    mode?: 'allowlist' | 'blocklist';
+    /** ISO 3166-1 alpha-2 country codes */
+    countries?: string[];
+  };
+  /** Webhook security for inbound webhooks */
+  webhookSecurity?: {
+    enabled?: boolean;
+    /** Require HMAC signature validation */
+    requireSignature?: boolean;
+    /** Allowed webhook source IPs */
+    allowedSourceIps?: string[];
   };
 }
 

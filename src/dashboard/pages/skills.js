@@ -29,6 +29,19 @@ export function SkillsPage() {
   var tokenModal = _tokenModal[0]; var setTokenModal = _tokenModal[1];
   var _tokenValue = useState('');
   var tokenValue = _tokenValue[0]; var setTokenValue = _tokenValue[1];
+  var _credFields = useState({}); // multi-field credentials
+  var credFields = _credFields[0]; var setCredFields = _credFields[1];
+  // OAuth app config
+  var _oauthTab = useState('oauth');
+  var oauthTab = _oauthTab[0]; var setOauthTab = _oauthTab[1];
+  var _oauthClientId = useState('');
+  var oauthClientId = _oauthClientId[0]; var setOauthClientId = _oauthClientId[1];
+  var _oauthClientSecret = useState('');
+  var oauthClientSecret = _oauthClientSecret[0]; var setOauthClientSecret = _oauthClientSecret[1];
+  var _oauthAppConfigured = useState(false);
+  var oauthAppConfigured = _oauthAppConfigured[0]; var setOauthAppConfigured = _oauthAppConfigured[1];
+  var _oauthSaving = useState(false);
+  var oauthSaving = _oauthSaving[0]; var setOauthSaving = _oauthSaving[1];
 
   // Config modal
   var _configSkill = useState(null);
@@ -137,21 +150,29 @@ export function SkillsPage() {
 
   // Save token
   var saveToken = async function() {
-    if (!tokenModal || !tokenValue) return;
+    if (!tokenModal) return;
+    var isMultiField = tokenModal.authType === 'credentials' && tokenModal.fields && tokenModal.fields.length > 0;
+    if (isMultiField) {
+      if (!tokenModal.fields.every(function(f) { return credFields[f] && credFields[f].trim(); })) return;
+    } else {
+      if (!tokenValue) return;
+    }
     try {
+      var payload = isMultiField
+        ? { credentials: tokenModal.fields.reduce(function(o, f) { o[f] = credFields[f].trim(); return o; }, {}) }
+        : { token: tokenValue };
       await engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId(), {
         method: 'POST',
-        body: JSON.stringify({ token: tokenValue })
+        body: JSON.stringify(payload)
       });
-      toast('Token saved', 'success');
+      toast('Credentials saved', 'success');
       setStatuses(function(prev) {
         var u = Object.assign({}, prev);
         u[tokenModal.skillId] = { connected: true };
         return u;
       });
       setTokenModal(null);
-      setTokenValue('');
-      // Refresh integration catalog to reflect new connection
+      setTokenValue(''); setCredFields({});
       loadIntegrations();
     } catch (e) { toast(e.message || 'Save failed', 'error'); }
   };
@@ -270,37 +291,63 @@ export function SkillsPage() {
   });
 
   var connectIntegration = function(int) {
-    if (int.authType === 'oauth2') {
-      // OAuth flow — need to check if OAuth app is configured first
-      setConnectingId(int.skillId);
-      engineCall('/oauth/authorize/' + int.skillId + '?orgId=' + getOrgId())
-        .then(function(d) {
-          if (d.authUrl || d.authorizationUrl) {
-            var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
-            var check = setInterval(function() {
-              if (popup && popup.closed) { clearInterval(check); setConnectingId(null); loadIntegrations(); }
-            }, 500);
-            setTimeout(function() { clearInterval(check); setConnectingId(null); }, 120000);
-          } else {
-            // No OAuth app configured — fall back to manual token entry
-            setConnectingId(null);
-            setTokenModal({ skillId: int.skillId, skill: { name: int.name }, authType: int.authType });
-            setTokenValue('');
-          }
-        })
-        .catch(function() {
-          // OAuth not configured for this service — show token input as fallback
-          setConnectingId(null);
-          setTokenModal({ skillId: int.skillId, skill: { name: int.name }, authType: int.authType });
-          setTokenValue('');
-        });
-    } else if (int.authType === 'credentials') {
-      toast(int.name + ' requires multi-field credentials (e.g., access key + secret). Configure via the API or CLI.', 'info');
-    } else {
-      // API key / token — simple paste
-      setTokenModal({ skillId: int.skillId, skill: { name: int.name }, authType: int.authType });
-      setTokenValue('');
+    var modal = {
+      skillId: int.skillId, skill: { name: int.name }, authType: int.authType,
+      fields: int.fields, fieldLabels: int.fieldLabels, oauthProvider: int.oauthProvider
+    };
+    setTokenModal(modal);
+    setTokenValue(''); setCredFields({}); setOauthTab('oauth');
+    setOauthClientId(''); setOauthClientSecret(''); setOauthAppConfigured(false);
+    setOauthSaving(false);
+    // For OAuth2, check if app is already configured
+    if (int.authType === 'oauth2' && int.oauthProvider) {
+      engineCall('/oauth/app-config/' + int.oauthProvider + '?orgId=' + getOrgId())
+        .then(function(d) { if (d.configured) setOauthAppConfigured(true); })
+        .catch(function() {});
     }
+  };
+
+  var saveOauthApp = function() {
+    if (!tokenModal || !tokenModal.oauthProvider) return;
+    if (!oauthClientId.trim() || !oauthClientSecret.trim()) return;
+    setOauthSaving(true);
+    engineCall('/oauth/app-config/' + tokenModal.oauthProvider + '?orgId=' + getOrgId(), {
+      method: 'POST',
+      body: JSON.stringify({ clientId: oauthClientId.trim(), clientSecret: oauthClientSecret.trim() })
+    })
+      .then(function() {
+        setOauthAppConfigured(true);
+        toast('OAuth app configured for ' + tokenModal.skill.name, 'success');
+        return engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId());
+      })
+      .then(function(d) {
+        if (d && (d.authUrl || d.authorizationUrl)) {
+          var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
+          var check = setInterval(function() {
+            if (popup && popup.closed) { clearInterval(check); setTokenModal(null); loadIntegrations(); toast(tokenModal.skill.name + ' connected', 'success'); }
+          }, 500);
+          setTimeout(function() { clearInterval(check); }, 120000);
+        }
+      })
+      .catch(function(e) { toast('Failed: ' + (e.message || 'Unknown error'), 'error'); })
+      .finally(function() { setOauthSaving(false); });
+  };
+
+  var launchOauthFlow = function() {
+    if (!tokenModal) return;
+    engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId())
+      .then(function(d) {
+        if (d && (d.authUrl || d.authorizationUrl)) {
+          var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
+          var check = setInterval(function() {
+            if (popup && popup.closed) { clearInterval(check); setTokenModal(null); loadIntegrations(); toast(tokenModal.skill.name + ' connected', 'success'); }
+          }, 500);
+          setTimeout(function() { clearInterval(check); }, 120000);
+        } else {
+          toast('OAuth flow unavailable — use Access Token tab', 'error');
+        }
+      })
+      .catch(function(e) { toast('OAuth error: ' + (e.message || 'Unknown'), 'error'); });
   };
 
   var disconnectIntegration = function(int) {
@@ -532,39 +579,120 @@ export function SkillsPage() {
     tab === 'builtin' && renderBuiltin(),
     tab === 'installed' && renderInstalled(),
 
-    // Token Modal
+    // Connect Modal — enterprise-grade with OAuth App, multi-field credentials, and token support
     tokenModal && h(Modal, {
       title: 'Connect ' + (tokenModal.skill?.name || tokenModal.skillId),
-      onClose: function() { setTokenModal(null); setTokenValue(''); },
-      footer: h(Fragment, null,
-        h('button', { className: 'btn btn-secondary', onClick: function() { setTokenModal(null); setTokenValue(''); } }, 'Cancel'),
-        h('button', { className: 'btn btn-primary', onClick: saveToken, disabled: !tokenValue }, 'Save & Connect')
-      )
+      onClose: function() { setTokenModal(null); setTokenValue(''); setCredFields({}); },
+      footer: (tokenModal.authType === 'oauth2' && oauthTab === 'oauth')
+        ? h(Fragment, null,
+            h('button', { className: 'btn btn-secondary', onClick: function() { setTokenModal(null); } }, 'Cancel')
+          )
+        : h(Fragment, null,
+            h('button', { className: 'btn btn-secondary', onClick: function() { setTokenModal(null); setTokenValue(''); setCredFields({}); } }, 'Cancel'),
+            h('button', {
+              className: 'btn btn-primary', onClick: saveToken,
+              disabled: (function() {
+                if (tokenModal.authType === 'credentials' && tokenModal.fields && tokenModal.fields.length > 0) {
+                  return !tokenModal.fields.every(function(f) { return credFields[f] && credFields[f].trim(); });
+                }
+                return !tokenValue;
+              })()
+            }, 'Save & Connect')
+          )
     },
       h('div', null,
-        tokenModal.authType === 'oauth2' && h('div', {
-          style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(99,102,241,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(99,102,241,0.2)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }
-        },
-          h('strong', null, 'OAuth Note: '), 'This service normally uses OAuth2 (redirect + authorize). ',
-          'If your admin has not configured an OAuth app for ' + (tokenModal.skill?.name || '') + ', ',
-          'you can paste an access token from the service\'s developer console as a workaround.'
+
+        // ── OAuth2: Tabbed (OAuth App | Access Token) ──
+        tokenModal.authType === 'oauth2' && h('div', null,
+          h('div', { style: { display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid var(--border)' } },
+            h('button', {
+              style: { padding: '8px 16px', fontSize: 13, fontWeight: oauthTab === 'oauth' ? 600 : 400, color: oauthTab === 'oauth' ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottom: oauthTab === 'oauth' ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', marginBottom: -1 },
+              onClick: function() { setOauthTab('oauth'); }
+            }, 'OAuth App ', h('span', { style: { fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'rgba(99,102,241,0.15)', color: 'var(--accent)', marginLeft: 4 } }, 'RECOMMENDED')),
+            h('button', {
+              style: { padding: '8px 16px', fontSize: 13, fontWeight: oauthTab === 'token' ? 600 : 400, color: oauthTab === 'token' ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottom: oauthTab === 'token' ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', marginBottom: -1 },
+              onClick: function() { setOauthTab('token'); }
+            }, 'Access Token')
+          ),
+
+          // OAuth App tab
+          oauthTab === 'oauth' && h('div', null,
+            oauthAppConfigured && h('div', {
+              style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(34,197,94,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(34,197,94,0.3)', fontSize: 12, color: 'var(--success)', lineHeight: 1.6 }
+            }, 'OAuth app already configured. You can re-authorize or update credentials.'),
+
+            h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 } },
+              'Create an OAuth app in ', tokenModal.skill?.name, '\'s developer portal, then enter the Client ID and Secret below.'
+            ),
+
+            h('div', { className: 'form-group', style: { marginBottom: 12 } },
+              h('label', { className: 'form-label' }, 'Client ID'),
+              h('input', { className: 'input', style: { width: '100%' }, type: 'text', placeholder: 'Client ID from developer portal...', value: oauthClientId, onChange: function(e) { setOauthClientId(e.target.value); } })
+            ),
+            h('div', { className: 'form-group', style: { marginBottom: 12 } },
+              h('label', { className: 'form-label' }, 'Client Secret'),
+              h('input', { className: 'input', style: { width: '100%' }, type: 'password', placeholder: 'Client secret...', value: oauthClientSecret, onChange: function(e) { setOauthClientSecret(e.target.value); } })
+            ),
+
+            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 } },
+              'Redirect URI: ', h('code', { style: { fontSize: 11, background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3 } }, window.location.origin + '/api/engine/oauth/callback')
+            ),
+
+            h('div', { style: { display: 'flex', gap: 8 } },
+              !oauthAppConfigured
+                ? h('button', { className: 'btn btn-primary', style: { flex: 1 }, disabled: oauthSaving || !oauthClientId.trim() || !oauthClientSecret.trim(), onClick: saveOauthApp }, oauthSaving ? 'Configuring...' : 'Save & Authorize')
+                : h('button', { className: 'btn btn-primary', style: { flex: 1 }, onClick: launchOauthFlow }, 'Re-authorize with ' + tokenModal.skill?.name)
+            )
+          ),
+
+          // Access Token tab
+          oauthTab === 'token' && h('div', null,
+            h('div', { style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(234,179,8,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(234,179,8,0.2)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 } },
+              h('strong', null, 'Advanced: '), 'Paste a Personal Access Token from the developer console. May have limited scopes.'
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Access Token'),
+              h('input', { className: 'input', style: { width: '100%' }, type: 'password', placeholder: 'Paste token here...', value: tokenValue, onChange: function(e) { setTokenValue(e.target.value); } })
+            )
+          )
         ),
-        h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 } },
-          tokenModal.authType === 'api_key'
-            ? h(Fragment, null, 'Enter the ', h('strong', null, 'API Key'), ' for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId), '. Find it in the service\'s settings or developer portal.')
-            : tokenModal.authType === 'oauth2'
-              ? h(Fragment, null, 'Paste an ', h('strong', null, 'Access Token'), ' for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId), '.')
-              : h(Fragment, null, 'Enter the ', h('strong', null, 'Token'), ' for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId), '. Find it in the service\'s settings.')
+
+        // ── Multi-field credentials (AWS, Twilio, etc.) ──
+        tokenModal.authType === 'credentials' && tokenModal.fields && tokenModal.fields.length > 0 && h('div', null,
+          tokenModal.fields.map(function(field) {
+            var label = (tokenModal.fieldLabels && tokenModal.fieldLabels[field]) || field;
+            var isSensitive = /secret|password|key|token|private/i.test(field);
+            return h('div', { className: 'form-group', key: field, style: { marginBottom: 12 } },
+              h('label', { className: 'form-label' }, label),
+              h('input', {
+                className: 'input', style: { width: '100%' },
+                type: isSensitive ? 'password' : 'text',
+                placeholder: label + '...',
+                value: credFields[field] || '',
+                onChange: function(e) {
+                  setCredFields(function(prev) { var n = Object.assign({}, prev); n[field] = e.target.value; return n; });
+                }
+              })
+            );
+          }),
+          h('p', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Each field is encrypted separately with AES-256-GCM.')
         ),
-        h('div', { className: 'form-group' },
-          h('label', { className: 'form-label' }, tokenModal.authType === 'api_key' ? 'API Key' : tokenModal.authType === 'oauth2' ? 'Access Token' : 'Token'),
-          h('input', {
-            className: 'input', style: { width: '100%' },
-            type: 'password',
-            placeholder: tokenModal.authType === 'api_key' ? 'sk-..., key_..., etc.' : 'Paste token here...',
-            value: tokenValue,
-            onChange: function(e) { setTokenValue(e.target.value); }
-          })
+
+        // ── Single API Key / Token ──
+        (tokenModal.authType === 'api_key' || tokenModal.authType === 'token') && h('div', null,
+          h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 } },
+            'Enter the ', h('strong', null, tokenModal.authType === 'api_key' ? 'API Key' : 'Token'),
+            ' for ', h('strong', null, tokenModal.skill?.name || tokenModal.skillId),
+            '. Find it in the service\'s settings or developer portal.'
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, tokenModal.authType === 'api_key' ? 'API Key' : 'Token'),
+            h('input', {
+              className: 'input', style: { width: '100%' }, type: 'password',
+              placeholder: tokenModal.authType === 'api_key' ? 'sk-..., key_..., etc.' : 'Paste token here...',
+              value: tokenValue, onChange: function(e) { setTokenValue(e.target.value); }
+            })
+          )
         )
       )
     ),

@@ -355,7 +355,8 @@ export const cloudflareAdapter: SkillAdapter = {
   name: 'Cloudflare',
   baseUrl: 'https://api.cloudflare.com/client/v4',
   auth: {
-    type: 'token',
+    type: 'credentials',
+    fields: ['token', 'accountId'],
     headerPrefix: 'Bearer',
   },
   tools: {

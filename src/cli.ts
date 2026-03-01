@@ -59,10 +59,14 @@ Commands:
   recover                 Recover a domain registration on a new machine
   verify-domain           Check DNS verification for your domain
 
-Domain Registration:
-  npx @agenticmail/enterprise recover --domain agents.agenticmail.io --key <hex>
+Domain Recovery & Verification:
+  npx @agenticmail/enterprise recover
+  npx @agenticmail/enterprise recover --domain agents.acme.com --key <hex>
   npx @agenticmail/enterprise verify-domain
-  npx @agenticmail/enterprise verify-domain --domain agents.agenticmail.io
+  npx @agenticmail/enterprise verify-domain --domain agents.acme.com --poll
+
+  Set DATABASE_URL to auto-connect to your database during recovery.
+  Both commands support interactive prompts when flags are omitted.
 
 Skill Development:
   npx @agenticmail/enterprise validate ./community-skills/github-issues/

@@ -11,6 +11,183 @@ import type { AppEnv } from '../types/hono-env.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 import { validate, requireRole, ValidationError } from '../middleware/index.js';
 import { PROVIDER_REGISTRY, type ProviderDef, type CustomProviderDef } from '../runtime/providers.js';
+
+/**
+ * Validate an API key by making a lightweight request to the provider.
+ * Each provider has a different validation endpoint.
+ */
+async function validateProviderApiKey(
+  providerId: string,
+  apiKey: string,
+  provider: ProviderDef,
+): Promise<{ ok: boolean; error?: string }> {
+  const timeout = 10_000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+
+  try {
+    let resp: Response;
+
+    switch (providerId) {
+      case 'anthropic': {
+        // POST /v1/messages with a tiny request — Anthropic returns 401 for bad keys
+        resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-haiku-4-20250414', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+          signal: ctrl.signal,
+        });
+        // 200 or 400 (valid key, bad request) = key works; 401/403 = bad key
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key (HTTP ' + resp.status + ')' };
+        }
+        return { ok: true };
+      }
+
+      case 'openai': {
+        // GET /v1/models — lightweight, just lists models
+        resp = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key (HTTP ' + resp.status + ')' };
+        }
+        return { ok: true };
+      }
+
+      case 'google': {
+        // GET /v1beta/models — list Gemini models
+        resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + apiKey, {
+          signal: ctrl.signal,
+        });
+        if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key (HTTP ' + resp.status + ')' };
+        }
+        return { ok: true };
+      }
+
+      case 'xai': {
+        resp = await fetch('https://api.x.ai/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      case 'deepseek': {
+        resp = await fetch('https://api.deepseek.com/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      case 'mistral': {
+        resp = await fetch('https://api.mistral.ai/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      case 'groq': {
+        resp = await fetch('https://api.groq.com/openai/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      case 'together': {
+        resp = await fetch('https://api.together.xyz/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      case 'openrouter': {
+        resp = await fetch('https://openrouter.ai/api/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      case 'fireworks': {
+        resp = await fetch('https://api.fireworks.ai/inference/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      case 'cerebras': {
+        resp = await fetch('https://api.cerebras.ai/v1/models', {
+          headers: { Authorization: 'Bearer ' + apiKey },
+          signal: ctrl.signal,
+        });
+        if (resp.status === 401 || resp.status === 403) {
+          return { ok: false, error: 'Invalid API key' };
+        }
+        return { ok: true };
+      }
+
+      // Local providers (ollama, vllm, lmstudio, litellm) — skip validation
+      case 'ollama':
+      case 'vllm':
+      case 'lmstudio':
+      case 'litellm':
+        return { ok: true };
+
+      default: {
+        // For unknown/custom providers, try GET /models with Bearer auth
+        try {
+          resp = await fetch(provider.baseUrl + '/models', {
+            headers: { Authorization: 'Bearer ' + apiKey },
+            signal: ctrl.signal,
+          });
+          if (resp.status === 401 || resp.status === 403) {
+            return { ok: false, error: 'Invalid API key' };
+          }
+          return { ok: true };
+        } catch {
+          // Can't reach — skip validation for custom providers
+          return { ok: true };
+        }
+      }
+    }
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      return { ok: false, error: 'Validation timed out — provider not reachable' };
+    }
+    return { ok: false, error: e.message || 'Connection failed' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 import { deployToFly, getAppStatus, destroyApp, type FlyConfig, type AppConfig } from '../deploy/fly.js';
 import { SecureVault } from '../engine/vault.js';
 
@@ -796,8 +973,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
     }
     await db.updateSettings({ firewallConfig: body } as any);
-    // Invalidate middleware cache
-    try { const { invalidateFirewallCache } = await import('../middleware/firewall.js'); invalidateFirewallCache(); } catch {}
+    // Hot-reload ALL network middleware (firewall, security headers, rate limiting, HTTPS, egress, proxy)
+    try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
     const settings = await db.getSettings();
     return c.json({ firewallConfig: settings?.firewallConfig || {} });
   });
@@ -932,18 +1109,32 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       return c.json({ error: 'Unknown provider' }, 404);
     }
     var body = await c.req.json();
-    if (!body.apiKey || typeof body.apiKey !== 'string' || body.apiKey.trim().length < 5) {
+    var apiKey = body.apiKey?.trim();
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 5) {
       return c.json({ error: 'Valid API key required' }, 400);
+    }
+    var skipValidation = body.skipValidation === true;
+
+    // Validate the API key against the provider before saving
+    if (!skipValidation) {
+      try {
+        var valid = await validateProviderApiKey(id, apiKey, provider);
+        if (!valid.ok) {
+          return c.json({ error: 'API key validation failed: ' + valid.error, validationFailed: true }, 400);
+        }
+      } catch (e: any) {
+        return c.json({ error: 'API key validation failed: ' + (e.message || 'Unknown error'), validationFailed: true }, 400);
+      }
     }
 
     // Store API key encrypted via vault
     var settings = await db.getSettings();
     var config = (settings as any)?.modelPricingConfig || { models: [], currency: 'USD' };
     config.providerApiKeys = config.providerApiKeys || {};
-    config.providerApiKeys[id] = vault.encrypt(body.apiKey.trim());
+    config.providerApiKeys[id] = vault.encrypt(apiKey);
     await db.updateSettings({ modelPricingConfig: config } as any);
 
-    return c.json({ ok: true, message: 'API key saved for ' + provider.name });
+    return c.json({ ok: true, message: 'API key saved for ' + provider.name, validated: !skipValidation });
   });
 
   api.put('/providers/:id', requireRole('admin'), async (c) => {
@@ -1056,6 +1247,59 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     return c.json({ ok: true });
   });
 
+  // ─── CORS Helper ────────────────────────────────────
+  /** Add an origin to CORS list, optionally removing an old one */
+  async function updateCorsOrigin(newOrigin: string, oldOrigin?: string) {
+    try {
+      var settings = await db.getSettings();
+      var fw = settings.firewallConfig || {};
+      var net = fw.network || {};
+      var origins: string[] = Array.isArray(net.corsOrigins) ? [...net.corsOrigins] : [];
+      // Remove old if present
+      if (oldOrigin) origins = origins.filter((o: string) => o !== oldOrigin);
+      // Add new if not already present
+      if (!origins.includes(newOrigin)) origins.push(newOrigin);
+      await db.updateSettings({ firewallConfig: { ...fw, network: { ...net, corsOrigins: origins } } } as any);
+      try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
+    } catch { /* non-critical */ }
+  }
+
+  // ─── Get CORS Origins ─────────────────────────────────
+  api.get('/domain/cors', requireRole('admin'), async (c) => {
+    try {
+      var settings = await db.getSettings();
+      var origins = settings?.firewallConfig?.network?.corsOrigins || [];
+      return c.json({ origins });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // ─── Update CORS Origins ──────────────────────────────
+  api.post('/domain/cors', requireRole('admin'), async (c) => {
+    var body = await c.req.json();
+    if (!Array.isArray(body.origins)) {
+      return c.json({ error: 'origins must be an array of URLs' }, 400);
+    }
+    // Validate each origin
+    for (var o of body.origins) {
+      if (typeof o !== 'string') return c.json({ error: 'Each origin must be a string' }, 400);
+      if (o !== '*' && !o.startsWith('http://') && !o.startsWith('https://')) {
+        return c.json({ error: 'Origin "' + o + '" must start with http:// or https://' }, 400);
+      }
+    }
+    try {
+      var settings = await db.getSettings();
+      var fw = settings.firewallConfig || {};
+      var net = fw.network || {};
+      await db.updateSettings({ firewallConfig: { ...fw, network: { ...net, corsOrigins: body.origins } } } as any);
+      try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
+      return c.json({ success: true, origins: body.origins });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   // ─── Domain Registration ────────────────────────────
 
   api.post('/domain/register', requireRole('admin'), async (c) => {
@@ -1134,6 +1378,147 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       return c.json({ verified: false, error: result.error });
     } catch (err: any) {
       return c.json({ error: err.message || 'Verification check failed' }, 500);
+    }
+  });
+
+  // ─── Domain Status (GET) ──────────────────────────────
+  api.get('/domain/status', requireRole('admin'), async (c) => {
+    try {
+      var settings = await db.getSettings();
+      return c.json({
+        domain: settings.domain || null,
+        subdomain: settings.subdomain || null,
+        status: settings.domainStatus || 'unregistered',
+        registeredAt: settings.domainRegisteredAt || null,
+        verifiedAt: settings.domainVerifiedAt || null,
+        dnsChallenge: settings.domainDnsChallenge || null,
+        useRootDomain: settings.useRootDomain || false,
+        plan: settings.plan || 'self-hosted',
+      });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // ─── Domain Change ────────────────────────────────────
+  api.post('/domain/change', requireRole('admin'), async (c) => {
+    var body = await c.req.json();
+    if (!body.domain) {
+      return c.json({ error: 'domain is required' }, 400);
+    }
+
+    var domain = String(body.domain).toLowerCase().trim();
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+      return c.json({ error: 'Invalid domain format' }, 400);
+    }
+
+    try {
+      var { DomainLock } = await import('../domain-lock/index.js');
+      var lock = new DomainLock();
+      var keyPair = await lock.generateDeploymentKey();
+      var settings = await db.getSettings();
+
+      var result = await lock.register(domain, keyPair.hash, {
+        orgName: settings?.name,
+        contactEmail: body.contactEmail,
+      });
+
+      if (!result.success) {
+        return c.json({ error: result.error, statusCode: result.statusCode }, 400);
+      }
+
+      var oldDomain = settings.domain;
+      await db.updateSettings({
+        domain: domain,
+        useRootDomain: body.useRootDomain || false,
+        deploymentKeyHash: keyPair.hash,
+        domainRegistrationId: result.registrationId,
+        domainDnsChallenge: result.dnsChallenge,
+        domainRegisteredAt: new Date().toISOString(),
+        domainStatus: 'pending_dns',
+        domainVerifiedAt: undefined,
+      } as any);
+
+      // Auto-update CORS
+      await updateCorsOrigin('https://' + domain, oldDomain ? 'https://' + oldDomain : undefined);
+
+      return c.json({
+        success: true,
+        deploymentKey: keyPair.plaintext,
+        dnsChallenge: result.dnsChallenge,
+        registrationId: result.registrationId,
+      });
+    } catch (err: any) {
+      return c.json({ error: err.message || 'Domain change failed' }, 500);
+    }
+  });
+
+  // ─── Subdomain Update ─────────────────────────────────
+  api.post('/domain/subdomain', requireRole('admin'), async (c) => {
+    var body = await c.req.json();
+    if (!body.subdomain) {
+      return c.json({ error: 'subdomain is required' }, 400);
+    }
+    var sub = String(body.subdomain).toLowerCase().trim().replace(/\.agenticmail\.io$/, '');
+    if (sub.length < 2) {
+      return c.json({ error: 'Subdomain must be at least 2 characters.' }, 400);
+    }
+    if (sub.length > 63) {
+      return c.json({ error: 'Subdomain must be 63 characters or fewer.' }, 400);
+    }
+    if (/^-|-$/.test(sub)) {
+      return c.json({ error: 'Subdomain cannot start or end with a hyphen.' }, 400);
+    }
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(sub)) {
+      return c.json({ error: 'Subdomain can only contain lowercase letters, numbers, and hyphens.' }, 400);
+    }
+    // Reserved subdomains
+    var reserved = ['www', 'mail', 'api', 'app', 'admin', 'dashboard', 'help', 'support', 'docs', 'status', 'blog', 'cdn', 'static', 'assets', 'ns1', 'ns2'];
+    if (reserved.includes(sub)) {
+      return c.json({ error: '"' + sub + '" is a reserved subdomain. Please choose a different one.' }, 400);
+    }
+    try {
+      var settings = await db.getSettings();
+      var oldSub = settings.subdomain || null;
+      await db.updateSettings({ subdomain: sub } as any);
+      // Auto-update CORS
+      await updateCorsOrigin(
+        'https://' + sub + '.agenticmail.io',
+        oldSub ? 'https://' + oldSub + '.agenticmail.io' : undefined,
+      );
+      return c.json({ success: true, subdomain: sub, oldSubdomain: oldSub, plan: settings.plan || 'self-hosted' });
+    } catch (err: any) {
+      return c.json({ error: err.message || 'Subdomain update failed' }, 500);
+    }
+  });
+
+  // ─── Remove Custom Domain ─────────────────────────────
+  api.delete('/domain', requireRole('admin'), async (c) => {
+    try {
+      var settings = await db.getSettings();
+      var oldDomain = settings.domain;
+      await db.updateSettings({
+        domain: undefined,
+        domainStatus: undefined,
+        domainDnsChallenge: undefined,
+        domainRegisteredAt: undefined,
+        domainVerifiedAt: undefined,
+        domainRegistrationId: undefined,
+        deploymentKeyHash: undefined,
+      } as any);
+      // Remove old domain from CORS
+      if (oldDomain) {
+        try {
+          var fw = settings.firewallConfig || {};
+          var net = fw.network || {};
+          var origins: string[] = Array.isArray(net.corsOrigins) ? net.corsOrigins.filter((o: string) => o !== 'https://' + oldDomain) : [];
+          await db.updateSettings({ firewallConfig: { ...fw, network: { ...net, corsOrigins: origins } } } as any);
+          try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
+        } catch {}
+      }
+      return c.json({ success: true });
+    } catch (err: any) {
+      return c.json({ error: err.message || 'Failed to remove domain' }, 500);
     }
   });
 

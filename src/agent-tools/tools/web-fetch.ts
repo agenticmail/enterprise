@@ -256,6 +256,14 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
   // SSRF guard on initial URL
   if (params.ssrfGuard) await params.ssrfGuard.validateUrl(params.url);
 
+  // Egress filter (DB-backed, hot-reloaded)
+  try {
+    const { validateEgress } = await import('../../middleware/egress-filter.js');
+    validateEgress(params.url);
+  } catch (egressErr: any) {
+    if (egressErr.message?.includes('egress policy')) throw egressErr;
+  }
+
   var start = Date.now();
   var fetchResult: { response: Response; finalUrl: string };
   try {

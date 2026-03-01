@@ -3,99 +3,144 @@
  *
  * Hono middleware that enforces firewall rules (allowlist / blocklist)
  * using the CIDR utilities from lib/cidr.ts.
- * Config is read from the database with a 30-second in-memory cache.
+ * Config is read from the centralized network config manager.
  */
 
 import type { MiddlewareHandler } from 'hono';
-import type { DatabaseAdapter, FirewallConfig } from '../db/adapter.js';
 import { compileIpMatcher } from '../lib/cidr.js';
+import { getNetworkConfig, onNetworkConfigChange } from './network-config.js';
+import type { FirewallConfig } from '../db/adapter.js';
 
-// ─── Cache ────────────────────────────────────────────────
+// ─── Compiled Matchers Cache ─────────────────────────────
 
-interface FirewallCache {
-  config: FirewallConfig['ipAccess'] | null;
-  compiledAllowlist: ((ip: string) => boolean) | null;
-  compiledBlocklist: ((ip: string) => boolean) | null;
-  loadedAt: number;
+interface CompiledFirewall {
+  enabled: boolean;
+  mode: 'allowlist' | 'blocklist';
+  allowlistMatcher: ((ip: string) => boolean) | null;
+  blocklistMatcher: ((ip: string) => boolean) | null;
+  bypassPaths: string[];
+  trustedProxyMatcher: ((ip: string) => boolean) | null;
+  trustedProxyEnabled: boolean;
 }
 
-const CACHE_TTL_MS = 30_000;
-
-let _cache: FirewallCache = {
-  config: null,
-  compiledAllowlist: null,
-  compiledBlocklist: null,
-  loadedAt: 0,
+let _compiled: CompiledFirewall = {
+  enabled: false,
+  mode: 'blocklist',
+  allowlistMatcher: null,
+  blocklistMatcher: null,
+  bypassPaths: [],
+  trustedProxyMatcher: null,
+  trustedProxyEnabled: false,
 };
+
+function recompile(config: FirewallConfig): void {
+  const ipAccess = config.ipAccess;
+  const tp = config.trustedProxies;
+  _compiled = {
+    enabled: ipAccess?.enabled === true,
+    mode: ipAccess?.mode || 'blocklist',
+    allowlistMatcher: ipAccess?.allowlist?.length
+      ? compileIpMatcher(ipAccess.allowlist)
+      : null,
+    blocklistMatcher: ipAccess?.blocklist?.length
+      ? compileIpMatcher(ipAccess.blocklist)
+      : null,
+    bypassPaths: ['/health', '/ready', ...(ipAccess?.bypassPaths || [])],
+    trustedProxyMatcher: tp?.ips?.length
+      ? compileIpMatcher(tp.ips)
+      : null,
+    trustedProxyEnabled: tp?.enabled === true,
+  };
+}
+
+// Subscribe to config changes for hot-reload
+onNetworkConfigChange(recompile);
 
 /**
  * Force an immediate cache refresh on the next request.
  * Called by the PUT /settings/firewall endpoint after config changes.
+ * @deprecated Use invalidateNetworkConfig() from network-config.ts instead.
  */
 export function invalidateFirewallCache(): void {
-  _cache.loadedAt = 0;
+  // Now handled by centralized invalidateNetworkConfig()
 }
 
-// ─── Default Bypass Paths ─────────────────────────────────
+// ─── Trusted Proxy Extraction ────────────────────────────
 
-const DEFAULT_BYPASS_PATHS = ['/health', '/ready'];
+/**
+ * Extract the real client IP, validating X-Forwarded-For against
+ * the trusted proxy list. If trusted proxies are configured, only
+ * trust the header when the direct connection comes from a trusted IP.
+ */
+function extractClientIp(c: any, connectingIp: string): string {
+  const xff = c.req.header('x-forwarded-for');
+  const xri = c.req.header('x-real-ip');
+
+  // If trusted proxies are enabled, only trust forwarded headers
+  // when the connecting IP is in the trusted list
+  if (_compiled.trustedProxyEnabled && _compiled.trustedProxyMatcher) {
+    if (!_compiled.trustedProxyMatcher(connectingIp)) {
+      // Connecting IP is NOT trusted — ignore forwarded headers, use connecting IP
+      return connectingIp;
+    }
+    // Connecting IP IS trusted — use the leftmost non-trusted IP from XFF
+    if (xff) {
+      const parts = xff.split(',').map((s: string) => s.trim()).filter(Boolean);
+      // Walk right-to-left, find the first IP NOT in trusted list
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (!_compiled.trustedProxyMatcher(parts[i])) {
+          return parts[i];
+        }
+      }
+      // All IPs in chain are trusted (edge case) — use leftmost
+      return parts[0] || connectingIp;
+    }
+    return xri || connectingIp;
+  }
+
+  // No trusted proxy config — use standard header extraction (backward compat)
+  return xff?.split(',')[0]?.trim() || xri || connectingIp;
+}
 
 // ─── Middleware ───────────────────────────────────────────
 
 /**
  * IP access control middleware.
- * Reads firewall config from the database (cached 30s) and enforces
- * allowlist or blocklist rules on every inbound request.
+ * Reads firewall config from the centralized network config (cached 15s)
+ * and enforces allowlist or blocklist rules on every inbound request.
  */
-export function ipAccessControl(getDb: () => DatabaseAdapter | null): MiddlewareHandler {
+export function ipAccessControl(_getDb?: () => any): MiddlewareHandler {
   return async (c, next) => {
-    const db = getDb();
-
-    // ── Refresh cache if stale ──────────────────────────
-    const now = Date.now();
-    if (db && now - _cache.loadedAt > CACHE_TTL_MS) {
-      try {
-        const settings = await db.getSettings();
-        const ipAccess = settings?.firewallConfig?.ipAccess || null;
-        _cache = {
-          config: ipAccess,
-          compiledAllowlist: ipAccess?.allowlist?.length
-            ? compileIpMatcher(ipAccess.allowlist)
-            : null,
-          compiledBlocklist: ipAccess?.blocklist?.length
-            ? compileIpMatcher(ipAccess.blocklist)
-            : null,
-          loadedAt: Date.now(),
-        };
-      } catch {
-        // If we can't load config, keep using whatever we have
-        // (or null — which means pass-through)
-      }
-    }
-
-    // ── Check if firewall is enabled ────────────────────
-    if (!_cache.config?.enabled) {
+    // Ensure config is fresh
+    const config = await getNetworkConfig();
+    if (_compiled.enabled === false && config.ipAccess?.enabled) {
+      recompile(config);
+    } else if (!_compiled.enabled && !config.ipAccess?.enabled) {
       return next();
     }
 
-    // ── Extract client IP ───────────────────────────────
-    const clientIp =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-      c.req.header('x-real-ip') ||
+    if (!_compiled.enabled) return next();
+
+    // Extract connecting IP (from socket, not headers)
+    const connectingIp =
+      (c.env as any)?.remoteAddress ||
+      c.req.raw?.socket?.remoteAddress ||
       'unknown';
 
-    // ── Bypass paths ────────────────────────────────────
-    const bypassPaths = [
-      ...DEFAULT_BYPASS_PATHS,
-      ...(_cache.config.bypassPaths || []),
-    ];
-    if (bypassPaths.some((p) => c.req.path.startsWith(p))) {
+    // Extract real client IP (validated against trusted proxies)
+    const clientIp = extractClientIp(c, connectingIp || 'unknown');
+
+    // Store the validated client IP for downstream use
+    c.set('clientIp' as any, clientIp);
+
+    // Bypass paths
+    if (_compiled.bypassPaths.some((p) => c.req.path.startsWith(p))) {
       return next();
     }
 
-    // ── Allowlist mode ──────────────────────────────────
-    if (_cache.config.mode === 'allowlist') {
-      if (_cache.compiledAllowlist && !_cache.compiledAllowlist(clientIp)) {
+    // Allowlist mode
+    if (_compiled.mode === 'allowlist') {
+      if (_compiled.allowlistMatcher && !_compiled.allowlistMatcher(clientIp)) {
         return c.json(
           { error: 'Access denied by firewall policy', code: 'IP_BLOCKED' },
           403,
@@ -104,9 +149,9 @@ export function ipAccessControl(getDb: () => DatabaseAdapter | null): Middleware
       return next();
     }
 
-    // ── Blocklist mode ──────────────────────────────────
-    if (_cache.config.mode === 'blocklist') {
-      if (_cache.compiledBlocklist && _cache.compiledBlocklist(clientIp)) {
+    // Blocklist mode
+    if (_compiled.mode === 'blocklist') {
+      if (_compiled.blocklistMatcher && _compiled.blocklistMatcher(clientIp)) {
         return c.json(
           { error: 'Access denied by firewall policy', code: 'IP_BLOCKED' },
           403,
@@ -115,7 +160,6 @@ export function ipAccessControl(getDb: () => DatabaseAdapter | null): Middleware
       return next();
     }
 
-    // ── Unknown mode or no mode set — pass through ──────
     return next();
   };
 }

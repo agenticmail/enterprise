@@ -5,6 +5,7 @@ import { Modal } from '../components/modal.js';
 import { TagInput } from '../components/tag-input.js';
 import { HelpButton } from '../components/help-button.js';
 import { SETTINGS_HELP } from '../components/settings-help.js';
+import { ProviderLogo } from '../assets/provider-logos.js';
 
 export function SettingsPage() {
   const { toast } = useApp();
@@ -207,8 +208,8 @@ export function SettingsPage() {
       SETTINGS_HELP[tab] && h(HelpButton, { label: SETTINGS_HELP[tab].label }, SETTINGS_HELP[tab].content())
     ),
     h('div', { className: 'tabs' },
-      ['general', 'llm-providers', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security', 'network', 'pricing'].map(t =>
-        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', 'llm-providers': 'LLM Providers', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall', pricing: 'Model Pricing' }[t])
+      ['general', 'models', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security', 'network'].map(t =>
+        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', models: 'Models', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', security: 'Tool Security', network: 'Network & Firewall' }[t])
       )
     ),
 
@@ -326,7 +327,7 @@ export function SettingsPage() {
               onClick: function() { setOrgEmail(function(p) { return Object.assign({}, p, { provider: 'google' }); }); },
               style: { flex: 1, padding: '16px 12px', border: '2px solid ' + (orgEmail.provider === 'google' ? 'var(--accent)' : 'var(--border)'), borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'center', background: orgEmail.provider === 'google' ? 'var(--accent-soft)' : 'var(--bg-primary)' }
             },
-              h('div', { style: { fontSize: 20, marginBottom: 4 } }, '\uD83D\uDD35'),
+              h('div', { style: { marginBottom: 4, display: 'flex', justifyContent: 'center' } }, ProviderLogo.google(24)),
               h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'Google Workspace'),
               h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Gmail API OAuth')
             ),
@@ -334,7 +335,7 @@ export function SettingsPage() {
               onClick: function() { setOrgEmail(function(p) { return Object.assign({}, p, { provider: 'microsoft' }); }); },
               style: { flex: 1, padding: '16px 12px', border: '2px solid ' + (orgEmail.provider === 'microsoft' ? 'var(--accent)' : 'var(--border)'), borderRadius: 'var(--radius)', cursor: 'pointer', textAlign: 'center', background: orgEmail.provider === 'microsoft' ? 'var(--accent-soft)' : 'var(--bg-primary)' }
             },
-              h('div', { style: { fontSize: 20, marginBottom: 4 } }, '\uD83C\uDFE2'),
+              h('div', { style: { marginBottom: 4, display: 'flex', justifyContent: 'center' } }, ProviderLogo.microsoft(24)),
               h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'Microsoft 365'),
               h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Azure AD / Entra ID')
             )
@@ -399,7 +400,61 @@ export function SettingsPage() {
       )
     ),
 
-    tab === 'llm-providers' && h(LLMProvidersTab, { toast: toast }),
+    tab === 'models' && h(Fragment, null,
+      h(LLMProvidersTab, { toast: toast }),
+      h('hr', { style: { border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' } }),
+      h(ModelPricingTab, {
+        pricing: pricing,
+        setPricing: function(v) { setPricing(v); setPricingDirty(true); },
+        saving: pricingSaving,
+        dirty: pricingDirty,
+        showAddModel: showAddModel,
+        setShowAddModel: setShowAddModel,
+        newModel: newModel,
+        setNewModel: setNewModel,
+        providers: providers,
+        setProviders: setProviders,
+        showAddProvider: showAddProvider,
+        setShowAddProvider: setShowAddProvider,
+        newProvider: newProvider,
+        setNewProvider: setNewProvider,
+        discoverResults: discoverResults,
+        setDiscoverResults: setDiscoverResults,
+        apiKeyModal: apiKeyModal,
+        setApiKeyModal: setApiKeyModal,
+        apiKeyInput: apiKeyInput,
+        setApiKeyInput: setApiKeyInput,
+        onSave: function() {
+          setPricingSaving(true);
+          apiCall('/settings/model-pricing', { method: 'PUT', body: JSON.stringify(pricing) }).then(function(d) {
+            setPricing(d.modelPricingConfig || pricing);
+            setPricingDirty(false);
+            toast('Model pricing saved');
+          }).catch(function(e) { toast(e.message, 'error'); }).finally(function() { setPricingSaving(false); });
+        },
+        onAddModel: function() {
+          if (!newModel.modelId || !newModel.provider) { toast('Provider and Model ID are required', 'error'); return; }
+          var updated = { ...pricing, models: [...(pricing.models || []), { ...newModel }] };
+          setPricing(updated);
+          setPricingDirty(true);
+          setShowAddModel(false);
+          setNewModel({ provider: 'anthropic', modelId: '', displayName: '', inputCostPerMillion: 0, outputCostPerMillion: 0, contextWindow: 0 });
+        },
+        onRemoveModel: function(idx) {
+          var models = [...(pricing.models || [])];
+          models.splice(idx, 1);
+          setPricing({ ...pricing, models: models });
+          setPricingDirty(true);
+        },
+        onUpdateModel: function(idx, field, value) {
+          var models = [...(pricing.models || [])];
+          models[idx] = { ...models[idx], [field]: value };
+          setPricing({ ...pricing, models: models });
+          setPricingDirty(true);
+        },
+        toast: toast,
+      })
+    ),
 
     tab === 'api-keys' && h(Fragment, null,
       newKeyPlaintext && h(Modal, { title: 'API Key Created', onClose: () => setNewKeyPlaintext(null) },
@@ -498,20 +553,24 @@ export function SettingsPage() {
           h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Click a provider to pre-fill the OIDC Discovery URL above. You still need to create an OAuth app in the provider\'s console and enter your Client ID and Secret.'),
           h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 } },
             [
-              { name: 'Google', desc: 'Google Workspace / Gmail', discovery: 'https://accounts.google.com/.well-known/openid-configuration', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('path', { d: 'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z', fill: '#4285F4' }), h('path', { d: 'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z', fill: '#34A853' }), h('path', { d: 'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 001 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z', fill: '#FBBC05' }), h('path', { d: 'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z', fill: '#EA4335' })) },
-              { name: 'Microsoft', desc: 'Azure AD / Microsoft 365', discovery: 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('rect', { x: 1, y: 1, width: 10.5, height: 10.5, fill: '#F25022' }), h('rect', { x: 12.5, y: 1, width: 10.5, height: 10.5, fill: '#7FBA00' }), h('rect', { x: 1, y: 12.5, width: 10.5, height: 10.5, fill: '#00A4EF' }), h('rect', { x: 12.5, y: 12.5, width: 10.5, height: 10.5, fill: '#FFB900' })) },
+              { name: 'Google', desc: 'Google Workspace / Gmail', discovery: 'https://accounts.google.com/.well-known/openid-configuration', svg: ProviderLogo.google(28) },
+              { name: 'Microsoft', desc: 'Azure AD / Microsoft 365', discovery: 'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration', svg: ProviderLogo.microsoft(28) },
               { name: 'GitHub', desc: 'GitHub OAuth (no OIDC discovery)', discovery: null, svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'currentColor' }, h('path', { d: 'M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z' })) },
               { name: 'Okta', desc: 'Okta / Auth0', discovery: 'https://your-org.okta.com/.well-known/openid-configuration', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('circle', { cx: 12, cy: 12, r: 10, fill: 'none', stroke: '#007DC1', strokeWidth: 2.5 }), h('circle', { cx: 12, cy: 12, r: 4, fill: '#007DC1' })) },
               { name: 'Slack', desc: 'Sign in with Slack', discovery: 'https://slack.com/.well-known/openid-configuration', svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28 }, h('path', { d: 'M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313z', fill: '#E01E5A' }), h('path', { d: 'M8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312z', fill: '#36C5F0' }), h('path', { d: 'M18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.163 0a2.528 2.528 0 012.523 2.522v6.312z', fill: '#2EB67D' }), h('path', { d: 'M15.163 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.163 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 01-2.52-2.523 2.527 2.527 0 012.52-2.52h6.315A2.528 2.528 0 0124 15.163a2.528 2.528 0 01-2.522 2.523h-6.315z', fill: '#ECB22E' })) },
               { name: 'LDAP', desc: 'Active Directory / LDAP', discovery: null, disabled: true, svg: h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 }, h('path', { d: 'M12 2L3 7v10l9 5 9-5V7l-9-5z' }), h('path', { d: 'M12 22V12' }), h('path', { d: 'M3 7l9 5 9-5' })) }
-            ].map(p =>
-              h('div', { key: p.name, style: { padding: 16, border: '1px solid var(--border)', borderRadius: 'var(--radius)', textAlign: 'center', opacity: p.disabled ? 0.5 : 1 } },
+            ].map(p => {
+              var isConfigured = ssoConfig.oidc && p.discovery && ssoConfig.oidc.discoveryUrl && ssoConfig.oidc.discoveryUrl.indexOf(new URL(p.discovery).hostname.split('.').slice(-2).join('.')) !== -1;
+              return h('div', { key: p.name, style: { padding: 16, border: '1px solid ' + (isConfigured ? 'var(--success)' : 'var(--border)'), borderRadius: 'var(--radius)', textAlign: 'center', opacity: p.disabled ? 0.5 : 1, background: isConfigured ? 'rgba(34,197,94,0.06)' : 'transparent', position: 'relative' } },
+                isConfigured && h('div', { style: { position: 'absolute', top: 8, right: 8, width: 20, height: 20, borderRadius: '50%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700 } }, '\u2713'),
                 h('div', { style: { marginBottom: 8, display: 'flex', justifyContent: 'center' } }, p.svg),
                 h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 4 } }, p.name),
                 h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 } }, p.desc),
-                h('button', { className: 'btn btn-secondary btn-sm', style: { width: '100%', justifyContent: 'center' }, disabled: p.disabled, onClick: p.discovery ? () => prefillOidc(p.name, p.discovery) : p.disabled ? undefined : () => toast('GitHub uses OAuth, not OIDC. Configure Client ID and Secret manually in the OIDC form above.', 'info') }, p.disabled ? 'Coming Soon' : 'Use ' + p.name)
-              )
-            )
+                isConfigured
+                  ? h('div', { style: { fontSize: 12, color: 'var(--success)', fontWeight: 600 } }, 'Configured')
+                  : h('button', { className: 'btn btn-secondary btn-sm', style: { width: '100%', justifyContent: 'center' }, disabled: p.disabled, onClick: p.discovery ? () => prefillOidc(p.name, p.discovery) : p.disabled ? undefined : () => toast('GitHub uses OAuth, not OIDC. Configure Client ID and Secret manually in the OIDC form above.', 'info') }, p.disabled ? 'Coming Soon' : 'Use ' + p.name)
+              );
+            })
           )
         )
       )
@@ -703,7 +762,7 @@ export function SettingsPage() {
     tab === 'network' && h(NetworkFirewallTab, { fw: fw, setFw: function(v) { setFw(v); setFwDirty(true); }, saving: fwSaving, dirty: fwDirty, testIp: fwTestIp, setTestIp: setFwTestIp, testResult: fwTestResult, setTestResult: setFwTestResult, onSave: function() {
       setFwSaving(true);
       apiCall('/settings/firewall', { method: 'PUT', body: JSON.stringify(fw) })
-        .then(function(d) { setFw(d.firewallConfig || fw); setFwDirty(false); toast('Network & firewall settings saved', 'success'); })
+        .then(function(d) { setFw(d.firewallConfig || fw); setFwDirty(false); toast('Network & firewall settings saved and applied (hot-reloaded)', 'success'); })
         .catch(function(e) { toast(e.message, 'error'); })
         .finally(function() { setFwSaving(false); });
     }, onTestIp: function() {
@@ -712,58 +771,6 @@ export function SettingsPage() {
         .then(function(d) { setFwTestResult(d); })
         .catch(function(e) { setFwTestResult({ error: e.message }); });
     } }),
-
-    tab === 'pricing' && h(ModelPricingTab, {
-      pricing: pricing,
-      setPricing: function(v) { setPricing(v); setPricingDirty(true); },
-      saving: pricingSaving,
-      dirty: pricingDirty,
-      showAddModel: showAddModel,
-      setShowAddModel: setShowAddModel,
-      newModel: newModel,
-      setNewModel: setNewModel,
-      providers: providers,
-      setProviders: setProviders,
-      showAddProvider: showAddProvider,
-      setShowAddProvider: setShowAddProvider,
-      newProvider: newProvider,
-      setNewProvider: setNewProvider,
-      discoverResults: discoverResults,
-      setDiscoverResults: setDiscoverResults,
-      apiKeyModal: apiKeyModal,
-      setApiKeyModal: setApiKeyModal,
-      apiKeyInput: apiKeyInput,
-      setApiKeyInput: setApiKeyInput,
-      onSave: function() {
-        setPricingSaving(true);
-        apiCall('/settings/model-pricing', { method: 'PUT', body: JSON.stringify(pricing) }).then(function(d) {
-          setPricing(d.modelPricingConfig || pricing);
-          setPricingDirty(false);
-          toast('Model pricing saved');
-        }).catch(function(e) { toast(e.message, 'error'); }).finally(function() { setPricingSaving(false); });
-      },
-      onAddModel: function() {
-        if (!newModel.modelId || !newModel.provider) { toast('Provider and Model ID are required', 'error'); return; }
-        var updated = { ...pricing, models: [...(pricing.models || []), { ...newModel }] };
-        setPricing(updated);
-        setPricingDirty(true);
-        setShowAddModel(false);
-        setNewModel({ provider: 'anthropic', modelId: '', displayName: '', inputCostPerMillion: 0, outputCostPerMillion: 0, contextWindow: 0 });
-      },
-      onRemoveModel: function(idx) {
-        var models = [...(pricing.models || [])];
-        models.splice(idx, 1);
-        setPricing({ ...pricing, models: models });
-        setPricingDirty(true);
-      },
-      onUpdateModel: function(idx, field, value) {
-        var models = [...(pricing.models || [])];
-        models[idx] = { ...models[idx], [field]: value };
-        setPricing({ ...pricing, models: models });
-        setPricingDirty(true);
-      },
-      toast: toast,
-    }),
 
     // Integrations tab removed — now managed via Community Skills page
   );
@@ -1222,6 +1229,9 @@ function NetworkFirewallTab(props) {
   var rl = net.rateLimit || {};
   var https = net.httpsEnforcement || {};
   var sh = net.securityHeaders || {};
+  var dnsReb = fw.dnsRebinding || {};
+  var geoIp = fw.geoIp || {};
+  var webhookSec = fw.webhookSecurity || {};
 
   var patchFw = function(section, value) {
     var next = Object.assign({}, fw);
@@ -1444,8 +1454,61 @@ function NetworkFirewallTab(props) {
       )
     ),
 
+    // ── Advanced Security ──────────────────────────────
+    h('div', { style: _sectionTitleStyle }, 'Advanced Security'),
+    h('div', { style: { display: 'grid', gap: 16 } },
+
+      // DNS Rebinding Protection
+      h('div', { style: _cardStyle },
+        h('div', { style: _cardTitleStyle }, I.shield(), ' DNS Rebinding Protection'),
+        h('div', { style: _cardDescStyle }, 'Validates the Host header against an allowlist to prevent DNS rebinding attacks targeting internal services.'),
+        h(ToggleSwitch, { label: 'Enable DNS rebinding protection', checked: dnsReb.enabled === true, onChange: function(v) { patchFw('dnsRebinding', Object.assign({}, dnsReb, { enabled: v })); } }),
+        dnsReb.enabled && h(TagInput, { label: 'Allowed Hosts', value: dnsReb.allowedHosts || [], onChange: function(v) { patchFw('dnsRebinding', Object.assign({}, dnsReb, { allowedHosts: v })); }, placeholder: 'enterprise.example.com', mono: true })
+      ),
+
+      // Request Body Size Limit
+      h('div', { style: _cardStyle },
+        h('div', { style: _cardTitleStyle }, I.file(), ' Request Body Limits'),
+        h('div', { style: _cardDescStyle }, 'Maximum request body size for API endpoints. Prevents excessively large payloads from consuming server resources.'),
+        h('div', { className: 'form-group', style: { marginBottom: 12 } },
+          h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Max Body Size (KB)'),
+          h('input', { className: 'input', type: 'number', min: 64, max: 102400, style: { width: 150, fontSize: 13 }, value: net.maxBodySizeKb || 10240, onChange: function(e) { patchNet('maxBodySizeKb', parseInt(e.target.value) || 10240); } })
+        ),
+        h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Default: 10240 KB (10 MB). Set higher for file upload APIs.')
+      ),
+
+      // Geo-IP Restrictions
+      h('div', { style: _cardStyle },
+        h('div', { style: _cardTitleStyle }, I.globe(), ' Geo-IP Restrictions'),
+        h('div', { style: _cardDescStyle }, 'Restrict access by country. Uses ISO 3166-1 alpha-2 country codes (e.g. US, GB, DE). Requires a reverse proxy that sets the CF-IPCountry or X-Country-Code header.'),
+        h(ToggleSwitch, { label: 'Enable geo-IP filtering', checked: geoIp.enabled === true, onChange: function(v) { patchFw('geoIp', Object.assign({}, geoIp, { enabled: v })); } }),
+        geoIp.enabled && h(Fragment, null,
+          h('div', { style: { marginBottom: 8 } },
+            h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Mode'),
+            h('select', { className: 'input', style: { width: 200 }, value: geoIp.mode || 'blocklist', onChange: function(e) { patchFw('geoIp', Object.assign({}, geoIp, { mode: e.target.value })); } },
+              h('option', { value: 'allowlist' }, 'Only allow these countries'),
+              h('option', { value: 'blocklist' }, 'Block these countries')
+            )
+          ),
+          h(TagInput, { label: 'Country Codes', value: geoIp.countries || [], onChange: function(v) { patchFw('geoIp', Object.assign({}, geoIp, { countries: v.map(function(c) { return c.toUpperCase().trim(); }) })); }, placeholder: 'US', mono: true })
+        )
+      ),
+
+      // Webhook Security
+      h('div', { style: _cardStyle },
+        h('div', { style: _cardTitleStyle }, I.key(), ' Webhook Security'),
+        h('div', { style: _cardDescStyle }, 'Security controls for inbound webhook endpoints (Google Chat, Slack, third-party integrations).'),
+        h(ToggleSwitch, { label: 'Enable webhook security', checked: webhookSec.enabled === true, onChange: function(v) { patchFw('webhookSecurity', Object.assign({}, webhookSec, { enabled: v })); } }),
+        webhookSec.enabled && h(Fragment, null,
+          h(ToggleSwitch, { label: 'Require HMAC signature validation', checked: webhookSec.requireSignature === true, onChange: function(v) { patchFw('webhookSecurity', Object.assign({}, webhookSec, { requireSignature: v })); } }),
+          h(TagInput, { label: 'Allowed Webhook Source IPs', value: webhookSec.allowedSourceIps || [], onChange: function(v) { patchFw('webhookSecurity', Object.assign({}, webhookSec, { allowedSourceIps: v })); }, placeholder: '35.0.0.0/8', mono: true })
+        )
+      )
+    ),
+
     // Bottom save bar
     dirty && h('div', { style: { position: 'sticky', bottom: 0, padding: '12px 0', background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 } },
+      h('span', { style: { fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' } }, 'Changes take effect immediately — no restart required.'),
       h('button', { className: 'btn btn-primary', disabled: saving, onClick: props.onSave }, saving ? 'Saving...' : 'Save Network & Firewall Settings')
     )
   );
@@ -1468,18 +1531,29 @@ function LLMProvidersTab(props) {
     apiCall('/providers').then(function(d) { setProviders(d.providers || []); }).catch(function() {});
   }, []);
 
+  var _savingMsg = useState({});
+  var savingMsg = _savingMsg[0]; var setSavingMsg = _savingMsg[1];
+
   var saveKey = async function(providerId, providerName) {
     var key = (apiKeyInputs[providerId] || '').trim();
     if (!key || key.length < 5) { toast('API key too short', 'error'); return; }
     setSaving(function(s) { return Object.assign({}, s, { [providerId]: true }); });
+    setSavingMsg(function(s) { return Object.assign({}, s, { [providerId]: 'Validating...' }); });
     try {
       await apiCall('/providers/' + providerId + '/api-key', { method: 'POST', body: JSON.stringify({ apiKey: key }) });
-      toast(providerName + ' API key saved', 'success');
+      toast(providerName + ' API key validated and saved', 'success');
       setApiKeyInputs(function(s) { return Object.assign({}, s, { [providerId]: '' }); });
-      // Refresh providers to update "configured" status
       apiCall('/providers').then(function(d) { setProviders(d.providers || []); }).catch(function() {});
-    } catch (err) { toast('Failed: ' + err.message, 'error'); }
+    } catch (err) {
+      var msg = err.message || 'Save failed';
+      if (msg.indexOf('validation failed') !== -1) {
+        toast(providerName + ': ' + msg, 'error');
+      } else {
+        toast('Failed: ' + msg, 'error');
+      }
+    }
     setSaving(function(s) { return Object.assign({}, s, { [providerId]: false }); });
+    setSavingMsg(function(s) { return Object.assign({}, s, { [providerId]: '' }); });
   };
 
   var builtIn = providers.filter(function(p) { return p.source === 'built-in'; });
@@ -1519,7 +1593,7 @@ function LLMProvidersTab(props) {
                 }, apiKeyInputs[p.id] === null ? 'Cancel' : 'Update Key'),
                 typeof apiKeyInputs[p.id] === 'string' && apiKeyInputs[p.id] !== null && h('div', { style: { display: 'flex', gap: 8, marginLeft: 8 } },
                   h('input', { className: 'input', type: 'password', value: apiKeyInputs[p.id], onChange: function(e) { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: e.target.value }); }); }, placeholder: meta.placeholder || 'New API key', style: { width: 240, fontSize: 13 } }),
-                  h('button', { className: 'btn btn-primary btn-sm', disabled: saving[p.id], onClick: function() { saveKey(p.id, p.name); } }, saving[p.id] ? '...' : 'Save')
+                  h('button', { className: 'btn btn-primary btn-sm', disabled: saving[p.id], onClick: function() { saveKey(p.id, p.name); } }, saving[p.id] ? (savingMsg[p.id] || 'Saving...') : 'Save')
                 )
               );
             })
@@ -1543,7 +1617,7 @@ function LLMProvidersTab(props) {
                 ),
                 h('div', { style: { display: 'flex', gap: 8 } },
                   h('input', { className: 'input', type: 'password', value: apiKeyInputs[p.id] || '', onChange: function(e) { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: e.target.value }); }); }, placeholder: meta.placeholder || 'Paste API key', style: { flex: 1, fontSize: 13 } }),
-                  h('button', { className: 'btn btn-primary btn-sm', disabled: saving[p.id] || !(apiKeyInputs[p.id] || '').trim(), onClick: function() { saveKey(p.id, p.name); } }, saving[p.id] ? 'Saving...' : 'Connect')
+                  h('button', { className: 'btn btn-primary btn-sm', disabled: saving[p.id] || !(apiKeyInputs[p.id] || '').trim(), onClick: function() { saveKey(p.id, p.name); } }, saving[p.id] ? (savingMsg[p.id] || 'Saving...') : 'Connect')
                 )
               );
             })
@@ -1818,26 +1892,6 @@ function ModelPricingTab(props) {
   allProviders.forEach(function(p) { providerNames[p.id] = p.name; });
 
   return h(Fragment, null,
-    // Providers section
-    h(ProvidersSection, {
-      providers: allProviders,
-      setProviders: props.setProviders,
-      showAddProvider: props.showAddProvider,
-      setShowAddProvider: props.setShowAddProvider,
-      newProvider: props.newProvider,
-      setNewProvider: props.setNewProvider,
-      discoverResults: props.discoverResults,
-      setDiscoverResults: props.setDiscoverResults,
-      toast: props.toast,
-      apiKeyModal: props.apiKeyModal,
-      setApiKeyModal: props.setApiKeyModal,
-      apiKeyInput: props.apiKeyInput,
-      setApiKeyInput: props.setApiKeyInput,
-    }),
-
-    // Divider
-    h('hr', { style: { border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0 20px 0' } }),
-
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
       h('div', null,
         h('h3', { style: { fontSize: 15, fontWeight: 700, margin: '0 0 4px 0' } }, 'Model Pricing'),

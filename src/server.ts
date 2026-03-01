@@ -32,11 +32,17 @@ import {
   requestLogger,
   rateLimiter,
   securityHeaders,
+  requireHttps,
   errorHandler,
   auditLogger,
   requireRole,
 } from './middleware/index.js';
 import { ipAccessControl } from './middleware/firewall.js';
+import { setNetworkDb, invalidateNetworkConfig } from './middleware/network-config.js';
+import { initProxyConfig } from './middleware/proxy-config.js';
+import { dnsRebindingProtection } from './middleware/dns-rebinding.js';
+import { requestBodyLimit } from './middleware/request-limits.js';
+import { geoIpRestriction } from './middleware/geo-ip.js';
 import { HealthMonitor, CircuitBreaker } from './lib/resilience.js';
 
 export interface ServerConfig {
@@ -71,6 +77,13 @@ export function createServer(config: ServerConfig): ServerInstance {
   const dbProxy = createDbProxy(config.db) as DbProxy;
   config.db = dbProxy;
 
+  // ─── Centralized Network Config ─────────────────────
+  // Must be initialized before any middleware that reads network config
+  setNetworkDb(config.db);
+  // Load initial config + apply proxy env vars
+  invalidateNetworkConfig().catch(() => {});
+  initProxyConfig();
+
   // ─── DB Circuit Breaker ──────────────────────────────
 
   const dbBreaker = new CircuitBreaker({
@@ -103,15 +116,49 @@ export function createServer(config: ServerConfig): ServerInstance {
   // Error handler (wraps everything below)
   app.use('*', errorHandler());
 
-  // Security headers
+  // Security headers (DB-backed)
   app.use('*', securityHeaders());
 
-  // IP access control (firewall)
-  app.use('*', ipAccessControl(() => config.db));
+  // HTTPS enforcement (DB-backed)
+  app.use('*', requireHttps());
 
-  // CORS
+  // DNS rebinding protection (DB-backed)
+  app.use('*', dnsRebindingProtection());
+
+  // Request body size limits (DB-backed)
+  app.use('*', requestBodyLimit());
+
+  // Geo-IP restrictions (DB-backed, requires reverse proxy country headers)
+  app.use('*', geoIpRestriction());
+
+  // IP access control (firewall, DB-backed with trusted proxy validation)
+  app.use('*', ipAccessControl());
+
+  // CORS — reads from centralized network config (auto-refreshed)
+  async function getCorsOrigins(): Promise<string[]> {
+    // If config provides explicit origins, use those
+    if (config.corsOrigins && config.corsOrigins.length && config.corsOrigins[0] !== '*') {
+      return config.corsOrigins;
+    }
+    // Read from centralized network config (cached 15s, invalidated on save)
+    const { getNetworkConfig } = await import('./middleware/network-config.js');
+    const netConfig = await getNetworkConfig();
+    const origins = netConfig.network?.corsOrigins;
+    if (origins && Array.isArray(origins) && origins.length > 0) return origins;
+    return []; // empty = allow all
+  }
   app.use('*', cors({
-    origin: config.corsOrigins || '*',
+    origin: async (origin, c) => {
+      const allowed = await getCorsOrigins();
+      // If no CORS configured, allow all (open)
+      if (!allowed.length) return origin || '*';
+      // If origin matches any allowed origin, permit
+      if (origin && allowed.includes(origin)) return origin;
+      // Also allow requests with no origin (same-origin, curl, server-to-server)
+      if (!origin) return allowed[0];
+      // Not allowed — return empty string to deny
+      return '';
+    },
     credentials: true,
     allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-Id', 'X-CSRF-Token'],
     exposeHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'Retry-After'],

@@ -1385,6 +1385,14 @@ CREATE INDEX IF NOT EXISTS idx_ksl_ts ON knowledge_search_log(timestamp);
     mysql: `SELECT 1;`,
     nosql: async () => {},
   },
+  {
+    version: 23,
+    name: 'add_use_root_domain',
+    sql: `ALTER TABLE company_settings ADD COLUMN use_root_domain INTEGER DEFAULT 0;`,
+    postgres: `ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS use_root_domain BOOLEAN DEFAULT FALSE;`,
+    mysql: `ALTER TABLE company_settings ADD COLUMN use_root_domain TINYINT DEFAULT 0;`,
+    nosql: async () => {},
+  },
 ];
 
 // ─── Dynamic Table Definitions ─────────────────────────

@@ -20,38 +20,19 @@ import {
 } from './oauth-connect.js';
 import type { OAuthProviderDefinition, OAuthPendingState } from './oauth-connect.js';
 
-// ─── Skill-to-Provider Mapping ──────────────────────────
+// ─── Skill-to-Provider Mapping (auto-generated from integration catalog) ──
+
+import { INTEGRATION_CATALOG } from '../mcp/integration-catalog.js';
 
 /**
- * Maps skillId identifiers to their underlying OAuth provider key.
- * Skills that do not use OAuth (e.g. bot-token or API-key auth) are
- * mapped to `null` and skipped during the authorize flow.
+ * Maps skillId → OAuth provider key. Built from catalog's oauthProvider field.
+ * Skills without oauthProvider return undefined (use token auth).
  */
-const SKILL_PROVIDER_MAP: Record<string, string | null> = {
-  'slack-notifications': 'slack',
-  'github-repos': 'github',
-  'jira-project-management': 'atlassian',
-  'notion': 'notion',
-  'google-drive': 'google',
-  'google-analytics': 'google',
-  'google-ads': 'google',
-  'discord-communication': null,        // uses bot token, not OAuth
-  'salesforce-crm': 'salesforce',
-  'linear-issues': null,                // uses API key
-  'microsoft-teams': 'microsoft',
-  'hubspot-crm': 'hubspot',
-  'zoom-meetings': 'zoom',
-  'dropbox-storage': 'dropbox',
-  'figma-design': 'figma',
-  'canva-design': 'canva',
-  'docusign-esign': 'docusign',
-  'asana-tasks': 'asana',
-  'confluence-wiki': 'atlassian',
-  'airtable-databases': null,           // uses API key / PAT
-  'todoist-tasks': null,                // uses API key
-  'elevenlabs': null,                   // uses API key
-  'google-maps': null,                  // uses API key
-};
+const SKILL_PROVIDER_MAP: Record<string, string | null> = Object.fromEntries(
+  INTEGRATION_CATALOG
+    .filter(e => e.authType === 'oauth2' && e.oauthProvider)
+    .map(e => [e.skillId, e.oauthProvider!])
+);
 
 // ─── Helper: find vault entry by name ───────────────────
 
@@ -79,8 +60,10 @@ export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any) {
     try {
       const skillId = c.req.param('skillId');
       const orgId = c.req.query('orgId') || 'default';
-      const redirectUri =
-        c.req.query('redirectUri') || '/api/engine/oauth/callback';
+      // Build absolute redirect URI from request origin (supports any deployment subdomain)
+      const reqUrl = new URL(c.req.url, `${c.req.header('x-forwarded-proto') || 'https'}://${c.req.header('host') || 'localhost'}`);
+      const defaultRedirect = `${reqUrl.origin}/api/engine/oauth/callback`;
+      const redirectUri = c.req.query('redirectUri') || defaultRedirect;
 
       // Resolve provider
       const providerKey = SKILL_PROVIDER_MAP[skillId];
@@ -150,14 +133,37 @@ export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any) {
     }
   });
 
-  // ─── POST /authorize/:skillId — Save API key/token directly ─────
+  // ─── POST /authorize/:skillId — Save API key/token or multi-field credentials ─────
 
   router.post('/authorize/:skillId', async (c) => {
     try {
       const skillId = c.req.param('skillId');
       const orgId = c.req.query('orgId') || 'default';
-      const { token } = await c.req.json();
+      const body = await c.req.json();
 
+      // Multi-field credentials: { credentials: { fieldName: value, ... } }
+      if (body.credentials && typeof body.credentials === 'object') {
+        const creds = body.credentials as Record<string, string>;
+        const entries = Object.entries(creds).filter(([, v]) => typeof v === 'string' && v.trim());
+        if (entries.length === 0) {
+          return c.json({ error: 'At least one credential field is required' }, 400);
+        }
+        // Store each field separately: skill:{skillId}:{fieldName}
+        for (const [field, value] of entries) {
+          await vault.storeSecret(
+            orgId,
+            `skill:${skillId}:${field}`,
+            'skill_credential',
+            value.trim(),
+            { provider: 'credentials', field, manualEntry: true },
+            'dashboard',
+          );
+        }
+        return c.json({ success: true, skillId, connected: true, fields: entries.length });
+      }
+
+      // Single token: { token: "..." }
+      const { token } = body;
       if (!token || typeof token !== 'string' || !token.trim()) {
         return c.json({ error: 'A non-empty token value is required' }, 400);
       }
@@ -278,6 +284,84 @@ export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any) {
       return c.html(oauthResultPage(true, `Connected to ${provider.name} successfully`));
     } catch (e: any) {
       return c.html(oauthResultPage(false, e.message || 'Unknown error'));
+    }
+  });
+
+  // ─── POST /app-config/:provider — Save OAuth app credentials (Client ID + Secret) ──
+
+  router.post('/app-config/:provider', async (c) => {
+    try {
+      const provider = c.req.param('provider');
+      const orgId = c.req.query('orgId') || 'default';
+      const { clientId, clientSecret } = await c.req.json();
+
+      if (!clientId?.trim() || !clientSecret?.trim()) {
+        return c.json({ error: 'Both Client ID and Client Secret are required' }, 400);
+      }
+
+      // Store Client ID
+      await vault.storeSecret(
+        orgId,
+        `oauth_provider:${provider}:client_id`,
+        'oauth_app',
+        clientId.trim(),
+        { provider, manualEntry: true },
+        'dashboard',
+      );
+
+      // Store Client Secret
+      await vault.storeSecret(
+        orgId,
+        `oauth_provider:${provider}:client_secret`,
+        'oauth_app',
+        clientSecret.trim(),
+        { provider, manualEntry: true },
+        'dashboard',
+      );
+
+      return c.json({ success: true, provider, configured: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  // ─── GET /app-config/:provider — Check if OAuth app is configured ──
+
+  router.get('/app-config/:provider', async (c) => {
+    try {
+      const provider = c.req.param('provider');
+      const orgId = c.req.query('orgId') || 'default';
+
+      const clientIdEntry = await findVaultEntryByName(vault, orgId, `oauth_provider:${provider}:client_id`);
+      const clientSecretEntry = await findVaultEntryByName(vault, orgId, `oauth_provider:${provider}:client_secret`);
+
+      return c.json({
+        configured: !!(clientIdEntry && clientSecretEntry),
+        provider,
+        hasClientId: !!clientIdEntry,
+        hasClientSecret: !!clientSecretEntry,
+      });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  // ─── DELETE /app-config/:provider — Remove OAuth app credentials ──
+
+  router.delete('/app-config/:provider', async (c) => {
+    try {
+      const provider = c.req.param('provider');
+      const orgId = c.req.query('orgId') || 'default';
+
+      const entries = await vault.getSecretsByOrg(orgId, 'oauth_app');
+      const toDelete = entries.filter((e: any) => e.name.startsWith(`oauth_provider:${provider}:`));
+      for (const e of toDelete) {
+        await vault.deleteSecret(e.id);
+      }
+
+      return c.json({ success: true, removed: toDelete.length });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
     }
   });
 

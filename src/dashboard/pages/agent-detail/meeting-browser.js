@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
+import { ProviderLogo } from '../../assets/provider-logos.js';
 import { Badge, EmptyState } from './shared.js?v=4';
 
 // ════════════════════════════════════════════════════════════
@@ -193,9 +194,9 @@ export function MeetingCapabilitiesSection(props) {
       // Supported platforms
       h('div', { style: { display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr 1fr', marginBottom: 16 } },
         [
-          { name: 'Google Meet', icon: '\uD83D\uDFE2', enabled: cfg.meetingGoogleMeet !== false, key: 'meetingGoogleMeet', desc: 'Join via Google Calendar integration' },
-          { name: 'Microsoft Teams', icon: '\uD83D\uDFE3', enabled: cfg.meetingTeams !== false, key: 'meetingTeams', desc: 'Join via meeting links' },
-          { name: 'Zoom', icon: '\uD83D\uDD35', enabled: cfg.meetingZoom !== false, key: 'meetingZoom', desc: 'Join via meeting links' },
+          { name: 'Google Meet', icon: ProviderLogo.googleMeet(20), enabled: cfg.meetingGoogleMeet !== false, key: 'meetingGoogleMeet', desc: 'Join via Google Calendar integration' },
+          { name: 'Microsoft Teams', icon: ProviderLogo.teams(20), enabled: cfg.meetingTeams !== false, key: 'meetingTeams', desc: 'Join via meeting links' },
+          { name: 'Zoom', icon: ProviderLogo.zoom(20), enabled: cfg.meetingZoom !== false, key: 'meetingZoom', desc: 'Join via meeting links' },
         ].map(function(p) {
           return h('div', { key: p.key, className: 'card', style: { padding: '10px 12px', cursor: 'pointer', border: '1px solid ' + (p.enabled ? 'var(--accent)' : 'var(--border)') },
             onClick: function() { update(p.key, !p.enabled); }

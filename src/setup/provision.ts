@@ -83,11 +83,29 @@ export async function provision(
     // ─── Company Settings ──────────────────────────
     spinner.start('Creating company...');
     const orgId = generateOrgId();
+
+    // Build CORS origins from deployment domain
+    const corsOrigins: string[] = [];
+    if (config.domain.customDomain) {
+      corsOrigins.push(`https://${config.domain.customDomain}`);
+    }
+    if (config.company.subdomain) {
+      corsOrigins.push(`https://${config.company.subdomain}.agenticmail.io`);
+    }
+    if (config.deployTarget === 'local') {
+      corsOrigins.push('http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080');
+    }
+
     await db.updateSettings({
       name: config.company.companyName,
       subdomain: config.company.subdomain,
       domain: config.domain.customDomain,
       orgId,
+      ...(corsOrigins.length > 0 ? {
+        firewallConfig: {
+          network: { corsOrigins },
+        },
+      } : {}),
     } as any);
     spinner.succeed(`Company created (org: ${orgId})`);
 

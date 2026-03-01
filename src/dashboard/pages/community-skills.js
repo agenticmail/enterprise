@@ -91,6 +91,8 @@ export function CommunitySkillsPage() {
   var credModal = _credModal[0]; var setCredModal = _credModal[1];
   var _credValue = useState('');
   var credValue = _credValue[0]; var setCredValue = _credValue[1];
+  var _credFields = useState({}); // { fieldName: value } for multi-field credentials
+  var credFields = _credFields[0]; var setCredFields = _credFields[1];
   var _credScope = useState('org'); // 'org' or 'agent'
   var credScope = _credScope[0]; var setCredScope = _credScope[1];
   var _credAgent = useState('');
@@ -123,18 +125,26 @@ export function CommunitySkillsPage() {
   }, []);
 
   var saveCredential = function() {
-    if (!credModal || !credValue.trim()) return;
+    if (!credModal) return;
+    var isMultiField = credModal.authType === 'credentials' && credModal.fields && credModal.fields.length > 0;
+    if (isMultiField) {
+      // Validate all fields have values
+      var allFilled = credModal.fields.every(function(f) { return credFields[f] && credFields[f].trim(); });
+      if (!allFilled) return;
+    } else {
+      if (!credValue.trim()) return;
+    }
     setCredSaving(true);
-    var name = credScope === 'agent' && credAgent
-      ? credModal.id + ':agent:' + credAgent
-      : credModal.id;
+    var payload = isMultiField
+      ? { credentials: credModal.fields.reduce(function(o, f) { o[f] = credFields[f].trim(); return o; }, {}), scope: credScope, agentId: credAgent || undefined }
+      : { token: credValue.trim(), scope: credScope, agentId: credAgent || undefined };
     engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + getOrgId(), {
       method: 'POST',
-      body: JSON.stringify({ token: credValue.trim(), scope: credScope, agentId: credAgent || undefined })
+      body: JSON.stringify(payload)
     })
       .then(function() {
         toast(credModal.name + ' credentials saved' + (credScope === 'agent' ? ' (per-agent)' : ' (org-wide)'), 'success');
-        setCredModal(null); setCredValue(''); setCredScope('org'); setCredAgent('');
+        setCredModal(null); setCredValue(''); setCredFields({}); setCredScope('org'); setCredAgent('');
         setCredStatuses(function(s) { var n = Object.assign({}, s); n[credModal.id] = true; return n; });
       })
       .catch(function(e) { toast('Failed: ' + (e.message || 'Unknown error'), 'error'); })
@@ -144,47 +154,105 @@ export function CommunitySkillsPage() {
   // Track auth types from integration catalog
   var _authTypes = useState({});
   var authTypes = _authTypes[0]; var setAuthTypes = _authTypes[1];
+  var _catalogData = useState({}); // { skillId: { authType, fields, fieldLabels } }
+  var catalogData = _catalogData[0]; var setCatalogData = _catalogData[1];
   useEffect(function() {
     engineCall('/integrations/catalog?orgId=' + getOrgId())
       .then(function(d) {
         var map = {};
-        (d.catalog || []).forEach(function(e) { map[e.skillId] = e.authType; });
+        var cmap = {};
+        (d.catalog || []).forEach(function(e) {
+          map[e.skillId] = e.authType;
+          cmap[e.skillId] = { authType: e.authType, fields: e.fields, fieldLabels: e.fieldLabels, oauthProvider: e.oauthProvider };
+        });
         setAuthTypes(map);
+        setCatalogData(cmap);
       })
       .catch(function() {});
   }, []);
 
+  // OAuth app config state
+  var _oauthClientId = useState('');
+  var oauthClientId = _oauthClientId[0]; var setOauthClientId = _oauthClientId[1];
+  var _oauthClientSecret = useState('');
+  var oauthClientSecret = _oauthClientSecret[0]; var setOauthClientSecret = _oauthClientSecret[1];
+  var _oauthTab = useState('oauth'); // 'oauth' or 'token'
+  var oauthTab = _oauthTab[0]; var setOauthTab = _oauthTab[1];
+  var _oauthAppConfigured = useState(false);
+  var oauthAppConfigured = _oauthAppConfigured[0]; var setOauthAppConfigured = _oauthAppConfigured[1];
+  var _oauthSaving = useState(false);
+  var oauthSaving = _oauthSaving[0]; var setOauthSaving = _oauthSaving[1];
+
   var openCredSetup = function(skill) {
-    var at = authTypes[skill.id];
-    if (at === 'oauth2') {
-      // Try OAuth flow first
-      engineCall('/oauth/authorize/' + skill.id + '?orgId=' + getOrgId())
-        .then(function(d) {
-          if (d.authUrl || d.authorizationUrl) {
-            var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
-            var check = setInterval(function() {
-              if (popup && popup.closed) {
-                clearInterval(check);
-                setCredStatuses(function(s) { var n = Object.assign({}, s); n[skill.id] = true; return n; });
-              }
-            }, 500);
-            setTimeout(function() { clearInterval(check); }, 120000);
-          } else {
-            // OAuth app not configured — fall back to manual token
-            skill._oauthFallback = true;
-            setCredModal(skill);
-            setCredValue(''); setCredScope('org'); setCredAgent('');
-          }
-        })
-        .catch(function() {
-          skill._oauthFallback = true;
-          setCredModal(skill);
-          setCredValue(''); setCredScope('org'); setCredAgent('');
-        });
-    } else {
-      setCredModal(skill);
-      setCredValue(''); setCredScope('org'); setCredAgent('');
+    // Attach catalog metadata (fields, fieldLabels, authType, oauthProvider) to skill for modal
+    var cd = catalogData[skill.id];
+    if (cd) {
+      skill.authType = cd.authType; skill.fields = cd.fields;
+      skill.fieldLabels = cd.fieldLabels; skill.oauthProvider = cd.oauthProvider;
     }
+    setCredModal(skill);
+    setCredValue(''); setCredFields({}); setCredScope('org'); setCredAgent('');
+    setOauthClientId(''); setOauthClientSecret(''); setOauthTab('oauth'); setOauthAppConfigured(false);
+    // For oauth2 services, check if OAuth app is already configured
+    if (skill.authType === 'oauth2' && skill.oauthProvider) {
+      engineCall('/oauth/app-config/' + skill.oauthProvider + '?orgId=' + getOrgId())
+        .then(function(d) { if (d.configured) setOauthAppConfigured(true); })
+        .catch(function() {});
+    }
+  };
+
+  var saveOauthApp = function() {
+    if (!credModal || !credModal.oauthProvider) return;
+    if (!oauthClientId.trim() || !oauthClientSecret.trim()) return;
+    setOauthSaving(true);
+    engineCall('/oauth/app-config/' + credModal.oauthProvider + '?orgId=' + getOrgId(), {
+      method: 'POST',
+      body: JSON.stringify({ clientId: oauthClientId.trim(), clientSecret: oauthClientSecret.trim() })
+    })
+      .then(function() {
+        setOauthAppConfigured(true);
+        toast('OAuth app configured for ' + credModal.name, 'success');
+        // Now launch OAuth consent flow
+        return engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + getOrgId());
+      })
+      .then(function(d) {
+        if (d && (d.authUrl || d.authorizationUrl)) {
+          var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
+          var check = setInterval(function() {
+            if (popup && popup.closed) {
+              clearInterval(check);
+              setCredStatuses(function(s) { var n = Object.assign({}, s); n[credModal.id] = true; return n; });
+              setCredModal(null);
+              toast(credModal.name + ' connected via OAuth', 'success');
+            }
+          }, 500);
+          setTimeout(function() { clearInterval(check); }, 120000);
+        }
+      })
+      .catch(function(e) { toast('Failed: ' + (e.message || 'Unknown error'), 'error'); })
+      .finally(function() { setOauthSaving(false); });
+  };
+
+  var launchOauthFlow = function() {
+    if (!credModal) return;
+    engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + getOrgId())
+      .then(function(d) {
+        if (d && (d.authUrl || d.authorizationUrl)) {
+          var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
+          var check = setInterval(function() {
+            if (popup && popup.closed) {
+              clearInterval(check);
+              setCredStatuses(function(s) { var n = Object.assign({}, s); n[credModal.id] = true; return n; });
+              setCredModal(null);
+              toast(credModal.name + ' connected via OAuth', 'success');
+            }
+          }, 500);
+          setTimeout(function() { clearInterval(check); }, 120000);
+        } else {
+          toast('OAuth flow failed — try using an access token instead', 'error');
+        }
+      })
+      .catch(function(e) { toast('OAuth error: ' + (e.message || 'Unknown'), 'error'); });
   };
 
   const installSkill = async (skillId) => {
@@ -831,19 +899,21 @@ export function CommunitySkillsPage() {
     // GitHub Import Modal
     // ─── Credential Setup Modal ───────────────────────────
     credModal && h('div', { className: 'modal-overlay', onClick: function() { setCredModal(null); } },
-      h('div', { className: 'modal', style: { width: 520 }, onClick: function(e) { e.stopPropagation(); } },
+      h('div', { className: 'modal', style: { width: 560 }, onClick: function(e) { e.stopPropagation(); } },
         h('div', { className: 'modal-header' },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
             skillIcon(credModal.icon, 24, credModal.category, credModal.id),
             h('div', null,
-              h('h2', { style: { margin: 0, fontSize: 16 } }, 'Configure ' + (credModal.name || credModal.id)),
-              h('span', { style: { fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 } }, 'Set up credentials for this integration',
+              h('h2', { style: { margin: 0, fontSize: 16 } }, 'Connect ' + (credModal.name || credModal.id)),
+              h('span', { style: { fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 } },
+                credModal.authType === 'oauth2' ? 'Configure OAuth app or paste access token' :
+                credModal.authType === 'credentials' ? 'Enter service credentials' :
+                'Enter API key or token',
                 h(HelpButton, { label: 'Credential Scopes' },
                   h('div', { style: { fontSize: 13, lineHeight: 1.6 } },
-                    h('p', null, h('strong', null, 'Organization-wide:'), ' One API key shared by all agents. Best for services where all agents should have the same access level.'),
-                    h('p', null, h('strong', null, 'Per-Agent:'), ' Each agent gets their own API key. Use when agents need different permission levels (e.g., one agent has read-only, another has admin access).'),
-                    h('p', null, 'Per-agent credentials override org-wide credentials. If an agent has no per-agent key, it falls back to the org-wide key.'),
-                    h('p', null, 'Credentials are encrypted with AES-256-GCM and stored in the secure vault. They are never exposed in logs or API responses.')
+                    h('p', null, h('strong', null, 'Organization-wide:'), ' One set of credentials shared by all agents.'),
+                    h('p', null, h('strong', null, 'Per-Agent:'), ' Each agent gets their own credentials for different permission levels.'),
+                    h('p', null, 'All credentials are encrypted with AES-256-GCM and stored in the secure vault.')
                   )
                 )
               )
@@ -852,44 +922,128 @@ export function CommunitySkillsPage() {
           h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setCredModal(null); } }, I.x())
         ),
         h('div', { className: 'modal-body' },
-          // Auth help / instructions
-          credModal.authHelp && h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, marginBottom: 16, fontSize: 13 } },
-            h('div', { style: { fontWeight: 600, marginBottom: 4 } }, 'How to get credentials:'),
-            h('p', { style: { margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5 } },
-              typeof credModal.authHelp === 'string' ? credModal.authHelp : credModal.authHelp.description
+
+          // ── OAuth2 services: Tabbed interface (OAuth App | Access Token) ──
+          credModal.authType === 'oauth2' && h('div', { style: { marginBottom: 16 } },
+            // Tab bar
+            h('div', { style: { display: 'flex', gap: 0, marginBottom: 16, borderBottom: '1px solid var(--border)' } },
+              h('button', {
+                style: { padding: '8px 16px', fontSize: 13, fontWeight: oauthTab === 'oauth' ? 600 : 400, color: oauthTab === 'oauth' ? 'var(--accent)' : 'var(--text-secondary)', background: 'none', border: 'none', borderBottom: oauthTab === 'oauth' ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', marginBottom: -1 },
+                onClick: function() { setOauthTab('oauth'); }
+              }, 'OAuth App ', h('span', { style: { fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'rgba(99,102,241,0.15)', color: 'var(--accent)', marginLeft: 4 } }, 'RECOMMENDED')),
+              h('button', {
+                style: { padding: '8px 16px', fontSize: 13, fontWeight: oauthTab === 'token' ? 600 : 400, color: oauthTab === 'token' ? 'var(--accent)' : 'var(--text-secondary)', background: 'none', border: 'none', borderBottom: oauthTab === 'token' ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', marginBottom: -1 },
+                onClick: function() { setOauthTab('token'); }
+              }, 'Access Token')
             ),
-            typeof credModal.authHelp === 'object' && credModal.authHelp.url && h('a', {
-              href: credModal.authHelp.url, target: '_blank', rel: 'noopener',
-              style: { display: 'inline-block', marginTop: 6, fontSize: 12, color: 'var(--accent)' }
-            }, 'Open ' + (credModal.authHelp.provider || 'provider') + ' docs \u2192')
+
+            // OAuth App tab
+            oauthTab === 'oauth' && h('div', null,
+              // Already configured notice
+              oauthAppConfigured && h('div', {
+                style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(34,197,94,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(34,197,94,0.3)', fontSize: 12, color: 'var(--success)', lineHeight: 1.6 }
+              }, I.check(), ' OAuth app already configured for this provider. You can re-authorize or update credentials.'),
+
+              h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 } },
+                'Create an OAuth app in ', credModal.name, '\'s developer portal, then enter the Client ID and Secret below. ',
+                'This enables secure OAuth 2.0 authorization for all agents.'
+              ),
+
+              // Client ID
+              h('div', { style: { marginBottom: 12 } },
+                h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Client ID'),
+                h('input', {
+                  className: 'input', type: 'text',
+                  placeholder: 'e.g. 1234567890.apps.example.com',
+                  value: oauthClientId,
+                  onChange: function(e) { setOauthClientId(e.target.value); },
+                  style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
+                })
+              ),
+
+              // Client Secret
+              h('div', { style: { marginBottom: 12 } },
+                h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Client Secret'),
+                h('input', {
+                  className: 'input', type: 'password',
+                  placeholder: 'Client secret from developer portal...',
+                  value: oauthClientSecret,
+                  onChange: function(e) { setOauthClientSecret(e.target.value); },
+                  style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
+                })
+              ),
+
+              h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4, marginBottom: 14 } },
+                'Credentials are encrypted with AES-256-GCM. The redirect URI for your OAuth app should be: ',
+                h('code', { style: { fontSize: 11, background: 'var(--bg-tertiary)', padding: '1px 4px', borderRadius: 3 } },
+                  window.location.origin + '/api/engine/oauth/callback'
+                )
+              ),
+
+              // Buttons
+              h('div', { style: { display: 'flex', gap: 8 } },
+                !oauthAppConfigured
+                  ? h('button', {
+                      className: 'btn btn-primary',
+                      disabled: oauthSaving || !oauthClientId.trim() || !oauthClientSecret.trim(),
+                      onClick: saveOauthApp,
+                      style: { flex: 1 }
+                    }, oauthSaving ? 'Configuring...' : 'Save & Authorize')
+                  : h('button', {
+                      className: 'btn btn-primary',
+                      onClick: launchOauthFlow,
+                      style: { flex: 1 }
+                    }, 'Re-authorize with ' + credModal.name)
+              )
+            ),
+
+            // Token tab
+            oauthTab === 'token' && h('div', null,
+              h('div', {
+                style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(234,179,8,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(234,179,8,0.2)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }
+              },
+                h('strong', null, 'Advanced: '), 'Paste a Personal Access Token or API token from the service\'s developer console. ',
+                'This bypasses OAuth but may have limited scopes or expiration.'
+              ),
+              h('div', { style: { marginBottom: 12 } },
+                h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Access Token'),
+                h('input', {
+                  className: 'input', type: 'password', placeholder: 'Paste token here...',
+                  value: credValue,
+                  onChange: function(e) { setCredValue(e.target.value); },
+                  style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
+                })
+              )
+            )
           ),
 
-          // Credential scope
+          // ── Non-OAuth: Credential scope selector ──
+          (credModal.authType !== 'oauth2' || (credModal.authType === 'oauth2' && oauthTab === 'token')) &&
           h('div', { style: { marginBottom: 16 } },
             h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 8 } }, 'Credential Scope'),
             h('div', { style: { display: 'flex', gap: 8 } },
               h('button', {
                 className: 'btn btn-sm ' + (credScope === 'org' ? 'btn-primary' : 'btn-ghost'),
                 onClick: function() { setCredScope('org'); }
-              }, I.users(), ' Organization-wide'),
+              }, 'Organization-wide'),
               h('button', {
                 className: 'btn btn-sm ' + (credScope === 'agent' ? 'btn-primary' : 'btn-ghost'),
                 onClick: function() { setCredScope('agent'); }
-              }, I.agents(), ' Per-Agent')
+              }, 'Per-Agent')
             ),
             h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
               credScope === 'org'
                 ? 'All agents in this organization will use these credentials.'
-                : 'Only the selected agent will use these credentials. Other agents can have different credentials.'
+                : 'Only the selected agent will use these credentials.'
             )
           ),
 
-          // Agent selector (per-agent mode)
+          // Agent selector (per-agent mode, non-oauth or oauth token tab)
+          (credModal.authType !== 'oauth2' || (credModal.authType === 'oauth2' && oauthTab === 'token')) &&
           credScope === 'agent' && h('div', { style: { marginBottom: 16 } },
             h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Select Agent'),
             h('select', {
-              className: 'input',
-              value: credAgent,
+              className: 'input', value: credAgent,
               onChange: function(e) { setCredAgent(e.target.value); }
             },
               h('option', { value: '' }, '-- Select an agent --'),
@@ -900,42 +1054,75 @@ export function CommunitySkillsPage() {
             )
           ),
 
-          // OAuth fallback notice
-          credModal._oauthFallback && h('div', {
-            style: { padding: '10px 14px', marginBottom: 14, background: 'rgba(99,102,241,0.1)', borderRadius: 'var(--radius)', border: '1px solid rgba(99,102,241,0.2)', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }
-          },
-            h('strong', null, 'OAuth Note: '), 'This service normally uses OAuth2. ',
-            'Since no OAuth app is configured, you can paste an access token from the service\'s developer console as a workaround.'
+          // ── Multi-field credentials (AWS, Twilio, Datadog, etc.) ──
+          credModal.authType === 'credentials' && credModal.fields && credModal.fields.length > 0 &&
+          h('div', { style: { marginBottom: 16 } },
+            credModal.fields.map(function(field) {
+              var label = (credModal.fieldLabels && credModal.fieldLabels[field]) || field;
+              var isSensitive = /secret|password|key|token|private/i.test(field);
+              return h('div', { key: field, style: { marginBottom: 12 } },
+                h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, label),
+                h('input', {
+                  className: 'input',
+                  type: isSensitive ? 'password' : 'text',
+                  placeholder: label + '...',
+                  value: credFields[field] || '',
+                  onChange: function(e) {
+                    setCredFields(function(prev) {
+                      var next = Object.assign({}, prev);
+                      next[field] = e.target.value;
+                      return next;
+                    });
+                  },
+                  style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
+                })
+              );
+            }),
+            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
+              'Each field is encrypted separately using AES-256-GCM and stored in the secure vault.'
+            )
           ),
 
-          // API Key / Token input
+          // ── Single token/API key (api_key, token types) ──
+          (credModal.authType === 'api_key' || credModal.authType === 'token') &&
           h('div', { style: { marginBottom: 16 } },
             h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } },
-              credModal._oauthFallback ? 'Access Token' : 'API Key / Token'
+              credModal.authType === 'api_key' ? 'API Key' : 'Token'
             ),
             h('input', {
-              className: 'input', type: 'password', placeholder: 'Paste your API key or token here...',
+              className: 'input', type: 'password',
+              placeholder: credModal.authType === 'api_key' ? 'Paste your API key...' : 'Paste your token...',
               value: credValue,
               onChange: function(e) { setCredValue(e.target.value); },
               style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
             }),
             h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
-              'Credentials are encrypted at rest using AES-256-GCM and stored in the secure vault.'
+              'Encrypted with AES-256-GCM and stored in the secure vault.'
             )
           ),
 
-          // Status
+          // Existing connection status
           credStatuses[credModal.id] && h('div', { style: { padding: 8, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 6, marginBottom: 12, fontSize: 12, color: 'var(--success)' } },
-            I.check(), ' Organization-wide credentials are already configured. Saving new credentials will overwrite them.'
+            I.check(), ' Credentials already configured. Saving new credentials will overwrite them.'
           )
         ),
-        h('div', { className: 'modal-footer' },
+        // Footer — only show Save for non-OAuth or OAuth token tab
+        (credModal.authType !== 'oauth2' || oauthTab === 'token') && h('div', { className: 'modal-footer' },
           h('button', { className: 'btn btn-ghost', onClick: function() { setCredModal(null); } }, 'Cancel'),
           h('button', {
             className: 'btn btn-primary',
-            disabled: credSaving || !credValue.trim() || (credScope === 'agent' && !credAgent),
+            disabled: credSaving || (credScope === 'agent' && !credAgent) || (function() {
+              if (credModal.authType === 'credentials' && credModal.fields && credModal.fields.length > 0) {
+                return !credModal.fields.every(function(f) { return credFields[f] && credFields[f].trim(); });
+              }
+              return !credValue.trim();
+            })(),
             onClick: saveCredential
           }, credSaving ? 'Saving...' : 'Save Credentials')
+        ),
+        // Footer for OAuth tab — just Cancel (Save & Authorize is inline)
+        credModal.authType === 'oauth2' && oauthTab === 'oauth' && h('div', { className: 'modal-footer' },
+          h('button', { className: 'btn btn-ghost', onClick: function() { setCredModal(null); } }, 'Cancel')
         )
       )
     ),
