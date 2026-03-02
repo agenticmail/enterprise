@@ -158,6 +158,7 @@ export function DomainStatusPage() {
     );
   }
 
+  var isLocalhost = /^(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/.test(actualHost);
   var hasDomain = data && data.domain;
   var isDomainVerified = hasDomain && data.status === 'verified';
   var isDomainPending = hasDomain && data.status === 'pending_dns';
@@ -174,6 +175,11 @@ export function DomainStatusPage() {
       h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Domain & Deployment'),
       h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage the domain and URL for your AgenticMail Enterprise deployment')
     ),
+
+    // ═══════════════════════════════════════════════
+    // DEPLOY TO PRODUCTION (shown when on localhost)
+    // ═══════════════════════════════════════════════
+    isLocalhost && DeployToProduction({ toast: toast }),
 
     // ═══════════════════════════════════════════════
     // SECTION 1: Current Deployment
@@ -499,5 +505,189 @@ function cliRow(label, cmd) {
   return h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
     h('span', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, label),
     h('code', { style: { fontSize: 12, color: 'var(--accent)' } }, cmd)
+  );
+}
+
+// ─── Deploy to Production Component ─────────────────────
+
+function DeployToProduction({ toast }) {
+  var [expanded, setExpanded] = useState(false);
+  var [selectedMethod, setSelectedMethod] = useState(null);
+
+  var card = { padding: 24, background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(99,102,241,0.25)', marginBottom: 20 };
+  var methodCard = function(id, icon, title, subtitle, difficulty, recommended) {
+    var isActive = selectedMethod === id;
+    return h('div', {
+      onClick: function() { setSelectedMethod(isActive ? null : id); },
+      style: {
+        padding: 16, borderRadius: 'var(--radius)', cursor: 'pointer', transition: 'all 0.15s',
+        background: isActive ? 'rgba(99,102,241,0.12)' : 'var(--bg-secondary)',
+        border: '1px solid ' + (isActive ? 'var(--accent)' : 'var(--border)'),
+        position: 'relative',
+      },
+    },
+      recommended && h('span', { style: { position: 'absolute', top: -8, right: 12, fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'var(--accent)', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'Recommended'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 } },
+        h('span', { style: { fontSize: 20 } }, icon),
+        h('span', { style: { fontWeight: 600, fontSize: 14 } }, title),
+      ),
+      h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.5 } }, subtitle),
+      h('div', { style: { fontSize: 10, fontWeight: 600, color: difficulty === 'Easy' ? 'var(--success)' : difficulty === 'Medium' ? 'var(--warning)' : 'var(--text-muted)' } }, difficulty),
+    );
+  };
+
+  var copyCmd = function(cmd) {
+    navigator.clipboard.writeText(cmd);
+    toast('Command copied!', 'success');
+  };
+
+  var cmdBlock = function(cmd, label) {
+    return h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0d1117', borderRadius: 6, marginBottom: 6, fontFamily: 'var(--font-mono)', fontSize: 12, color: '#e6edf3', border: '1px solid rgba(255,255,255,0.08)' } },
+      h('span', { style: { flex: 1, wordBreak: 'break-all' } }, cmd),
+      h('button', { onClick: function() { copyCmd(cmd); }, style: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 11, padding: '2px 6px', borderRadius: 4, flexShrink: 0 }, title: 'Copy' }, 'Copy'),
+    );
+  };
+
+  var stepItem = function(num, text) {
+    return h('div', { style: { display: 'flex', gap: 10, marginBottom: 8, fontSize: 13, lineHeight: 1.6 } },
+      h('span', { style: { width: 22, height: 22, borderRadius: '50%', background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 1 } }, num),
+      h('div', null, text),
+    );
+  };
+
+  return h('div', { style: card },
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }, onClick: function() { setExpanded(!expanded); } },
+      h('div', null,
+        h('div', { style: { fontSize: 16, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 } },
+          '\uD83D\uDE80 Deploy to Production',
+          h('span', { style: { fontSize: 10, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.15)', color: 'var(--warning)', fontWeight: 600 } }, 'LOCALHOST'),
+        ),
+        h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'You\'re running locally. Deploy to a domain so your agents can be reached from anywhere.'),
+      ),
+      h('span', { style: { fontSize: 18, color: 'var(--text-muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' } }, '\u25BC'),
+    ),
+
+    expanded && h('div', { style: { marginTop: 20 } },
+      // Method cards
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 } },
+        methodCard('vps', '\uD83D\uDDA5\uFE0F', 'VPS / Server', 'Deploy to any Linux server (DigitalOcean, Hetzner, AWS, etc.)', 'Easy', true),
+        methodCard('docker', '\uD83D\uDC33', 'Docker', 'Run as a Docker container on any host', 'Medium'),
+        methodCard('railway', '\uD83D\uDE82', 'Railway', 'One-click deploy to Railway.app', 'Easy'),
+        methodCard('fly', '\u2708\uFE0F', 'Fly.io', 'Deploy to Fly.io edge network', 'Medium'),
+      ),
+
+      // ─── VPS Instructions ─────────────────────────
+      selectedMethod === 'vps' && h('div', { style: { padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+        h('h3', { style: { fontSize: 15, fontWeight: 700, marginBottom: 16 } }, 'Deploy to a VPS'),
+        h('p', { style: { fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 } },
+          'Works with any Linux server: DigitalOcean ($6/mo), Hetzner ($4/mo), Linode, AWS EC2, etc. Minimum: 1 CPU, 1GB RAM.',
+        ),
+
+        stepItem('1', h(Fragment, null, h('strong', null, 'Get a server'), ' — Any Ubuntu/Debian VPS. Point your domain\'s DNS to the server\'s IP address.')),
+
+        stepItem('2', h(Fragment, null, h('strong', null, 'SSH in and install Node.js + PM2:'),
+          cmdBlock('curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs'),
+          cmdBlock('sudo npm install -g pm2'),
+        )),
+
+        stepItem('3', h(Fragment, null, h('strong', null, 'Install AgenticMail Enterprise:'),
+          cmdBlock('sudo npm install -g @agenticmail/enterprise'),
+        )),
+
+        stepItem('4', h(Fragment, null, h('strong', null, 'Run the setup wizard:'),
+          cmdBlock('agenticmail-enterprise setup'),
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'This will walk you through Google Workspace, database, and domain configuration.'),
+        )),
+
+        stepItem('5', h(Fragment, null, h('strong', null, 'Start with PM2 (auto-restart on crash):'),
+          cmdBlock('pm2 start agenticmail-enterprise -- start'),
+          cmdBlock('pm2 save && pm2 startup'),
+        )),
+
+        stepItem('6', h(Fragment, null, h('strong', null, 'Set up HTTPS with Caddy (automatic SSL):'),
+          cmdBlock('sudo apt install -y caddy'),
+          cmdBlock('echo "yourdomain.com { reverse_proxy localhost:3200 }" | sudo tee /etc/caddy/Caddyfile'),
+          cmdBlock('sudo systemctl restart caddy'),
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Replace yourdomain.com with your actual domain. Caddy handles SSL automatically.'),
+        )),
+
+        h('div', { style: { marginTop: 16, padding: '12px 16px', background: 'var(--success-soft)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--success)', lineHeight: 1.6 } },
+          '\u2705 Done! Your dashboard will be live at ', h('strong', null, 'https://yourdomain.com'), '. All your agents, settings, and data will be on your own server.'
+        ),
+      ),
+
+      // ─── Docker Instructions ──────────────────────
+      selectedMethod === 'docker' && h('div', { style: { padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+        h('h3', { style: { fontSize: 15, fontWeight: 700, marginBottom: 16 } }, 'Deploy with Docker'),
+
+        stepItem('1', h(Fragment, null, h('strong', null, 'Create docker-compose.yml:'),
+          cmdBlock('mkdir agenticmail && cd agenticmail'),
+          h('div', { style: { padding: '10px 12px', background: '#0d1117', borderRadius: 6, marginBottom: 6, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#e6edf3', whiteSpace: 'pre', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)' } },
+            'version: "3.8"\nservices:\n  enterprise:\n    image: node:22\n    working_dir: /app\n    command: npx @agenticmail/enterprise start\n    ports:\n      - "3200:3200"\n    volumes:\n      - ./data:/app/data\n    restart: unless-stopped'
+          ),
+        )),
+
+        stepItem('2', h(Fragment, null, h('strong', null, 'Start:'),
+          cmdBlock('docker compose up -d'),
+        )),
+
+        stepItem('3', h(Fragment, null, h('strong', null, 'Add a reverse proxy (Caddy/Nginx) for HTTPS, same as VPS step 6.'))),
+      ),
+
+      // ─── Railway Instructions ─────────────────────
+      selectedMethod === 'railway' && h('div', { style: { padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+        h('h3', { style: { fontSize: 15, fontWeight: 700, marginBottom: 16 } }, 'Deploy to Railway'),
+
+        stepItem('1', h(Fragment, null,
+          h('strong', null, 'Click to deploy:'),
+          h('div', { style: { marginTop: 8 } },
+            h('a', { href: 'https://railway.app/new', target: '_blank', style: { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--accent)', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 } }, '\uD83D\uDE82 Open Railway'),
+          ),
+        )),
+        stepItem('2', h(Fragment, null, h('strong', null, 'Create a new project'), ' and select "Deploy from GitHub" or "Empty Project".')),
+        stepItem('3', h(Fragment, null, h('strong', null, 'Add a service'), ' with start command:',
+          cmdBlock('npx @agenticmail/enterprise start'),
+        )),
+        stepItem('4', h(Fragment, null, h('strong', null, 'Set environment variables'), ' (DATABASE_URL, MASTER_KEY, etc.) in the Railway dashboard.')),
+        stepItem('5', h(Fragment, null, h('strong', null, 'Generate a domain'), ' — Railway gives you a free URL, or add your custom domain.')),
+      ),
+
+      // ─── Fly.io Instructions ──────────────────────
+      selectedMethod === 'fly' && h('div', { style: { padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+        h('h3', { style: { fontSize: 15, fontWeight: 700, marginBottom: 16 } }, 'Deploy to Fly.io'),
+
+        stepItem('1', h(Fragment, null, h('strong', null, 'Install Fly CLI:'),
+          cmdBlock('curl -L https://fly.io/install.sh | sh'),
+          cmdBlock('fly auth login'),
+        )),
+        stepItem('2', h(Fragment, null, h('strong', null, 'Create fly.toml:'),
+          h('div', { style: { padding: '10px 12px', background: '#0d1117', borderRadius: 6, marginBottom: 6, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#e6edf3', whiteSpace: 'pre', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.08)' } },
+            'app = "my-agenticmail"\n\n[build]\n  builder = "heroku/buildpacks:22"\n\n[env]\n  PORT = "3200"\n\n[[services]]\n  internal_port = 3200\n  protocol = "tcp"\n  [services.concurrency]\n    hard_limit = 250\n    soft_limit = 200\n  [[services.ports]]\n    port = 443\n    handlers = ["tls", "http"]'
+          ),
+        )),
+        stepItem('3', h(Fragment, null, h('strong', null, 'Set secrets and deploy:'),
+          cmdBlock('fly secrets set MASTER_KEY=your-key DATABASE_URL=your-db-url'),
+          cmdBlock('fly deploy'),
+        )),
+        stepItem('4', h(Fragment, null, h('strong', null, 'Add custom domain:'),
+          cmdBlock('fly certs create yourdomain.com'),
+        )),
+      ),
+
+      // ─── Export / Migrate Data ────────────────────
+      h('div', { style: { marginTop: 16, padding: '14px 16px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+        h('div', { style: { fontSize: 13, fontWeight: 600, marginBottom: 6 } }, 'Migrating from Localhost?'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 } },
+          'Your local data (SQLite) lives in ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, './data/'),
+          '. To migrate to a production Postgres database:',
+        ),
+        h('ol', { style: { fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8, paddingLeft: 20, marginTop: 8, marginBottom: 0 } },
+          h('li', null, 'Set up a Postgres database (Neon, Supabase, Railway, or self-hosted)'),
+          h('li', null, 'Set ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'DATABASE_URL'), ' environment variable to your Postgres connection string'),
+          h('li', null, 'Run ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'agenticmail-enterprise setup'), ' — tables are auto-created on first run'),
+          h('li', null, 'Re-configure your Google Workspace credentials in the setup wizard'),
+        ),
+      ),
+    ),
   );
 }
