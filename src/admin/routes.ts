@@ -1668,5 +1668,232 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     ];
   }
 
+  // ─── Cloudflare Tunnel Deployment ───────────────────
+
+  /** Check if cloudflared is installed and tunnel status */
+  api.get('/tunnel/status', requireRole('admin'), async (c) => {
+    try {
+      const { execSync } = await import('child_process');
+      let installed = false;
+      let version = '';
+      let running = false;
+      let config: any = null;
+
+      try {
+        version = execSync('cloudflared --version 2>&1', { encoding: 'utf8', timeout: 5000 }).trim();
+        installed = true;
+      } catch { /* not installed */ }
+
+      // Check if running via pm2
+      try {
+        const pm2List = execSync('pm2 jlist 2>/dev/null', { encoding: 'utf8', timeout: 5000 });
+        const procs = JSON.parse(pm2List);
+        const cf = procs.find((p: any) => p.name === 'cloudflared');
+        running = cf?.pm2_env?.status === 'online';
+      } catch { /* pm2 not available */ }
+
+      // Read config
+      const os = await import('os');
+      const fs = await import('fs');
+      const path = await import('path');
+      const cfDir = path.join(os.default.homedir(), '.cloudflared');
+      const cfgPath = path.join(cfDir, 'config.yml');
+      if (fs.existsSync(cfgPath)) {
+        const raw = fs.readFileSync(cfgPath, 'utf8');
+        // Parse simple YAML
+        const tunnelMatch = raw.match(/^tunnel:\s*(.+)$/m);
+        const hostnameMatch = raw.match(/hostname:\s*(.+)$/m);
+        const serviceMatch = raw.match(/service:\s*(http.+)$/m);
+        config = {
+          tunnelId: tunnelMatch?.[1]?.trim(),
+          hostname: hostnameMatch?.[1]?.trim(),
+          service: serviceMatch?.[1]?.trim(),
+          raw,
+        };
+      }
+
+      return c.json({ installed, version, running, config });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  /** Install cloudflared */
+  api.post('/tunnel/install', requireRole('admin'), async (c) => {
+    try {
+      const { execSync } = await import('child_process');
+      const os = await import('os');
+      const platform = os.default.platform();
+
+      if (platform === 'darwin') {
+        // macOS — try brew first
+        try {
+          execSync('which brew', { timeout: 3000 });
+          execSync('brew install cloudflared 2>&1', { encoding: 'utf8', timeout: 120000 });
+        } catch {
+          // Direct download
+          const arch = os.default.arch() === 'arm64' ? 'arm64' : 'amd64';
+          execSync(`curl -L -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-${arch} && chmod +x /usr/local/bin/cloudflared`, { timeout: 60000 });
+        }
+      } else if (platform === 'linux') {
+        const arch = os.default.arch() === 'arm64' ? 'arm64' : 'amd64';
+        execSync(`curl -L -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${arch} && chmod +x /usr/local/bin/cloudflared`, { timeout: 60000 });
+      } else {
+        return c.json({ error: 'Unsupported platform: ' + platform }, 400);
+      }
+
+      const version = execSync('cloudflared --version 2>&1', { encoding: 'utf8', timeout: 5000 }).trim();
+      return c.json({ success: true, version });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  /** Authenticate with Cloudflare (opens browser for login) */
+  api.post('/tunnel/login', requireRole('admin'), async (c) => {
+    try {
+      const { exec: execCb } = await import('child_process');
+      const { promisify } = await import('util');
+      const execP = promisify(execCb);
+      // This opens the browser for CF login — cert.pem is saved to ~/.cloudflared/
+      await execP('cloudflared tunnel login', { timeout: 120000 });
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: 'Login failed or timed out. Make sure to complete the browser authorization. ' + e.message }, 500);
+    }
+  });
+
+  /** Create tunnel, configure DNS, and start */
+  api.post('/tunnel/deploy', requireRole('admin'), async (c) => {
+    const body = await c.req.json();
+    const { domain, tunnelName, port } = body;
+    if (!domain) return c.json({ error: 'domain is required' }, 400);
+
+    const localPort = port || 3200;
+    const name = tunnelName || 'agenticmail-enterprise';
+
+    try {
+      const { execSync } = await import('child_process');
+      const os = await import('os');
+      const fs = await import('fs');
+      const path = await import('path');
+      const cfDir = path.join(os.default.homedir(), '.cloudflared');
+      const steps: string[] = [];
+
+      // Check cert exists (user must have logged in)
+      if (!fs.existsSync(path.join(cfDir, 'cert.pem'))) {
+        return c.json({ error: 'Not authenticated with Cloudflare. Click "Login to Cloudflare" first.' }, 400);
+      }
+
+      // 1. Create tunnel
+      let tunnelId = '';
+      try {
+        const out = execSync(`cloudflared tunnel create ${name} 2>&1`, { encoding: 'utf8', timeout: 30000 });
+        const match = out.match(/Created tunnel .+ with id ([a-f0-9-]+)/);
+        tunnelId = match?.[1] || '';
+        steps.push('Created tunnel: ' + name + ' (' + tunnelId + ')');
+      } catch (e: any) {
+        // Tunnel might already exist
+        if (e.message?.includes('already exists')) {
+          const listOut = execSync('cloudflared tunnel list --output json 2>&1', { encoding: 'utf8', timeout: 15000 });
+          const tunnels = JSON.parse(listOut);
+          const existing = tunnels.find((t: any) => t.name === name);
+          if (existing) {
+            tunnelId = existing.id;
+            steps.push('Using existing tunnel: ' + name + ' (' + tunnelId + ')');
+          } else {
+            throw e;
+          }
+        } else {
+          throw e;
+        }
+      }
+
+      if (!tunnelId) return c.json({ error: 'Failed to get tunnel ID' }, 500);
+
+      // 2. Write config
+      const config = [
+        `tunnel: ${tunnelId}`,
+        `credentials-file: ${path.join(cfDir, tunnelId + '.json')}`,
+        '',
+        'ingress:',
+        `  - hostname: ${domain}`,
+        `    service: http://localhost:${localPort}`,
+        '  - service: http_status:404',
+      ].join('\n');
+
+      fs.writeFileSync(path.join(cfDir, 'config.yml'), config);
+      steps.push('Wrote config: ' + domain + ' → localhost:' + localPort);
+
+      // 3. Route DNS
+      try {
+        execSync(`cloudflared tunnel route dns ${tunnelId} ${domain} 2>&1`, { encoding: 'utf8', timeout: 30000 });
+        steps.push('DNS CNAME created: ' + domain + ' → ' + tunnelId + '.cfargotunnel.com');
+      } catch (e: any) {
+        if (e.message?.includes('already exists')) {
+          steps.push('DNS CNAME already exists for ' + domain);
+        } else {
+          steps.push('DNS routing failed (you may need to add CNAME manually): ' + e.message);
+        }
+      }
+
+      // 4. Start with PM2
+      try {
+        execSync('which pm2', { timeout: 3000 });
+        // Stop existing if any
+        try { execSync('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
+        execSync(`pm2 start cloudflared --name cloudflared -- tunnel run`, { encoding: 'utf8', timeout: 15000 });
+        execSync('pm2 save 2>/dev/null', { timeout: 5000 });
+        steps.push('Started cloudflared via PM2 (auto-restarts on crash)');
+      } catch {
+        // No PM2 — try running directly in background
+        try {
+          const { spawn } = await import('child_process');
+          const child = spawn('cloudflared', ['tunnel', 'run'], { detached: true, stdio: 'ignore' });
+          child.unref();
+          steps.push('Started cloudflared in background (install PM2 for auto-restart)');
+        } catch (e2: any) {
+          steps.push('Could not start tunnel automatically: ' + e2.message);
+        }
+      }
+
+      // 5. Update CORS to allow the new domain
+      try {
+        if (db) {
+          const corsRows = await db.query(`SELECT value FROM admin_settings WHERE key = 'cors_origins'`);
+          let origins: string[] = [];
+          if (corsRows?.[0]) {
+            try { origins = JSON.parse((corsRows[0] as any).value); } catch { origins = []; }
+          }
+          const newOrigin = 'https://' + domain;
+          if (!origins.includes(newOrigin)) {
+            origins.push(newOrigin);
+            await db.execute(
+              `INSERT INTO admin_settings (key, value) VALUES ('cors_origins', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+              [JSON.stringify(origins)]
+            );
+            steps.push('Added ' + newOrigin + ' to CORS allowed origins');
+          }
+        }
+      } catch { /* non-critical */ }
+
+      return c.json({ success: true, tunnelId, domain, steps });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  /** Stop and optionally delete tunnel */
+  api.post('/tunnel/stop', requireRole('admin'), async (c) => {
+    try {
+      const { execSync } = await import('child_process');
+      try { execSync('pm2 stop cloudflared 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
+      try { execSync('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
   return api;
 }

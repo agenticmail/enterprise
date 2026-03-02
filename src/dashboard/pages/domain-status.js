@@ -513,6 +513,26 @@ function cliRow(label, cmd) {
 function DeployToProduction({ toast }) {
   var [expanded, setExpanded] = useState(false);
   var [selectedMethod, setSelectedMethod] = useState(null);
+  // Cloudflare Tunnel state
+  var [tunnelStatus, setTunnelStatus] = useState(null);
+  var [tunnelLoading, setTunnelLoading] = useState(false);
+  var [tunnelDomain, setTunnelDomain] = useState('');
+  var [tunnelPort, setTunnelPort] = useState('3200');
+  var [deploying, setDeploying] = useState(false);
+  var [deploySteps, setDeploySteps] = useState([]);
+  var [deployError, setDeployError] = useState('');
+
+  var loadTunnelStatus = function() {
+    setTunnelLoading(true);
+    apiCall('/tunnel/status').then(function(r) {
+      setTunnelStatus(r);
+      if (r.config && r.config.hostname) setTunnelDomain(r.config.hostname);
+    }).catch(function() {}).finally(function() { setTunnelLoading(false); });
+  };
+
+  useEffect(function() {
+    if (selectedMethod === 'cloudflare') loadTunnelStatus();
+  }, [selectedMethod]);
 
   var card = { padding: 24, background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(99,102,241,0.25)', marginBottom: 20 };
   var methodCard = function(id, icon, title, subtitle, difficulty, recommended) {
@@ -570,10 +590,149 @@ function DeployToProduction({ toast }) {
     expanded && h('div', { style: { marginTop: 20 } },
       // Method cards
       h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 } },
-        methodCard('vps', '\uD83D\uDDA5\uFE0F', 'VPS / Server', 'Deploy to any Linux server (DigitalOcean, Hetzner, AWS, etc.)', 'Easy', true),
+        methodCard('cloudflare', '\u2601\uFE0F', 'Cloudflare Tunnel', 'Keep running locally, expose via your domain. No server needed.', 'Easy', true),
+        methodCard('vps', '\uD83D\uDDA5\uFE0F', 'VPS / Server', 'Deploy to any Linux server (DigitalOcean, Hetzner, AWS, etc.)', 'Easy'),
         methodCard('docker', '\uD83D\uDC33', 'Docker', 'Run as a Docker container on any host', 'Medium'),
         methodCard('railway', '\uD83D\uDE82', 'Railway', 'One-click deploy to Railway.app', 'Easy'),
         methodCard('fly', '\u2708\uFE0F', 'Fly.io', 'Deploy to Fly.io edge network', 'Medium'),
+      ),
+
+      // ─── Cloudflare Tunnel ─────────────────────────
+      selectedMethod === 'cloudflare' && h('div', { style: { padding: 20, background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+        h('h3', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, 'Deploy via Cloudflare Tunnel'),
+        h('p', { style: { fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 } },
+          'Your app keeps running on this machine. Cloudflare Tunnel securely exposes it on your domain with automatic HTTPS. No port forwarding, no firewall changes.',
+        ),
+
+        // Status
+        tunnelLoading && h('div', { style: { padding: 16, textAlign: 'center', color: 'var(--text-muted)' } }, 'Checking tunnel status...'),
+
+        !tunnelLoading && tunnelStatus && h(Fragment, null,
+          // Current status card
+          h('div', { style: { padding: '12px 16px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 } },
+            h('div', { style: { width: 10, height: 10, borderRadius: '50%', background: tunnelStatus.running ? 'var(--success)' : 'var(--text-muted)' } }),
+            h('div', { style: { flex: 1 } },
+              h('div', { style: { fontSize: 13, fontWeight: 600 } },
+                tunnelStatus.running ? 'Tunnel Running' : tunnelStatus.installed ? 'Cloudflared Installed (not running)' : 'Cloudflared Not Installed'
+              ),
+              tunnelStatus.version && h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, tunnelStatus.version),
+              tunnelStatus.config && tunnelStatus.config.hostname && h('div', { style: { fontSize: 12, color: 'var(--accent)', marginTop: 2 } }, tunnelStatus.config.hostname + ' \u2192 ' + (tunnelStatus.config.service || 'localhost')),
+            ),
+            tunnelStatus.running && h('button', {
+              className: 'btn btn-sm',
+              style: { color: 'var(--danger)' },
+              onClick: function() {
+                apiCall('/tunnel/stop', { method: 'POST' }).then(function() { toast('Tunnel stopped', 'success'); loadTunnelStatus(); }).catch(function(e) { toast(e.message, 'error'); });
+              },
+            }, 'Stop'),
+          ),
+
+          // Step 1: Install cloudflared (if needed)
+          !tunnelStatus.installed && h('div', { style: { marginBottom: 16 } },
+            stepItem('1', h(Fragment, null,
+              h('strong', null, 'Install Cloudflared'),
+              h('div', { style: { marginTop: 8 } },
+                h('button', {
+                  className: 'btn btn-primary btn-sm',
+                  disabled: tunnelLoading,
+                  onClick: function() {
+                    setTunnelLoading(true);
+                    apiCall('/tunnel/install', { method: 'POST' }).then(function(r) {
+                      toast('Cloudflared installed: ' + r.version, 'success');
+                      loadTunnelStatus();
+                    }).catch(function(e) { toast('Install failed: ' + e.message, 'error'); setTunnelLoading(false); });
+                  },
+                }, 'Install Cloudflared'),
+              ),
+            )),
+          ),
+
+          // Step 2: Login to Cloudflare (if installed but no cert)
+          tunnelStatus.installed && !tunnelStatus.config && h('div', { style: { marginBottom: 16 } },
+            stepItem(tunnelStatus.installed ? '1' : '2', h(Fragment, null,
+              h('strong', null, 'Login to Cloudflare'),
+              h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '6px 0' } }, 'This opens your browser to authorize Cloudflare. Select the domain you want to use.'),
+              h('button', {
+                className: 'btn btn-primary btn-sm',
+                onClick: function() {
+                  setTunnelLoading(true);
+                  toast('Opening Cloudflare login in your browser...', 'info');
+                  apiCall('/tunnel/login', { method: 'POST' }).then(function() {
+                    toast('Cloudflare authenticated!', 'success');
+                    loadTunnelStatus();
+                  }).catch(function(e) { toast('Login failed: ' + e.message, 'error'); setTunnelLoading(false); });
+                },
+              }, 'Login to Cloudflare'),
+            )),
+          ),
+
+          // Step 3: Deploy (if authenticated)
+          tunnelStatus.installed && h('div', { style: { marginTop: 8 } },
+            h('div', { style: { fontSize: 13, fontWeight: 600, marginBottom: 10 } }, tunnelStatus.running ? 'Update Deployment' : 'Deploy to Domain'),
+
+            h('div', { style: { display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' } },
+              h('div', { style: { flex: 1 } },
+                h('label', { style: { fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4, color: 'var(--text-muted)' } }, 'Domain'),
+                h('input', {
+                  className: 'input',
+                  value: tunnelDomain,
+                  onInput: function(e) { setTunnelDomain(e.target.value); setDeployError(''); },
+                  placeholder: 'app.yourdomain.com',
+                  style: { width: '100%' },
+                }),
+              ),
+              h('div', { style: { width: 100 } },
+                h('label', { style: { fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4, color: 'var(--text-muted)' } }, 'Local Port'),
+                h('input', {
+                  className: 'input',
+                  value: tunnelPort,
+                  onInput: function(e) { setTunnelPort(e.target.value); },
+                  placeholder: '3200',
+                  style: { width: '100%' },
+                }),
+              ),
+            ),
+
+            deployError && h('div', { style: { fontSize: 12, color: 'var(--danger)', marginBottom: 10, padding: '8px 12px', background: 'var(--danger-soft)', borderRadius: 'var(--radius)' } }, deployError),
+
+            // Deploy steps output
+            deploySteps.length > 0 && h('div', { style: { marginBottom: 12, padding: '10px 14px', background: '#0d1117', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' } },
+              deploySteps.map(function(s, i) {
+                return h('div', { key: i, style: { fontSize: 12, fontFamily: 'var(--font-mono)', color: '#e6edf3', padding: '2px 0' } }, '\u2713 ' + s);
+              }),
+            ),
+
+            h('button', {
+              className: 'btn btn-primary',
+              disabled: deploying || !tunnelDomain.trim(),
+              onClick: function() {
+                setDeploying(true);
+                setDeploySteps([]);
+                setDeployError('');
+                apiCall('/tunnel/deploy', {
+                  method: 'POST',
+                  body: JSON.stringify({ domain: tunnelDomain.trim(), port: parseInt(tunnelPort) || 3200 }),
+                }).then(function(r) {
+                  if (r.error) { setDeployError(r.error); return; }
+                  setDeploySteps(r.steps || []);
+                  toast('Deployed! Your site is live at https://' + tunnelDomain.trim(), 'success');
+                  loadTunnelStatus();
+                }).catch(function(e) { setDeployError(e.message || 'Deployment failed'); })
+                  .finally(function() { setDeploying(false); });
+              },
+            }, deploying ? 'Deploying...' : tunnelStatus.running ? 'Redeploy' : 'Deploy'),
+          ),
+        ),
+
+        // Prerequisites note
+        h('div', { style: { marginTop: 16, padding: '10px 14px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 } },
+          h('strong', { style: { color: 'var(--text-secondary)' } }, 'Prerequisites:'),
+          h('ul', { style: { margin: '6px 0 0', paddingLeft: 18 } },
+            h('li', null, 'A Cloudflare account (free)'),
+            h('li', null, 'A domain added to Cloudflare (nameservers pointed to CF)'),
+            h('li', null, 'This machine must stay running for the tunnel to work'),
+          ),
+        ),
       ),
 
       // ─── VPS Instructions ─────────────────────────
