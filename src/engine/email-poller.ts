@@ -719,6 +719,17 @@ export class EmailPoller {
         [JSON.stringify(state)]
       );
     } catch (e: any) {
+      // Auto-create table if missing (fresh install)
+      if (e.message?.includes('does not exist') || e.message?.includes('no such table')) {
+        try {
+          await this.config.engineDb.execute(`CREATE TABLE IF NOT EXISTS engine_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT (datetime('now')))`);
+          await this.config.engineDb.execute(
+            `INSERT INTO engine_settings (key, value) VALUES ('email_poller_state', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+            [JSON.stringify(state)]
+          );
+          return;
+        } catch { /* ignore */ }
+      }
       console.warn(`[email-poller] Failed to save state: ${e.message}`);
     }
   }

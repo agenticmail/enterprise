@@ -203,6 +203,13 @@ CREATE TABLE IF NOT EXISTS approval_policies (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_approval_policies_org ON approval_policies(org_id);
+
+-- Engine settings (key-value store for pollers, ambient memory, etc.)
+CREATE TABLE IF NOT EXISTS engine_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
 `;
 
 /**
