@@ -1,6 +1,6 @@
 {
   "name": "@agenticmail/enterprise",
-  "version": "0.5.190",
+  "version": "0.5.199",
   "description": "AgenticMail Enterprise — cloud-hosted AI agent identity, email, auth & compliance for organizations",
   "type": "module",
   "bin": {
@@ -49,9 +49,11 @@
     "bcryptjs": "^2.4.3",
     "chalk": "^5.0.0",
     "hono": "^4.0.0",
+    "imapflow": "^1.2.10",
     "inquirer": "^9.0.0",
     "jose": "^5.0.0",
     "nanoid": "^5.0.0",
+    "nodemailer": "^8.0.1",
     "openai": "^4.77.0",
     "ora": "^8.0.0",
     "playwright": "^1.58.2",
@@ -72,7 +74,7 @@
   },
   "peerDependencies": {
     "playwright-core": ">=1.40.0",
-    "ws": ">=8.0.0"
+    "ws": "^8.19.0"
   },
   "peerDependenciesMeta": {
     "playwright-core": {

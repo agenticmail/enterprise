@@ -2,6 +2,7 @@ import { h, useState, useEffect, Fragment, useApp, apiCall } from '../../compone
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, StatCard, EmptyState } from './shared.js?v=5';
+import { HelpButton } from '../../components/help-button.js';
 
 export function AgentSecurityTab(props) {
   var agentId = props.agentId;
@@ -178,7 +179,14 @@ export function AgentSecurityTab(props) {
   return h('div', null,
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 } },
       h('div', null,
-        h('h2', { style: { fontSize: 18, fontWeight: 700, margin: 0 } }, 'Agent Security Settings'),
+        h('h2', { style: { fontSize: 18, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center' } }, 'Agent Security Settings', h(HelpButton, { label: 'Agent Security' },
+          h('p', null, 'Configure security defenses specific to this agent. Each section can use the global (organization-wide) settings or be customized with agent-specific overrides.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'GLOBAL badge'), ' — Using organization defaults. Toggle the switch to customize.'),
+            h('li', null, h('strong', null, 'Custom'), ' — Agent-specific override is active.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Only override settings for agents that need different security levels. For most agents, the global defaults are sufficient.')
+        )),
         h('p', { style: { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }, 'Configure security overrides specific to this agent')
       ),
       h('button', {
@@ -191,7 +199,9 @@ export function AgentSecurityTab(props) {
 
     // Prompt Injection Defense
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), 'Prompt Injection Defense'),
+      h('div', { style: _cardTitleStyle }, I.shield(), 'Prompt Injection Defense', h(HelpButton, { label: 'Prompt Injection Defense' },
+        h('p', null, 'Detects and prevents prompt injection attacks — where malicious input tries to override the agent\'s instructions. Choose between monitoring (log only), sanitizing (strip dangerous content), or blocking (reject entirely).')
+      )),
       h('p', { style: _cardDescStyle }, 'Multi-layer detection and prevention of prompt injection attacks'),
       h(GlobalToggle, { section: 'promptInjection', label: 'Prompt Injection Defense' }),
       !useGlobal.promptInjection && (function() {
@@ -236,7 +246,9 @@ export function AgentSecurityTab(props) {
 
     // SQL Injection Prevention
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), 'SQL Injection Prevention'),
+      h('div', { style: _cardTitleStyle }, I.shield(), 'SQL Injection Prevention', h(HelpButton, { label: 'SQL Injection Prevention' },
+        h('p', null, 'Scans tool arguments and API requests for SQL injection patterns. Prevents agents from being tricked into executing malicious database queries.')
+      )),
       h('p', { style: _cardDescStyle }, 'Detect and block SQL injection attempts'),
       h(GlobalToggle, { section: 'sqlInjection', label: 'SQL Injection Prevention' }),
       !useGlobal.sqlInjection && (function() {
@@ -287,7 +299,9 @@ export function AgentSecurityTab(props) {
 
     // Output Filtering
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), 'Output Filtering'),
+      h('div', { style: _cardTitleStyle }, I.shield(), 'Output Filtering', h(HelpButton, { label: 'Output Filtering' },
+        h('p', null, 'Scans agent responses for leaked secrets (API keys, passwords) and personally identifiable information (PII). Can monitor, redact, or block outputs containing sensitive data.')
+      )),
       h('p', { style: _cardDescStyle }, 'Scan agent outputs for secrets and personal information'),
       h(GlobalToggle, { section: 'outputFiltering', label: 'Output Filtering' }),
       !useGlobal.outputFiltering && (function() {
@@ -339,7 +353,9 @@ export function AgentSecurityTab(props) {
 
     // Security Audit Log
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.journal(), 'Security Audit Log'),
+      h('div', { style: _cardTitleStyle }, I.journal(), 'Security Audit Log', h(HelpButton, { label: 'Security Audit Log' },
+        h('p', null, 'Controls what security events are logged for this agent. Enable comprehensive logging for high-risk agents, or keep minimal logging for routine agents to reduce storage.')
+      )),
       h('p', { style: _cardDescStyle }, 'Agent-specific security logging settings'),
       h(GlobalToggle, { section: 'auditSecurity', label: 'Security Audit Log' }),
       !useGlobal.auditSecurity && (function() {

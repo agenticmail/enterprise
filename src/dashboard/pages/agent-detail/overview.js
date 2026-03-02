@@ -3,6 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, StatCard, EmptyState, formatNumber, formatCost, formatTime, MEMORY_CATEGORIES, memCatColor, memCatLabel, importanceBadgeColor } from './shared.js?v=4';
 import { resolveManager } from './manager.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 var CATEGORY_COLORS = {
   code_of_conduct: '#6366f1', communication: '#0ea5e9', data_handling: '#f59e0b',
@@ -185,6 +186,11 @@ export function OverviewSection(props) {
     return h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading overview...');
   }
 
+  // Help tooltip styles
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h(Fragment, null,
 
     // ─── Agent Summary Card ─────────────────────────────
@@ -227,6 +233,21 @@ export function OverviewSection(props) {
     ),
 
     // ─── Stats Grid ─────────────────────────────────────
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 } },
+      h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'Today\'s Usage'),
+      h(HelpButton, { label: 'Today\'s Usage Stats' },
+        h('p', null, 'Real-time performance metrics for this agent over the current day (UTC).'),
+        h('h4', { style: _h4 }, 'Metrics Explained'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Tokens Today'), ' — Total input + output tokens consumed by the LLM. Higher token usage means more complex conversations or longer outputs.'),
+          h('li', null, h('strong', null, 'Cost Today'), ' — Estimated API cost based on token usage and the agent\'s configured model pricing.'),
+          h('li', null, h('strong', null, 'Uptime'), ' — How long the agent has been running since last restart. Resets when the engine restarts.'),
+          h('li', null, h('strong', null, 'Error Rate'), ' — Percentage of requests that resulted in errors (timeouts, API failures, guardrail blocks). Above 5% is flagged in red.'),
+          h('li', null, h('strong', null, 'Active Sessions'), ' — Currently open conversation sessions. Each chat, email thread, or task is a separate session.')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'If cost is climbing faster than expected, check the Budget tab to set daily/monthly spending limits.')
+      )
+    ),
     h('div', { className: 'stat-grid', style: { marginBottom: 20 } },
       h(StatCard, { label: 'Tokens Today', value: formatNumber(tokensToday) }),
       h(StatCard, { label: 'Cost Today', value: formatCost(costToday) }),
@@ -240,7 +261,18 @@ export function OverviewSection(props) {
 
       // Onboarding Status
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('span', null, 'Onboarding')),
+        h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Onboarding',
+          h(HelpButton, { label: 'Agent Onboarding' },
+            h('p', null, 'Onboarding ensures the agent acknowledges your organization\'s policies, guardrails, and code of conduct before it starts working.'),
+            h('h4', { style: _h4 }, 'How It Works'),
+            h('ul', { style: _ul },
+              h('li', null, 'When initiated, the agent reads and acknowledges each policy you\'ve configured in Guardrails.'),
+              h('li', null, 'The agent must complete onboarding before it can process tasks.'),
+              h('li', null, '"Force Complete" skips the acknowledgement process — use this for agents that don\'t need formal onboarding.')
+            ),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Set up your guardrail policies first (Guardrails tab), then onboard the agent. The agent will reference these policies in every interaction.')
+          )
+        )),
         h('div', { className: 'card-body' },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 } },
             onboardingStatus?.onboarded
@@ -280,7 +312,19 @@ export function OverviewSection(props) {
 
       // Guardrails Status
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('span', null, 'Guardrails')),
+        h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Guardrails',
+          h(HelpButton, { label: 'Guardrails Status' },
+            h('p', null, 'Guardrails are safety rules that constrain the agent\'s behavior. When active, the agent is monitored and can be automatically paused if it violates a policy.'),
+            h('h4', { style: _h4 }, 'States'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Active'), ' — The agent is running normally with all guardrails enforced.'),
+              h('li', null, h('strong', null, 'Paused'), ' — The agent has been paused (manually or by an automated trigger). It will not process new tasks until resumed.')
+            ),
+            h('h4', { style: _h4 }, 'Interventions'),
+            h('p', null, 'The intervention count tracks how many times a guardrail rule has triggered (e.g., blocked a response, flagged content, or paused the agent). High counts may indicate the agent needs reconfiguration.'),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Configure guardrail policies in the Guardrails tab. Use "pause" triggers for critical rules and "log" triggers for monitoring.')
+          )
+        )),
         h('div', { className: 'card-body' },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 } },
             guardrailStatus?.paused
@@ -295,7 +339,17 @@ export function OverviewSection(props) {
 
       // Workforce Status
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('span', null, 'Workforce')),
+        h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Workforce',
+          h(HelpButton, { label: 'Workforce Status' },
+            h('p', null, 'Workforce management tracks the agent\'s work schedule and availability, similar to an employee clocking in and out.'),
+            h('h4', { style: _h4 }, 'Clock In / Clock Out'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Clocked In'), ' — The agent is on duty and will process incoming tasks, messages, and emails.'),
+              h('li', null, h('strong', null, 'Clocked Out'), ' — The agent is off duty. Depending on configuration, tasks may queue until the agent clocks back in.')
+            ),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Set up automatic schedules in the Workforce tab so agents clock in/out at specific times (e.g., business hours only).')
+          )
+        )),
         h('div', { className: 'card-body' },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 } },
             workforceStatus?.clockedIn
@@ -312,7 +366,20 @@ export function OverviewSection(props) {
     // ─── Real-Time Status Card ────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Live Status'),
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Live Status',
+          h(HelpButton, { label: 'Live Status' },
+            h('p', null, 'Real-time status streamed via Server-Sent Events (SSE). Updates automatically without refreshing the page.'),
+            h('h4', { style: _h4 }, 'Status Indicators'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Online'), ' — Agent is running and processing requests normally.'),
+              h('li', null, h('strong', null, 'Idle'), ' — Agent is running but not currently processing any task.'),
+              h('li', null, h('strong', null, 'Busy'), ' — Agent is actively processing a request or task.'),
+              h('li', null, h('strong', null, 'Error'), ' — Agent encountered an issue. Check the Activity tab for details.')
+            ),
+            h('p', null, 'The current task, model, and token count are shown when the agent is actively working.'),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'If the status shows "offline" but the agent should be running, try restarting from Quick Actions.')
+          )
+        ),
         rtStatus ? h('span', {
           className: 'badge badge-' + (rtStatus.status === 'online' ? 'success' : rtStatus.status === 'idle' ? 'info' : rtStatus.status === 'error' ? 'danger' : 'neutral'),
           style: { textTransform: 'capitalize' }
@@ -353,7 +420,18 @@ export function OverviewSection(props) {
 
     // ─── Quick Actions Bar ──────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Quick Actions')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Quick Actions',
+        h(HelpButton, { label: 'Quick Actions' },
+          h('p', null, 'Common agent operations you can perform directly from the overview.'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Pause / Resume'), ' — Temporarily stop the agent from processing tasks. Existing sessions are preserved.'),
+            h('li', null, h('strong', null, 'Clock In / Out'), ' — Toggle the agent\'s workforce availability.'),
+            h('li', null, h('strong', null, 'Restart'), ' — Restart the agent\'s engine if it\'s stuck or behaving unexpectedly.'),
+            h('li', null, h('strong', null, 'Redeploy'), ' — Re-deploy with the latest configuration changes.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Pause is instant and safe — it doesn\'t lose any context. Use it when you need to make config changes.')
+        )
+      )),
       h('div', { className: 'card-body', style: { display: 'flex', flexWrap: 'wrap', gap: 10 } },
 
         // Reset state (when in error/degraded)

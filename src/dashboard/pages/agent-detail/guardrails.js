@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { TagInput } from '../../components/tag-input.js';
+import { HelpButton } from '../../components/help-button.js';
 import { Badge, EmptyState } from './shared.js?v=4';
 
 // ════════════════════════════════════════════════════════════
@@ -301,7 +302,18 @@ export function GuardrailsSection(props) {
 
     // ─── Interventions Tab ──────────────────────────────
     subTab === 'interventions' && h('div', { className: 'card' },
-      h('div', { className: 'card-header' }, h('span', null, 'Interventions')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Interventions',
+        h(HelpButton, { label: 'Guardrail Interventions' },
+          h('p', null, 'A log of every time a guardrail rule was triggered for this agent. Each entry shows what happened and what action was taken.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Log'), ' — The event was recorded but no action was taken.'),
+            h('li', null, h('strong', null, 'Warn'), ' — The agent was warned about the violation and continued.'),
+            h('li', null, h('strong', null, 'Pause'), ' — The agent was automatically paused and needs manual resume.'),
+            h('li', null, h('strong', null, 'Block'), ' — The specific action was blocked but the agent continued.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Frequent interventions from the same rule may mean the agent\'s instructions conflict with the guardrail — review and adjust either one.')
+        )
+      )),
       interventions.length > 0
         ? h('div', { style: { padding: 0 } },
             interventions.map(function(inv, i) {
@@ -322,7 +334,13 @@ export function GuardrailsSection(props) {
 
     // ─── DLP Tab ────────────────────────────────────────
     subTab === 'dlp' && h('div', { className: 'card' },
-      h('div', { className: 'card-header' }, h('span', null, 'DLP Violations')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'DLP Violations',
+        h(HelpButton, { label: 'DLP Violations' },
+          h('p', null, 'Data Loss Prevention (DLP) violations occur when the agent attempts to share sensitive data (PII, credentials, proprietary info) in a way that violates your DLP policies.'),
+          h('p', null, 'Each entry shows what data was detected, the severity level, and what action was taken (redacted, blocked, or logged).'),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Configure DLP rules at the organization level in the DLP page. Agent-specific overrides can be set here.')
+        )
+      )),
       dlpViolations.length > 0
         ? h('div', { style: { padding: 0 } },
             dlpViolations.map(function(v, i) {
@@ -371,7 +389,13 @@ export function GuardrailsSection(props) {
     // ─── Approvals Tab ──────────────────────────────────
     subTab === 'approvals' && h('div', null,
       pendingApprovals.length > 0 && h('div', { className: 'card', style: { marginBottom: 12 } },
-        h('div', { className: 'card-header' }, h('span', null, 'Pending Approvals (' + pendingApprovals.length + ')')),
+        h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Pending Approvals (' + pendingApprovals.length + ')',
+          h(HelpButton, { label: 'Pending Approvals' },
+            h('p', null, 'Actions the agent wants to take that require human approval before proceeding. This is part of the human-in-the-loop safety system.'),
+            h('p', null, 'Review each request and approve or reject it. The agent will be notified and continue or find an alternative approach.'),
+            h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'If you find yourself always approving the same type of request, consider updating the guardrail rule to auto-approve that action.')
+          )
+        )),
         h('div', { style: { padding: 0 } },
           pendingApprovals.map(function(a) {
             return h('div', { key: a.id, style: { display: 'flex', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, alignItems: 'center' } },

@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { StatCard, ProgressBar, formatNumber, formatCost } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // BUDGET SECTION
@@ -117,7 +118,19 @@ export function BudgetSection(props) {
     // ─── Budget Limits Card ─────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Budget Limits'),
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Budget Limits',
+          h(HelpButton, { label: 'Budget Limits' },
+            h('p', null, 'Set spending caps to prevent this agent from exceeding your API budget. When a limit is reached, the agent is automatically paused.'),
+            h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Limit Types'),
+            h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+              h('li', null, h('strong', null, 'Daily Limit'), ' — Maximum spend per day (resets at midnight UTC). Prevents runaway costs from a single day\'s usage.'),
+              h('li', null, h('strong', null, 'Monthly Limit'), ' — Maximum spend per calendar month. Your overall budget control.'),
+              h('li', null, h('strong', null, 'Per-Request Limit'), ' — Maximum cost for a single API call. Prevents accidentally using expensive models or very long prompts.')
+            ),
+            h('p', null, 'Set to 0 or leave blank for no limit. The progress bars show current usage against each limit.'),
+            h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with a conservative daily limit, monitor usage for a week, then adjust. It\'s easier to raise limits than to deal with a surprise $500 bill.')
+          )
+        ),
         !editing && h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setEditing(true); } }, 'Edit Budget')
       ),
       h('div', { className: 'card-body' },
@@ -177,7 +190,17 @@ export function BudgetSection(props) {
 
     // ─── Budget Alerts Table ────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Budget Alerts')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Budget Alerts',
+        h(HelpButton, { label: 'Budget Alerts' },
+          h('p', null, 'Get notified when the agent approaches or exceeds budget thresholds.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Warning'), ' — Sent when usage reaches a percentage of the limit (e.g., 80%). Agent continues running.'),
+            h('li', null, h('strong', null, 'Critical'), ' — Sent when usage is very close to the limit (e.g., 95%). Consider pausing non-essential tasks.'),
+            h('li', null, h('strong', null, 'Exceeded'), ' — The limit was hit and the agent was automatically paused. Requires manual resume or limit increase.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Alerts are sent to the agent\'s manager (if configured) and to the admin email.')
+        )
+      )),
       budgetAlerts.length > 0
         ? h('div', { className: 'card-body-flush' },
             h('table', { className: 'data-table' },

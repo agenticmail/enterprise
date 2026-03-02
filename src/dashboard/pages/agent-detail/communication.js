@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, EmptyState } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // --- CommunicationSection -------------------------------------------
 
@@ -126,7 +127,15 @@ export function CommunicationSection(props) {
 
   return h('div', { className: 'card' },
     h('div', { className: 'card-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
-      h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600 } }, 'Communication'),
+      h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Communication', h(HelpButton, { label: 'Communication' },
+        h('p', null, 'Inter-agent messaging system. Agents can send messages to each other for coordination, task delegation, and information sharing.'),
+        h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+          h('li', null, h('strong', null, 'All Messages'), ' — Complete message history (sent and received).'),
+          h('li', null, h('strong', null, 'Inbox'), ' — Unread messages waiting for this agent. Mark as read after review.'),
+          h('li', null, h('strong', null, 'Topology'), ' — Visual map of which agents communicate with each other and how frequently.')
+        ),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Use priority levels (urgent, high, normal, low) to help agents triage incoming messages.')
+      )),
       h('div', { style: { display: 'flex', gap: 8 } },
         h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setShowSend(true); } }, I.plus(), ' Send Message'),
         h('button', { className: 'btn btn-ghost btn-sm', onClick: refreshCurrent }, I.refresh(), ' Refresh')

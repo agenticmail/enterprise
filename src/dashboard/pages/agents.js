@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { CULTURES, LANGUAGES, PersonaForm } from '../components/persona-fields.js';
+import { HelpButton } from '../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // DEPLOY MODAL
@@ -1133,9 +1134,22 @@ export function AgentsPage({ onSelectAgent }) {
 
   // Delete moved to agent detail overview tab with triple confirmation
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Agents'), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage your AI agents — create, configure, deploy, and monitor')),
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Agents', h(HelpButton, { label: 'Agents' },
+        h('p', null, 'Your AI workforce. Each agent has its own email identity, personality, skills, permissions, and deployment target.'),
+        h('h4', { style: _h4 }, 'Agent lifecycle'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Create'), ' — Use the wizard to pick a role template, configure skills and permissions.'),
+          h('li', null, h('strong', null, 'Deploy'), ' — Send the agent to Fly.io, Docker, Railway, VPS, or run locally.'),
+          h('li', null, h('strong', null, 'Monitor'), ' — Click any agent to see their activity, emails, sessions, and journal.')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Click an agent\'s name to access their full detail page with logs, email, workforce schedule, and more.')
+      )), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage your AI agents — create, configure, deploy, and monitor')),
       h('button', { className: 'btn btn-primary', onClick: () => setCreating(true) }, I.plus(), ' Create Agent')
     ),
     creating && h(CreateAgentWizard, { onClose: () => setCreating(false), onCreated: load, toast }),

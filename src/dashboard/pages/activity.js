@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, Fragment, engineCall, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { DetailModal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 const PAGE_SIZE = 25;
 
@@ -85,9 +86,21 @@ export function ActivityPage() {
   const eventsPages = Math.ceil(eventsTotal / PAGE_SIZE);
   const toolsPages = Math.ceil(toolsTotal / PAGE_SIZE);
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h(Fragment, null,
     h('div', { style: { marginBottom: 20 } },
-      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Activity'),
+      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Activity', h(HelpButton, { label: 'Activity' },
+        h('p', null, 'A real-time feed of everything your agents are doing — events they generate and tools they call.'),
+        h('h4', { style: _h4 }, 'Two views'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Events'), ' — High-level actions: agent started, stopped, deployed, errored, etc.'),
+          h('li', null, h('strong', null, 'Tool Calls'), ' — Granular tool usage: which tool, duration, success/failure, parameters and results.')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use the agent and type filters to zero in on specific behavior. Click any row to see full details.')
+      )),
       h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Real-time activity and tool usage across all agents')
     ),
 

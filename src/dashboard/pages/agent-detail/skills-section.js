@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, EmptyState } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // SKILLS SECTION — View and manage agent skills
@@ -127,7 +128,14 @@ export function SkillsSection(props) {
   // View mode
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-      h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600 } }, 'Skills & Capabilities'),
+      h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Skills & Capabilities', h(HelpButton, { label: 'Skills & Capabilities' },
+        h('p', null, 'Skills are packages of tools and capabilities that an agent can use. Each skill unlocks specific functionality like email management, web browsing, or calendar access.'),
+        h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+          h('li', null, h('strong', null, 'Suites'), ' — Pre-built bundles of related skills (e.g., Google Workspace suite includes Gmail, Calendar, Drive).'),
+          h('li', null, h('strong', null, 'Individual Skills'), ' — Toggle specific capabilities on or off for fine-grained control.')
+        ),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with a suite, then remove individual skills you don\'t need. Changes apply immediately if the agent is running (hot-update).')
+      )),
       h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
         h('span', { className: 'badge badge-primary' }, currentSkills.length + ' skills'),
         h('button', { className: 'btn btn-primary btn-sm', onClick: startEdit }, I.journal(), ' Edit Skills')

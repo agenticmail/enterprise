@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, EmptyState } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // AGENT DETAIL PAGE  (Main Orchestrator)
@@ -118,7 +119,22 @@ export function AutonomySection(props) {
     // Header
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
       h('div', null,
-        h('div', { style: { fontSize: 15, fontWeight: 600 } }, 'Agent Autonomy Settings'),
+        h('div', { style: { fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Agent Autonomy Settings',
+          h(HelpButton, { label: 'Autonomy Settings' },
+            h('p', null, 'Autonomy settings control what the agent does automatically without being asked. Think of it as the agent\'s daily routine.'),
+            h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Automated Behaviors'),
+            h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+              h('li', null, h('strong', null, 'Auto Clock-In/Out'), ' — Agent automatically starts and stops work based on its schedule in the Workforce tab.'),
+              h('li', null, h('strong', null, 'Daily Catch-up'), ' — At a set time each day, the agent reviews unread emails, messages, and pending tasks to stay on top of things.'),
+              h('li', null, h('strong', null, 'Weekly Catch-up'), ' — A deeper weekly review that may include summaries, reports, or planning.'),
+              h('li', null, h('strong', null, 'Goal Check'), ' — Periodic check-ins against assigned goals/OKRs.'),
+              h('li', null, h('strong', null, 'Knowledge Contributions'), ' — Agent periodically contributes learnings to the organization\'s knowledge base.'),
+              h('li', null, h('strong', null, 'Escalation'), ' — Automatically escalates issues it can\'t handle to its manager.'),
+              h('li', null, h('strong', null, 'Guardrail Enforcement'), ' — Self-monitors for compliance with organizational policies.')
+            ),
+            h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with daily catch-up enabled and add more behaviors as the agent proves reliable. The master switch lets you disable all autonomy instantly.')
+          )
+        ),
         h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Configure automated behaviors — all times use agent timezone')
       ),
       h('div', { style: { display: 'flex', gap: 8 } },

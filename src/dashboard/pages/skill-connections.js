@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 // Auth help: where to get API keys/tokens for each skill
 var AUTH_HELP = {
@@ -334,11 +335,24 @@ export function SkillConnectionsPage() {
     );
   }
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h(Fragment, null,
     // Page Header
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Skill Connections'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Skill Connections', h(HelpButton, { label: 'Skill Connections' },
+          h('p', null, 'Manage the authentication and configuration for your installed community skills. Each skill needs to be connected to its external service before agents can use it.'),
+          h('h4', { style: _h4 }, 'Connection Types'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'OAuth'), ' — Secure token-based auth. Click "Connect" to authorize via the service\'s login page.'),
+            h('li', null, h('strong', null, 'API Key / Token'), ' — Paste credentials from the service\'s developer portal.'),
+            h('li', null, h('strong', null, 'Configure'), ' — Set custom options like default channels, project IDs, or behavior tweaks.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Look for the "How to connect" box on each skill card — it links directly to where you get credentials.')
+        )),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Connect external services and configure skill settings')
       ),
       h('button', { className: 'btn btn-secondary', onClick: load }, I.refresh(), ' Refresh')
@@ -347,15 +361,15 @@ export function SkillConnectionsPage() {
     // Stats Bar
     h('div', { className: 'stat-grid', style: { marginBottom: 20 } },
       h('div', { className: 'stat-card' },
-        h('div', { className: 'stat-label' }, 'Total Installed'),
+        h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Total Installed', h(HelpButton, { label: 'Total Installed' }, h('p', null, 'The number of community skills you\'ve installed from the marketplace. These are available to connect and use with your agents.'))),
         h('div', { className: 'stat-value' }, totalInstalled)
       ),
       h('div', { className: 'stat-card' },
-        h('div', { className: 'stat-label' }, 'Connected'),
+        h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Connected', h(HelpButton, { label: 'Connected' }, h('p', null, 'Skills that have been successfully authenticated with their external service. Connected skills are ready for agents to use.'))),
         h('div', { className: 'stat-value', style: { color: 'var(--success)' } }, connectedCount)
       ),
       h('div', { className: 'stat-card' },
-        h('div', { className: 'stat-label' }, 'Needs Configuration'),
+        h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Needs Configuration', h(HelpButton, { label: 'Needs Configuration' }, h('p', null, 'Skills that are installed but not yet connected. They need API keys, OAuth authorization, or other credentials before agents can use them.'))),
         h('div', { className: 'stat-value', style: { color: needsConfigCount > 0 ? 'var(--warning)' : 'var(--text-muted)' } }, needsConfigCount)
       )
     ),

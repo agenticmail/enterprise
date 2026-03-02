@@ -3,6 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { ProviderLogo } from '../../assets/provider-logos.js';
 import { Badge, EmptyState } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // BROWSER CONFIG CARD — Configurable browser settings per agent
@@ -348,7 +349,15 @@ export function BrowserConfigCard(props) {
       onClick: function() { setCollapsed(!collapsed); }
     },
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-        '\uD83C\uDF10 Browser & Web Automation',
+        '\uD83C\uDF10 Browser & Web Automation', h(HelpButton, { label: 'Browser & Web Automation' },
+          h('p', null, 'Configure how this agent accesses web pages. Choose from local Chromium, remote browsers (CDP), or cloud browser services.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Local Chromium'), ' — Built-in headless browser. Best for most automation tasks.'),
+            h('li', null, h('strong', null, 'Remote CDP'), ' — Connect to a browser on another machine. Required for video calls.'),
+            h('li', null, h('strong', null, 'Cloud services'), ' — Browserless, Browserbase, Steel, ScrapingBee for scalable browser access.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Local Chromium works for most tasks. Use Remote CDP or cloud services when you need persistent sessions, anti-detection, or video call support.')
+        ),
         cfg.provider && cfg.provider !== 'local' && h('span', { className: 'badge', style: { fontSize: 10, padding: '1px 6px', background: 'var(--accent-soft)', color: 'var(--accent)' } },
           providers.find(function(p) { return p.id === cfg.provider; })?.name || cfg.provider
         )
@@ -801,7 +810,10 @@ export function ToolRestrictionsCard(props) {
       style: { cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
       onClick: function() { setCollapsed(!collapsed); }
     },
-      h('span', null, '\uD83D\uDD12 Tool Restrictions'),
+      h('span', { style: { display: 'flex', alignItems: 'center' } }, '\uD83D\uDD12 Tool Restrictions', h(HelpButton, { label: 'Tool Restrictions' },
+        h('p', null, 'Per-agent restrictions on file sizes, shell access, web fetching, email sending, database access, and file sharing. These are independent of tool security sandboxes.'),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Use these to limit what an agent can do beyond its tool security settings. For example, block shell execution for agents that only need email access.')
+      )),
       h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, collapsed ? E.triangleDown(12) : E.triangleUp(12))
     ),
     !collapsed && h('div', { style: { padding: 16, display: 'grid', gap: 16 } },

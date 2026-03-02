@@ -1,5 +1,6 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall } from '../../components/utils.js';
 import { E } from '../../assets/icons/emoji-icons.js';
+import { HelpButton } from '../../components/help-button.js';
 
 // ─── Styles ───
 var card = { background: 'var(--bg-secondary)', borderRadius: '12px', padding: '24px', marginBottom: '16px', border: '1px solid var(--border)' };
@@ -775,7 +776,16 @@ export function WhatsAppSection(props) {
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' } },
       E.whatsapp(28),
       h('div', null,
-        h('h2', { style: { margin: 0, fontSize: '20px' } }, 'WhatsApp Business'),
+        h('h2', { style: { margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center' } }, 'WhatsApp Business', h(HelpButton, { label: 'WhatsApp Business' },
+          h('p', null, 'Connect a dedicated business phone number for customer support. Customers message this number and your agent handles their queries automatically.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Same number mode'), ' — Use your personal WhatsApp for both personal and business messages. The agent recognizes your manager number.'),
+            h('li', null, h('strong', null, 'Separate number'), ' — Dedicated business number. Personal WhatsApp stays private.'),
+            h('li', null, h('strong', null, 'Customer pairing'), ' — New customers get a code and await approval before chatting.'),
+            h('li', null, h('strong', null, 'Prompt injection protection'), ' — Customer messages are sandboxed to prevent manipulation.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with same-number mode for simplicity. Switch to a separate number when you need clear separation between personal and business messages.')
+        )),
         h('p', { style: { margin: 0, fontSize: '13px', color: 'var(--text-secondary)' } }, 'Connect a dedicated business number for customer support \u2014 separate from your personal WhatsApp')
       )
     ),

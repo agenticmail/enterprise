@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function SkillsPage() {
   var app = useApp();
@@ -551,7 +552,16 @@ export function SkillsPage() {
     // Header with stats
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Skills & Integrations'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Skills & Integrations', h(HelpButton, { label: 'Skills & Integrations' },
+          h('p', null, 'Skills give your agents the ability to interact with external services. Integrations connect to third-party platforms like Slack, GitHub, Jira, and more.'),
+          h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Tabs'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Integrations'), ' — Connect external services (OAuth, API keys, credentials). Connected services give agents real tools.'),
+            h('li', null, h('strong', null, 'Builtin Skills'), ' — Pre-packaged capabilities that come with the platform. Always available.'),
+            h('li', null, h('strong', null, 'Installed'), ' — Community skills you\'ve installed from the marketplace. Manage connections and configuration here.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 8, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with Integrations tab — connect the services your agents need, and they\'ll automatically get access to the relevant tools.')
+        )),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } },
           allSkills.length + ' builtin \u00B7 ' + integrations.length + ' integrations \u00B7 ' + intConnectedCount + ' connected'
         )

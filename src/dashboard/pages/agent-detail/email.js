@@ -3,6 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { ProviderLogo } from '../../assets/provider-logos.js';
 import { Badge, EmptyState } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 export function EmailSection(props) {
   var agentId = props.agentId;
@@ -222,7 +223,15 @@ export function EmailSection(props) {
   return h('div', { className: 'card' },
     h('div', { className: 'card-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
       h('div', null,
-        h('h3', { className: 'card-title' }, 'Email Connection'),
+        h('h3', { className: 'card-title', style: { display: 'flex', alignItems: 'center' } }, 'Email Connection', h(HelpButton, { label: 'Email Connection' },
+          h('p', null, 'Connect this agent to an email account so it can send and receive emails autonomously. Supports IMAP/SMTP (any provider), Microsoft OAuth, and Google OAuth.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Email + Password'), ' — Works with any email provider. Use app passwords with 2FA.'),
+            h('li', null, h('strong', null, 'Microsoft OAuth'), ' — For Microsoft 365 / Outlook. Requires Azure AD app registration.'),
+            h('li', null, h('strong', null, 'Google OAuth'), ' — For Google Workspace / Gmail. Requires Google Cloud project.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Create a dedicated email address for each agent (e.g., support-agent@company.com). Don\'t share your personal email — agents need their own accounts.')
+        )),
         h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' } }, 'Connect this agent to an email account so it can send and receive emails.')
       ),
       statusBadge

@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function MessagesPage() {
   const { toast } = useApp();
@@ -194,16 +195,38 @@ export function MessagesPage() {
     );
   };
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h('div', { className: 'page-inner' },
     // Page header
-    h('div', { className: 'page-header' }, h('h1', null, 'Agent Messages'), h('button', { className: 'btn btn-primary', onClick: () => setShowModal(true) }, I.plus(), ' New Message')),
+    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Agent Messages', h(HelpButton, { label: 'Agent Messages' },
+      h('p', null, 'All inter-agent and external communications in one place. See how your agents talk to each other and to the outside world.'),
+      h('h4', { style: _h4 }, 'Message types'),
+      h('ul', { style: _ul },
+        h('li', null, h('strong', null, 'Internal'), ' — Agent-to-agent messages within your organization.'),
+        h('li', null, h('strong', null, 'External'), ' — Messages sent to or received from outside (email, APIs, etc.).'),
+        h('li', null, h('strong', null, 'Tasks/Handoffs'), ' — Structured work delegation between agents.'),
+        h('li', null, h('strong', null, 'Broadcasts'), ' — One-to-many announcements.')
+      ),
+      h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Switch to the Topology tab to visualize which agents communicate most. Click nodes to see communication details.')
+    )), h('button', { className: 'btn btn-primary', onClick: () => setShowModal(true) }, I.plus(), ' New Message')),
 
     // Stats cards
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 } },
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.totalMessages), h('div', { className: 'stat-label' }, 'Total')),
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.internalMessages), h('div', { className: 'stat-label' }, 'Internal')),
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.externalOutbound), h('div', { className: 'stat-label' }, 'External Out')),
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.externalInbound), h('div', { className: 'stat-label' }, 'External In'))
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.totalMessages), h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Total', h(HelpButton, { label: 'Total Messages' },
+        h('p', null, 'The total count of all messages across all directions and types.')
+      ))),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.internalMessages), h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Internal', h(HelpButton, { label: 'Internal Messages' },
+        h('p', null, 'Messages exchanged between agents within your organization. High internal traffic usually means healthy collaboration.')
+      ))),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.externalOutbound), h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'External Out', h(HelpButton, { label: 'External Outbound' },
+        h('p', null, 'Messages sent by agents to external recipients (customers, partners, APIs). Monitor this to ensure agents aren\'t over-communicating.')
+      ))),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-value' }, stats.externalInbound), h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'External In', h(HelpButton, { label: 'External Inbound' },
+        h('p', null, 'Messages received from outside your organization. These trigger agent workflows and responses.')
+      )))
     ),
 
     // Main tabs: Messages | Topology

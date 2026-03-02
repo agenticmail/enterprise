@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { HelpButton } from '../components/help-button.js';
 
 // ─── Constants ──────────────────────────────────────────
 
@@ -111,8 +112,23 @@ export function GuardrailsPage() {
     { id: 'rules', label: 'Rules & Interventions' },
   ];
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h('div', { className: 'page-inner' },
-    h('div', { className: 'page-header' }, h('h1', null, 'Guardrails & Intervention')),
+    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Guardrails & Intervention', h(HelpButton, { label: 'Guardrails & Intervention' },
+      h('p', null, 'Central control panel for agent safety. Define policies agents must follow, configure automated rules that trigger interventions, manage onboarding, and inspect agent memory.'),
+      h('h4', { style: _h4 }, 'Tabs overview'),
+      h('ul', { style: _ul },
+        h('li', null, h('strong', null, 'Overview'), ' — Quick stats, agent controls (pause/resume/kill), onboarding status, and recent interventions.'),
+        h('li', null, h('strong', null, 'Policies'), ' — Define behavioral rules agents must acknowledge and follow.'),
+        h('li', null, h('strong', null, 'Onboarding'), ' — Track which agents have acknowledged org policies.'),
+        h('li', null, h('strong', null, 'Agent Memory'), ' — View and manage what agents remember.'),
+        h('li', null, h('strong', null, 'Rules & Interventions'), ' — Automated guardrail rules, anomaly detection, and intervention history.')
+      ),
+      h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Start with the Overview tab for a quick health check, then drill into specific tabs for detailed management.')
+    ))),
     h('div', { className: 'tabs', style: { marginBottom: 16 } },
       TABS.map(function(t) { return h('button', { key: t.id, className: 'tab' + (activeTab === t.id ? ' active' : ''), onClick: function() { setTab(t.id); } }, t.label); })
     ),
@@ -208,7 +224,14 @@ function OverviewTab(props) {
     ),
     // Onboarding progress summary
     onboardingData.length > 0 && h('div', { className: 'card', style: { marginBottom: 16 } },
-      h('div', { className: 'card-header' }, h('h3', null, 'Agent Onboarding Status')),
+      h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Agent Onboarding Status', h(HelpButton, { label: 'Agent Onboarding Status' },
+        h('p', null, 'Shows which agents have acknowledged your organization\'s policies. Agents must complete onboarding before they can operate fully.'),
+        h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+          h('li', null, h('strong', null, 'Green'), ' — Completed all required policy acknowledgments.'),
+          h('li', null, h('strong', null, 'Yellow'), ' — In progress, some policies still pending.'),
+          h('li', null, h('strong', null, 'Red'), ' — Needs renewal due to policy changes.')
+        )
+      ))),
       h('div', { className: 'card-body' },
         onboardingData.slice(0, 8).map(function(ag) {
           var statusColor = ag.overallStatus === 'completed' ? '#10b981' : ag.overallStatus === 'in_progress' ? '#f59e0b' : ag.overallStatus === 'needs_renewal' ? '#ef4444' : '#64748b';
@@ -223,7 +246,10 @@ function OverviewTab(props) {
     ),
     // Recent interventions
     h('div', { className: 'card' },
-      h('div', { className: 'card-header' }, h('h3', null, 'Recent Interventions')),
+      h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Recent Interventions', h(HelpButton, { label: 'Recent Interventions' },
+        h('p', null, 'Log of recent agent interventions — pauses, kills, and resumes. Shows what happened, which agent was affected, and who triggered it.'),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'If an agent was paused by an automated rule, you can resume it directly from the Actions column.')
+      ))),
       interventions.length === 0
         ? h(EmptyState, { message: 'No interventions recorded' })
         : h('table', { className: 'data-table' },

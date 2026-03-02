@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { Badge, EmptyState, riskBadgeClass } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // PERMISSIONS SECTION
@@ -350,7 +351,10 @@ export function PermissionsSection(props) {
 
   var soulCard = h('div', { className: 'card', style: { marginBottom: 20 } },
     h('div', { className: 'card-header', style: { cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }, onClick: function() { setSoulOpen(!soulOpen); } },
-      h('span', null, 'Role Templates'),
+      h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Role Templates', h(HelpButton, { label: 'Role Templates' },
+        h('p', null, 'Pre-configured agent personas with identity, personality, skills, and permissions bundled together. Applying a template sets up the agent for a specific role in one click.'),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Role templates are a great starting point. You can always customize individual settings after applying one.')
+      )),
       h('span', { style: { fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 } },
         h('span', null, Object.values(soulCategories).reduce(function(sum, arr) { return sum + arr.length; }, 0) + ' templates'),
         h('span', { style: { transition: 'transform 0.2s', transform: soulOpen ? 'rotate(180deg)' : 'rotate(0deg)', display: 'inline-block', lineHeight: 1 } },
@@ -393,7 +397,14 @@ export function PermissionsSection(props) {
 
   // Preset selector card (always visible)
   var presetCard = h('div', { className: 'card', style: { marginBottom: 20 } },
-    h('div', { className: 'card-header' }, h('span', null, 'Apply a Permission Preset')),
+    h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Apply a Permission Preset', h(HelpButton, { label: 'Permission Presets' },
+      h('p', null, 'Quick permission profiles that configure risk levels, blocked actions, rate limits, and approval requirements. Presets replace the current permission profile entirely.'),
+      h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+        h('li', null, h('strong', null, 'Restrictive'), ' — Low risk, many blocked actions, approval required.'),
+        h('li', null, h('strong', null, 'Standard'), ' — Balanced defaults for most agents.'),
+        h('li', null, h('strong', null, 'Permissive'), ' — High autonomy, fewer restrictions.')
+      )
+    ))),
     h('div', { className: 'card-body' },
       h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 } }, 'Select a preset to quickly configure this agent\'s permissions. This will replace the current profile.'),
       presets.length > 0
@@ -459,7 +470,9 @@ export function PermissionsSection(props) {
     // ─── Current Profile + Edit Button ──────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Current Permission Profile'),
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Current Permission Profile', h(HelpButton, { label: 'Permission Profile' },
+          h('p', null, 'The active permission profile controls what this agent can do. It defines the maximum risk level, blocked side effects, sandbox mode, and approval requirements.')
+        )),
         h('button', { className: 'btn btn-primary btn-sm', onClick: startEdit }, I.journal(), ' Edit')
       ),
       h('div', { className: 'card-body' },
@@ -484,7 +497,9 @@ export function PermissionsSection(props) {
 
     // ─── Approval Settings Card ─────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Approval Settings')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Approval Settings', h(HelpButton, { label: 'Approval Settings' },
+        h('p', null, 'When enabled, the agent must get human approval before performing risky actions. You can configure which risk levels and side effects trigger approval, and how long to wait before timing out.')
+      ))),
       h('div', { className: 'card-body' },
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 } },
           h('span', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'Approval Required:'),
@@ -514,7 +529,9 @@ export function PermissionsSection(props) {
 
     // ─── Rate Limits Card ───────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Rate Limits')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Rate Limits', h(HelpButton, { label: 'Rate Limits' },
+        h('p', null, 'Controls how many tool calls the agent can make per time period. Prevents runaway behavior and controls costs. External actions (email, messaging) have a separate limit.')
+      ))),
       h('div', { className: 'card-body' },
         h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
           h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'Calls / Minute'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(callsPerMin || 'Unlimited'))),
@@ -527,7 +544,9 @@ export function PermissionsSection(props) {
 
     // ─── Constraints Card ───────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Constraints')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Constraints', h(HelpButton, { label: 'Constraints' },
+        h('p', null, 'Operational limits for concurrent tasks, session duration, sandbox mode, and IP allowlisting. These prevent the agent from consuming excessive resources.')
+      ))),
       h('div', { className: 'card-body' },
         h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
           h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Max Concurrent Tasks'), h('div', { style: { fontSize: 14, fontWeight: 600 } }, String(maxConcurrent))),
@@ -555,7 +574,9 @@ export function PermissionsSection(props) {
 
     // ─── Applicable Policies Table ──────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Applicable Policies')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Applicable Policies', h(HelpButton, { label: 'Applicable Policies' },
+        h('p', null, 'Organization-level policies that apply to this agent. Policies define rules of conduct, data handling requirements, brand voice guidelines, and escalation procedures. Mandatory policies are enforced; recommended and informational policies are advisory.')
+      ))),
       policies.length > 0
         ? h('div', { className: 'card-body-flush' },
             h('table', { className: 'data-table' },

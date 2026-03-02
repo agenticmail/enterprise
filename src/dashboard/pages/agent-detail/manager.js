@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
+import { HelpButton } from '../../components/help-button.js';
 import { Badge, EmptyState, formatTime } from './shared.js?v=4';
 
 // ════════════════════════════════════════════════════════════
@@ -277,7 +278,20 @@ export function ManagerCatchUpSection(props) {
 
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-      h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600 } }, 'Manager & Daily Catch-Up'),
+      h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Manager & Daily Catch-Up',
+        h(HelpButton, { label: 'Manager & Daily Catch-Up' },
+          h('p', null, 'Define who this agent reports to and configure automated daily briefings.'),
+          h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Manager'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Internal Manager'), ' — Another agent in your organization that supervises this one. Escalations and reports go to them.'),
+            h('li', null, h('strong', null, 'External Manager'), ' — A human outside the system (e.g., via email). The agent sends reports and escalations to this email address.'),
+            h('li', null, h('strong', null, 'No Manager'), ' — The agent operates independently. Escalations go to the system admin.')
+          ),
+          h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Daily Catch-Up'),
+          h('p', null, 'When enabled, the agent sends a daily summary to its manager covering what it did, any issues encountered, and upcoming tasks. You can choose which platforms (email, chat, etc.) receive the catch-up.'),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Daily catch-ups help you stay aware of what the agent is doing without manually checking. Start with email summaries, then add chat if you want real-time updates.')
+        )
+      ),
       h('button', { className: 'btn btn-primary btn-sm', onClick: startEdit }, I.journal(), ' Edit')
     ),
 

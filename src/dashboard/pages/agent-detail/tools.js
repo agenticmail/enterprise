@@ -3,6 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, EmptyState } from './shared.js?v=4';
 import { BrowserConfigCard, ToolRestrictionsCard } from './meeting-browser.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // TOOL SECURITY SECTION
@@ -166,7 +167,15 @@ export function ToolsSection(props) {
     // Stats bar
     h('div', { style: { display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' } },
       h('div', { className: 'card', style: { padding: '12px 16px', flex: '1 1 auto', minWidth: 150 } },
-        h('div', { style: { fontSize: 24, fontWeight: 700, color: 'var(--accent)' } }, stats.enabled || 0),
+        h('div', { style: { fontSize: 24, fontWeight: 700, color: 'var(--accent)', display: 'flex', alignItems: 'center' } }, stats.enabled || 0, h(HelpButton, { label: 'Tools' },
+          h('p', null, 'Tools are the individual functions an agent can call — like sending email, reading files, searching the web, or executing commands.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Always On'), ' — Core tools that cannot be disabled (e.g., memory, basic utilities).'),
+            h('li', null, h('strong', null, 'OAuth Required'), ' — Tools that need an OAuth connection (e.g., Google Workspace).'),
+            h('li', null, h('strong', null, 'Integration'), ' — Tools requiring external service configuration.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Click any tool category to expand and see the individual tools it contains. Use the toggle to enable/disable entire categories at once.')
+        )),
         h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'of ' + (stats.total || 0) + ' tools enabled')
       ),
       h('div', { style: { display: 'flex', gap: 8 } },

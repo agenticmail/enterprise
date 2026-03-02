@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, StatCard, EmptyState, formatTime, MEMORY_CATEGORIES, memCatColor, memCatLabel, importanceBadgeColor } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // --- MemorySection --------------------------------------------------
 
@@ -164,9 +165,27 @@ export function MemorySection(props) {
   var fmtDate = function(d) { if (!d) return '-'; var dt = new Date(d); return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); };
   var fmtTime = function(d) { if (!d) return ''; var dt = new Date(d); return dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h('div', { className: 'card' },
     h('div', { className: 'card-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
-      h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600 } }, 'Memory'),
+      h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Memory', h(HelpButton, { label: 'Memory' },
+        h('p', null, 'Agent memory stores learned facts, preferences, interaction patterns, and organizational knowledge. Memories persist across sessions so the agent can recall context.'),
+        h('h4', { style: _h4 }, 'Key Concepts'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Categories'), ' — Classify memories (org knowledge, preferences, skills, etc.) to keep them organized.'),
+          h('li', null, h('strong', null, 'Confidence'), ' — How certain the agent is about this memory. Decays over time if not accessed.'),
+          h('li', null, h('strong', null, 'Importance'), ' — Critical, high, normal, or low. Affects retrieval priority.')
+        ),
+        h('h4', { style: _h4 }, 'Actions'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Prune'), ' — Removes expired/stale entries with low confidence.'),
+          h('li', null, h('strong', null, 'Decay'), ' — Reduces confidence of memories not accessed recently (simulates forgetting).')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Regularly prune stale memories to keep the agent focused on relevant, high-quality knowledge.')
+      )),
       h('div', { style: { display: 'flex', gap: 6 } },
         h('button', { className: 'btn btn-ghost btn-sm', onClick: pruneStale, title: 'Prune stale entries' }, I.trash()),
         h('button', { className: 'btn btn-ghost btn-sm', onClick: runDecay, title: 'Run confidence decay' }, I.clock()),
@@ -178,10 +197,10 @@ export function MemorySection(props) {
 
       // Compact stats bar
       h('div', { style: { display: 'flex', gap: 24, padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 13 } },
-        h('span', { style: { color: 'var(--text-muted)' } }, 'Total: ', h('strong', null, totalMemories)),
-        h('span', { style: { color: 'var(--text-muted)' } }, 'Categories: ', h('strong', null, categoriesUsed)),
-        h('span', { style: { color: 'var(--text-muted)' } }, 'Avg Conf: ', h('strong', null, avgConfidence)),
-        h('span', { style: { color: 'var(--text-muted)' } }, 'Sources: ', h('strong', null, sourcesCount)),
+        h('span', { style: { color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, 'Total: ', h('strong', null, totalMemories), h(HelpButton, { label: 'Total Memories' }, h('p', null, 'Total number of memory entries stored for this agent.'))),
+        h('span', { style: { color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, 'Categories: ', h('strong', null, categoriesUsed), h(HelpButton, { label: 'Categories Used' }, h('p', null, 'Number of distinct memory categories in use. More categories means broader knowledge coverage.'))),
+        h('span', { style: { color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, 'Avg Conf: ', h('strong', null, avgConfidence), h(HelpButton, { label: 'Average Confidence' }, h('p', null, 'Average confidence score across all memories. Higher is better — it means the agent trusts its stored knowledge. Confidence decays over time for unused memories.'))),
+        h('span', { style: { color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, 'Sources: ', h('strong', null, sourcesCount), h(HelpButton, { label: 'Sources' }, h('p', null, 'Number of distinct sources that contributed memories (e.g., email processing, user input, agent reflection).'))),
         h('div', { style: { flex: 1 } }),
         h('span', { style: { color: 'var(--text-muted)' } }, 'Showing ', h('strong', null, filtered.length), ' of ', totalMemories)
       ),

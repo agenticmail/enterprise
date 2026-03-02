@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { TimezoneSelect } from '../../components/timezones.js';
+import { HelpButton } from '../../components/help-button.js';
 import { CULTURES, LANGUAGES, DEFAULT_TRAITS, computeAge, PersonaForm } from '../../components/persona-fields.js';
 import { TagInput } from '../../components/tag-input.js';
 import { Badge, StatCard, formatTime } from './shared.js?v=4';
@@ -143,7 +144,22 @@ export function PersonalDetailsSection(props) {
     return h(Fragment, null,
       // Header with Edit button
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-        h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600 } }, 'Personal Details'),
+        h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Personal Details',
+          h(HelpButton, { label: 'Personal Details' },
+            h('p', null, 'Define who this agent is — its name, role, personality, and how it presents itself to the world.'),
+            h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Fields'),
+            h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+              h('li', null, h('strong', null, 'Name'), ' — The agent\'s display name. Used in emails, chat messages, and team interactions.'),
+              h('li', null, h('strong', null, 'Role'), ' — Job title or function (e.g., "Sales Rep", "Support Agent"). Helps the agent understand its responsibilities.'),
+              h('li', null, h('strong', null, 'Timezone'), ' — Used for scheduling, work hours, and time-aware responses.'),
+              h('li', null, h('strong', null, 'Avatar'), ' — Profile image shown in chat, emails, and the dashboard.'),
+              h('li', null, h('strong', null, 'Personality Traits'), ' — Adjectives that shape the agent\'s tone and style (e.g., "professional", "friendly", "concise").'),
+              h('li', null, h('strong', null, 'Communication Style'), ' — How the agent writes: formal, casual, technical, etc.'),
+              h('li', null, h('strong', null, 'Backstory'), ' — Optional narrative context that enriches the agent\'s persona.')
+            ),
+            h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Personality traits have a real impact on output quality. Agents with clear traits produce more consistent, on-brand communications.')
+          )
+        ),
         h('button', { className: 'btn btn-primary btn-sm', onClick: startEdit }, I.journal(), ' Edit Details')
       ),
 

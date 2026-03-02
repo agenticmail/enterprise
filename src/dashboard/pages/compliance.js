@@ -1,5 +1,6 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function CompliancePage() {
   const { toast } = useApp();
@@ -34,14 +35,35 @@ export function CompliancePage() {
     window.open('/api/engine/compliance/reports/' + id + '/download?format=' + format, '_blank');
   };
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h('div', { className: 'page-inner' },
-    h('div', { className: 'page-header' }, h('h1', null, 'Compliance Reporting')),
+    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Compliance Reporting', h(HelpButton, { label: 'Compliance Reporting' },
+      h('p', null, 'Generate and manage compliance reports for regulatory frameworks. Supports SOC2 summaries, GDPR data exports, and audit summaries.'),
+      h('h4', { style: _h4 }, 'Report types'),
+      h('ul', { style: _ul },
+        h('li', null, h('strong', null, 'SOC2 Summary'), ' — Documents security controls, access patterns, and policy enforcement for SOC2 auditors.'),
+        h('li', null, h('strong', null, 'GDPR Export'), ' — Generates a data subject access report for a specific agent, showing all personal data processed.'),
+        h('li', null, h('strong', null, 'Audit Summary'), ' — Aggregated view of all administrative actions over a date range.')
+      ),
+      h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Generate reports before compliance audits. Download in JSON for programmatic processing or CSV for spreadsheet review.')
+    ))),
     h('div', { className: 'tabs', style: { marginBottom: 16 } },
       ['reports', 'generate'].map(t => h('button', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, t.charAt(0).toUpperCase() + t.slice(1)))
     ),
     tab === 'generate' && h('div', { className: 'card' },
       h('div', { className: 'card-body' },
-        h('h3', { style: { marginBottom: 16 } }, 'Generate Report'),
+        h('h3', { style: { marginBottom: 16, display: 'flex', alignItems: 'center' } }, 'Generate Report', h(HelpButton, { label: 'Generate Report' },
+          h('p', null, 'Create a new compliance report. Select the report type, date range, and optionally scope to a specific agent.'),
+          h('ul', { style: _ul },
+            h('li', null, 'SOC2 and Audit reports use a date range to scope the data.'),
+            h('li', null, 'GDPR exports require selecting a specific agent.'),
+            h('li', null, 'Reports are generated asynchronously and appear in the Reports tab when complete.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'For SOC2 audits, generate monthly reports to maintain a continuous compliance record.')
+        )),
         h('label', { className: 'field-label' }, 'Report Type'),
         h('select', { className: 'input', value: form.type, onChange: e => setForm({ ...form, type: e.target.value }) }, h('option', { value: 'soc2' }, 'SOC2 Summary'), h('option', { value: 'gdpr' }, 'GDPR Export'), h('option', { value: 'audit' }, 'Audit Summary')),
         form.type !== 'gdpr' && h('div', { style: { display: 'flex', gap: 12, marginTop: 8 } },

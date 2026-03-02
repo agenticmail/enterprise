@@ -1,5 +1,6 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function DLPPage() {
   const { toast } = useApp();
@@ -36,8 +37,25 @@ export function DLPPage() {
 
   const severityColor = (s) => s === 'critical' ? 'var(--danger)' : s === 'high' ? 'var(--warning)' : s === 'medium' ? 'var(--info)' : 'var(--text-muted)';
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h('div', { className: 'page-inner' },
-    h('div', { className: 'page-header' }, h('h1', null, 'Data Loss Prevention'), h('button', { className: 'btn btn-primary', onClick: () => setShowModal(true) }, I.plus(), ' Add Rule')),
+    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Data Loss Prevention', h(HelpButton, { label: 'Data Loss Prevention' },
+      h('p', null, 'DLP prevents agents from accidentally leaking sensitive data like API keys, passwords, credit card numbers, or personal information in emails and tool outputs.'),
+      h('h4', { style: _h4 }, 'How it works'),
+      h('ul', { style: _ul },
+        h('li', null, h('strong', null, 'Rules'), ' — Define patterns (regex, keywords, or PII types) to detect sensitive data.'),
+        h('li', null, h('strong', null, 'Actions'), ' — Block, redact, warn, or log when a match is found.'),
+        h('li', null, h('strong', null, 'Violations'), ' — Every detection is logged for audit and investigation.')
+      ),
+      h('h4', { style: _h4 }, 'Built-in PII types'),
+      h('ul', { style: _ul },
+        h('li', null, 'email, ssn, credit_card, phone, api_key, aws_key')
+      ),
+      h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use the Test tab to validate your rules against sample content before deploying them.')
+    )), h('button', { className: 'btn btn-primary', onClick: () => setShowModal(true) }, I.plus(), ' Add Rule')),
     h('div', { className: 'tabs', style: { marginBottom: 16 } },
       ['rules', 'violations', 'test'].map(t => h('button', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, t.charAt(0).toUpperCase() + t.slice(1)))
     ),
@@ -75,7 +93,10 @@ export function DLPPage() {
     ),
     tab === 'test' && h('div', { className: 'card' },
       h('div', { className: 'card-body' },
-        h('h3', { style: { marginBottom: 12 } }, 'Test DLP Scan'),
+        h('h3', { style: { marginBottom: 12, display: 'flex', alignItems: 'center' } }, 'Test DLP Scan', h(HelpButton, { label: 'Test DLP Scan' },
+          h('p', null, 'Paste any content here to test it against all active DLP rules. Shows which rules match and how many times.'),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Test with realistic data samples before deploying new rules to avoid false positives.')
+        )),
         h('textarea', { className: 'input', style: { minHeight: 100, marginBottom: 12 }, placeholder: 'Paste content to test against DLP rules...', value: testContent, onChange: (e) => setTestContent(e.target.value) }),
         h('button', { className: 'btn btn-primary', onClick: testScan }, 'Run Scan'),
         testResults && h('div', { style: { marginTop: 16 } },

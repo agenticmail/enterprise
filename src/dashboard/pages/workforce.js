@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { TimezoneSelect } from '../components/timezones.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function WorkforcePage() {
   const { toast } = useApp();
@@ -245,9 +246,24 @@ export function WorkforcePage() {
     { key: 'history', label: 'Clock History' },
   ];
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h('div', { className: 'page-inner' },
     h('div', { className: 'page-header' },
-      h('h1', null, 'Workforce Management'),
+      h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Workforce Management', h(HelpButton, { label: 'Workforce Management' },
+        h('p', null, 'Manage your agents like employees — set work schedules, assign tasks, track budgets, and monitor clock-in/out history.'),
+        h('h4', { style: _h4 }, 'Key sections'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Overview'), ' — See which agents are clocked in, off duty, or unscheduled.'),
+          h('li', null, h('strong', null, 'Schedules'), ' — Define working hours, shifts, and auto-wake rules.'),
+          h('li', null, h('strong', null, 'Task Queue'), ' — Assign and track tasks for specific agents.'),
+          h('li', null, h('strong', null, 'Budgets'), ' — Set token caps to control agent spending.'),
+          h('li', null, h('strong', null, 'Clock History'), ' — Audit trail of all clock-in/out events.')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use schedules with auto-wake to have agents automatically start working at their scheduled time each day.')
+      )),
       h('button', { className: 'btn btn-ghost', onClick: loadData }, I.refresh(), ' Refresh')
     ),
     // Tab bar

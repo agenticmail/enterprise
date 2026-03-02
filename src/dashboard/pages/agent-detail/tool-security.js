@@ -3,6 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { TagInput } from '../../components/tag-input.js';
 import { Badge, EmptyState } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 var _tsCardStyle = { border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20, marginBottom: 16 };
 var _tsCardTitle = { fontSize: 15, fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 };
@@ -232,7 +233,17 @@ export function ToolSecuritySection(props) {
     // Header
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h3', { style: { margin: 0, fontSize: 18, fontWeight: 600 } }, 'Tool Security'),
+        h('h3', { style: { margin: 0, fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Tool Security', h(HelpButton, { label: 'Tool Security' },
+          h('p', null, 'Configure security sandboxes and middleware for this agent\'s tool usage. Unmodified settings inherit from organization defaults.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Path Sandbox'), ' — Restricts which directories the agent can read/write.'),
+            h('li', null, h('strong', null, 'SSRF Protection'), ' — Blocks access to internal networks and metadata endpoints.'),
+            h('li', null, h('strong', null, 'Command Sanitizer'), ' — Controls which shell commands are allowed.'),
+            h('li', null, h('strong', null, 'Rate Limiting'), ' — Per-tool call limits to prevent runaway behavior.'),
+            h('li', null, h('strong', null, 'Circuit Breaker'), ' — Auto-stops calling failing tools after repeated errors.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Only override settings you need to change. Agent-level overrides take precedence over org defaults. Use "Reset to Org Defaults" to remove all overrides.')
+        )),
         h('p', { style: { margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' } },
           'Configure tool security overrides for this agent. Unmodified settings inherit from ',
           h('strong', null, 'org defaults'),
@@ -273,7 +284,10 @@ export function ToolSecuritySection(props) {
 
       // Path Sandbox
       h('div', { style: _tsCardStyle },
-        h('div', { style: _tsCardTitle }, I.folder(), ' Path Sandbox'),
+        h('div', { style: _tsCardTitle }, I.folder(), ' Path Sandbox', h(HelpButton, { label: 'Path Sandbox' },
+          h('p', null, 'Restricts file system access to specific directories. Prevents agents from reading sensitive files like .env, SSH keys, or system configs.'),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Add your project directory to allowed dirs. Use blocked patterns to exclude sensitive files like .env or credentials.')
+        )),
         h('div', { style: _tsCardDesc }, 'Controls which directories this agent can read/write.'),
         h(TSToggle, { label: 'Enable path sandboxing', checked: ps.enabled !== false, inherited: !isOverridden('pathSandbox', 'enabled'), onChange: function(v) { patchSec('pathSandbox', 'enabled', v); } }),
         h(TagInput, { label: 'Allowed Directories', value: ps.allowedDirs || [], onChange: function(v) { patchSec('pathSandbox', 'allowedDirs', v); }, placeholder: '/path/to/allow', mono: true }),
@@ -282,7 +296,9 @@ export function ToolSecuritySection(props) {
 
       // SSRF Guard
       h('div', { style: _tsCardStyle },
-        h('div', { style: _tsCardTitle }, I.globe(), ' SSRF Protection'),
+        h('div', { style: _tsCardTitle }, I.globe(), ' SSRF Protection', h(HelpButton, { label: 'SSRF Protection' },
+          h('p', null, 'Server-Side Request Forgery protection prevents the agent from accessing internal infrastructure like cloud metadata endpoints (169.254.x.x), private networks (10.x.x.x), or localhost services.')
+        )),
         h('div', { style: _tsCardDesc }, 'Blocks this agent from accessing internal networks and metadata endpoints.'),
         h(TSToggle, { label: 'Enable SSRF protection', checked: ssrf.enabled !== false, inherited: !isOverridden('ssrf', 'enabled'), onChange: function(v) { patchSec('ssrf', 'enabled', v); } }),
         h(TagInput, { label: 'Allowed Hosts', value: ssrf.allowedHosts || [], onChange: function(v) { patchSec('ssrf', 'allowedHosts', v); }, placeholder: 'api.example.com', mono: true }),
@@ -292,7 +308,10 @@ export function ToolSecuritySection(props) {
 
     // Command Sanitizer (full width)
     h('div', { style: _tsCardStyle },
-      h('div', { style: _tsCardTitle }, I.terminal(), ' Command Sanitizer'),
+      h('div', { style: _tsCardTitle }, I.terminal(), ' Command Sanitizer', h(HelpButton, { label: 'Command Sanitizer' },
+        h('p', null, 'Controls shell command execution. Use blocklist mode to deny dangerous commands, or allowlist mode to only permit specific safe commands.'),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Allowlist mode is more secure but requires listing every allowed command. Blocklist mode is easier — just block dangerous patterns like "rm -rf" or "curl | sh".')
+      )),
       h('div', { style: _tsCardDesc }, 'Controls which shell commands this agent can execute.'),
       h(TSToggle, { label: 'Enable command validation', checked: cs.enabled !== false, inherited: !isOverridden('commandSanitizer', 'enabled'), onChange: function(v) { patchSec('commandSanitizer', 'enabled', v); } }),
       h('div', { style: { marginBottom: 12 } },
@@ -314,7 +333,9 @@ export function ToolSecuritySection(props) {
 
       // Audit Logging
       h('div', { style: _tsCardStyle },
-        h('div', { style: _tsCardTitle }, I.journal(), ' Audit Logging'),
+        h('div', { style: _tsCardTitle }, I.journal(), ' Audit Logging', h(HelpButton, { label: 'Audit Logging' },
+          h('p', null, 'Records every tool call this agent makes. Essential for compliance, debugging, and understanding agent behavior. Sensitive values are automatically redacted.')
+        )),
         h('div', { style: _tsCardDesc }, 'Logs every tool invocation for this agent.'),
         h(TSToggle, { label: 'Enable audit logging', checked: audit.enabled !== false, inherited: !isOverridden('audit', 'enabled'), onChange: function(v) { patchMw('audit', 'enabled', v); } }),
         h(TagInput, { label: 'Keys to Redact', value: audit.redactKeys || [], onChange: function(v) { patchMw('audit', 'redactKeys', v); }, placeholder: 'custom_secret', mono: true })
@@ -322,7 +343,9 @@ export function ToolSecuritySection(props) {
 
       // Rate Limiting
       h('div', { style: _tsCardStyle },
-        h('div', { style: _tsCardTitle }, I.clock(), ' Rate Limiting'),
+        h('div', { style: _tsCardTitle }, I.clock(), ' Rate Limiting', h(HelpButton, { label: 'Rate Limiting' },
+          h('p', null, 'Sets maximum calls per minute for each tool. Prevents runaway loops where the agent calls the same tool hundreds of times. Each tool has a token bucket that refills at the configured rate.')
+        )),
         h('div', { style: _tsCardDesc }, 'Per-tool rate limits for this agent.'),
         h(TSToggle, { label: 'Enable rate limiting', checked: rl.enabled !== false, inherited: !isOverridden('rateLimit', 'enabled'), onChange: function(v) { patchMw('rateLimit', 'enabled', v); } }),
         h(TSRateLimitEditor, { overrides: rl.overrides || {}, onChange: function(v) { patchMw('rateLimit', 'overrides', v); } })
@@ -330,14 +353,18 @@ export function ToolSecuritySection(props) {
 
       // Circuit Breaker
       h('div', { style: _tsCardStyle },
-        h('div', { style: _tsCardTitle }, I.pause(), ' Circuit Breaker'),
+        h('div', { style: _tsCardTitle }, I.pause(), ' Circuit Breaker', h(HelpButton, { label: 'Circuit Breaker' },
+          h('p', null, 'Automatically stops calling a tool after consecutive failures. Prevents wasting tokens and API calls on broken integrations. The circuit "opens" after failures and "closes" after a cooldown period.')
+        )),
         h('div', { style: _tsCardDesc }, 'Auto-stops calling failing tools after consecutive failures.'),
         h(TSToggle, { label: 'Enable circuit breaker', checked: cb.enabled !== false, inherited: !isOverridden('circuitBreaker', 'enabled'), onChange: function(v) { patchMw('circuitBreaker', 'enabled', v); } })
       ),
 
       // Telemetry
       h('div', { style: _tsCardStyle },
-        h('div', { style: _tsCardTitle }, I.chart(), ' Telemetry'),
+        h('div', { style: _tsCardTitle }, I.chart(), ' Telemetry', h(HelpButton, { label: 'Telemetry' },
+          h('p', null, 'Collects timing data, success rates, and usage patterns for this agent\'s tools. Useful for identifying slow tools, optimizing workflows, and capacity planning.')
+        )),
         h('div', { style: _tsCardDesc }, 'Collects execution timing and metrics for this agent\'s tools.'),
         h(TSToggle, { label: 'Enable telemetry', checked: tel.enabled !== false, inherited: !isOverridden('telemetry', 'enabled'), onChange: function(v) { patchMw('telemetry', 'enabled', v); } })
       )

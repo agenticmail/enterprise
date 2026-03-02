@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { DetailModal } from '../../components/modal.js';
+import { HelpButton } from '../../components/help-button.js';
 
 // --- ActivitySection ------------------------------------------------
 
@@ -136,7 +137,22 @@ export function ActivitySection(props) {
 
   return h('div', { className: 'card' },
     h('div', { className: 'card-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
-      h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600 } }, 'Activity'),
+      h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Activity',
+        h(HelpButton, { label: 'Agent Activity Log' },
+          h('p', null, 'A chronological log of everything this agent has done — conversations, tasks completed, emails sent, tools used, errors encountered, and guardrail interventions.'),
+          h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Event Types'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Message'), ' — Chat messages sent or received.'),
+            h('li', null, h('strong', null, 'Task'), ' — Tasks started, completed, or failed.'),
+            h('li', null, h('strong', null, 'Tool Use'), ' — External tools or APIs the agent called.'),
+            h('li', null, h('strong', null, 'Error'), ' — Failures, timeouts, or API errors.'),
+            h('li', null, h('strong', null, 'Guardrail'), ' — Policy violations or interventions.'),
+            h('li', null, h('strong', null, 'System'), ' — Deploy, restart, config changes.')
+          ),
+          h('p', null, 'Click on any event to see full details including request/response data.'),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Use filters to narrow down to specific event types. If debugging an issue, start with "Error" events.')
+        )
+      ),
       h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
         h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, filtered.length + ' items'),
         h('button', { className: 'btn btn-ghost btn-sm', onClick: refreshCurrent }, I.refresh())

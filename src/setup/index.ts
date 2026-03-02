@@ -125,18 +125,25 @@ export async function runSetupWizard(): Promise<void> {
   const database = await promptDatabase(inquirer, chalk);
 
   // ─── Step 3: Deployment ──────────────────────────
-  const { target: deployTarget } = await promptDeployment(inquirer, chalk);
+  const deploymentResult = await promptDeployment(inquirer, chalk);
+  const deployTarget = deploymentResult.target;
 
   // ─── Step 4: Custom Domain ───────────────────────
-  const domain = await promptDomain(inquirer, chalk, deployTarget);
+  // Skip if Cloudflare Tunnel — domain was already configured during tunnel setup
+  const domain = deploymentResult.tunnel
+    ? { customDomain: deploymentResult.tunnel.domain }
+    : await promptDomain(inquirer, chalk, deployTarget);
 
   // ─── Step 5: Domain Registration ─────────────────
-  const registration = await promptRegistration(
-    inquirer, chalk, ora,
-    domain.customDomain,
-    company.companyName,
-    company.adminEmail,
-  );
+  // Skip for tunnel — DNS is already configured by cloudflared
+  const registration = deploymentResult.tunnel
+    ? { registered: true, verificationStatus: 'verified' as const } as any
+    : await promptRegistration(
+        inquirer, chalk, ora,
+        domain.customDomain,
+        company.companyName,
+        company.adminEmail,
+      );
 
   // ─── Install DB driver if needed ───────────────
   await ensureDbDriver(database.type, ora, chalk);
@@ -147,7 +154,7 @@ export async function runSetupWizard(): Promise<void> {
   console.log('');
 
   const result = await provision(
-    { company, database, deployTarget, domain, registration },
+    { company, database, deployTarget, domain, registration, tunnel: deploymentResult.tunnel },
     ora,
     chalk,
   );

@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, showConfirm } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function DomainStatusPage() {
   var { toast } = useApp();
@@ -165,6 +166,9 @@ export function DomainStatusPage() {
   var sub = data && data.subdomain;
 
   // ─── Styles ──────────────────────────────────
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
   var card = { padding: 24, background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', marginBottom: 16 };
   var labelSt = { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 };
   var rowSt = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' };
@@ -172,7 +176,18 @@ export function DomainStatusPage() {
   return h(Fragment, null,
     // ─── Page Header ──────────────────────────────
     h('div', { style: { marginBottom: 24 } },
-      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Domain & Deployment'),
+      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Domain & Deployment', h(HelpButton, { label: 'Domain & Deployment' },
+        h('p', null, 'Configure how your AgenticMail Enterprise instance is accessed on the internet. Set up subdomains, custom domains, CORS policies, and deployment tunnels.'),
+        h('h4', { style: _h4 }, 'Sections'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Current Deployment'), ' — The URL where your dashboard is running right now.'),
+          h('li', null, h('strong', null, 'Subdomain'), ' — Your free agenticmail.io subdomain.'),
+          h('li', null, h('strong', null, 'Custom Domain'), ' — Use your own domain with DNS verification.'),
+          h('li', null, h('strong', null, 'CORS'), ' — Control which origins can make API requests.'),
+          h('li', null, h('strong', null, 'Migration'), ' — Move your deployment to another machine.')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'If running locally, use the "Deploy to Production" section to expose your instance via a Cloudflare Tunnel.')
+      )),
       h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage the domain and URL for your AgenticMail Enterprise deployment')
     ),
 
@@ -185,7 +200,10 @@ export function DomainStatusPage() {
     // SECTION 1: Current Deployment
     // ═══════════════════════════════════════════════
     h('div', { style: card },
-      h('div', { style: labelSt }, 'Current Deployment'),
+      h('div', { style: Object.assign({}, labelSt, { display: 'flex', alignItems: 'center' }) }, 'Current Deployment', h(HelpButton, { label: 'Current Deployment' },
+        h('p', null, 'This shows the URL you\'re currently accessing the dashboard from. This is where your team and agents connect.'),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Share this URL with your team. If it shows localhost, you\'ll need to set up a tunnel or deploy to a server for external access.')
+      )),
       h('div', { style: { padding: '14px 16px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid var(--border)', marginBottom: 12 } },
         h('span', { style: { fontSize: 15, fontFamily: 'var(--font-mono, monospace)', color: 'var(--accent)', wordBreak: 'break-all' } }, actualUrl),
         h('button', { className: 'btn btn-sm', onClick: function() { navigator.clipboard.writeText(actualUrl); toast('Copied!', 'success'); } }, 'Copy')
@@ -200,7 +218,10 @@ export function DomainStatusPage() {
     // ═══════════════════════════════════════════════
     h('div', { style: card },
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
-        h('div', { style: labelSt }, 'AgenticMail Subdomain'),
+        h('div', { style: Object.assign({}, labelSt, { display: 'flex', alignItems: 'center' }) }, 'AgenticMail Subdomain', h(HelpButton, { label: 'AgenticMail Subdomain' },
+          h('p', null, 'A free subdomain on agenticmail.io (e.g., yourcompany.agenticmail.io). This gives you a public URL without needing your own domain.'),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Changing the subdomain requires updating DNS records and any bookmarks or integrations that reference the old URL.')
+        )),
         !showEditSub && sub && h('button', { className: 'btn btn-sm', onClick: function() { setShowEditSub(true); setNewSub(sub || ''); setSubError(''); } }, 'Change')
       ),
 
@@ -268,7 +289,16 @@ export function DomainStatusPage() {
     h('div', { style: card },
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 } },
         h('div', null,
-          h('div', { style: labelSt }, 'Custom Domain'),
+          h('div', { style: Object.assign({}, labelSt, { display: 'flex', alignItems: 'center' }) }, 'Custom Domain', h(HelpButton, { label: 'Custom Domain' },
+            h('p', null, 'Use your own domain (e.g., agents.yourcompany.com) for a professional, branded deployment. Requires DNS verification to prove ownership.'),
+            h('h4', { style: _h4 }, 'Setup Process'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Register'), ' — Enter your domain and get DNS challenge records.'),
+              h('li', null, h('strong', null, 'Add DNS records'), ' — Add TXT (verification) and CNAME/A (routing) records at your DNS provider.'),
+              h('li', null, h('strong', null, 'Verify'), ' — Click "Verify DNS Now" once records propagate (up to 48 hours).')
+            ),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use a subdomain like agents.yourcompany.com instead of the root domain — it\'s easier to set up and doesn\'t affect your main website.')
+          )),
           h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: -6 } }, 'Deploy on your own domain — either a subdomain (agents.yourcompany.com) or root domain (yourcompany.com)')
         )
       ),
@@ -399,7 +429,15 @@ export function DomainStatusPage() {
     // ═══════════════════════════════════════════════
     h('div', { style: card },
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
-        h('div', { style: labelSt }, 'Allowed Origins (CORS)'),
+        h('div', { style: Object.assign({}, labelSt, { display: 'flex', alignItems: 'center' }) }, 'Allowed Origins (CORS)', h(HelpButton, { label: 'Allowed Origins (CORS)' },
+          h('p', null, 'CORS (Cross-Origin Resource Sharing) controls which websites can make API requests to your AgenticMail server. This is a security measure to prevent unauthorized access.'),
+          h('h4', { style: _h4 }, 'What This Means'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'No origins listed'), ' — Any website can make API requests (open access). Fine for development, risky for production.'),
+            h('li', null, h('strong', null, 'Origins listed'), ' — Only those specific domains can make API requests.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'CORS is auto-updated when you change your subdomain or custom domain. For manual control, go to Settings → Network & Firewall.')
+        )),
         h('a', { href: '/dashboard/settings#network', style: { fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 } }, 'Manage in Settings \u2192')
       ),
       corsOrigins.length === 0
@@ -418,12 +456,65 @@ export function DomainStatusPage() {
     ),
 
     // ═══════════════════════════════════════════════
+    // SECTION: Migrate to Another Machine
+    // ═══════════════════════════════════════════════
+    h('div', { style: Object.assign({}, card, { border: '1px solid rgba(59,130,246,0.25)', background: 'linear-gradient(135deg, rgba(59,130,246,0.04), rgba(99,102,241,0.04))' }) },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 } },
+        h('span', { style: { fontSize: 20 } }, '\uD83D\uDCE6'),
+        h('div', null,
+          h('div', { style: { fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Migrate to Another Machine', h(HelpButton, { label: 'Migration' },
+            h('p', null, 'Move your entire AgenticMail deployment to a different server or computer. All you need is the .env file — it contains all configuration and encryption keys.'),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Always back up your .env file securely. Without the VAULT_KEY, encrypted credentials cannot be recovered.')
+          )),
+          h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Move your entire deployment to a new server or computer')
+        )
+      ),
+      h('p', { style: { fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 } },
+        'All your configuration is stored in ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '~/.agenticmail/.env'),
+        '. To run on a different machine, copy this file and you\'re done.'
+      ),
+      h('div', { style: { marginBottom: 16 } },
+        h('div', { style: { fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 } }, 'Steps to migrate'),
+        h('ol', { style: { fontSize: 13, color: 'var(--text-secondary)', lineHeight: 2, paddingLeft: 20, marginBottom: 0 } },
+          h('li', null, 'On your current machine, copy ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '~/.agenticmail/.env'), ' — this has your DATABASE_URL, JWT_SECRET, and VAULT_KEY'),
+          h('li', null, 'On the new machine, create the directory: ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'mkdir -p ~/.agenticmail')),
+          h('li', null, 'Save the .env file there: ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '~/.agenticmail/.env')),
+          h('li', null, 'Start the server: ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'npx @agenticmail/enterprise@latest start')),
+          h('li', null, 'If using Cloudflare Tunnel: run ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'cloudflared tunnel login'), ' on the new machine (same CF account), then redeploy the tunnel from the dashboard')
+        )
+      ),
+      h('div', { style: { padding: '12px 16px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 } },
+        h('strong', { style: { color: 'var(--text-secondary)' } }, 'What\'s in .env:'), h('br'),
+        '\u2022 ', h('strong', null, 'DATABASE_URL'), ' — your database connection (all data lives here)', h('br'),
+        '\u2022 ', h('strong', null, 'JWT_SECRET'), ' — keeps login sessions valid across restarts', h('br'),
+        '\u2022 ', h('strong', null, 'AGENTICMAIL_VAULT_KEY'), ' — decrypts stored credentials (email passwords, API keys)', h('br'),
+        '\u2022 ', h('strong', null, 'PORT'), ' — the port your server runs on', h('br'),
+        h('br'),
+        h('strong', { style: { color: 'var(--warning)' } }, 'Important:'), ' Without the same VAULT_KEY, encrypted credentials (agent email passwords, API keys) cannot be decrypted. You would need to re-enter them in the dashboard.'
+      ),
+      h('div', { style: { marginTop: 12 } },
+        h('button', {
+          className: 'btn btn-sm',
+          onClick: function() {
+            var text = 'To migrate AgenticMail to a new machine:\\n\\n1. mkdir -p ~/.agenticmail\\n2. Copy this file to ~/.agenticmail/.env on the new machine\\n3. npx @agenticmail/enterprise@latest start\\n4. If using CF Tunnel: cloudflared tunnel login + redeploy from dashboard';
+            navigator.clipboard.writeText(text);
+            toast('Migration instructions copied!', 'success');
+          }
+        }, 'Copy Instructions')
+      )
+    ),
+
+    // ═══════════════════════════════════════════════
     // CLI Reference
     // ═══════════════════════════════════════════════
     h('div', { style: card },
-      h('div', { style: labelSt }, 'CLI Commands'),
+      h('div', { style: Object.assign({}, labelSt, { display: 'flex', alignItems: 'center' }) }, 'CLI Commands', h(HelpButton, { label: 'CLI Commands' },
+        h('p', null, 'Common command-line commands for managing your AgenticMail Enterprise installation. Run these in your terminal on the server where AgenticMail is installed.'),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use "npx @agenticmail/enterprise@latest" to always run the latest version without manually updating.')
+      )),
       h('div', { style: { display: 'grid', gap: 8 } },
         cliRow('Initial setup', 'npx @agenticmail/enterprise setup'),
+        cliRow('Start server', 'npx @agenticmail/enterprise start'),
         cliRow('Verify DNS ownership', 'npx @agenticmail/enterprise verify-domain'),
         cliRow('Recover on new server', 'npx @agenticmail/enterprise recover --domain your.domain.com')
       )

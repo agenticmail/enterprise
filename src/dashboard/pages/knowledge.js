@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getO
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { KnowledgeImportWizard, ImportJobsList } from './knowledge-import.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function KnowledgeBasePage() {
   const { toast } = useApp();
@@ -120,6 +121,10 @@ export function KnowledgeBasePage() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   // ── Detail View ──
   if (selected) {
     return h(Fragment, null,
@@ -128,7 +133,16 @@ export function KnowledgeBasePage() {
           h('button', { className: 'btn btn-secondary btn-sm', onClick: () => setSelected(null) }, '\u2190 Back'),
           editing
             ? h('input', { className: 'input', value: editForm.name, onChange: e => setEditForm(f => ({ ...f, name: e.target.value })), style: { fontSize: 18, fontWeight: 700, padding: '4px 8px' } })
-            : h('h1', { style: { fontSize: 20, fontWeight: 700, margin: 0 } }, selected.name)
+            : h('h1', { style: { fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center' } }, selected.name, h(HelpButton, { label: 'Knowledge Base Detail' },
+                h('p', null, 'This is the detail view for a single knowledge base. Here you can manage documents, view chunks, and import new content.'),
+                h('h4', { style: _h4 }, 'Key Actions'),
+                h('ul', { style: _ul },
+                  h('li', null, h('strong', null, 'Import Docs'), ' — Add documents from GitHub, Google Drive, websites, or file uploads.'),
+                  h('li', null, h('strong', null, 'Edit'), ' — Rename or update the description of this knowledge base.'),
+                  h('li', null, h('strong', null, 'Delete'), ' — Permanently remove this knowledge base and all its documents.')
+                ),
+                h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Click a document on the left to preview its chunks on the right. You can edit individual chunks for fine-grained control.')
+              ))
         ),
         h('div', { style: { display: 'flex', gap: 8 } },
           editing
@@ -162,13 +176,13 @@ export function KnowledgeBasePage() {
       // Stats
       selected.stats && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 } },
         [
-          { label: 'Documents', value: selected.stats?.documentCount || selected.stats?.documents || selected.stats?.totalDocuments || docs.length },
-          { label: 'Chunks', value: selected.stats?.chunkCount || selected.stats?.chunks || selected.stats?.totalChunks || 0 },
-          { label: 'Total Tokens', value: selected.stats?.totalTokens || 0 },
-          { label: 'Queries', value: selected.stats?.queryCount || 0 },
+          { label: 'Documents', value: selected.stats?.documentCount || selected.stats?.documents || selected.stats?.totalDocuments || docs.length, help: 'Total number of source documents imported into this knowledge base.' },
+          { label: 'Chunks', value: selected.stats?.chunkCount || selected.stats?.chunks || selected.stats?.totalChunks || 0, help: 'Total text segments created from your documents. More chunks = more granular retrieval.' },
+          { label: 'Total Tokens', value: selected.stats?.totalTokens || 0, help: 'Total token count across all chunks. This affects storage costs and retrieval context size.' },
+          { label: 'Queries', value: selected.stats?.queryCount || 0, help: 'Number of times agents have searched this knowledge base. Higher usage means this KB is valuable.' },
         ].map(s => h('div', { key: s.label, className: 'card', style: { textAlign: 'center', padding: 12 } },
           h('div', { style: { fontSize: 22, fontWeight: 700, color: 'var(--brand-color, #6366f1)' } }, typeof s.value === 'number' && s.value > 1000 ? (s.value / 1000).toFixed(1) + 'K' : s.value),
-          h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, s.label)
+          h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, s.label, h(HelpButton, { label: s.label }, h('p', null, s.help)))
         ))
       ),
 
@@ -179,7 +193,16 @@ export function KnowledgeBasePage() {
         h('div', { className: 'card' },
           h('div', { className: 'card-header' },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-              h('h3', { style: { margin: 0 } }, 'Documents'),
+              h('h3', { style: { margin: 0, display: 'flex', alignItems: 'center' } }, 'Documents', h(HelpButton, { label: 'Documents' },
+                h('p', null, 'Documents are the source files you\'ve imported into this knowledge base. Each document is automatically split into smaller chunks for efficient retrieval.'),
+                h('h4', { style: _h4 }, 'Managing Documents'),
+                h('ul', { style: _ul },
+                  h('li', null, h('strong', null, 'Click'), ' a document to view its chunks in the right panel.'),
+                  h('li', null, h('strong', null, 'Rename'), ' — Click the edit icon to rename a document.'),
+                  h('li', null, h('strong', null, 'Delete'), ' — Remove a document and all its chunks.')
+                ),
+                h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use "Import Docs" to add more documents from various sources like GitHub, Google Drive, or direct file upload.')
+              )),
               h('span', { className: 'badge badge-neutral' }, docs.length)
             )
           ),
@@ -218,7 +241,16 @@ export function KnowledgeBasePage() {
         // Chunk preview
         h('div', { className: 'card' },
           h('div', { className: 'card-header' },
-            h('h3', { style: { margin: 0 } }, selectedDoc ? 'Chunks: ' + (selectedDoc.name || selectedDoc.id) : 'Select a document')
+            h('h3', { style: { margin: 0, display: 'flex', alignItems: 'center' } }, selectedDoc ? 'Chunks: ' + (selectedDoc.name || selectedDoc.id) : 'Select a document', h(HelpButton, { label: 'Chunks' },
+              h('p', null, 'Chunks are the smaller text segments that documents are split into for RAG (Retrieval-Augmented Generation). When an agent queries the knowledge base, the most relevant chunks are retrieved and included in the prompt.'),
+              h('h4', { style: _h4 }, 'Why Chunks Matter'),
+              h('ul', { style: _ul },
+                h('li', null, h('strong', null, 'Granularity'), ' — Smaller chunks allow more precise retrieval of relevant information.'),
+                h('li', null, h('strong', null, 'Token count'), ' — Each chunk has a token count that affects how much context is used.'),
+                h('li', null, h('strong', null, 'Editing'), ' — You can manually edit chunks to improve quality or fix errors.')
+              ),
+              h('div', { style: _tip }, h('strong', null, 'Tip: '), 'If an agent gives incorrect answers, check the relevant chunks — you may need to edit them for clarity or accuracy.')
+            ))
           ),
           h('div', { className: 'card-body', style: { maxHeight: 500, overflow: 'auto' } },
             !selectedDoc
@@ -267,7 +299,17 @@ export function KnowledgeBasePage() {
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Knowledge Bases'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Knowledge Bases', h(HelpButton, { label: 'Knowledge Bases' },
+          h('p', null, 'Knowledge bases store documents that your agents can search and reference when answering questions. This is the foundation of RAG (Retrieval-Augmented Generation).'),
+          h('h4', { style: _h4 }, 'How It Works'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Create'), ' a knowledge base to organize related documents together.'),
+            h('li', null, h('strong', null, 'Import'), ' documents from GitHub, Google Drive, SharePoint, websites, or file uploads.'),
+            h('li', null, h('strong', null, 'Assign'), ' knowledge bases to agents so they can search and retrieve relevant information.'),
+            h('li', null, h('strong', null, 'Query'), ' — When an agent needs information, it searches the knowledge base and retrieves the most relevant chunks.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Organize knowledge bases by topic or department. Smaller, focused knowledge bases often produce better search results than one large one.')
+        )),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Document ingestion and RAG retrieval for agents')
       ),
       h('button', { className: 'btn btn-primary', onClick: () => setCreating(true) }, I.plus(), ' New Knowledge Base')

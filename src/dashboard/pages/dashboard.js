@@ -1,6 +1,7 @@
 import { h, useState, useEffect, Fragment, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId, useApp, apiCall, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function SetupChecklist({ onNavigate }) {
   const [status, setStatus] = useState(null);
@@ -67,18 +68,33 @@ export function DashboardPage() {
   const agentData = buildAgentDataMap(mergedForMap);
   const { setPage: navTo } = useApp();
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h(Fragment, null,
     h(SetupChecklist, { onNavigate: function(pg) { if (navTo) navTo(pg); } }),
     h('div', { className: 'stat-grid' },
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'Total Agents'), h('div', { className: 'stat-value' }, stats?.totalAgents ?? agents.length ?? '-')),
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'Active Agents'), h('div', { className: 'stat-value', style: { color: 'var(--success)' } }, (stats?.activeAgents ?? agents.filter(function(a) { return a.status === 'active'; }).length) || '-')),
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'Users'), h('div', { className: 'stat-value' }, stats?.totalUsers ?? '-')),
-      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label' }, 'Audit Events'), h('div', { className: 'stat-value' }, stats?.totalAuditEvents ?? '-'))
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Total Agents', h(HelpButton, { label: 'Total Agents' },
+        h('p', null, 'The total number of agents created in your organization, including active, paused, and archived agents.')
+      )), h('div', { className: 'stat-value' }, stats?.totalAgents ?? agents.length ?? '-')),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Active Agents', h(HelpButton, { label: 'Active Agents' },
+        h('p', null, 'Agents currently running and available to process tasks. If this is lower than Total Agents, some agents may be paused or archived.')
+      )), h('div', { className: 'stat-value', style: { color: 'var(--success)' } }, (stats?.activeAgents ?? agents.filter(function(a) { return a.status === 'active'; }).length) || '-')),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Users', h(HelpButton, { label: 'Users' },
+        h('p', null, 'Human team members with access to this dashboard. Manage users and invite team members from the Users page.')
+      )), h('div', { className: 'stat-value' }, stats?.totalUsers ?? '-')),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Audit Events', h(HelpButton, { label: 'Audit Events' },
+        h('p', null, 'Total logged events across all agents — tool calls, deployments, errors, etc. Visit the Activity page for full details.')
+      )), h('div', { className: 'stat-value' }, stats?.totalAuditEvents ?? '-'))
     ),
 
     h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Agents'), h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navTo('agents'); } }, 'View all')),
+        h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Agents', h(HelpButton, { label: 'Agents' },
+          h('p', null, 'A quick overview of your agents. Click "View all" to manage them — create new agents, configure skills, deploy, and monitor.'),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Click an agent\'s name to see their full detail page with logs, email, sessions, and more.')
+        )), h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navTo('agents'); } }, 'View all')),
         h('div', { className: 'card-body-flush' },
           agents.length === 0
             ? h('div', { className: 'empty-state' }, h('h3', null, 'No agents yet'), h('p', null, 'Create your first agent to get started'))
@@ -96,7 +112,10 @@ export function DashboardPage() {
       ),
 
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Recent Activity'), h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navTo('activity'); } }, 'View all')),
+        h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Recent Activity', h(HelpButton, { label: 'Recent Activity' },
+          h('p', null, 'The latest events across all agents — deployments, tool calls, errors, and status changes. Shows the 8 most recent events.'),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Click any event to see its full details. Red badges indicate errors that may need attention.')
+        )), h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navTo('activity'); } }, 'View all')),
         h('div', { className: 'card-body' },
           events.length === 0
             ? h('div', { style: { textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: 13 } }, 'No activity yet')

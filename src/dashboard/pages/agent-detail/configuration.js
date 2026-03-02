@@ -1,6 +1,12 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
+import { HelpButton } from '../../components/help-button.js';
+
+// ─── Help tooltip styles ───
+var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
 // ─── Voice Voices ───
 
@@ -38,7 +44,7 @@ var rowStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 };
 
 function CardHeader(props) {
   return h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
-    h('h4', { style: { margin: 0, fontSize: 14, fontWeight: 600 } }, props.title),
+    h('h4', { style: { margin: 0, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, props.title, props.help || null),
     props.onEdit && !props.editing
       ? h('button', { className: 'btn btn-ghost btn-sm', onClick: props.onEdit }, 'Edit')
       : props.editing
@@ -270,6 +276,16 @@ export function ConfigurationSection(props) {
     h('div', { className: 'card', style: { padding: 20, marginBottom: 20 } },
       h(CardHeader, {
         title: 'Default LLM Model',
+        help: h(HelpButton, { label: 'Default LLM Model' },
+          h('p', null, 'The primary AI model this agent uses for all conversations and tasks.'),
+          h('h4', { style: _h4 }, 'Settings'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Provider'), ' — The AI provider (Anthropic, OpenAI, Google, etc.). Must have an API key configured in Settings > API Keys.'),
+            h('li', null, h('strong', null, 'Model'), ' — The specific model to use (e.g., claude-sonnet-4-20250514, gpt-4o). Newer models are generally smarter but cost more.'),
+            h('li', null, h('strong', null, 'Thinking Level'), ' — Extended reasoning capability. Higher levels let the model "think step by step" before responding, improving quality for complex tasks at the cost of more tokens.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use Model Routing below to assign different models for different task types — e.g., a cheaper model for chat and a smarter one for complex tasks.')
+        ),
         editing: editingModel,
         saving: saving,
         onEdit: function() {
@@ -323,6 +339,19 @@ export function ConfigurationSection(props) {
     h('div', { className: 'card', style: { padding: 20, marginBottom: 20 } },
       h(CardHeader, {
         title: 'Model Routing',
+        help: h(HelpButton, { label: 'Model Routing' },
+          h('p', null, 'Assign different AI models to different types of tasks. This lets you optimize for cost and quality.'),
+          h('h4', { style: _h4 }, 'Task Types'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Chat'), ' — Real-time conversations (Slack, Teams, WhatsApp). Usually benefits from a fast model.'),
+            h('li', null, h('strong', null, 'Meeting'), ' — Meeting summaries and follow-ups. Often needs a larger context window.'),
+            h('li', null, h('strong', null, 'Email'), ' — Composing and replying to emails. Benefits from a capable writing model.'),
+            h('li', null, h('strong', null, 'Task'), ' — Delegated tasks from managers or other agents.'),
+            h('li', null, h('strong', null, 'Scheduling'), ' — Calendar management and scheduling tasks.')
+          ),
+          h('p', null, 'Leave a route empty to use the Default LLM Model for that task type.'),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use cheaper models (e.g., claude-haiku, gpt-4o-mini) for simple chat and expensive ones (claude-opus, gpt-4o) for complex tasks to save costs.')
+        ),
         editing: editingRouting,
         saving: saving,
         onEdit: function() {
@@ -397,6 +426,14 @@ export function ConfigurationSection(props) {
     h('div', { className: 'card', style: { padding: 20, marginBottom: 20 } },
       h(CardHeader, {
         title: 'Meeting Voice (ElevenLabs)',
+        help: h(HelpButton, { label: 'Meeting Voice' },
+          h('p', null, 'Configure a text-to-speech voice for this agent to use in meetings and voice interactions via ElevenLabs.'),
+          h('ul', { style: _ul },
+            h('li', null, 'The voice ID comes from your ElevenLabs dashboard (elevenlabs.io > Voices > Copy Voice ID).'),
+            h('li', null, 'Name is just a label for your reference.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'ElevenLabs offers free tier voices. Clone a custom voice for your agent\'s unique identity.')
+        ),
         editing: editingVoice,
         saving: saving,
         onEdit: function() {
@@ -432,6 +469,10 @@ export function ConfigurationSection(props) {
     h('div', { className: 'card', style: { padding: 20, marginBottom: 20 } },
       h(CardHeader, {
         title: 'Description',
+        help: h(HelpButton, { label: 'Agent Description' },
+          h('p', null, 'A human-readable description of what this agent does. This is shown to other agents and team members, and is included in the agent\'s system prompt to help it understand its role.'),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Be specific about the agent\'s responsibilities. "Handles customer support for billing questions" is better than "support agent".')
+        ),
         editing: editingDesc,
         saving: saving,
         onEdit: function() {

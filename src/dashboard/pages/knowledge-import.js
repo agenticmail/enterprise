@@ -12,6 +12,7 @@ import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, getOrgId 
 import { I } from '../components/icons.js';
 import { ProviderLogo } from '../assets/provider-logos.js';
 import { Modal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 // ─── Platform Definitions ────────────────────────────
 
@@ -421,7 +422,11 @@ export function ImportJobsList({ kbId }) {
 
   return h('div', { className: 'card', style: { marginTop: 16 } },
     h('div', { className: 'card-header' },
-      h('h3', { style: { margin: 0, fontSize: 14 } }, 'Import History'),
+      h('h3', { style: { margin: 0, fontSize: 14, display: 'flex', alignItems: 'center' } }, 'Import History', h(HelpButton, { label: 'Import History' },
+        h('p', null, 'Shows all previous import jobs for this knowledge base. Track the status, source, and results of each import.'),
+        h('p', null, h('strong', null, 'Statuses: '), 'completed (all documents imported), running (in progress), failed (error occurred), cancelled (manually stopped).'),
+        h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary, #1e293b)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'If an import fails, check the source URL and credentials, then try again.')
+      )),
     ),
     h('div', { className: 'card-body-flush' },
       h('table', null,

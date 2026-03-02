@@ -1,5 +1,6 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall, showConfirm, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function ApprovalsPage() {
   const { toast } = useApp();
@@ -27,9 +28,22 @@ export function ApprovalsPage() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h(Fragment, null,
     h('div', { style: { marginBottom: 20 } },
-      h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Approvals'),
+      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Approvals', h(HelpButton, { label: 'Approvals' },
+        h('p', null, 'The human-in-the-loop checkpoint. When agents attempt sensitive actions (based on your permission settings), they pause and wait for your approval here.'),
+        h('h4', { style: _h4 }, 'How it works'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Agent triggers action'), ' — e.g., sending an email, deleting data, or making a financial call.'),
+          h('li', null, h('strong', null, 'Request appears here'), ' — with full context: which agent, what action, risk level.'),
+          h('li', null, h('strong', null, 'You decide'), ' — approve or reject. The agent resumes or aborts accordingly.')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Configure which actions require approval in each agent\'s Permissions settings. Start strict, then loosen as you build trust.')
+      )),
       h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Review and approve agent actions that require human oversight')
     ),
     h('div', { className: 'tabs' },

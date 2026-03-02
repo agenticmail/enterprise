@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 var PAGE_SIZE = 50;
 
@@ -78,10 +79,31 @@ export function AuditPage() {
 
   var totalPages = Math.max(1, Math.ceil((total || (hasMore ? (page + 2) * PAGE_SIZE : (page + 1) * PAGE_SIZE)) / PAGE_SIZE));
 
+  var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
+  var _ul = { paddingLeft: 20, margin: '4px 0 8px' };
+  var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
+
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Audit Log'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Audit Log', h(HelpButton, { label: 'Audit Log' },
+          h('p', null, 'A tamper-evident record of every administrative action performed in your organization. Essential for security investigations, compliance audits, and change tracking.'),
+          h('h4', { style: _h4 }, 'What gets logged'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'User actions'), ' — logins, role changes, user creation/deletion.'),
+            h('li', null, h('strong', null, 'Agent changes'), ' — configuration updates, deployments, pauses, kills.'),
+            h('li', null, h('strong', null, 'Policy updates'), ' — guardrail rule changes, DLP rule modifications.'),
+            h('li', null, h('strong', null, 'System events'), ' — automated interventions, scheduled tasks.')
+          ),
+          h('h4', { style: _h4 }, 'Color coding'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Green'), ' — Create/add actions.'),
+            h('li', null, h('strong', null, 'Red'), ' — Delete/remove/revoke actions.'),
+            h('li', null, h('strong', null, 'Yellow'), ' — Update/edit actions.'),
+            h('li', null, h('strong', null, 'Blue'), ' — Login/auth actions.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Use the filter box to search across actions, users, and targets. Click any row to see full details including IP address and metadata.')
+        )),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Complete record of all administrative actions and changes')
       ),
       h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },

@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
+import { HelpButton } from '../../components/help-button.js';
 
 // ─── Styles ───
 
@@ -449,7 +450,15 @@ export function ChannelsSection(props) {
   var noChannels = !caps?.whatsapp && !caps?.telegram;
 
   return h('div', null,
-    h('h2', { style: { fontSize: '20px', marginBottom: '16px' } }, 'Manager Messaging Channels'),
+    h('h2', { style: { fontSize: '20px', marginBottom: '16px', display: 'flex', alignItems: 'center' } }, 'Manager Messaging Channels', h(HelpButton, { label: 'Manager Messaging Channels' },
+      h('p', null, 'Connect personal messaging platforms so you can chat with your AI agent directly from WhatsApp or Telegram. These are your private channels — for customer-facing messaging, use the WhatsApp Business tab.'),
+      h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+        h('li', null, h('strong', null, 'Manager Identity'), ' — Set your phone number/user ID so the agent recognizes you across platforms.'),
+        h('li', null, h('strong', null, 'WhatsApp'), ' — Link via QR code. Uses your personal WhatsApp as a linked device.'),
+        h('li', null, h('strong', null, 'Telegram'), ' — Create a bot via @BotFather and paste the token.')
+      ),
+      h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Add trusted contacts to control who can message the agent. Only trusted contacts get responses — everyone else gets an auto-reply.')
+    )),
 
     noChannels && h('div', { style: Object.assign({}, cardStyle, { textAlign: 'center', padding: '40px' }) },
       h('div', { style: { marginBottom: '12px' } }, E.chat(40)),

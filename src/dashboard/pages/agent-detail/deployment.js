@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
+import { HelpButton } from '../../components/help-button.js';
 import { TagInput } from '../../components/tag-input.js';
 import { Badge, StatCard, EmptyState } from './shared.js?v=4';
 
@@ -232,7 +233,18 @@ export function DeploymentSection(props) {
     // ─── Deployment Edit Card ─────────────────────────────
     editingDeploy && h('div', { className: 'card', style: { marginBottom: 20, border: '2px solid var(--accent)' } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Edit Deployment Configuration'),
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Edit Deployment Configuration',
+          h(HelpButton, { label: 'Deployment Configuration' },
+            h('p', null, 'Configure where and how this agent is deployed. These settings control the agent\'s runtime environment.'),
+            h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+              h('li', null, h('strong', null, 'Target'), ' — The cloud platform or infrastructure (Fly.io, AWS, GCP, local, etc.).'),
+              h('li', null, h('strong', null, 'Region'), ' — Where the agent runs. Choose a region close to your users for lower latency.'),
+              h('li', null, h('strong', null, 'Resources'), ' — CPU/memory allocation. More resources = faster responses but higher cost.'),
+              h('li', null, h('strong', null, 'Environment Variables'), ' — Secrets and config values injected at runtime. Never hard-code API keys in agent code.')
+            ),
+            h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Use the smallest resource allocation that handles your load. You can always scale up later.')
+          )
+        ),
         h('div', { style: { display: 'flex', gap: 8 } },
           h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { setEditingDeploy(false); } }, 'Cancel'),
           h('button', { className: 'btn btn-primary btn-sm', disabled: savingDeploy, onClick: saveDeploy }, savingDeploy ? 'Saving...' : 'Save')
@@ -658,7 +670,13 @@ export function DeploymentSection(props) {
 
     // ─── Knowledge Bases Card ───────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', null, 'Knowledge Bases')),
+      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Knowledge Bases',
+        h(HelpButton, { label: 'Knowledge Bases' },
+          h('p', null, 'Connect knowledge bases to give this agent access to your organization\'s documents, FAQs, and reference material.'),
+          h('p', null, 'When a knowledge base is connected, the agent can search and retrieve relevant information during conversations — this is called Retrieval-Augmented Generation (RAG).'),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Create knowledge bases from the Knowledge page first, then connect them here. An agent can have multiple knowledge bases.')
+        )
+      )),
       knowledgeBases.length > 0
         ? h('div', { className: 'card-body-flush' },
             h('table', { className: 'data-table' },

@@ -1,6 +1,7 @@
 import { h, useState, useEffect, Fragment, useApp, apiCall, showConfirm } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 export function UsersPage() {
   var { toast } = useApp();
@@ -58,7 +59,19 @@ export function UsersPage() {
 
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Users'), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage team members and their access')),
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Users', h(HelpButton, { label: 'Users' },
+        h('p', null, 'Manage dashboard users who can access and administer the AgenticMail Enterprise console. Each user has a role that controls what they can see and do.'),
+        h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Roles'),
+        h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+          h('li', null, h('strong', null, 'Owner'), ' — Full access including billing, user management, and destructive actions.'),
+          h('li', null, h('strong', null, 'Admin'), ' — Can manage agents, policies, and most settings. Cannot manage billing.'),
+          h('li', null, h('strong', null, 'Member'), ' — Can view dashboards and interact with agents. Limited config access.'),
+          h('li', null, h('strong', null, 'Viewer'), ' — Read-only access to dashboards and reports.')
+        ),
+        h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, '2FA (Two-Factor Authentication)'),
+        h('p', null, 'Users can enable TOTP-based 2FA for extra security. The 2FA column shows whether it\'s active.'),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Use the lock icon to reset a user\'s password. The "Generate" button creates a secure random password.')
+      )), h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Manage team members and their access')),
       h('button', { className: 'btn btn-primary', onClick: function() { setCreating(true); } }, I.plus(), ' Add User')
     ),
 

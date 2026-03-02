@@ -51,6 +51,7 @@ AgenticMail Enterprise CLI
 
 Commands:
   setup                   Interactive setup wizard (default)
+  start / serve           Start the server (uses DATABASE_URL env)
   validate <path>         Validate a community skill manifest
     --all                 Validate all skills in community-skills/
     --json                Machine-readable output
@@ -77,6 +78,7 @@ Skill Development:
     break;
 
   case 'serve':
+  case 'start':
     import('./cli-serve.js').then(m => m.runServe(args.slice(1))).catch(fatal);
     break;
 

@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
+import { HelpButton } from '../components/help-button.js';
 
 var PAGE_SIZE = 25;
 
@@ -522,7 +523,16 @@ export function VaultPage() {
 
       h('div', { className: 'card' },
         h('div', { className: 'card-header' },
-          h('h3', { style: { fontSize: 14, fontWeight: 600 } }, 'Secrets by Category')
+          h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Secrets by Category', h(HelpButton, { label: 'Secrets by Category' },
+            h('p', null, 'Breakdown of stored secrets by their category. Helps you understand what types of credentials are in your vault.'),
+            h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+              h('li', null, h('strong', null, 'Deploy Credentials'), ' — Infrastructure and deployment secrets.'),
+              h('li', null, h('strong', null, 'Skill Credentials'), ' — API keys for agent tools (OpenAI, Slack, etc).'),
+              h('li', null, h('strong', null, 'Cloud Storage'), ' — AWS, GCP, and other cloud provider keys.'),
+              h('li', null, h('strong', null, 'API Keys'), ' — General-purpose API keys.'),
+              h('li', null, h('strong', null, 'Custom'), ' — User-defined secrets.')
+            )
+          ))
         ),
         h('div', { className: 'card-body' },
           Object.keys(byCategory).length === 0
@@ -563,7 +573,17 @@ export function VaultPage() {
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Vault'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Vault', h(HelpButton, { label: 'Vault' },
+          h('p', null, 'Securely store and manage API keys, passwords, and credentials used by your agents. All secrets are encrypted at rest with AES-256-GCM.'),
+          h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Key features'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Platform presets'), ' — Quick setup for OpenAI, Anthropic, GitHub, Stripe, and more.'),
+            h('li', null, h('strong', null, 'Key rotation'), ' — Re-encrypt secrets with fresh keys without changing the value.'),
+            h('li', null, h('strong', null, 'Full audit trail'), ' — Every read, create, delete, and rotate is logged.'),
+            h('li', null, h('strong', null, 'Auto-detection'), ' — Secrets stored as skill:<platform>:<key> are auto-detected by agent tools.')
+          ),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Rotate secrets periodically. Use "Rotate All" for bulk re-encryption after a security incident.')
+        )),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Encrypted secrets management with AES-256-GCM')
       ),
       h('button', { className: 'btn btn-secondary', onClick: function() { loadSecrets(); loadStatus(); if (tab === 'audit') loadAudit(); } }, I.refresh(), ' Refresh')

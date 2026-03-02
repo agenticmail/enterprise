@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { HelpButton } from '../components/help-button.js';
 
 // ─── Layout Constants ────────────────────────────────────
 const NODE_W = 220;
@@ -297,7 +298,23 @@ export function OrgChartPage() {
   return h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: BG, borderRadius: 'var(--radius-lg)', overflow: 'hidden' } },
     // Toolbar
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)', flexShrink: 0 } },
-      h('div', { style: { fontWeight: 700, fontSize: 16, color: '#fff' } }, 'Organization Chart'),
+      h('div', { style: { fontWeight: 700, fontSize: 16, color: '#fff', display: 'flex', alignItems: 'center' } }, 'Organization Chart', h(HelpButton, { label: 'Organization Chart' },
+        h('p', null, 'Visual hierarchy of all agents in your organization. Shows reporting relationships, status, and activity at a glance.'),
+        h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Interactions'),
+        h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+          h('li', null, h('strong', null, 'Hover'), ' — Highlights the agent\'s full chain (managers above, reports below) and shows a detail tooltip.'),
+          h('li', null, h('strong', null, 'Scroll'), ' — Zoom in/out.'),
+          h('li', null, h('strong', null, 'Click & drag'), ' — Pan the canvas.'),
+          h('li', null, h('strong', null, 'Fit'), ' — Auto-zoom to fit all agents in view.')
+        ),
+        h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Node badges'),
+        h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+          h('li', null, h('strong', null, 'MGR'), ' — This agent manages other agents.'),
+          h('li', null, h('strong', null, 'N tasks'), ' — Currently active tasks.'),
+          h('li', null, h('strong', null, 'N err'), ' — Errors recorded today.')
+        ),
+        h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Purple nodes represent external (human) managers. Configure manager relationships in each agent\'s settings.')
+      )),
       h('div', { style: { color: 'rgba(255,255,255,0.4)', fontSize: 13 } }, positioned.length + ' agents'),
       h('div', { style: { flex: 1 } }),
       // Legend

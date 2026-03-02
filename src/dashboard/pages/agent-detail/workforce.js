@@ -3,6 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { TimezoneSelect } from '../../components/timezones.js';
 import { Badge, StatCard, EmptyState, formatTime } from './shared.js?v=4';
+import { HelpButton } from '../../components/help-button.js';
 
 // ════════════════════════════════════════════════════════════
 // WORKFORCE SECTION
@@ -212,7 +213,10 @@ export function WorkforceSection(props) {
     // ─── Status Card (Real-Time) ──────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Agent Status'),
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Agent Status', h(HelpButton, { label: 'Agent Status' },
+          h('p', null, 'Real-time status of this agent. Shows whether the agent is online, idle, or has errors. Clock in/out controls the agent\'s work schedule.'),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Clock-in/out can be enforced by the schedule. When clocked out, the agent pauses or queues incoming work depending on off-hours settings.')
+        )),
         h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
           rtStatus && h('span', {
             className: 'badge badge-' + (rtStatus.status === 'online' ? 'success' : rtStatus.status === 'idle' ? 'info' : rtStatus.status === 'error' ? 'danger' : 'neutral'),
@@ -242,7 +246,14 @@ export function WorkforceSection(props) {
     // ─── Schedule Card ──────────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Schedule'),
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Schedule', h(HelpButton, { label: 'Schedule' },
+          h('p', null, 'Define when this agent is active. Supports standard hours (e.g., 9-5 M-F), shift patterns, or custom schedules.'),
+          h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+            h('li', null, h('strong', null, 'Enforce Clock-In/Out'), ' — Agent must be clocked in to work.'),
+            h('li', null, h('strong', null, 'Auto-Wake'), ' — Automatically start the agent at schedule start.'),
+            h('li', null, h('strong', null, 'Off-Hours Action'), ' — Pause, stop, or queue work outside schedule.')
+          )
+        )),
         !editing && h('button', { className: 'btn btn-ghost btn-sm', onClick: startEdit }, I.edit(), schedule ? ' Edit' : ' Configure')
       ),
       h('div', { className: 'card-body' },
@@ -392,7 +403,9 @@ export function WorkforceSection(props) {
     // ─── Task Queue ─────────────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', null, 'Task Queue'),
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Task Queue', h(HelpButton, { label: 'Task Queue' },
+          h('p', null, 'Manually assign tasks to this agent. Tasks have priority (urgent/high/normal/low) and type (email/research/communication/general). The agent processes tasks based on priority order.')
+        )),
         h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setShowAddTask(true); } }, I.plus(), ' Add Task')
       ),
       tasks.length > 0
@@ -457,7 +470,9 @@ export function WorkforceSection(props) {
 
       return h('div', { className: 'card', style: { marginBottom: 20 } },
         h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-          h('span', null, 'Clock History'),
+          h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Clock History', h(HelpButton, { label: 'Clock History' },
+            h('p', null, 'Complete record of all clock-in and clock-out events for this agent. Useful for tracking work hours, debugging scheduling issues, and generating time reports. Click any record for details.')
+          )),
           h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, totalFiltered + ' record' + (totalFiltered !== 1 ? 's' : ''))
         ),
         // Filters

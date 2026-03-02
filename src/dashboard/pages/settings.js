@@ -231,7 +231,11 @@ export function SettingsPage() {
 
     tab === 'general' && h('div', null,
       h('div', { className: 'card', style: { marginBottom: 16 } },
-        h('div', { className: 'card-header' }, h('h3', null, 'Organization')),
+        h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Organization', h(HelpButton, { label: 'Organization Settings' },
+          h('p', null, 'Core settings for your AgenticMail Enterprise instance — company name, domain, branding, and plan tier.'),
+          h('p', null, h('strong', null, 'Plan: '), 'Self-hosted installations have no restrictions. Set a plan tier to enforce agent limits if needed.'),
+          h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary, #1e293b)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Your brand color and logo are used throughout the dashboard and in agent-facing UIs.')
+        ))),
         h('div', { className: 'card-body' },
           h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
             h('div', { className: 'form-group' },
@@ -278,7 +282,10 @@ export function SettingsPage() {
       // ─── Email Signature Template ─────────────────────
       h('div', { className: 'card' },
         h('div', { className: 'card-header' },
-          h('h3', null, 'Email Signature Template'),
+          h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Email Signature Template', h(HelpButton, { label: 'Email Signature Template' },
+            h('p', null, 'Define a shared HTML signature that all agents use in their outgoing emails. Use template variables like {{name}}, {{role}}, {{email}} to personalize per agent.'),
+            h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary, #1e293b)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Test your signature by previewing it below the editor. The preview uses sample data to show how it will look.')
+          )),
           h('span', { style: { fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 } }, 'Applied to all agents')
         ),
         h('div', { className: 'card-body' },
@@ -331,7 +338,11 @@ export function SettingsPage() {
 
       h('div', { className: 'card' },
         h('div', { className: 'card-header' },
-          h('h3', null, 'Organization Email'),
+          h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Organization Email', h(HelpButton, { label: 'Organization Email' },
+            h('p', null, 'Set up a shared OAuth application (Google or Microsoft) that all agents use for email access. Each agent still authorizes individually, but they share the same Client ID and Secret.'),
+            h('p', null, h('strong', null, 'Why: '), 'Without this, each agent would need its own OAuth app registration. This centralizes the setup.'),
+            h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary, #1e293b)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Follow the setup instructions carefully — you\'ll need to create an OAuth app in the provider\'s developer console and add the correct redirect URI.')
+          )),
           orgEmail.configured && h('span', { className: 'badge badge-success', style: { marginLeft: 8 } }, orgEmail.label || 'Configured')
         ),
         h('div', { className: 'card-body' },
@@ -515,7 +526,12 @@ export function SettingsPage() {
     tab === 'authentication' && h('div', null,
       h(TwoFactorCard, { toast: toast }),
       h('div', { className: 'card', style: { marginBottom: 16 } },
-        h('div', { className: 'card-header' }, h('h3', null, 'Single Sign-On (SSO)')),
+        h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Single Sign-On (SSO)', h(HelpButton, { label: 'Single Sign-On (SSO)' },
+          h('p', null, 'Let your team sign into AgenticMail using their existing corporate identity provider (Okta, Google Workspace, Azure AD, etc.).'),
+          h('p', null, h('strong', null, 'SAML 2.0'), ' — Enterprise standard, works with Okta, OneLogin, Azure AD.'),
+          h('p', null, h('strong', null, 'OIDC'), ' — Modern alternative, works with Google, Microsoft, Auth0.'),
+          h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary, #1e293b)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Use the Quick Setup section below to pre-fill provider discovery URLs. You still need to create an OAuth app in the provider\'s console.')
+        ))),
         h('div', { className: 'card-body' },
           h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Configure SAML 2.0 or OIDC to let team members sign in with their corporate identity provider.'),
           h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
@@ -626,7 +642,12 @@ export function SettingsPage() {
         )
       ),
       h('div', { className: 'card' },
-        h('div', { className: 'card-header' }, h('h3', null, 'Email & Domain Configuration')),
+        h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Email & Domain Configuration', h(HelpButton, { label: 'Email & Domain Configuration' },
+          h('p', null, 'Configure how your agents send and receive email. Choose between a simple Gmail/Outlook relay or a professional custom domain setup.'),
+          h('p', null, h('strong', null, 'Relay'), ' — Easy, agents send from yourname+agent@gmail.com. Great for getting started.'),
+          h('p', null, h('strong', null, 'Custom Domain'), ' — Professional, agents send from agent@yourdomain.com with DKIM/SPF/DMARC.'),
+          h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary, #1e293b)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with relay for quick setup. Upgrade to a custom domain when you need professional email branding.')
+        ))),
         h('div', { className: 'card-body' },
           h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 } }, 'Configure how agents send and receive email. Choose between a relay (Gmail/Outlook forwarding) or a custom domain with full DKIM/SPF/DMARC.'),
           h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
@@ -670,7 +691,10 @@ export function SettingsPage() {
       h('div', { className: 'card', style: { marginBottom: 16 } },
         h('div', { className: 'card-header' },
           h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-            h('h3', null, 'Deploy Credentials'),
+            h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Deploy Credentials', h(HelpButton, { label: 'Deploy Credentials' },
+              h('p', null, 'Store credentials for deploying agents to external platforms (Docker registries, cloud providers, etc.). These are encrypted at rest with AES-256-GCM.'),
+              h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary, #1e293b)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Add credentials here before using the agent deployment feature. Each credential is tied to a specific target type (Docker, Kubernetes, etc.).')
+            )),
             h('button', { className: 'btn btn-primary btn-sm', onClick: () => { setDeployForm({ name: '', targetType: 'docker', config: {} }); setShowDeployModal(true); } }, I.plus(), ' Add Credential')
           )
         ),
