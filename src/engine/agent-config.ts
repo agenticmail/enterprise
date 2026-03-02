@@ -12,7 +12,11 @@ export interface AgentConfig {
   id: string;
   name: string;
   displayName: string;                    // Human-facing name
+  description?: string;                   // Brief description of what this agent does
   
+  // Messaging channels (WhatsApp, Telegram, etc.)
+  messagingChannels?: Record<string, any>;
+
   // Identity
   identity: {
     personality: string;                  // SOUL.md content — who the agent IS
@@ -27,6 +31,8 @@ export interface AgentConfig {
     ageRange?: string;                    // e.g. "young", "mid-career", "senior" (auto-derived if age given)
     maritalStatus?: string;              // e.g. "single", "married", "prefer-not-to-say"
     culturalBackground?: string;          // e.g. "north-american", "east-asian"
+    description?: string;                 // Brief role description
+    name?: string;                        // Identity name (may differ from config.name)
     traits?: {                            // Personality trait axes
       communication?: 'direct' | 'diplomatic';
       detail?: 'big-picture' | 'detail-oriented';
@@ -145,6 +151,8 @@ export interface AgentConfig {
     target: DeploymentTarget;
     config: DeploymentConfig;
     status: DeploymentStatus;
+    port?: number;    // HTTP port for standalone/local agents
+    host?: string;    // Hostname/IP for routing (default: localhost)
   };
 
   createdAt: string;
@@ -193,6 +201,15 @@ export interface DeploymentConfig {
     appName?: string;                     // Auto-generated if not set
     customDomain?: string;
     org?: string;                         // Organization/team for Fly.io etc.
+  };
+
+  // Local / standalone process
+  local?: {
+    port?: number;
+    host?: string;
+    processManager?: 'pm2' | 'systemd' | 'manual' | 'in-process';
+    processName?: string;
+    workDir?: string;
   };
 
   deployedAt?: string;

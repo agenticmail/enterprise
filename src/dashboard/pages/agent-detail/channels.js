@@ -90,10 +90,34 @@ function WhatsAppCard(props) {
     engineCall('/bridge/agents/' + agentId + '/whatsapp/status').then(setStatus).catch(function() {});
   }, [agentId]);
 
+  // Poll status while QR is shown (detect scan completion + send intro)
+  useEffect(function() {
+    if (!qr) return;
+    var iv = setInterval(function() {
+      engineCall('/bridge/agents/' + agentId + '/whatsapp/status').then(function(s) {
+        if (s.connected) {
+          setQr(null); setStatus(s); toast('WhatsApp connected!', 'success'); clearInterval(iv);
+          // Auto-send intro message to validate connection
+          var phone = s.phone || s.selfJid;
+          if (phone) {
+            engineCall('/bridge/agents/' + agentId + '/whatsapp/test', {
+              method: 'POST', body: JSON.stringify({ to: phone })
+            }).then(function(r) {
+              if (r.ok) toast('Intro message sent to your WhatsApp!', 'success');
+            }).catch(function() {});
+          }
+        }
+      }).catch(function() {});
+    }, 3000);
+    return function() { clearInterval(iv); };
+  }, [qr, agentId]);
+
   var connectWhatsApp = function() {
+    toast('Connecting to WhatsApp...', 'info');
     engineCall('/bridge/agents/' + agentId + '/whatsapp/connect', { method: 'POST' }).then(function(r) {
       if (r.qr) { setQr(r.qr); toast('QR code ready — scan it with WhatsApp', 'info'); }
       else if (r.status === 'connected') { toast('Already connected!', 'success'); setStatus({ connected: true, phone: r.phone, name: r.name }); }
+      else { toast('Connection started — waiting for QR...', 'info'); }
     }).catch(function(e) { toast('Failed: ' + e.message, 'error'); });
   };
 
@@ -113,7 +137,7 @@ function WhatsAppCard(props) {
         E.whatsapp(24),
         h('div', null,
           h('h3', { style: { margin: 0, fontSize: '16px' } }, 'WhatsApp'),
-          h('span', { style: { fontSize: '12px', color: 'var(--text-secondary)' } }, 'Messages appear from your real phone number')
+          h('span', { style: { fontSize: '12px', color: 'var(--text-secondary)' } }, 'Your personal line \u2014 chat with your AI from your own number')
         )
       ),
       connected
@@ -132,6 +156,13 @@ function WhatsAppCard(props) {
         desc: 'Open WhatsApp on your phone and send a message to yourself (or from another number). The agent will see it and respond.' })
     ),
 
+    // Separation notice
+    h('div', { style: { padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '16px', fontSize: '12px', color: 'var(--text-secondary)', border: '1px solid var(--border)', lineHeight: '1.5' } },
+      h('strong', null, 'This is your personal WhatsApp connection.'), ' Use this to chat with your AI agent from your own phone number. ',
+      'If you want customers or clients to reach the agent on a separate business number, set that up in the ',
+      h('strong', null, 'WhatsApp Business'), ' tab instead \u2014 it uses its own dedicated phone number and has customer management, security, and pairing built in.'
+    ),
+
     // Connection controls
     !connected && h('div', { style: { marginBottom: '16px' } },
       !qr && h('button', { style: btnPrimary, onClick: connectWhatsApp }, 'Connect WhatsApp'),
@@ -144,7 +175,17 @@ function WhatsAppCard(props) {
     connected && h('div', { style: { marginBottom: '16px', padding: '12px', background: '#28a74510', borderRadius: '8px', border: '1px solid #28a74530' } },
       h('div', { style: { fontSize: '14px' } }, '\u2713 Connected as ', h('strong', null, status.phone || 'linked device')),
       status.name && h('div', { style: { fontSize: '13px', color: 'var(--text-secondary)' } }, status.name),
-      h('button', { style: Object.assign({}, btnDanger, { marginTop: '8px', fontSize: '12px', padding: '4px 12px' }), onClick: disconnect }, 'Disconnect & Unlink')
+      status.lastMessageAt && h('div', { style: { fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' } }, 'Last message: ' + new Date(status.lastMessageAt).toLocaleString()),
+      h('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
+        h('button', { style: Object.assign({}, btnPrimary, { fontSize: '12px', padding: '4px 12px' }), onClick: function() {
+          var to = prompt('Send test message to (phone number, e.g. +13362763915):');
+          if (!to) return;
+          engineCall('/bridge/agents/' + agentId + '/whatsapp/test', { method: 'POST', body: JSON.stringify({ to: to }) })
+            .then(function(r) { if (r.ok) toast('Test message sent!', 'success'); else toast('Failed: ' + (r.error || 'Unknown'), 'error'); })
+            .catch(function(e) { toast('Failed: ' + e.message, 'error'); });
+        } }, 'Send Test Message'),
+        h('button', { style: Object.assign({}, btnDanger, { fontSize: '12px', padding: '4px 12px' }), onClick: disconnect }, 'Disconnect & Unlink')
+      )
     ),
 
     // Trusted contacts
@@ -155,7 +196,20 @@ function WhatsAppCard(props) {
       onRemove: function(i) { var u = contacts.filter(function(_, idx) { return idx !== i; }); setContacts(u); onSave({ whatsapp: Object.assign({}, config, { trustedContacts: u }) }); }
     }),
 
-    h(AccessModeSelect, { value: config.accessMode, onChange: function(v) { onSave({ whatsapp: Object.assign({}, config, { accessMode: v }) }); } })
+    h(AccessModeSelect, { value: config.accessMode, onChange: function(v) { onSave({ whatsapp: Object.assign({}, config, { accessMode: v }) }); } }),
+
+    // Auto-reply for untrusted senders
+    h('div', { style: { marginTop: '16px' } },
+      h('label', { style: { display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' } }, 'Auto-Reply to Unknown Senders'),
+      h('textarea', {
+        rows: 3,
+        style: { width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '13px', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' },
+        placeholder: 'Leave empty for default message. Example: Hi! I\'m not set up to chat with you yet. Please contact my manager directly.',
+        value: config.untrustedAutoReply || '',
+        onBlur: function(e) { onSave({ whatsapp: Object.assign({}, config, { untrustedAutoReply: e.target.value }) }); }
+      }),
+      h('p', { style: { margin: '4px 0 0', fontSize: '11px', color: 'var(--text-tertiary)' } }, 'Sent once per hour to people not on the trusted contacts list.')
+    )
   );
 }
 
@@ -164,6 +218,7 @@ function WhatsAppCard(props) {
 // ════════════════════════════════════════
 
 function TelegramCard(props) {
+  var agentId = props.agentId;
   var config = props.config || {};
   var onSave = props.onSave;
   var toast = useApp().toast;
@@ -174,6 +229,10 @@ function TelegramCard(props) {
   var token = _token[0]; var setToken = _token[1];
   var _contacts = useState(config.trustedChatIds || []);
   var contacts = _contacts[0]; var setContacts = _contacts[1];
+  var _botInfo = useState(config._botInfo || null);
+  var botInfo = _botInfo[0]; var setBotInfo = _botInfo[1];
+  var _validating = useState(false);
+  var validating = _validating[0]; var setValidating = _validating[1];
 
   var hasToken = !!config.botToken;
   var step1Done = hasToken;
@@ -181,9 +240,38 @@ function TelegramCard(props) {
 
   var saveToken = function() {
     if (token.startsWith('\u2022')) return;
-    onSave({ telegram: Object.assign({}, config, { botToken: token }) });
-    setEditing(false);
-    toast('Bot token saved', 'success');
+    // Auto-validate before saving
+    setValidating(true);
+    engineCall('/bridge/agents/' + agentId + '/telegram/validate', {
+      method: 'POST', body: JSON.stringify({ botToken: token })
+    }).then(function(r) {
+      setValidating(false);
+      if (r.ok) {
+        setBotInfo(r.bot);
+        onSave({ telegram: Object.assign({}, config, { botToken: token, _botInfo: r.bot }) });
+        setEditing(false);
+        toast('Bot validated: @' + r.bot.username, 'success');
+      } else {
+        toast('Invalid token: ' + (r.error || 'Check and try again'), 'error');
+      }
+    }).catch(function(e) {
+      setValidating(false);
+      toast('Validation failed: ' + e.message, 'error');
+    });
+  };
+
+  var sendTest = function() {
+    if (contacts.length === 0) {
+      toast('Add your Telegram user ID first', 'error');
+      return;
+    }
+    var chatId = contacts[0];
+    toast('Sending test message...', 'info');
+    engineCall('/bridge/agents/' + agentId + '/telegram/test', {
+      method: 'POST', body: JSON.stringify({ chatId: chatId })
+    }).then(function(r) {
+      toast(r.ok ? 'Test message sent! Check Telegram.' : ('Failed: ' + (r.error || 'Unknown')), r.ok ? 'success' : 'error');
+    }).catch(function(e) { toast('Failed: ' + e.message, 'error'); });
   };
 
   return h('div', { style: cardStyle },
@@ -196,8 +284,15 @@ function TelegramCard(props) {
         )
       ),
       hasToken
-        ? h('span', { style: Object.assign({}, tagStyle, { background: '#28a74520', color: '#28a745' }) }, 'Configured')
+        ? h('span', { style: Object.assign({}, tagStyle, { background: '#28a74520', color: '#28a745' }) },
+            h('span', { style: statusDot(true) }), botInfo ? '@' + botInfo.username : 'Configured')
         : h('span', { style: Object.assign({}, tagStyle, { background: '#ffc10720', color: '#ffc107' }) }, 'Needs setup')
+    ),
+
+    // Info box
+    h('div', { style: { padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '16px', fontSize: '12px', color: 'var(--text-secondary)', border: '1px solid var(--border)', lineHeight: '1.5' } },
+      h('strong', null, 'This is your personal Telegram bot.'), ' Use this to chat with your AI agent via Telegram. ',
+      'Create a bot through @BotFather, paste the token below, and start messaging your bot directly.'
     ),
 
     // Setup Guide
@@ -220,13 +315,16 @@ function TelegramCard(props) {
       h('label', { style: labelStyle }, 'Bot Token'),
       editing
         ? h('div', { style: { display: 'flex', gap: '8px' } },
-            h('input', { style: Object.assign({}, inputStyle, { flex: 1, fontFamily: 'monospace' }), placeholder: '123456789:ABCdefGHIjklMNOpqrsTUVwxyz', value: token.startsWith('\u2022') ? '' : token, onInput: function(e) { setToken(e.target.value); } }),
-            h('button', { style: btnPrimary, onClick: saveToken }, 'Save'),
+            h('input', { style: Object.assign({}, inputStyle, { flex: 1, fontFamily: 'monospace' }), placeholder: '123456789:ABCdefGHIjklMNOpqrsTUVwxyz', value: token.startsWith('\u2022') ? '' : token, onInput: function(e) { setToken(e.target.value); },
+              onKeyDown: function(e) { if (e.key === 'Enter') saveToken(); }
+            }),
+            h('button', { style: Object.assign({}, btnPrimary, { opacity: validating ? 0.7 : 1 }), onClick: saveToken, disabled: validating }, validating ? 'Validating...' : 'Save & Validate'),
             h('button', { style: btnSecondary, onClick: function() { setEditing(false); } }, 'Cancel')
           )
         : h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
             h('code', { style: { fontSize: '13px', color: 'var(--text-secondary)' } }, token || 'Not set'),
-            h('button', { style: Object.assign({}, btnSecondary, { fontSize: '12px', padding: '4px 10px' }), onClick: function() { setEditing(true); setToken(''); } }, hasToken ? 'Change' : 'Add Token')
+            h('button', { style: Object.assign({}, btnSecondary, { fontSize: '12px', padding: '4px 10px' }), onClick: function() { setEditing(true); setToken(''); } }, hasToken ? 'Change' : 'Add Token'),
+            hasToken && contacts.length > 0 && h('button', { style: Object.assign({}, btnPrimary, { fontSize: '12px', padding: '4px 10px' }), onClick: sendTest }, 'Send Test Message')
           )
     ),
 
@@ -239,6 +337,19 @@ function TelegramCard(props) {
     }),
 
     h(AccessModeSelect, { value: config.accessMode, onChange: function(v) { onSave({ telegram: Object.assign({}, config, { accessMode: v }) }); } }),
+
+    // Auto-reply for untrusted senders
+    h('div', { style: { marginTop: '16px' } },
+      h('label', { style: { display: 'block', fontWeight: '600', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' } }, 'Auto-Reply to Unknown Senders'),
+      h('textarea', {
+        rows: 3,
+        style: { width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '13px', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' },
+        placeholder: 'Leave empty for default message.',
+        value: config.untrustedAutoReply || '',
+        onBlur: function(e) { onSave({ telegram: Object.assign({}, config, { untrustedAutoReply: e.target.value }) }); }
+      }),
+      h('p', { style: { margin: '4px 0 0', fontSize: '11px', color: 'var(--text-tertiary)' } }, 'Sent once per hour to people not on the trusted contacts list.')
+    ),
 
     // Delivery mode
     h('div', { style: fieldStyle },
@@ -287,7 +398,7 @@ function ManagerIdentityCard(props) {
         : h('span', { style: Object.assign({}, tagStyle, { background: '#ffc10720', color: '#ffc107' }) }, 'Not set')
     ),
 
-    h('div', { style: { padding: '12px', background: '#007bff10', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', borderLeft: '3px solid var(--accent)' } },
+    h('div', { style: { padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', border: '1px solid var(--border)', lineHeight: '1.5' } },
       'Enter your phone number / user ID for each platform you use. The agent will recognize messages from these identities as coming from the boss — full trust, bypasses all access restrictions.'
     ),
 
@@ -338,17 +449,17 @@ export function ChannelsSection(props) {
   var noChannels = !caps?.whatsapp && !caps?.telegram;
 
   return h('div', null,
-    h('h2', { style: { fontSize: '20px', marginBottom: '16px' } }, 'Messaging Channels'),
+    h('h2', { style: { fontSize: '20px', marginBottom: '16px' } }, 'Manager Messaging Channels'),
 
     noChannels && h('div', { style: Object.assign({}, cardStyle, { textAlign: 'center', padding: '40px' }) },
       h('div', { style: { marginBottom: '12px' } }, E.chat(40)),
-      h('h3', { style: { margin: '0 0 8px' } }, 'No Messaging Channels Enabled'),
+      h('h3', { style: { margin: '0 0 8px' } }, 'No Manager Messaging Channels Enabled'),
       h('p', { style: { color: 'var(--text-secondary)', margin: '0 0 16px', maxWidth: '400px', marginLeft: 'auto', marginRight: 'auto' } }, 'Enable WhatsApp or Telegram in Settings > Platform to let this agent communicate on messaging platforms.'),
       h('a', { href: '#settings', style: { color: 'var(--accent)', textDecoration: 'none', fontWeight: '600' } }, 'Go to Settings > Platform')
     ),
 
     !noChannels && h(ManagerIdentityCard, { config: channels.managerIdentity || {}, onSave: saveChannelConfig }),
     caps?.whatsapp && h(WhatsAppCard, { agentId: agentId, config: channels.whatsapp || {}, onSave: saveChannelConfig }),
-    caps?.telegram && h(TelegramCard, { config: channels.telegram || {}, onSave: saveChannelConfig })
+    caps?.telegram && h(TelegramCard, { agentId: agentId, config: channels.telegram || {}, onSave: saveChannelConfig })
   );
 }

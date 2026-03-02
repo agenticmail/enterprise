@@ -64,6 +64,12 @@ export function requireHttps(): MiddlewareHandler {
       return next();
     }
 
+    // Allow localhost/loopback connections (internal service-to-service)
+    const host = c.req.header('host') || '';
+    if (host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('[::1]')) {
+      return next();
+    }
+
     const isSecure =
       c.req.url.startsWith('https://') ||
       c.req.header('x-forwarded-proto') === 'https' ||

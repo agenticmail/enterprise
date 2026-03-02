@@ -235,7 +235,8 @@ export function createServer(config: ServerConfig): ServerInstance {
     }
 
     // Skip auth for agent status (internal communication + dashboard SSE)
-    if (c.req.path.includes('/engine/agent-status')) {
+    // Skip auth for internal service-to-service calls (localhost only)
+    if (c.req.path.includes('/engine/agent-status') || (c.req.path.includes('/whatsapp/proxy-send') && (c.req.header('host') || '').startsWith('localhost'))) {
       return next();
     }
 
@@ -584,6 +585,7 @@ export function createServer(config: ServerConfig): ServerInstance {
                           agentMemoryManager: agentMemoryMgr,
                           vault: vaultRef2,
                           permissionEngine: permRef2,
+                          hierarchyManager: (await import('./engine/routes.js')).hierarchyManager,
                         });
                         await runtime.start();
                         const runtimeApp = runtime.getApp();
@@ -595,6 +597,28 @@ export function createServer(config: ServerConfig): ServerInstance {
                       }
                     }
                     console.log('[engine] Eagerly initialized');
+
+                    // Auto-check PM2 if any agents use local deployment
+                    try {
+                      const { lifecycle: lcRef } = await import('./engine/routes.js');
+                      if (lcRef) {
+                        const agents = Array.from((lcRef as any).agents?.values?.() || []);
+                        const hasLocalPm2 = agents.some((a: any) => {
+                          const target = a?.config?.deployment?.target;
+                          const pm = a?.config?.deployment?.config?.local?.processManager;
+                          return target === 'local' && (!pm || pm === 'pm2');
+                        });
+                        if (hasLocalPm2) {
+                          const { ensurePm2 } = await import('./engine/deployer.js');
+                          const pm2 = await ensurePm2();
+                          if (pm2.installed) {
+                            console.log(`[startup] PM2 v${pm2.version} available for local deployments`);
+                          } else {
+                            console.warn(`[startup] PM2 auto-install failed: ${pm2.error}`);
+                          }
+                        }
+                      }
+                    } catch {}
                   }
                 }
               } catch (e: any) {

@@ -7,6 +7,7 @@
  */
 
 import { Hono } from 'hono';
+import { configBus } from '../engine/config-bus.js';
 import type { AppEnv } from '../types/hono-env.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 import { validate, requireRole, ValidationError } from '../middleware/index.js';
@@ -197,6 +198,13 @@ const vault = new SecureVault();
 export function createAdminRoutes(db: DatabaseAdapter) {
   const api = new Hono<AppEnv>();
 
+  // Wrapper: updateSettings + auto-emit config change events
+  const updateSettingsAndEmit = async (updates: any) => {
+    const result = await db.updateSettings(updates);
+    configBus.emitSettings(Object.keys(updates));
+    return result;
+  };
+
   // ─── Dashboard Stats ────────────────────────────────
 
   api.get('/stats', async (c) => {
@@ -260,6 +268,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
 
     const agent = await db.updateAgent(id, body);
+    configBus.emitAgentUpdate(id, Object.keys(body));
     return c.json(agent);
   });
 
@@ -559,7 +568,13 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       enabledBy: userId,
     };
 
-    await db.updateSettings({ platformCapabilities: capabilities } as any);
+    await updateSettingsAndEmit({ platformCapabilities: capabilities } as any);
+
+    // Also emit per-capability events for services that listen specifically
+    for (const [cap, enabled] of Object.entries(body)) {
+      if (cap === 'enabledAt' || cap === 'enabledBy') continue;
+      configBus.emitCapability(cap, !!enabled);
+    }
 
     await db.logEvent({
       actor: userId,
@@ -740,7 +755,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       { field: 'signatureTemplate', type: 'string', maxLength: 10000 },
     ]);
 
-    const settings = await db.updateSettings(body);
+    const settings = await updateSettingsAndEmit(body);
     return c.json(settings);
   });
 
@@ -793,7 +808,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       },
     };
 
-    await db.updateSettings({ ssoConfig } as any);
+    await updateSettingsAndEmit({ ssoConfig } as any);
     return c.json({ ok: true, provider: 'saml', configured: true });
   });
 
@@ -827,7 +842,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       },
     };
 
-    await db.updateSettings({ ssoConfig } as any);
+    await updateSettingsAndEmit({ ssoConfig } as any);
     return c.json({ ok: true, provider: 'oidc', configured: true });
   });
 
@@ -842,7 +857,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     const ssoConfig = { ...current };
     delete (ssoConfig as any)[provider];
 
-    await db.updateSettings({ ssoConfig } as any);
+    await updateSettingsAndEmit({ ssoConfig } as any);
     return c.json({ ok: true, provider, removed: true });
   });
 
@@ -904,12 +919,12 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       configured: true,
       label,
     };
-    await db.updateSettings({ orgEmailConfig } as any);
+    await updateSettingsAndEmit({ orgEmailConfig } as any);
     return c.json({ success: true, orgEmailConfig: { configured: true, provider, label, oauthClientId, oauthTenantId: orgEmailConfig.oauthTenantId } });
   });
 
   api.delete('/settings/org-email', requireRole('admin'), async (c) => {
-    await db.updateSettings({ orgEmailConfig: null } as any);
+    await updateSettingsAndEmit({ orgEmailConfig: null } as any);
     return c.json({ success: true });
   });
 
@@ -926,7 +941,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     if (body && typeof body !== 'object') {
       return c.json({ error: 'Body must be a JSON object' }, 400);
     }
-    await db.updateSettings({ toolSecurityConfig: body } as any);
+    await updateSettingsAndEmit({ toolSecurityConfig: body } as any);
     const settings = await db.getSettings();
     return c.json({ toolSecurityConfig: settings?.toolSecurityConfig || {} });
   });
@@ -972,7 +987,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         }
       }
     }
-    await db.updateSettings({ firewallConfig: body } as any);
+    await updateSettingsAndEmit({ firewallConfig: body } as any);
     // Hot-reload ALL network middleware (firewall, security headers, rate limiting, HTTPS, egress, proxy)
     try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
     const settings = await db.getSettings();
@@ -1032,7 +1047,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
     }
     body.updatedAt = new Date().toISOString();
-    await db.updateSettings({ modelPricingConfig: body } as any);
+    await updateSettingsAndEmit({ modelPricingConfig: body } as any);
     const settings = await db.getSettings();
     return c.json({ modelPricingConfig: settings?.modelPricingConfig || {} });
   });
@@ -1097,7 +1112,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       models: body.models || [],
     });
 
-    await db.updateSettings({ modelPricingConfig: config } as any);
+    await updateSettingsAndEmit({ modelPricingConfig: config } as any);
     return c.json({ ok: true, provider: body });
   });
 
@@ -1132,7 +1147,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     var config = (settings as any)?.modelPricingConfig || { models: [], currency: 'USD' };
     config.providerApiKeys = config.providerApiKeys || {};
     config.providerApiKeys[id] = vault.encrypt(apiKey);
-    await db.updateSettings({ modelPricingConfig: config } as any);
+    await updateSettingsAndEmit({ modelPricingConfig: config } as any);
 
     return c.json({ ok: true, message: 'API key saved for ' + provider.name, validated: !skipValidation });
   });
@@ -1154,7 +1169,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
 
     config.customProviders[idx] = Object.assign({}, config.customProviders[idx], body, { id: id });
-    await db.updateSettings({ modelPricingConfig: config } as any);
+    await updateSettingsAndEmit({ modelPricingConfig: config } as any);
     return c.json({ ok: true, provider: config.customProviders[idx] });
   });
 
@@ -1175,7 +1190,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       return c.json({ error: 'Custom provider not found' }, 404);
     }
 
-    await db.updateSettings({ modelPricingConfig: config } as any);
+    await updateSettingsAndEmit({ modelPricingConfig: config } as any);
     return c.json({ ok: true });
   });
 
@@ -1268,7 +1283,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         return c.json({ error: 'securityConfig is required and must be an object' }, 400);
       }
 
-      await db.updateSettings({ securityConfig } as any);
+      await updateSettingsAndEmit({ securityConfig } as any);
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
@@ -1352,7 +1367,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       if (oldOrigin) origins = origins.filter((o: string) => o !== oldOrigin);
       // Add new if not already present
       if (!origins.includes(newOrigin)) origins.push(newOrigin);
-      await db.updateSettings({ firewallConfig: { ...fw, network: { ...net, corsOrigins: origins } } } as any);
+      await updateSettingsAndEmit({ firewallConfig: { ...fw, network: { ...net, corsOrigins: origins } } } as any);
       try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
     } catch { /* non-critical */ }
   }
@@ -1385,7 +1400,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       var settings = await db.getSettings();
       var fw = settings.firewallConfig || {};
       var net = fw.network || {};
-      await db.updateSettings({ firewallConfig: { ...fw, network: { ...net, corsOrigins: body.origins } } } as any);
+      await updateSettingsAndEmit({ firewallConfig: { ...fw, network: { ...net, corsOrigins: body.origins } } } as any);
       try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
       return c.json({ success: true, origins: body.origins });
     } catch (err: any) {
@@ -1427,7 +1442,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
 
       // Store in settings
-      await db.updateSettings({
+      await updateSettingsAndEmit({
         domain: domain,
         deploymentKeyHash: keyPair.hash,
         domainRegistrationId: result.registrationId,
@@ -1461,7 +1476,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       var result = await lock.checkVerification(domain);
 
       if (result.verified) {
-        await db.updateSettings({
+        await updateSettingsAndEmit({
           domainStatus: 'verified',
           domainVerifiedAt: new Date().toISOString(),
         } as any);
@@ -1521,7 +1536,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
 
       var oldDomain = settings.domain;
-      await db.updateSettings({
+      await updateSettingsAndEmit({
         domain: domain,
         useRootDomain: body.useRootDomain || false,
         deploymentKeyHash: keyPair.hash,
@@ -1573,7 +1588,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     try {
       var settings = await db.getSettings();
       var oldSub = settings.subdomain || null;
-      await db.updateSettings({ subdomain: sub } as any);
+      await updateSettingsAndEmit({ subdomain: sub } as any);
       // Auto-update CORS
       await updateCorsOrigin(
         'https://' + sub + '.agenticmail.io',
@@ -1590,7 +1605,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     try {
       var settings = await db.getSettings();
       var oldDomain = settings.domain;
-      await db.updateSettings({
+      await updateSettingsAndEmit({
         domain: undefined,
         domainStatus: undefined,
         domainDnsChallenge: undefined,
@@ -1605,7 +1620,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           var fw = settings.firewallConfig || {};
           var net = fw.network || {};
           var origins: string[] = Array.isArray(net.corsOrigins) ? net.corsOrigins.filter((o: string) => o !== 'https://' + oldDomain) : [];
-          await db.updateSettings({ firewallConfig: { ...fw, network: { ...net, corsOrigins: origins } } } as any);
+          await updateSettingsAndEmit({ firewallConfig: { ...fw, network: { ...net, corsOrigins: origins } } } as any);
           try { const { invalidateNetworkConfig } = await import('../middleware/network-config.js'); await invalidateNetworkConfig(); } catch {}
         } catch {}
       }

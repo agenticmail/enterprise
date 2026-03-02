@@ -424,7 +424,7 @@ export function createKnowledgeContributionRoutes(manager: KnowledgeContribution
         const db = (manager as any).db;
         if (db) {
           const r = await db.get("SELECT COUNT(*) as c FROM agent_memory WHERE category = 'org_knowledge'");
-          stats.totalContributions = (stats.totalContributions || 0) + parseInt(r?.c || '0');
+          (stats as any).totalContributions = ((stats as any).totalContributions || 0) + parseInt(r?.c || '0');
           if (!stats.totalEntries) stats.totalEntries = parseInt(r?.c || '0');
         }
       } catch {}

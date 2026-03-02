@@ -176,8 +176,8 @@ export function createShellTools(opts?: { cwd?: string; timeout?: number }): Too
           if (stdout.length > 50000) stdout = stdout.slice(0, 50000) + '\n[...truncated]';
           return { stdout, stderr, exitCode: 0 };
         } catch (err: any) {
-          var stderr = (err.stderr || err.message || '').replace(/\[sudo\].*\n?/g, '');
-          return { stdout: (err.stdout || '').slice(0, 50000), stderr: stderr.slice(0, 10000), exitCode: err.code || 1 };
+          var stderrMsg = (err.stderr || err.message || '').replace(/\[sudo\].*\n?/g, '');
+          return { stdout: (err.stdout || '').slice(0, 50000), stderr: stderrMsg.slice(0, 10000), exitCode: err.code || 1 };
         }
       },
     },

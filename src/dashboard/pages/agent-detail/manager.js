@@ -64,6 +64,7 @@ export function ManagerCatchUpSection(props) {
       catchUpEnabled: catchUp.enabled !== false && (catchUp.enabled || catchUp.time),
       catchUpTime: catchUp.time || '09:00',
       catchUpTimezone: catchUp.timezone || 'America/New_York',
+      catchUpPlatform: catchUp.platform || 'email',
     });
     setEditing(true);
   };
@@ -111,6 +112,7 @@ export function ManagerCatchUpSection(props) {
         enabled: true,
         time: form.catchUpTime,
         timezone: form.catchUpTimezone,
+        platform: form.catchUpPlatform || 'email',
       };
     } else {
       updates.dailyCatchUp = { enabled: false };
@@ -183,7 +185,7 @@ export function ManagerCatchUpSection(props) {
               h('input', { style: inputStyle, type: 'email', value: form.managerEmail, placeholder: 'e.g. sarah@company.com', onChange: function(e) { set('managerEmail', e.target.value); } })
             )
           ),
-          h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 } }, 'The agent will email this person for daily catch-ups, status reports, and escalations.'),
+          h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 } }, 'The agent will contact this person for daily catch-ups, status reports, and escalations via the platform you choose below.'),
 
           // Messaging platform identities
           h('div', { style: { padding: '16px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)' } },
@@ -206,7 +208,7 @@ export function ManagerCatchUpSection(props) {
       // Daily Catch-Up Card
       h('div', { className: 'card', style: { padding: 20 } },
         h('h4', { style: { margin: '0 0 16px', fontSize: 14, fontWeight: 600 } }, 'Daily Catch-Up'),
-        h('p', { style: { fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 } }, 'When enabled, the agent sends a daily status email to its manager with goals, progress, and blockers.'),
+        h('p', { style: { fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 } }, 'When enabled, the agent sends a daily status update to its manager with goals, progress, and blockers via the chosen platform.'),
 
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 } },
           h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 } },
@@ -215,16 +217,49 @@ export function ManagerCatchUpSection(props) {
           )
         ),
 
-        form.catchUpEnabled && h('div', { style: rowStyle },
-          h('div', { style: fieldGroupStyle },
-            h('label', { style: labelStyle }, 'Time'),
-            h('input', { style: inputStyle, type: 'time', value: form.catchUpTime, onChange: function(e) { set('catchUpTime', e.target.value); } })
-          ),
-          h('div', { style: fieldGroupStyle },
-            h('label', { style: labelStyle }, 'Timezone'),
-            h('select', { style: Object.assign({}, inputStyle, { cursor: 'pointer' }), value: form.catchUpTimezone, onChange: function(e) { set('catchUpTimezone', e.target.value); } },
-              COMMON_TIMEZONES.map(function(tz) { return h('option', { key: tz, value: tz }, tz.replace(/_/g, ' ')); })
+        form.catchUpEnabled && h(Fragment, null,
+          h('div', { style: rowStyle },
+            h('div', { style: fieldGroupStyle },
+              h('label', { style: labelStyle }, 'Time'),
+              h('input', { style: inputStyle, type: 'time', value: form.catchUpTime, onChange: function(e) { set('catchUpTime', e.target.value); } })
+            ),
+            h('div', { style: fieldGroupStyle },
+              h('label', { style: labelStyle }, 'Timezone'),
+              h('select', { style: Object.assign({}, inputStyle, { cursor: 'pointer' }), value: form.catchUpTimezone, onChange: function(e) { set('catchUpTimezone', e.target.value); } },
+                COMMON_TIMEZONES.map(function(tz) { return h('option', { key: tz, value: tz }, tz.replace(/_/g, ' ')); })
+              )
             )
+          ),
+          h('div', { style: Object.assign({}, fieldGroupStyle, { marginTop: 4 }) },
+            h('label', { style: labelStyle }, 'Send via'),
+            h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+              (function() {
+                var channels = config.messagingChannels || {};
+                var platforms = [{ id: 'email', label: 'Email', icon: E.email(14), always: true }];
+                if (channels.whatsapp?.enabled || channels.whatsapp?.botToken || form.managerWhatsApp) {
+                  platforms.push({ id: 'whatsapp', label: 'WhatsApp', icon: E.whatsapp(14) });
+                }
+                if (channels.telegram?.enabled || channels.telegram?.botToken) {
+                  platforms.push({ id: 'telegram', label: 'Telegram', icon: E.telegram(14) });
+                }
+                // Always show all three if manager type is external (they might configure later)
+                if (form.managerType === 'external') {
+                  if (!platforms.find(function(p) { return p.id === 'whatsapp'; })) platforms.push({ id: 'whatsapp', label: 'WhatsApp', icon: E.whatsapp(14) });
+                  if (!platforms.find(function(p) { return p.id === 'telegram'; })) platforms.push({ id: 'telegram', label: 'Telegram', icon: E.telegram(14) });
+                }
+                return platforms.map(function(p) {
+                  var selected = form.catchUpPlatform === p.id;
+                  return h('button', {
+                    key: p.id, type: 'button',
+                    className: 'btn btn-sm ' + (selected ? 'btn-primary' : 'btn-ghost'),
+                    style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', fontSize: 13, borderRadius: 8 },
+                    onClick: function() { set('catchUpPlatform', p.id); }
+                  }, p.icon, ' ', p.label);
+                });
+              })()
+            ),
+            form.catchUpPlatform === 'whatsapp' && !form.managerWhatsApp && h('div', { style: { fontSize: 12, color: 'var(--warning-text, #b45309)', marginTop: 6 } }, 'Set the manager\'s WhatsApp number above to use this.'),
+            form.catchUpPlatform === 'telegram' && !form.managerTelegram && h('div', { style: { fontSize: 12, color: 'var(--warning-text, #b45309)', marginTop: 6 } }, 'Set the manager\'s Telegram ID above to use this.')
           )
         ),
 
@@ -287,7 +322,14 @@ export function ManagerCatchUpSection(props) {
               h('span', { style: { fontSize: 14, fontWeight: 600 } }, 'Active')
             ),
             h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
-              'Sends daily at ', h('strong', null, catchUpTime), ' ', catchUpTz.replace(/_/g, ' ')
+              'Sends daily at ', h('strong', null, catchUpTime), ' ', catchUpTz.replace(/_/g, ' '),
+              ' via ',
+              (function() {
+                var p = catchUp.platform || 'email';
+                var iconMap = { email: E.email(14), whatsapp: E.whatsapp(14), telegram: E.telegram(14) };
+                var labelMap = { email: 'Email', whatsapp: 'WhatsApp', telegram: 'Telegram' };
+                return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 } }, iconMap[p] || null, ' ', labelMap[p] || p);
+              })()
             ),
             !resolved && h('div', { style: { fontSize: 12, color: 'var(--warning-text, #856404)', marginTop: 8 } }, 'Warning: No manager assigned — catch-up emails have no recipient.')
           )

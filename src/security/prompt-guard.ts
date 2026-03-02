@@ -253,8 +253,11 @@ function detectEncodingAttacks(text: string): { score: number; threats: string[]
   }
 
   // ROT13 detection
-  const rot13 = (str: string) => str.replace(/[a-zA-Z]/g, c => 
-    String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26));
+  const rot13 = (str: string) => str.replace(/[a-zA-Z]/g, ch => {
+    const code = ch.charCodeAt(0) + 13;
+    const limit = ch <= 'Z' ? 90 : 122;
+    return String.fromCharCode(limit >= code ? code : code - 26);
+  });
 
   const rot13Text = rot13(text.toLowerCase());
   if (INJECTION_PATTERNS.some(p => p.pattern.test(rot13Text))) {

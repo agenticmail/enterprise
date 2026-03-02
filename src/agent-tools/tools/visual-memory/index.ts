@@ -10,6 +10,7 @@ import { jsonResult, errorResult, textResult } from '../../common.js';
 import * as capture from './capture.js';
 import * as storage from './storage.js';
 import * as similarity from './similarity.js';
+import { calculateSimilarity as _calcSim } from './phash.js';
 import * as diff from './diff.js';
 
 // Session management
@@ -205,7 +206,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
           if (!obs2) return errorResult(`Observation ${params.id2} not found`);
 
           // Calculate perceptual hash similarity
-          const hashSimilarity = similarity.calculateSimilarity(obs1.phash, obs2.phash);
+          const hashSimilarity = _calcSim(obs1.phash, obs2.phash);
 
           // Calculate visual diff
           const visualDiff = await diff.computeVisualDiff(

@@ -15,6 +15,7 @@ import { DeploymentEngine } from './deployer.js';
 import { PermissionEngine } from './skills.js';
 import type { EngineDatabase } from './db-adapter.js';
 import { withRetry } from '../lib/resilience.js';
+import { configBus } from './config-bus.js';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ export type AgentState =
 export interface ManagedAgent {
   id: string;
   name?: string;                     // Display name (may differ from config.name)
+  displayName?: string;              // Human-facing display name
+  display_name?: string;             // Snake_case alias (DB compat)
   orgId: string;                     // Which company owns this agent
   config: AgentConfig;
   state: AgentState;
@@ -280,9 +283,11 @@ export class AgentLifecycleManager {
     const agent = this.getAgent(agentId);
     if (!agent) throw new Error(`Agent ${agentId} not found`);
 
-    const mutableStates: AgentState[] = ['draft', 'ready', 'stopped', 'error'];
-    if (!mutableStates.includes(agent.state)) {
-      throw new Error(`Cannot update config in state "${agent.state}". Stop the agent first.`);
+    // Allow config updates in any state — config bus propagates changes to running agents
+    // Only block during transient states like 'deploying' or 'starting'
+    const blockedStates: AgentState[] = ['deploying', 'starting'];
+    if (blockedStates.includes(agent.state)) {
+      throw new Error(`Cannot update config while agent is ${agent.state}. Please wait.`);
     }
 
     // Deep-merge nested objects (identity, model, deployment) to prevent field loss
@@ -688,6 +693,24 @@ export class AgentLifecycleManager {
   /** Get all agents across all orgs */
   getAllAgents(): ManagedAgent[] {
     return Array.from(this.agents.values());
+  }
+
+  /**
+   * Get standalone agent processes (for chat webhook routing).
+   * Reads from agent deployment config — no hardcoded IDs.
+   */
+  getStandaloneAgents(): { id: string; port: number; host?: string }[] {
+    const result: { id: string; port: number; host?: string }[] = [];
+    for (const agent of this.agents.values()) {
+      const dep = agent.config?.deployment;
+      // Check deployment.port (top-level) or deployment.config.local.port
+      const port = dep?.port || dep?.config?.local?.port;
+      if (port) {
+        const host = dep?.host || dep?.config?.local?.host || 'localhost';
+        result.push({ id: agent.config.id || agent.id, port, host });
+      }
+    }
+    return result;
   }
 
   /**
@@ -1098,7 +1121,11 @@ export class AgentLifecycleManager {
   /** Public persist — for use by routes that mutate agent config directly (e.g. email config) */
   async saveAgent(agentId: string): Promise<void> {
     const agent = this.agents.get(agentId);
-    if (agent) await this.persistAgent(agent);
+    if (agent) {
+      await this.persistAgent(agent);
+      // Emit generic agent save event — all config keys may have changed
+      configBus.emitAgentConfig(agentId, '_save', undefined, 'lifecycle');
+    }
   }
 
   private async persistAgent(agent: ManagedAgent) {
@@ -1124,6 +1151,11 @@ export class AgentLifecycleManager {
           memConfig.voiceConfig = dbConfig.voiceConfig;
         }
 
+        // messagingChannels: always preserve from DB (set by dashboard Channels tab)
+        if (dbConfig.messagingChannels && !memConfig.messagingChannels) {
+          memConfig.messagingChannels = dbConfig.messagingChannels;
+        }
+
         // In standalone mode, reload dashboard-managed fields (enterprise server is source of truth)
         if (this.standaloneMode) {
           if (dbConfig.model) memConfig.model = dbConfig.model;
@@ -1137,6 +1169,7 @@ export class AgentLifecycleManager {
           if (dbConfig.enabledGoogleServices) memConfig.enabledGoogleServices = dbConfig.enabledGoogleServices;
           if (dbConfig.permissionProfileId) memConfig.permissionProfileId = dbConfig.permissionProfileId;
           if (dbConfig.voiceConfig) memConfig.voiceConfig = { ...(memConfig.voiceConfig || {}), ...dbConfig.voiceConfig };
+          if (dbConfig.messagingChannels) memConfig.messagingChannels = { ...(memConfig.messagingChannels || {}), ...dbConfig.messagingChannels };
           if (dbConfig.emailConfig && memConfig.emailConfig) {
             const dbEmail = dbConfig.emailConfig;
             const memEmail = memConfig.emailConfig;

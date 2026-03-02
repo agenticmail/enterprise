@@ -243,6 +243,8 @@ export interface Migration {
   name: string;
   /** SQL statements (SQLite/Turso compatible) */
   sql?: string;
+  /** SQLite-specific SQL (if different from sql) */
+  sqlite?: string;
   /** Postgres-specific SQL (if different from sql) */
   postgres?: string;
   /** MySQL-specific SQL (if different from sql) */
@@ -1451,6 +1453,249 @@ CREATE INDEX idx_security_events_type ON security_events(event_type);
 CREATE INDEX idx_security_events_time ON security_events(created_at);
 CREATE INDEX idx_security_events_agent ON security_events(agent_id);
 CREATE INDEX idx_security_events_severity ON security_events(severity);
+    `,
+    nosql: async () => {},
+  },
+  {
+    version: 25,
+    name: 'messaging_history',
+    sql: `
+CREATE TABLE IF NOT EXISTS messaging_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  contact_id TEXT NOT NULL,
+  direction TEXT NOT NULL,
+  sender_name TEXT,
+  message_text TEXT NOT NULL,
+  message_id TEXT,
+  is_group INTEGER NOT NULL DEFAULT 0,
+  group_name TEXT,
+  metadata TEXT DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_mh_agent_contact ON messaging_history(agent_id, platform, contact_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_mh_agent_time ON messaging_history(agent_id, created_at);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS messaging_history (
+  id BIGSERIAL PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  contact_id TEXT NOT NULL,
+  direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  sender_name TEXT,
+  message_text TEXT NOT NULL,
+  message_id TEXT,
+  is_group BOOLEAN NOT NULL DEFAULT FALSE,
+  group_name TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_mh_agent_contact ON messaging_history(agent_id, platform, contact_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mh_agent_time ON messaging_history(agent_id, created_at DESC);
+    `,
+    mysql: `
+CREATE TABLE IF NOT EXISTS messaging_history (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  agent_id VARCHAR(255) NOT NULL,
+  platform VARCHAR(50) NOT NULL,
+  contact_id VARCHAR(255) NOT NULL,
+  direction VARCHAR(20) NOT NULL,
+  sender_name VARCHAR(255),
+  message_text TEXT NOT NULL,
+  message_id VARCHAR(255),
+  is_group BOOLEAN NOT NULL DEFAULT FALSE,
+  group_name VARCHAR(255),
+  metadata JSON DEFAULT '{}',
+  created_at DATETIME NOT NULL DEFAULT NOW(),
+  INDEX idx_mh_agent_contact (agent_id, platform, contact_id, created_at),
+  INDEX idx_mh_agent_time (agent_id, created_at)
+);
+    `,
+    nosql: async () => {},
+  },
+  // v26: WhatsApp pairing requests table
+  {
+    version: 26,
+    name: 'add_whatsapp_pairing_requests',
+    sqlite: `
+CREATE TABLE IF NOT EXISTS whatsapp_pairing_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  name TEXT,
+  code TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_wpr_agent ON whatsapp_pairing_requests(agent_id, status);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS whatsapp_pairing_requests (
+  id SERIAL PRIMARY KEY,
+  agent_id VARCHAR(255) NOT NULL,
+  phone VARCHAR(50) NOT NULL,
+  name VARCHAR(255),
+  code VARCHAR(20) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_wpr_agent ON whatsapp_pairing_requests(agent_id, status);
+    `,
+    mysql: `
+CREATE TABLE IF NOT EXISTS whatsapp_pairing_requests (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  agent_id VARCHAR(255) NOT NULL,
+  phone VARCHAR(50) NOT NULL,
+  name VARCHAR(255),
+  code VARCHAR(20) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  created_at DATETIME NOT NULL DEFAULT NOW(),
+  INDEX idx_wpr_agent (agent_id, status)
+);
+    `,
+    nosql: async () => {},
+  },
+
+  // ─── Migration 27: Agent hierarchy (delegation, escalation) ───
+  {
+    version: 27,
+    name: 'add_agent_hierarchy_tables',
+    sqlite: `
+CREATE TABLE IF NOT EXISTS agent_delegated_tasks (
+  id TEXT PRIMARY KEY,
+  from_agent_id TEXT NOT NULL,
+  to_agent_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  priority TEXT DEFAULT 'medium',
+  status TEXT DEFAULT 'pending',
+  due_date TEXT,
+  result TEXT,
+  blocker_reason TEXT,
+  feedback TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_delegated_tasks_to ON agent_delegated_tasks(to_agent_id, status);
+CREATE INDEX IF NOT EXISTS idx_delegated_tasks_from ON agent_delegated_tasks(from_agent_id, status);
+
+CREATE TABLE IF NOT EXISTS agent_escalations (
+  id TEXT PRIMARY KEY,
+  from_agent_id TEXT NOT NULL,
+  to_agent_id TEXT,
+  subject TEXT NOT NULL,
+  context TEXT,
+  status TEXT DEFAULT 'pending',
+  resolution TEXT,
+  created_at TEXT NOT NULL,
+  resolved_at TEXT,
+  updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_escalations_to ON agent_escalations(to_agent_id, status);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS agent_delegated_tasks (
+  id VARCHAR(100) PRIMARY KEY,
+  from_agent_id VARCHAR(255) NOT NULL,
+  to_agent_id VARCHAR(255) NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  priority VARCHAR(20) DEFAULT 'medium',
+  status VARCHAR(20) DEFAULT 'pending',
+  due_date TIMESTAMPTZ,
+  result TEXT,
+  blocker_reason TEXT,
+  feedback TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_delegated_tasks_to ON agent_delegated_tasks(to_agent_id, status);
+CREATE INDEX IF NOT EXISTS idx_delegated_tasks_from ON agent_delegated_tasks(from_agent_id, status);
+
+CREATE TABLE IF NOT EXISTS agent_escalations (
+  id VARCHAR(100) PRIMARY KEY,
+  from_agent_id VARCHAR(255) NOT NULL,
+  to_agent_id VARCHAR(255),
+  subject TEXT NOT NULL,
+  context TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  resolution TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_escalations_to ON agent_escalations(to_agent_id, status);
+    `,
+    mysql: `
+CREATE TABLE IF NOT EXISTS agent_delegated_tasks (
+  id VARCHAR(100) PRIMARY KEY,
+  from_agent_id VARCHAR(255) NOT NULL,
+  to_agent_id VARCHAR(255) NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  priority VARCHAR(20) DEFAULT 'medium',
+  status VARCHAR(20) DEFAULT 'pending',
+  due_date DATETIME,
+  result TEXT,
+  blocker_reason TEXT,
+  feedback TEXT,
+  created_at DATETIME NOT NULL DEFAULT NOW(),
+  updated_at DATETIME NOT NULL DEFAULT NOW(),
+  completed_at DATETIME,
+  INDEX idx_delegated_tasks_to (to_agent_id, status),
+  INDEX idx_delegated_tasks_from (from_agent_id, status)
+);
+CREATE TABLE IF NOT EXISTS agent_escalations (
+  id VARCHAR(100) PRIMARY KEY,
+  from_agent_id VARCHAR(255) NOT NULL,
+  to_agent_id VARCHAR(255),
+  subject TEXT NOT NULL,
+  context TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  resolution TEXT,
+  created_at DATETIME NOT NULL DEFAULT NOW(),
+  resolved_at DATETIME,
+  updated_at DATETIME,
+  INDEX idx_escalations_to (to_agent_id, status)
+);
+    `,
+    nosql: async () => {},
+  },
+  // ─── Migration 28: Hierarchy v2 columns (SLA, check-in, reassignment) ───
+  {
+    version: 28,
+    name: 'hierarchy_v2_columns',
+    sqlite: `
+ALTER TABLE agent_delegated_tasks ADD COLUMN sla_hours REAL;
+ALTER TABLE agent_delegated_tasks ADD COLUMN check_in_interval_min INTEGER;
+ALTER TABLE agent_delegated_tasks ADD COLUMN check_in_count INTEGER DEFAULT 0;
+ALTER TABLE agent_delegated_tasks ADD COLUMN last_check_in_at TEXT;
+ALTER TABLE agent_delegated_tasks ADD COLUMN required_tools TEXT;
+ALTER TABLE agent_delegated_tasks ADD COLUMN original_agent_id TEXT;
+ALTER TABLE agent_delegated_tasks ADD COLUMN reassign_reason TEXT;
+    `,
+    postgres: `
+ALTER TABLE agent_delegated_tasks ADD COLUMN IF NOT EXISTS sla_hours REAL;
+ALTER TABLE agent_delegated_tasks ADD COLUMN IF NOT EXISTS check_in_interval_min INTEGER;
+ALTER TABLE agent_delegated_tasks ADD COLUMN IF NOT EXISTS check_in_count INTEGER DEFAULT 0;
+ALTER TABLE agent_delegated_tasks ADD COLUMN IF NOT EXISTS last_check_in_at TIMESTAMPTZ;
+ALTER TABLE agent_delegated_tasks ADD COLUMN IF NOT EXISTS required_tools JSONB;
+ALTER TABLE agent_delegated_tasks ADD COLUMN IF NOT EXISTS original_agent_id VARCHAR(255);
+ALTER TABLE agent_delegated_tasks ADD COLUMN IF NOT EXISTS reassign_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_dt_due ON agent_delegated_tasks(due_date) WHERE status IN ('pending','accepted','in_progress');
+    `,
+    mysql: `
+ALTER TABLE agent_delegated_tasks ADD COLUMN sla_hours FLOAT;
+ALTER TABLE agent_delegated_tasks ADD COLUMN check_in_interval_min INT;
+ALTER TABLE agent_delegated_tasks ADD COLUMN check_in_count INT DEFAULT 0;
+ALTER TABLE agent_delegated_tasks ADD COLUMN last_check_in_at DATETIME;
+ALTER TABLE agent_delegated_tasks ADD COLUMN required_tools JSON;
+ALTER TABLE agent_delegated_tasks ADD COLUMN original_agent_id VARCHAR(255);
+ALTER TABLE agent_delegated_tasks ADD COLUMN reassign_reason TEXT;
     `,
     nosql: async () => {},
   },

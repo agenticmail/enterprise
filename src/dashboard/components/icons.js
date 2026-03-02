@@ -43,6 +43,7 @@ export const I = {
   link: () => h('svg', S, h('path', { d: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71' }), h('path', { d: 'M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71' })),
   folder: () => h('svg', S, h('path', { d: 'M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z' })),
   globe: () => h('svg', S, h('circle', { cx: 12, cy: 12, r: 10 }), h('line', { x1: 2, y1: 12, x2: 22, y2: 12 }), h('path', { d: 'M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z' })),
+  orgChart: () => h('svg', S, h('rect', { x: 8, y: 2, width: 8, height: 5, rx: 1 }), h('rect', { x: 1, y: 17, width: 8, height: 5, rx: 1 }), h('rect', { x: 15, y: 17, width: 8, height: 5, rx: 1 }), h('line', { x1: 12, y1: 7, x2: 12, y2: 12 }), h('line', { x1: 5, y1: 12, x2: 19, y2: 12 }), h('line', { x1: 5, y1: 12, x2: 5, y2: 17 }), h('line', { x1: 19, y1: 12, x2: 19, y2: 17 })),
   terminal: () => h('svg', S, h('polyline', { points: '4 17 10 11 4 5' }), h('line', { x1: 12, y1: 19, x2: 20, y2: 19 })),
   chart: () => h('svg', S, h('line', { x1: 18, y1: 20, x2: 18, y2: 10 }), h('line', { x1: 12, y1: 20, x2: 12, y2: 4 }), h('line', { x1: 6, y1: 20, x2: 6, y2: 14 })),
   help: () => h('svg', S, h('circle', { cx: 12, cy: 12, r: 10 }), h('path', { d: 'M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3' }), h('line', { x1: 12, y1: 17, x2: 12.01, y2: 17 })),

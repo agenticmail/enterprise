@@ -10,10 +10,13 @@ import type { ToolDefinition } from '../../types.js';
 
 interface TelegramConfig {
   botToken: string;
+  onOutbound?: (chatId: string, text: string) => void;
 }
 
 async function tgApi(token: string, method: string, body?: any): Promise<any> {
-  var opts: any = { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(30000) };
+  // Long-polling getUpdates needs a longer timeout than the Telegram server-side wait
+  var timeoutMs = (method === 'getUpdates' && body?.timeout) ? (body.timeout + 15) * 1000 : 30000;
+  var opts: any = { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(timeoutMs) };
   if (body) opts.body = JSON.stringify(body);
   var r = await fetch(`https://api.telegram.org/bot${token}/${method}`, opts);
   var json = await r.json() as any;
@@ -36,11 +39,11 @@ async function tgUpload(token: string, method: string, chatId: string | number, 
 }
 
 export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
-  var { botToken } = config;
+  var { botToken, onOutbound } = config;
   return [
     {
       name: 'telegram_send',
-      description: 'Send a text message.',
+      description: 'Send/reply a Telegram message to a chat.',
       input_schema: {
         type: 'object' as const,
         properties: {
@@ -50,11 +53,12 @@ export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
         },
         required: ['chatId', 'text'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: string, input: any) => {
         var r = await tgApi(botToken, 'sendMessage', {
           chat_id: input.chatId, text: input.text, parse_mode: 'HTML',
           ...(input.replyTo ? { reply_parameters: { message_id: input.replyTo } } : {}),
         });
+        if (onOutbound) try { onOutbound(input.chatId, input.text); } catch {}
         return { ok: true, messageId: r.message_id };
       },
     },
@@ -71,7 +75,7 @@ export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
         },
         required: ['chatId', 'filePath'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: string, input: any) => {
         var ext = input.filePath.split('.').pop()?.toLowerCase() || '';
         var type = input.type || (['mp4', 'mov', 'webm'].includes(ext) ? 'video' : ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? 'photo' : 'document');
         var method = type === 'photo' ? 'sendPhoto' : type === 'video' ? 'sendVideo' : 'sendDocument';
@@ -84,7 +88,7 @@ export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
       name: 'telegram_get_me',
       description: 'Get bot info.',
       input_schema: { type: 'object' as const, properties: {}, required: [] },
-      execute: async () => tgApi(botToken, 'getMe'),
+      execute: async (_id: string) => tgApi(botToken, 'getMe'),
     },
     {
       name: 'telegram_get_chat',
@@ -94,7 +98,7 @@ export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
         properties: { chatId: { type: 'string' } },
         required: ['chatId'],
       },
-      execute: async (input: any) => tgApi(botToken, 'getChat', { chat_id: input.chatId }),
+      execute: async (_id: string, input: any) => tgApi(botToken, 'getChat', { chat_id: input.chatId }),
     },
   ];
 }

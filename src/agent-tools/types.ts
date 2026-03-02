@@ -28,6 +28,9 @@ export interface ToolParameterSchema {
     maximum?: number;
     minLength?: number;
     maxLength?: number;
+    items?: Record<string, any>;
+    properties?: Record<string, any>;
+    required?: string[];
   }>;
   required?: string[];
 }
@@ -41,7 +44,9 @@ export interface AgentTool<TParams = Record<string, unknown>, TResult = unknown>
   /** What this tool does */
   description: string;
   /** JSON Schema for parameters */
-  parameters: ToolParameterSchema;
+  parameters?: ToolParameterSchema;
+  /** MCP-style schema (alias for parameters) */
+  input_schema?: Record<string, any>;
   /** Execute the tool with given parameters */
   execute: (toolCallId: string, params: TParams) => Promise<ToolResult<TResult>>;
   /** Whether this tool is restricted to agent owner */
@@ -121,6 +126,8 @@ export interface ToolCreationOptions {
       blockedPatterns?: string[];
     };
   };
+  /** Engine database reference for tools that need DB access */
+  engineDb?: any;
   /** Middleware configuration for cross-cutting concerns */
   middleware?: {
     audit?: {
@@ -200,3 +207,6 @@ export interface AgenticMailToolConfig {
     backend?: 'local' | 'sqlite' | 'vector';
   };
 }
+
+/** Re-export ToolDefinition from skills for convenience */
+export type { ToolDefinition } from '../engine/skills.js';

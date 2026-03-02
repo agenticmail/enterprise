@@ -22,6 +22,7 @@ import { ToolSecuritySection } from './tool-security.js?v=5';
 import { AgentSecurityTab } from './security.js?v=5';
 import { AutonomySection } from './autonomy.js?v=5';
 import { ChannelsSection } from './channels.js?v=5';
+import { WhatsAppSection } from './whatsapp.js?v=5';
 
 export function AgentDetailPage(props) {
   var agentId = props.agentId;
@@ -43,8 +44,8 @@ export function AgentDetailPage(props) {
   var _agents = useState([]);
   var agents = _agents[0]; var setAgents = _agents[1];
 
-  var TABS = ['overview', 'personal', 'email', 'channels', 'configuration', 'manager', 'tools', 'skills', 'permissions', 'activity', 'communication', 'workforce', 'memory', 'guardrails', 'autonomy', 'budget', 'security', 'tool-security', 'deployment'];
-  var TAB_LABELS = { 'security': 'Security', 'tool-security': 'Tool Security', 'manager': 'Manager', 'email': 'Email', 'channels': 'Channels', 'tools': 'Tools', 'autonomy': 'Autonomy' };
+  var TABS = ['overview', 'personal', 'email', 'whatsapp', 'channels', 'configuration', 'manager', 'tools', 'skills', 'permissions', 'activity', 'communication', 'workforce', 'memory', 'guardrails', 'autonomy', 'budget', 'security', 'tool-security', 'deployment'];
+  var TAB_LABELS = { 'security': 'Security', 'tool-security': 'Tool Security', 'manager': 'Manager', 'email': 'Email', 'whatsapp': 'WhatsApp', 'channels': 'Channels', 'tools': 'Tools', 'autonomy': 'Autonomy' };
 
   var load = function() {
     setLoading(true);
@@ -180,6 +181,7 @@ export function AgentDetailPage(props) {
     tab === 'overview' && h(OverviewSection, { agentId: agentId, agent: agent, engineAgent: engineAgent, profile: profile, reload: load, agents: agents, onBack: onBack }),
     tab === 'personal' && h(PersonalDetailsSection, { agentId: agentId, agent: agent, engineAgent: engineAgent, reload: load }),
     tab === 'email' && h(EmailSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
+    tab === 'whatsapp' && h(WhatsAppSection, { agentId: agentId, engineAgent: engineAgent, reload: load, setTab: setTab }),
     tab === 'channels' && h(ChannelsSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'configuration' && h(ConfigurationSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'manager' && h(ManagerCatchUpSection, { agentId: agentId, engineAgent: engineAgent, agents: agents, reload: load }),

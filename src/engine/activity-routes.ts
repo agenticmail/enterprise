@@ -47,7 +47,7 @@ export function createActivityRoutes(opts: {
     });
     const search = (c.req.query('search') || '').toLowerCase();
     const filtered = search
-      ? allCalls.filter(tc => (tc.tool || tc.toolId || '').toLowerCase().includes(search))
+      ? allCalls.filter(tc => (tc.toolId || (tc as any).tool || '').toLowerCase().includes(search))
       : allCalls;
     return c.json({ toolCalls: filtered.slice(offset, offset + limit), total: filtered.length });
   });
@@ -120,10 +120,10 @@ export function createActivityRoutes(opts: {
       const params: any[] = [];
       if (orgId) { params.push(orgId); where += ` AND org_id = $${params.length}`; }
       if (agentId) { params.push(agentId); where += ` AND agent_id = $${params.length}`; }
-      const countResult = await db.db.get<any>(`SELECT COUNT(*) as c FROM agent_memory ${where}`, params);
+      const countResult = await db.db.get(`SELECT COUNT(*) as c FROM agent_memory ${where}`, params);
       const total = parseInt(countResult?.c || '0');
       params.push(limit, offset);
-      const rows = await db.db.all<any>(`SELECT * FROM agent_memory ${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+      const rows = await db.db.all(`SELECT * FROM agent_memory ${where} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
       return c.json({ contributions: rows || [], total });
     } catch (e: any) {
       return c.json({ contributions: [], total: 0, error: e.message });

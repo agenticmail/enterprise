@@ -4,6 +4,7 @@
  */
 
 import { Emoji } from './emoji.js';
+import { configBus } from './config-bus.js';
 import { Hono } from 'hono';
 import type { AgentLifecycleManager } from './lifecycle.js';
 import type { PermissionEngine } from './skills.js';
@@ -13,6 +14,7 @@ export function createAgentRoutes(opts: {
   lifecycle: AgentLifecycleManager;
   permissions: PermissionEngine;
   getAdminDb: () => DatabaseAdapter | null;
+  engineDb?: any;
 }) {
   const { lifecycle, permissions, getAdminDb } = opts;
   const router = new Hono();
@@ -259,6 +261,38 @@ export function createAgentRoutes(opts: {
       return c.json({ agent });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
+    }
+  });
+
+  // ─── System Dependencies ─────────────────────────────────
+
+  router.get('/system/process-managers', async (c) => {
+    const { execSync } = await import('child_process');
+    const check = (cmd: string): boolean => {
+      try { execSync(`which ${cmd}`, { stdio: 'pipe' }); return true; } catch { return false; }
+    };
+    const pm2Version = (() => { try { return execSync('pm2 -v', { stdio: 'pipe', encoding: 'utf-8' }).trim(); } catch { return null; } })();
+    const systemdAvailable = check('systemctl');
+    const platform = process.platform;
+
+    return c.json({
+      pm2: { installed: !!pm2Version, version: pm2Version, installCmd: 'npm install -g pm2' },
+      systemd: { available: systemdAvailable, note: systemdAvailable ? 'Available on this system' : platform === 'darwin' ? 'Not available on macOS — use PM2 or launchd' : 'Install via your package manager' },
+      launchd: { available: platform === 'darwin', note: platform === 'darwin' ? 'macOS native — always available' : 'macOS only' },
+      platform,
+    });
+  });
+
+  router.post('/system/install-pm2', async (c) => {
+    try {
+      const { ensurePm2 } = await import('./deployer.js');
+      const result = await ensurePm2();
+      if (result.installed) {
+        return c.json({ success: true, message: `PM2 ${result.version} installed successfully` });
+      }
+      return c.json({ success: false, error: result.error, hint: 'Try running: sudo npm install -g pm2' }, 500);
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message, hint: 'Try running: sudo npm install -g pm2' }, 500);
     }
   });
 
@@ -1472,30 +1506,45 @@ export function createAgentRoutes(opts: {
     if (!managed) return c.json({ error: 'Agent not found' }, 404);
     const body = await c.req.json();
     // Merge into config
-    if (body.messagingChannels) {
+    if ((body as any).messagingChannels) {
       managed.config = managed.config || {} as any;
       (managed.config as any).messagingChannels = {
-        ...((managed.config as any).messagingChannels || {}),
-        ...body.messagingChannels,
+        ...(((managed.config as any).messagingChannels) || {}),
+        ...(body as any).messagingChannels,
       };
+    }
+    // Merge any other config keys
+    for (const key of Object.keys(body)) {
+      if (key === 'messagingChannels') continue; // Already handled above
+      (managed.config as any)[key] = body[key];
     }
     managed.updatedAt = new Date().toISOString();
     await lifecycle.saveAgent(agentId);
+
+    // Emit config change events so running services update in real-time
+    for (const key of Object.keys(body)) {
+      configBus.emitAgentConfig(agentId, key, body[key]);
+    }
     return c.json({ success: true });
   });
 
   /**
    * POST /bridge/agents/:id/whatsapp/connect — Start WhatsApp connection
+   * Supports mode=business for separate business number connection
    */
   router.post('/bridge/agents/:id/whatsapp/connect', async (c) => {
     const agentId = c.req.param('id');
     try {
+      const body = await c.req.json().catch(() => ({}));
+      const mode = body.mode || ''; // 'business' or ''
       const { createWhatsAppTools } = await import('../agent-tools/tools/messaging/whatsapp.js');
       const dataDir = process.env.DATA_DIR || '/tmp/agenticmail-data';
-      const tools = createWhatsAppTools({ agentId, dataDir: `${dataDir}/agents/${agentId}/whatsapp` });
+      const connId = mode === 'business' ? `biz-${agentId}` : agentId;
+      const connDir = mode === 'business' ? `${dataDir}/agents/${agentId}/whatsapp-business` : `${dataDir}/agents/${agentId}/whatsapp`;
+      const tools = createWhatsAppTools({ agentId: connId, dataDir: connDir });
       const connectTool = tools.find(t => t.name === 'whatsapp_connect');
       if (!connectTool) return c.json({ error: 'WhatsApp not available' }, 500);
-      const result = await connectTool.execute({});
+      const result = await connectTool.execute!(connId, {});
       return c.json(result);
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
@@ -1504,17 +1553,79 @@ export function createAgentRoutes(opts: {
 
   /**
    * GET /bridge/agents/:id/whatsapp/status — Check WhatsApp status
+   * Supports ?mode=business for business number status
    */
   router.get('/bridge/agents/:id/whatsapp/status', async (c) => {
     const agentId = c.req.param('id');
+    const mode = c.req.query('mode') || '';
     try {
-      const { isWhatsAppConnected, getWhatsAppQR } = await import('../agent-tools/tools/messaging/whatsapp.js');
-      return c.json({
-        connected: isWhatsAppConnected(agentId),
-        hasQr: !!getWhatsAppQR(agentId),
-      });
+      const { getConnectionStatus } = await import('../agent-tools/tools/messaging/whatsapp.js');
+      const connId = mode === 'business' ? `biz-${agentId}` : agentId;
+      return c.json(getConnectionStatus(connId));
     } catch {
       return c.json({ connected: false });
+    }
+  });
+
+  /**
+   * POST /bridge/agents/:id/whatsapp/test — Send a test message
+   * Supports mode in body for business number
+   */
+  router.post('/bridge/agents/:id/whatsapp/test', async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const mode = body.mode || '';
+      const connId = mode === 'business' ? `biz-${agentId}` : agentId;
+      const { sendTestMessage } = await import('../agent-tools/tools/messaging/whatsapp.js');
+      const result = await sendTestMessage(connId, body.to);
+      return c.json(result);
+    } catch (err: any) {
+      return c.json({ ok: false, error: err.message }, 500);
+    }
+  });
+
+  /**
+   * POST /bridge/agents/:id/whatsapp/proxy-send — Proxy send from standalone agent
+   */
+  router.post('/bridge/agents/:id/whatsapp/proxy-send', async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      const body = await c.req.json();
+      const { getConnection } = await import('../agent-tools/tools/messaging/whatsapp.js');
+      const conn = getConnection(agentId);
+      if (!conn?.connected) return c.json({ error: 'Not connected' }, 503);
+      const toJid = (to: string) => to?.includes('@') ? to : (to || '').replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+      if (!body.to) return c.json({ error: 'Missing "to" field', received: body }, 400);
+      const jid = toJid(body.to);
+      if (body.action === 'presence') {
+        await conn.sock.sendPresenceUpdate(body.type || 'composing', jid);
+        return c.json({ ok: true });
+      }
+      // Show typing indicator before sending
+      try { await conn.sock.sendPresenceUpdate('composing', jid); } catch {}
+      const r = await conn.sock.sendMessage(jid, body.content || { text: body.text });
+      try { await conn.sock.sendPresenceUpdate('paused', jid); } catch {}
+
+      // Store outbound message for conversation history
+      if (body.text && opts.engineDb) {
+        const { storeMessage } = await import('./messaging-history.js');
+        const agentData = lifecycle.getAgent(agentId);
+        storeMessage(opts.engineDb, {
+          agentId,
+          platform: 'whatsapp',
+          contactId: body.to,
+          direction: 'outbound',
+          senderName: agentData?.display_name as any || agentData?.name || 'Agent',
+          messageText: body.text,
+          messageId: r?.key?.id,
+        }).catch(() => {});
+      }
+
+      return c.json({ ok: true, id: r?.key?.id });
+    } catch (err: any) {
+      console.error(`[wa-proxy] Error:`, err.message, err.stack?.split('\n')[1]);
+      return c.json({ ok: false, error: err.message }, 500);
     }
   });
 
@@ -1524,16 +1635,233 @@ export function createAgentRoutes(opts: {
   router.post('/bridge/agents/:id/whatsapp/disconnect', async (c) => {
     const agentId = c.req.param('id');
     try {
+      const body = await c.req.json().catch(() => ({}));
+      const mode = body.mode || '';
       const { createWhatsAppTools } = await import('../agent-tools/tools/messaging/whatsapp.js');
       const dataDir = process.env.DATA_DIR || '/tmp/agenticmail-data';
-      const tools = createWhatsAppTools({ agentId, dataDir: `${dataDir}/agents/${agentId}/whatsapp` });
+      const connId = mode === 'business' ? `biz-${agentId}` : agentId;
+      const connDir = mode === 'business' ? `${dataDir}/agents/${agentId}/whatsapp-business` : `${dataDir}/agents/${agentId}/whatsapp`;
+      const tools = createWhatsAppTools({ agentId: connId, dataDir: connDir });
       const disconnectTool = tools.find(t => t.name === 'whatsapp_disconnect');
       if (!disconnectTool) return c.json({ error: 'Not available' }, 500);
-      const body = await c.req.json().catch(() => ({}));
-      const result = await disconnectTool.execute(body);
+      const result = await disconnectTool.execute!(connId, body);
       return c.json(result);
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // ═══════════════════════════════════════════════
+  // Telegram
+  // ═══════════════════════════════════════════════
+
+  /**
+   * POST /bridge/agents/:id/telegram/validate — Validate bot token via getMe
+   */
+  router.post('/bridge/agents/:id/telegram/validate', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const token = body.botToken;
+      if (!token) return c.json({ ok: false, error: 'Bot token required' }, 400);
+      const resp = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(10000) });
+      const data = await resp.json() as any;
+      if (data.ok) {
+        return c.json({ ok: true, bot: { id: data.result.id, username: data.result.username, firstName: data.result.first_name } });
+      }
+      return c.json({ ok: false, error: data.description || 'Invalid token' });
+    } catch (err: any) {
+      return c.json({ ok: false, error: err.message }, 500);
+    }
+  });
+
+  /**
+   * POST /bridge/agents/:id/telegram/test — Send a test message to a chat ID
+   */
+  router.post('/bridge/agents/:id/telegram/test', async (c) => {
+    try {
+      const agentId = c.req.param('id');
+      const body = await c.req.json().catch(() => ({}));
+      const chatId = body.chatId;
+      // Get bot token from agent config
+      const agent = lifecycle.getAgent(agentId);
+      const channels = agent?.config?.messagingChannels as any || {};
+      const tgConfig = channels.telegram || {};
+      const token = tgConfig.botToken;
+      if (!token) return c.json({ ok: false, error: 'No bot token configured' }, 400);
+      if (!chatId) return c.json({ ok: false, error: 'Chat ID required' }, 400);
+      const agentName = agent?.displayName || agent?.name || 'Agent';
+      const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: `${Emoji.check} Test message from ${agentName}. Your Telegram connection is working!` }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await resp.json() as any;
+      if (data.ok) return c.json({ ok: true });
+      return c.json({ ok: false, error: data.description || 'Send failed' });
+    } catch (err: any) {
+      return c.json({ ok: false, error: err.message }, 500);
+    }
+  });
+
+  // ═══════════════════════════════════════════════
+  // WhatsApp Pairing System
+  // ═══════════════════════════════════════════════
+
+  /**
+   * GET /bridge/agents/:id/whatsapp/pairing-requests — List pending pairing requests
+   */
+  router.get('/bridge/agents/:id/whatsapp/pairing-requests', async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      if (!opts.engineDb) return c.json({ requests: [] });
+      const r = await opts.engineDb.query(
+        `SELECT phone, name, code, created_at as timestamp FROM whatsapp_pairing_requests WHERE agent_id = $1 AND status = 'pending' ORDER BY created_at DESC`,
+        [agentId]
+      );
+      return c.json({ requests: r.rows || [] });
+    } catch {
+      return c.json({ requests: [] });
+    }
+  });
+
+  /**
+   * POST /bridge/agents/:id/whatsapp/pairing-approve — Approve a pairing request
+   */
+  router.post('/bridge/agents/:id/whatsapp/pairing-approve', async (c) => {
+    const agentId = c.req.param('id');
+    const body = await c.req.json();
+    try {
+      if (!opts.engineDb) return c.json({ error: 'No database' }, 500);
+      await opts.engineDb.query(
+        `UPDATE whatsapp_pairing_requests SET status = 'approved' WHERE agent_id = $1 AND code = $2`,
+        [agentId, body.code]
+      );
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  /**
+   * POST /bridge/agents/:id/whatsapp/pairing-reject — Reject a pairing request
+   */
+  router.post('/bridge/agents/:id/whatsapp/pairing-reject', async (c) => {
+    const agentId = c.req.param('id');
+    const body = await c.req.json();
+    try {
+      if (!opts.engineDb) return c.json({ error: 'No database' }, 500);
+      await opts.engineDb.query(
+        `UPDATE whatsapp_pairing_requests SET status = 'rejected' WHERE agent_id = $1 AND code = $2`,
+        [agentId, body.code]
+      );
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  /**
+   * GET /bridge/agents/:id/whatsapp/conversations — Conversation list with pagination, search, filters
+   */
+  router.get('/bridge/agents/:id/whatsapp/conversations', async (c) => {
+    const agentId = c.req.param('id');
+    const limit = Math.min(parseInt(c.req.query('limit') || '20') || 20, 100);
+    const offset = parseInt(c.req.query('offset') || '0') || 0;
+    const search = (c.req.query('search') || '').trim();
+    const direction = c.req.query('direction') || ''; // 'inbound' | 'outbound' | ''
+    try {
+      if (!opts.engineDb) return c.json({ conversations: [], total: 0 });
+
+      let whereExtra = '';
+      const params: any[] = [agentId];
+      let paramIdx = 2;
+      if (search) {
+        whereExtra += ` AND (sender_name ILIKE $${paramIdx} OR contact_id ILIKE $${paramIdx} OR message_text ILIKE $${paramIdx})`;
+        params.push(`%${search}%`);
+        paramIdx++;
+      }
+      if (direction) {
+        whereExtra += ` AND direction = $${paramIdx}`;
+        params.push(direction);
+        paramIdx++;
+      }
+
+      // Total count
+      const countR = await opts.engineDb.query(
+        `SELECT COUNT(DISTINCT contact_id) as total FROM messaging_history WHERE agent_id = $1 AND platform = 'whatsapp'${whereExtra}`,
+        params
+      );
+      const total = parseInt(countR.rows?.[0]?.total || '0');
+
+      // Conversation summaries
+      const r = await opts.engineDb.query(
+        `SELECT contact_id as "contactId", 
+                MAX(sender_name) as name,
+                COUNT(*) as "messageCount",
+                COUNT(*) FILTER (WHERE direction = 'inbound') as "inboundCount",
+                COUNT(*) FILTER (WHERE direction = 'outbound') as "outboundCount",
+                MAX(created_at) as "lastAt",
+                MIN(created_at) as "firstAt",
+                (array_agg(message_text ORDER BY created_at DESC))[1] as "lastMessage",
+                (array_agg(direction ORDER BY created_at DESC))[1] as "lastDirection"
+         FROM messaging_history
+         WHERE agent_id = $1 AND platform = 'whatsapp'${whereExtra}
+         GROUP BY contact_id
+         ORDER BY MAX(created_at) DESC
+         LIMIT ${limit} OFFSET ${offset}`,
+        params
+      );
+
+      const agentData = lifecycle.getAgent(agentId);
+      const waCfg = (agentData?.config as any)?.messagingChannels?.whatsapp || {};
+      const trusted = waCfg.trustedContacts || [];
+      const bizCustomers = waCfg.business?.approvedCustomers || [];
+      const convos = (r.rows || []).map((row: any) => {
+        const norm = (row.contactId || '').replace(/[^0-9]/g, '');
+        return {
+          ...row,
+          messageCount: parseInt(row.messageCount) || 0,
+          inboundCount: parseInt(row.inboundCount) || 0,
+          outboundCount: parseInt(row.outboundCount) || 0,
+          isTrusted: trusted.some((t: string) => norm.includes(t.replace(/[^0-9]/g, ''))),
+          isCustomer: bizCustomers.some((c: any) => norm.includes((c.phone || '').replace(/[^0-9]/g, ''))),
+        };
+      });
+      return c.json({ conversations: convos, total, limit, offset });
+    } catch {
+      return c.json({ conversations: [], total: 0 });
+    }
+  });
+
+  /**
+   * GET /bridge/agents/:id/whatsapp/conversations/:contactId — Full message history for a conversation
+   */
+  router.get('/bridge/agents/:id/whatsapp/conversations/:contactId', async (c) => {
+    const agentId = c.req.param('id');
+    const contactId = decodeURIComponent(c.req.param('contactId'));
+    const limit = Math.min(parseInt(c.req.query('limit') || '50') || 50, 200);
+    const before = c.req.query('before') || ''; // ISO timestamp for older messages
+    try {
+      if (!opts.engineDb) return c.json({ messages: [] });
+      let whereExtra = '';
+      const params: any[] = [agentId, contactId];
+      if (before) {
+        whereExtra = ' AND created_at < $3';
+        params.push(before);
+      }
+      const r = await opts.engineDb.query(
+        `SELECT id, direction, sender_name as "senderName", message_text as text, 
+                message_id as "messageId", created_at as "timestamp"
+         FROM messaging_history 
+         WHERE agent_id = $1 AND platform = 'whatsapp' AND contact_id = $2${whereExtra}
+         ORDER BY created_at DESC 
+         LIMIT ${limit}`,
+        params
+      );
+      return c.json({ messages: (r.rows || []).reverse() });
+    } catch {
+      return c.json({ messages: [] });
     }
   });
 

@@ -31,7 +31,7 @@ export async function runValidate(args: string[]) {
   const pathArgs = args.filter(a => !a.startsWith('--'));
 
   // Build the set of builtin tool IDs
-  const builtinIds = new Set(ALL_TOOLS.map(t => t.id));
+  const builtinIds = new Set(ALL_TOOLS.map(t => t.id || t.name));
 
   // Resolve community-skills/ directory
   const communityDir = path.resolve(process.cwd(), 'community-skills');

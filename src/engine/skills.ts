@@ -24,14 +24,16 @@ export interface SkillDefinition {
 }
 
 export interface ToolDefinition {
-  id: string;                    // e.g. "exec", "web_search", "agenticmail_send"
+  id?: string;                   // e.g. "exec", "web_search", "agenticmail_send" — auto-derived from name if absent
   name: string;
   description: string;
-  category: ToolCategory;
-  risk: RiskLevel;
-  skillId: string;               // Parent skill
+  category?: ToolCategory;
+  risk?: RiskLevel;
+  skillId?: string;               // Parent skill
   parameters?: Record<string, any>;
-  sideEffects: SideEffect[];     // What external effects can this tool cause
+  input_schema?: Record<string, any>;  // MCP-style schema (alias for parameters)
+  sideEffects?: SideEffect[];     // What external effects can this tool cause
+  execute?: (toolCallId: string, params: any) => Promise<any>;  // Runtime executor
 }
 
 export interface ConfigField {
@@ -70,14 +72,19 @@ export type SkillCategory =
   | 'customer-support'      // Zendesk, Intercom, Freshdesk
   | 'storage'               // Dropbox, Box, OneDrive
   | 'database'              // MongoDB, Redis, Snowflake
-  | 'monitoring';           // Datadog, PagerDuty, Sentry
+  | 'monitoring'            // Datadog, PagerDuty, Sentry
+  | 'utility'              // General-purpose tools
+  | 'local'                // Local system tools (filesystem, shell)
+  | 'messaging'            // WhatsApp, Telegram, iMessage
+  | 'memory';              // Memory, knowledge, recall
 
 export type ToolCategory =
   | 'read'             // Read-only, no side effects
   | 'write'            // Creates or modifies data
   | 'execute'          // Runs code/commands
   | 'communicate'      // Sends messages externally
-  | 'destroy';         // Deletes data
+  | 'destroy'          // Deletes data
+  | 'memory';          // Memory read/write
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
@@ -93,6 +100,10 @@ export type SideEffect =
   | 'controls-device'
   | 'accesses-secrets'
   | 'financial'
+  | 'executes-code'
+  | 'uploads-file'
+  | 'writes-file'
+  | 'storage'
   | 'spawns-agent'
   | 'writes-data'
   | 'creates-account'
@@ -463,8 +474,8 @@ export class PermissionEngine {
     const skillsMode = profile.skills?.mode || 'blocklist';
     const skillsList = profile.skills?.list || [];
     const skillAllowed = skillsMode === 'allowlist'
-      ? skillsList.includes(tool.skillId)
-      : !skillsList.includes(tool.skillId);
+      ? skillsList.includes(tool.skillId || '')
+      : !skillsList.includes(tool.skillId || '');
 
     if (!skillAllowed) {
       return { allowed: false, reason: `Skill "${tool.skillId}" is not permitted`, requiresApproval: false };
@@ -472,14 +483,14 @@ export class PermissionEngine {
 
     // 7. Risk level check
     const riskOrder: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
-    const toolRiskIdx = riskOrder.indexOf(tool.risk);
+    const toolRiskIdx = riskOrder.indexOf(tool.risk || 'low');
     const maxRiskIdx = riskOrder.indexOf(profile.maxRiskLevel);
     if (toolRiskIdx > maxRiskIdx) {
       return { allowed: false, reason: `Tool risk "${tool.risk}" exceeds max allowed "${profile.maxRiskLevel}"`, requiresApproval: false };
     }
 
     // 8. Side-effect restrictions
-    for (const effect of tool.sideEffects) {
+    for (const effect of (tool.sideEffects || [])) {
       if (profile.blockedSideEffects.includes(effect)) {
         return { allowed: false, reason: `Side effect "${effect}" is blocked`, requiresApproval: false };
       }
@@ -496,11 +507,11 @@ export class PermissionEngine {
 
     if (tool) {
       // Check risk-level approval
-      if (profile.requireApproval.forRiskLevels.includes(tool.risk)) {
+      if (profile.requireApproval.forRiskLevels.includes(tool.risk || 'low')) {
         return { allowed: true, reason: 'Requires human approval (risk level)', requiresApproval: true };
       }
       // Check side-effect approval
-      for (const effect of tool.sideEffects) {
+      for (const effect of (tool.sideEffects || [])) {
         if (profile.requireApproval.forSideEffects.includes(effect)) {
           return { allowed: true, reason: `Requires human approval (${effect})`, requiresApproval: true };
         }
@@ -533,7 +544,7 @@ export class PermissionEngine {
 
     for (const skill of this.skills.values()) {
       for (const tool of skill.tools) {
-        const perm = this.checkPermission(agentId, tool.id);
+        const perm = this.checkPermission(agentId, tool.id || tool.name);
         if (perm.allowed) {
           result.push({
             tool,
@@ -564,12 +575,12 @@ export class PermissionEngine {
 
     for (const skill of this.skills.values()) {
       for (const tool of skill.tools) {
-        const perm = this.checkPermission(agentId, tool.id);
+        const perm = this.checkPermission(agentId, tool.id || tool.name);
         if (perm.allowed) {
-          allowed.push(tool.id);
-          if (perm.requiresApproval) approval.push(tool.id);
+          allowed.push(tool.id || tool.name);
+          if (perm.requiresApproval) approval.push(tool.id || tool.name);
         } else {
-          blocked.push(tool.id);
+          blocked.push(tool.id || tool.name);
         }
       }
     }

@@ -248,6 +248,66 @@ export function createGoogleDriveTools(config: GoogleToolsConfig, _options?: Too
       },
     },
     {
+      name: 'google_drive_download',
+      description: 'Download a Drive file to local disk. For Google Docs/Sheets/Slides, exports to the specified format. Returns the local file path for sending via messaging tools.',
+      category: 'utility' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          fileId: { type: 'string', description: 'File ID' },
+          outputPath: { type: 'string', description: 'Local path to save (e.g. /tmp/report.pdf). Directories auto-created.' },
+          format: { type: 'string', description: 'Export format for Google Docs: "pdf", "docx", "txt", "html", "csv", "xlsx", "pptx"' },
+        },
+        required: ['fileId', 'outputPath'],
+      },
+      async execute(_id: string, params: any) {
+        try {
+          const { writeFile, mkdir } = await import('node:fs/promises');
+          const { dirname } = await import('node:path');
+          const token = await tp.getAccessToken();
+
+          // Get file metadata to determine type
+          const meta = await gapi(token, `/files/${params.fileId}`, { query: { fields: 'id,name,mimeType,size' } });
+          const isGoogleType = meta.mimeType?.startsWith('application/vnd.google-apps.');
+
+          let url: string;
+          if (isGoogleType) {
+            // Export Google Docs/Sheets/Slides
+            const exportMimes: Record<string, Record<string, string>> = {
+              'application/vnd.google-apps.document': { pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', txt: 'text/plain', html: 'text/html' },
+              'application/vnd.google-apps.spreadsheet': { pdf: 'application/pdf', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', csv: 'text/csv' },
+              'application/vnd.google-apps.presentation': { pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+            };
+            const fmts = exportMimes[meta.mimeType] || {};
+            const fmt = params.format || 'pdf';
+            const exportMime = fmts[fmt] || fmts['pdf'] || 'application/pdf';
+            url = `${BASE}/files/${params.fileId}/export?mimeType=${encodeURIComponent(exportMime)}`;
+          } else {
+            // Direct download for regular files
+            url = `${BASE}/files/${params.fileId}?alt=media`;
+          }
+
+          const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+
+          const buf = Buffer.from(await res.arrayBuffer());
+          await mkdir(dirname(params.outputPath), { recursive: true });
+          await writeFile(params.outputPath, buf);
+
+          return jsonResult({
+            ok: true,
+            path: params.outputPath,
+            fileName: meta.name,
+            size: buf.length,
+            mimeType: meta.mimeType,
+            format: isGoogleType ? (params.format || 'pdf') : undefined,
+          });
+        } catch (e: any) {
+          return errorResult(e.message);
+        }
+      },
+    },
+    {
       name: 'google_drive_delete',
       description: 'Trash a Drive file.',
       category: 'utility' as const,

@@ -107,12 +107,15 @@ export function createVaultRoutes(vault: SecureVault, dlp?: DLPEngine) {
     try {
       const orgId = c.req.query('orgId') || '';
       if (!orgId) return c.json({ error: 'orgId required' }, 400);
-      const entries = await vault.getAuditLog(orgId, {
+      const result = await vault.getAuditLog(orgId, {
         entryId: c.req.query('entryId') || undefined,
         action: c.req.query('action') || undefined,
-        limit: parseInt(c.req.query('limit') || '100'),
+        actor: c.req.query('actor') || undefined,
+        search: c.req.query('search') || undefined,
+        limit: parseInt(c.req.query('limit') || '25'),
+        offset: parseInt(c.req.query('offset') || '0'),
       });
-      return c.json({ entries, total: entries.length });
+      return c.json(result);
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 

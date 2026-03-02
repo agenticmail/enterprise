@@ -24,6 +24,7 @@ import { WorkforcePage } from './pages/workforce.js';
 import { KnowledgeContributionsPage } from './pages/knowledge-contributions.js';
 import { SkillConnectionsPage } from './pages/skill-connections.js';
 import { VaultPage } from './pages/vault.js';
+import { OrgChartPage } from './pages/org-chart.js';
 
 // ─── Toast System ────────────────────────────────────────
 let toastId = 0;
@@ -159,6 +160,7 @@ function App() {
       { id: 'approvals', icon: I.approvals, label: 'Approvals', badge: pendingCount || null },
     ]},
     { section: 'Management', items: [
+      { id: 'org-chart', icon: I.orgChart, label: 'Org Chart' },
       { id: 'workforce', icon: I.clock, label: 'Workforce' },
       { id: 'messages', icon: I.messages, label: 'Messages' },
       { id: 'guardrails', icon: I.guardrails, label: 'Guardrails' },
@@ -196,6 +198,7 @@ function App() {
     'knowledge-contributions': KnowledgeContributionsPage,
     'skill-connections': SkillConnectionsPage,
     vault: VaultPage,
+    'org-chart': OrgChartPage,
   };
 
   const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };

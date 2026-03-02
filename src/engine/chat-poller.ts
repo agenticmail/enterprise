@@ -143,7 +143,7 @@ export class ChatPoller {
 
     // Load manual user→email mappings from DB (for external spaces where API can't resolve)
     try {
-      const rows = await this.config.engineDb.query<any>(
+      const rows = await this.config.engineDb.query(
         `SELECT value FROM engine_settings WHERE key = 'chat_user_mappings'`
       );
       if (rows?.[0]?.value) {

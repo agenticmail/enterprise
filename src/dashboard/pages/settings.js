@@ -3,7 +3,7 @@ import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { Modal } from '../components/modal.js';
 import { TagInput } from '../components/tag-input.js';
-import { COUNTRIES } from '../data/countries.js';
+import { COUNTRIES } from '../data/countries.js?v=6';
 import { HelpButton } from '../components/help-button.js';
 import { SETTINGS_HELP } from '../components/settings-help.js';
 import { ProviderLogo } from '../assets/provider-logos.js';
@@ -224,7 +224,7 @@ export function SettingsPage() {
       SETTINGS_HELP[tab] && h(HelpButton, { label: SETTINGS_HELP[tab].label }, SETTINGS_HELP[tab].content())
     ),
     h('div', { className: 'tabs' },
-      ['general', 'models', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security', 'network'].map(t =>
+      ['general', 'models', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security-system', 'tool-security', 'network'].map(t =>
         h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', models: 'Models', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', 'security-system': 'Security', 'tool-security': 'Tool Security', network: 'Network & Firewall' }[t])
       )
     ),
@@ -2717,7 +2717,7 @@ function PlatformCapabilitiesTab({ toast }) {
                   )
                 : h(Fragment, null,
                     h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 0 } }, cap.desc),
-                    enabled && cap.nextSteps && h('div', { style: { marginTop: 10, padding: '10px 12px', background: 'var(--accent-soft, #e8f4ff)', borderRadius: 8, fontSize: 12, borderLeft: '3px solid var(--accent)' } },
+                    enabled && cap.nextSteps && h('div', { style: { marginTop: 10, padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: 12, border: '1px solid var(--border)' } },
                       h('strong', null, 'Next: '), cap.nextSteps
                     )
                   )

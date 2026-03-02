@@ -533,8 +533,6 @@ export function createSecurityMiddleware(
 // Export all types and classes
 export type { 
   SecurityConfig,
-  SecurityContext,
-  SecurityScanResult,
   SecurityEvent,
   PromptThreat,
   SqlThreat,

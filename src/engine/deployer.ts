@@ -9,6 +9,9 @@
 
 import type { AgentConfig, DeploymentTarget, DeploymentStatus } from './agent-config.js';
 import { AgentConfigGenerator } from './agent-config.js';
+import { execSync } from 'child_process';
+import { resolve, dirname } from 'path';
+import { existsSync, writeFileSync, readFileSync } from 'fs';
 
 /**
  * Derive PM2 process name from agent config.
@@ -72,6 +75,53 @@ export interface LiveAgentStatus {
 }
 
 // ─── Deployment Engine ──────────────────────────────────
+
+/**
+ * Ensure PM2 is installed globally. Auto-installs if missing.
+ * Returns { installed: boolean, version?: string, error?: string }
+ */
+export async function ensurePm2(): Promise<{ installed: boolean; version?: string; error?: string }> {
+  try {
+    const version = execSync('pm2 -v', { stdio: 'pipe', encoding: 'utf-8' }).trim();
+    return { installed: true, version };
+  } catch {
+    // Not installed — try to install
+    console.log('[deployer] PM2 not found — auto-installing...');
+    try {
+      execSync('npm install -g pm2', { stdio: 'pipe', timeout: 120_000 });
+      const version = execSync('pm2 -v', { stdio: 'pipe', encoding: 'utf-8' }).trim();
+      console.log(`[deployer] PM2 ${version} installed successfully`);
+      return { installed: true, version };
+    } catch (e: any) {
+      console.error(`[deployer] PM2 auto-install failed: ${e.message}`);
+      return { installed: false, error: e.message };
+    }
+  }
+}
+
+/**
+ * Generate a PM2 ecosystem config for an agent.
+ * Writes ecosystem.config.cjs if it doesn't exist or is outdated.
+ */
+function generateEcosystemConfig(config: AgentConfig): { script: string; args: string; name: string; cwd: string; envFile?: string } {
+  const pm2Name = getPm2Name(config);
+  const local = (config.deployment?.config as any)?.local;
+  const cwd = local?.workDir || process.cwd();
+  const script = resolve(cwd, 'dist/cli.js');
+
+  // Derive env file: .env.{slug} for agents, .env for enterprise
+  const slug = config.name.split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const envFile = resolve(cwd, `.env.${slug}`);
+  const hasEnvFile = existsSync(envFile);
+
+  return {
+    script,
+    args: 'agent',
+    name: pm2Name,
+    cwd,
+    envFile: hasEnvFile ? envFile : undefined,
+  };
+}
 
 export class DeploymentEngine {
   private configGen = new AgentConfigGenerator();
@@ -140,8 +190,11 @@ export class DeploymentEngine {
         return this.execSSH(config, `sudo systemctl stop agenticmail-${config.name}`);
       case 'fly':
         return this.flyMachineAction(config, 'stop');
-      case 'local':
+      case 'local': {
+        const pm2ok = await ensurePm2();
+        if (!pm2ok.installed) return { success: false, message: `PM2 not available: ${pm2ok.error}` };
         return this.execCommand(`pm2 stop ${getPm2Name(config)}`);
+      }
       default:
         return { success: false, message: `Cannot stop: unsupported target ${config.deployment.target}` };
     }
@@ -158,8 +211,11 @@ export class DeploymentEngine {
         return this.execSSH(config, `sudo systemctl restart agenticmail-${config.name}`);
       case 'fly':
         return this.flyMachineAction(config, 'restart');
-      case 'local':
+      case 'local': {
+        const pm2ok = await ensurePm2();
+        if (!pm2ok.installed) return { success: false, message: `PM2 not available: ${pm2ok.error}` };
         return this.execCommand(`pm2 restart ${getPm2Name(config)}`);
+      }
       default:
         return { success: false, message: `Cannot restart: unsupported target ${config.deployment.target}` };
     }
@@ -377,9 +433,17 @@ export class DeploymentEngine {
   private async deployLocal(config: AgentConfig, emit: (phase: DeploymentPhase, status: DeploymentEvent['status'], msg: string, details?: any) => void): Promise<DeploymentResult> {
     const pm2Name = getPm2Name(config);
 
-    emit('provision', 'started', `Checking PM2 process "${pm2Name}"...`);
+    // 1. Ensure PM2 is installed
+    emit('install', 'started', 'Checking PM2 installation...');
+    const pm2Status = await ensurePm2();
+    if (!pm2Status.installed) {
+      emit('install', 'failed', `PM2 installation failed: ${pm2Status.error}. Try manually: npm install -g pm2`);
+      return { success: false, events: [], error: `PM2 not available: ${pm2Status.error}` };
+    }
+    emit('install', 'completed', `PM2 v${pm2Status.version} ready`);
 
-    // Check if PM2 process exists
+    // 2. Check if PM2 process exists
+    emit('provision', 'started', `Checking PM2 process "${pm2Name}"...`);
     const list = await this.execCommand(`pm2 jlist 2>/dev/null`);
     let processExists = false;
     if (list.success) {
@@ -389,21 +453,52 @@ export class DeploymentEngine {
       } catch {}
     }
 
+    // 3. Auto-create PM2 process if it doesn't exist
     if (!processExists) {
-      emit('provision', 'failed', `PM2 process "${pm2Name}" not found. Create it first with: pm2 start ...`);
-      return { success: false, events: [], error: `PM2 process "${pm2Name}" not registered` };
-    }
-    emit('provision', 'completed', `PM2 process "${pm2Name}" found`);
+      emit('provision', 'started', `Creating PM2 process "${pm2Name}"...`);
+      const eco = generateEcosystemConfig(config);
 
-    emit('start', 'started', `Restarting ${pm2Name}...`);
-    const result = await this.execCommand(`pm2 restart ${pm2Name}`);
-    if (!result.success) {
-      emit('start', 'failed', `PM2 restart failed: ${result.message}`);
-      return { success: false, events: [], error: result.message };
-    }
-    emit('start', 'completed', `${pm2Name} restarted`);
+      if (!existsSync(eco.script)) {
+        emit('provision', 'failed', `Script not found: ${eco.script}. Run "npm run build" first.`);
+        return { success: false, events: [], error: `Script not found: ${eco.script}` };
+      }
 
-    // Health check: wait for process to be "online"
+      // Build pm2 start command with proper flags
+      const interpreterArgs = eco.envFile ? `--env-file=${eco.envFile}` : '';
+      const startCmd = [
+        'pm2', 'start', eco.script,
+        '--name', pm2Name,
+        '--cwd', eco.cwd,
+        '--', eco.args,
+      ];
+      if (interpreterArgs) {
+        // Insert interpreter args before the script
+        startCmd.splice(2, 0, '--interpreter-args', `"${interpreterArgs}"`);
+      }
+
+      const createResult = await this.execCommand(startCmd.join(' '));
+      if (!createResult.success) {
+        emit('provision', 'failed', `Failed to create PM2 process: ${createResult.message}`);
+        return { success: false, events: [], error: createResult.message };
+      }
+
+      // Save PM2 process list so it survives system restarts
+      await this.execCommand('pm2 save');
+      emit('provision', 'completed', `PM2 process "${pm2Name}" created and saved`);
+    } else {
+      emit('provision', 'completed', `PM2 process "${pm2Name}" found`);
+
+      // Restart existing process
+      emit('start', 'started', `Restarting ${pm2Name}...`);
+      const result = await this.execCommand(`pm2 restart ${pm2Name}`);
+      if (!result.success) {
+        emit('start', 'failed', `PM2 restart failed: ${result.message}`);
+        return { success: false, events: [], error: result.message };
+      }
+      emit('start', 'completed', `${pm2Name} restarted`);
+    }
+
+    // 4. Health check: wait for process to be "online"
     emit('healthcheck', 'started', 'Checking process health...');
     await new Promise(r => setTimeout(r, 3000));
     const status = await this.execCommand(`pm2 jlist 2>/dev/null`);

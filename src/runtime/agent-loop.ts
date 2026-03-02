@@ -163,6 +163,8 @@ export interface AgentLoopOptions {
   sessionId?: string;
   /** Retry config for LLM calls */
   retryConfig?: { maxRetryDurationMs?: number; maxRetries?: number; baseDelayMs?: number; maxDelayMs?: number };
+  /** Runtime reference for tool access */
+  runtime?: any;
 }
 
 export interface AgentLoopResult {

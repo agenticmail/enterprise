@@ -78,6 +78,8 @@ export type ToolSet =
   // Messaging channels
   | 'msg_whatsapp'
   | 'msg_telegram'
+  // Management (hierarchy, delegation, escalation)
+  | 'management'
   // Integrations
   | 'mcp_bridge';
 
@@ -125,6 +127,7 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   ent_knowledge: 2,
   local_filesystem: 2,
   local_shell: 2,
+  management: 1,      // always loaded — agent must know its position
   msg_whatsapp: 2,
   msg_telegram: 2,
   mcp_bridge: 3,
@@ -443,6 +446,19 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   telegram_send_media: 'msg_telegram',
   telegram_get_me: 'msg_telegram',
   telegram_get_chat: 'msg_telegram',
+
+  // ── Management (11) ──
+  team_status: 'management',
+  team_delegate_task: 'management',
+  team_tasks: 'management',
+  team_reassign_task: 'management',
+  team_feedback: 'management',
+  team_resolve_escalation: 'management',
+  team_forward_escalation: 'management',
+  team_org_chart: 'management',
+  task_update: 'management',
+  my_tasks: 'management',
+  escalate: 'management',
 };
 
 // ─── Session Context Types ───────────────────────────────
@@ -794,6 +810,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   local_shell: 'Shell exec, PTY sessions, sudo, package install (7 tools)',
   msg_whatsapp: 'WhatsApp messaging, media, groups (16 tools)',
   msg_telegram: 'Telegram messaging and media (4 tools)',
+  management: 'Team management — delegate tasks, escalate, org chart (10 tools)',
   mcp_bridge: 'MCP integration adapters',
 };
 

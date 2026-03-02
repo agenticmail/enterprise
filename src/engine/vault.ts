@@ -496,45 +496,69 @@ export class SecureVault {
    */
   async getAuditLog(
     orgId: string,
-    opts?: { entryId?: string; action?: string; limit?: number },
-  ): Promise<VaultAuditEntry[]> {
-    if (!this.engineDb) return [];
+    opts?: { entryId?: string; action?: string; actor?: string; search?: string; limit?: number; offset?: number },
+  ): Promise<{ entries: VaultAuditEntry[]; total: number }> {
+    if (!this.engineDb) return { entries: [], total: 0 };
 
-    const conditions: string[] = ['org_id = ?'];
+    const conditions: string[] = ['a.org_id = ?'];
     const params: any[] = [orgId];
 
     if (opts?.entryId) {
-      conditions.push('vault_entry_id = ?');
+      conditions.push('a.vault_entry_id = ?');
       params.push(opts.entryId);
     }
     if (opts?.action) {
-      conditions.push('action = ?');
+      conditions.push('a.action = ?');
       params.push(opts.action);
+    }
+    if (opts?.actor) {
+      conditions.push('a.actor = ?');
+      params.push(opts.actor);
+    }
+    if (opts?.search) {
+      conditions.push("(a.actor LIKE ? OR a.action LIKE ? OR COALESCE(a.metadata, '') LIKE ?)");
+      var searchParam = '%' + opts.search + '%';
+      params.push(searchParam, searchParam, searchParam);
     }
 
     const where = conditions.join(' AND ');
-    const limit = opts?.limit || 50;
-    params.push(limit);
+    const limit = opts?.limit || 25;
+    const offset = opts?.offset || 0;
 
     try {
-      const rows = await this.engineDb.query<any>(
-        `SELECT * FROM vault_audit_log WHERE ${where} ORDER BY created_at DESC LIMIT ?`,
+      // Get total count
+      const countRows = await this.engineDb.query<any>(
+        `SELECT COUNT(*) as cnt FROM vault_audit_log a WHERE ${where}`,
         params,
       );
+      const total = countRows[0]?.cnt || 0;
 
-      return rows.map((r: any) => ({
-        id: r.id,
-        orgId: r.org_id,
-        vaultEntryId: r.vault_entry_id || undefined,
-        action: r.action,
-        actor: r.actor,
-        ip: r.ip || undefined,
-        metadata: safeJsonParse(r.metadata),
-        createdAt: r.created_at,
-      }));
+      // Get paginated entries — join with vault_entries for secret name
+      const dataParams = [...params, limit, offset];
+      const rows = await this.engineDb.query<any>(
+        `SELECT a.*, e.name as entry_name FROM vault_audit_log a
+         LEFT JOIN vault_entries e ON a.vault_entry_id = e.id
+         WHERE ${where} ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
+        dataParams,
+      );
+
+      return {
+        total,
+        entries: rows.map((r: any) => ({
+          id: r.id,
+          orgId: r.org_id,
+          vaultEntryId: r.vault_entry_id || undefined,
+          entryName: r.entry_name || undefined,
+          action: r.action,
+          actor: r.actor,
+          ip: r.ip || undefined,
+          metadata: safeJsonParse(r.metadata),
+          createdAt: r.created_at,
+        })),
+      };
     } catch {
       /* table may not exist yet */
-      return [];
+      return { entries: [], total: 0 };
     }
   }
 

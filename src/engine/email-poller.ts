@@ -207,7 +207,8 @@ export class EmailPoller {
       if (!emailConfig.oauthRefreshToken || !emailConfig.oauthClientId || !emailConfig.oauthClientSecret) continue;
 
       const agentEmail = emailConfig.email || agent.config?.email?.address || '';
-      const port = agentPorts[agent.id] || 3100;
+      const dep = agent.config?.deployment;
+      const port = agentPorts[agent.id] || dep?.port || dep?.config?.local?.port || 3100;
 
       this.mailboxes.set(agent.id, {
         agentId: agent.id,

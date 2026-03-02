@@ -669,7 +669,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     }
 
     const { rows } = await this.pool.query(query, params);
-    return rows.map(row => ({
+    return rows.map((row: any) => ({
       id: row.id,
       eventType: row.event_type,
       severity: row.severity,

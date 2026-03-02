@@ -346,13 +346,12 @@ export class AmbientMemory {
    */
   private async getMessagingHistory(source: string, contactId: string): Promise<string> {
     try {
-      if (source === 'whatsapp') {
-        // WhatsApp: Baileys doesn't persist history — return empty for now
-        // TODO: Store WhatsApp messages in Postgres for ambient recall
-        return '';
-      } else if (source === 'telegram') {
-        // Telegram: Bot API doesn't provide chat history — return empty for now
-        // TODO: Store Telegram messages in Postgres for ambient recall
+      if (source === 'whatsapp' || source === 'telegram') {
+        // Fetch from persistent messaging_history table
+        if (this.db) {
+          const { getRecentHistory } = await import('./messaging-history.js');
+          return await getRecentHistory(this.db, this.agentId, source, contactId);
+        }
         return '';
       }
     } catch (err: any) {

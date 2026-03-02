@@ -405,7 +405,7 @@ export function SkillConnectionsPage() {
             var help = getAuthHelp(skill.skillId) || (meta.authHelp ? meta.authHelp : null);
             if (!help) return null;
             return h('div', {
-              style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: 6, borderLeft: '3px solid var(--primary)' }
+              style: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: 6, border: '1px solid var(--border)' }
             },
               h('div', { style: { fontWeight: 600, marginBottom: 4, fontSize: 11, textTransform: 'uppercase', color: 'var(--primary)' } }, 'How to connect'),
               h('div', { style: { lineHeight: 1.5, marginBottom: 6 } }, help.steps || help.description),
@@ -459,7 +459,7 @@ export function SkillConnectionsPage() {
                 var help = getAuthHelp(configSkill.skillId) || (configSkill.skill?.authHelp || configSkill.manifest?.authHelp);
                 if (!help) return null;
                 return h('div', {
-                  style: { marginBottom: 16, padding: '12px 14px', background: 'var(--bg-tertiary)', borderRadius: 8, borderLeft: '3px solid var(--primary)' }
+                  style: { marginBottom: 16, padding: '12px 14px', background: 'var(--bg-tertiary)', borderRadius: 8, border: '1px solid var(--border)' }
                 },
                   h('div', { style: { fontWeight: 600, marginBottom: 4, fontSize: 12, color: 'var(--primary)' } }, 'Where to get credentials'),
                   h('div', { style: { fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)', marginBottom: 6 } }, help.steps || help.description),

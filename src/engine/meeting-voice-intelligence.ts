@@ -86,7 +86,7 @@ class AudioPlaybackController {
       }
 
       const player = spawn(cmd, args, { stdio: ['ignore', 'ignore', 'pipe'] });
-      this.currentPlayer = player;
+      this.currentPlayer = player as any;
       this.playing = true;
 
       player.on('close', (code) => {

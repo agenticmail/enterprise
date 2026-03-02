@@ -194,6 +194,17 @@ export class AgentRuntime {
       } else {
         console.log(`[runtime] No voiceConfig in agent config (keys: ${Object.keys(agentConfig || {}).join(', ')})`);
       }
+      // Pass messaging channels config so telegram/whatsapp tools can be created
+      if (agentConfig?.messagingChannels) {
+        (base as any).agentConfig = { messagingChannels: agentConfig.messagingChannels };
+      }
+      // Pass agent-level tool security (path sandbox, SSRF, command sanitizer)
+      // Agent overrides take precedence, then fall back to org defaults
+      if (agentConfig?.toolSecurity?.security) {
+        base.security = agentConfig.toolSecurity.security;
+      } else if (self.orgToolSecurity) {
+        base.security = self.orgToolSecurity;
+      }
     }
     // Pass vault for MCP skill bridge (Slack, GitHub, Jira, etc.)
     if (this.config.vault) {
@@ -208,6 +219,10 @@ export class AgentRuntime {
       const getKey = this.config.getIntegrationKey;
       base.mapsApiKeyResolver = () => getKey('google-maps');
       base.elevenLabsKeyResolver = () => getKey('elevenlabs');
+    }
+    // Hierarchy manager for management tools
+    if (this.config.hierarchyManager) {
+      base.hierarchyManager = this.config.hierarchyManager;
     }
     return base;
   }
@@ -226,6 +241,11 @@ export class AgentRuntime {
         var pricingConfig = (settings as any)?.modelPricingConfig;
         if (pricingConfig && pricingConfig.customProviders) {
           this.customProviders = pricingConfig.customProviders;
+        }
+        // Load org-level tool security defaults
+        var toolSecConfig = (settings as any)?.toolSecurityConfig;
+        if (toolSecConfig?.security) {
+          this.orgToolSecurity = toolSecConfig.security;
         }
       }
     } catch {}
@@ -321,7 +341,12 @@ export class AgentRuntime {
     if (this.config.agentMemoryManager) {
       try { memoryContext = await this.config.agentMemoryManager.generateMemoryContext(agentId); } catch {}
     }
-    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext);
+    // Inject hierarchy/management context
+    var hierarchyContext = '';
+    if (this.config.hierarchyManager) {
+      try { hierarchyContext = await this.config.hierarchyManager.buildManagerPrompt(agentId) || ''; } catch {}
+    }
+    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext, hierarchyContext);
 
     // Detect session context for dynamic tool loading
     var sessionContext = detectSessionContext({
@@ -427,7 +452,11 @@ export class AgentRuntime {
     if (this.config.agentMemoryManager) {
       try { memoryContext = await this.config.agentMemoryManager.generateMemoryContext(session.agentId); } catch {}
     }
-    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext);
+    var _hierarchyCtx = '';
+    if (this.config.hierarchyManager) {
+      try { _hierarchyCtx = await this.config.hierarchyManager.buildManagerPrompt(session.agentId) || ''; } catch {}
+    }
+    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext, _hierarchyCtx);
 
     // Context-aware tool loading — reuses session tool state (preserves dynamically loaded sets)
     // Don't re-detect context for keep-alive sessions (meetings) — they stay in their original context
@@ -843,7 +872,11 @@ export class AgentRuntime {
           if (this.config.agentMemoryManager) {
             try { mc = await this.config.agentMemoryManager.generateMemoryContext(session.agentId); } catch {}
           }
-          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc);
+          var _hc = '';
+          if (this.config.hierarchyManager) {
+            try { _hc = await this.config.hierarchyManager.buildManagerPrompt(session.agentId) || ''; } catch {}
+          }
+          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc, _hc);
           var _resumeCtx = detectSessionContext({
             systemPrompt: _resumePrompt,
             isKeepAlive: this.keepAliveSessions.has(session.id),
@@ -920,6 +953,7 @@ export class AgentRuntime {
   }
 
   private customProviders: CustomProviderDef[] = [];
+  private orgToolSecurity: any = null;
 
   private resolveApiKey(provider: string): string | undefined {
     return resolveApiKeyForProvider(provider, this.config.apiKeys, this.customProviders);
@@ -945,7 +979,7 @@ export function createAgentRuntime(config: RuntimeConfig): AgentRuntime {
 
 // ─── Default System Prompt ───────────────────────────────
 
-function buildDefaultSystemPrompt(agentId: string, memoryContext?: string): string {
+function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string): string {
   var base = `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
 
 You have access to a comprehensive set of tools for completing tasks. Use them effectively.
@@ -966,6 +1000,10 @@ Current time: ${new Date().toISOString()}`;
 
   if (memoryContext) {
     base += '\n\n' + memoryContext;
+  }
+
+  if (hierarchyContext) {
+    base += '\n\n' + hierarchyContext;
   }
 
   return base;

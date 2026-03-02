@@ -319,7 +319,7 @@ export const ALL_TOOLS: ToolDefinition[] = [
 /**
  * Tool ID → ToolDefinition lookup
  */
-export const TOOL_INDEX: Map<string, ToolDefinition> = new Map(ALL_TOOLS.map(t => [t.id, t]));
+export const TOOL_INDEX: Map<string, ToolDefinition> = new Map(ALL_TOOLS.map(t => [t.id || t.name, t]));
 
 /**
  * Skill ID → Tool IDs mapping
@@ -327,9 +327,9 @@ export const TOOL_INDEX: Map<string, ToolDefinition> = new Map(ALL_TOOLS.map(t =
 export function getToolsBySkill(): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const tool of ALL_TOOLS) {
-    const list = map.get(tool.skillId) || [];
-    list.push(tool.id);
-    map.set(tool.skillId, list);
+    const list = map.get(tool.skillId || tool.name || 'unknown') || [];
+    list.push(tool.id || tool.name);
+    map.set(tool.skillId || tool.name || 'unknown', list);
   }
   return map;
 }

@@ -314,7 +314,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     ...createSecurityScanTools(options),
     ...createCodeSandboxTools(options),
     ...createDiffTools(options),
-    ...createKnowledgeSearchTools(options),
+    ...createKnowledgeSearchTools(options || {} as any),
   ];
 
   // AgenticMail tools (if manager + agentId provided)
@@ -404,16 +404,54 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
   // ─── Messaging Tools (WhatsApp, Telegram) ───
   var messagingTools: AnyAgentTool[] = [];
   try {
+    // Outbound message recorder — stores agent replies in messaging_history
+    var _outboundRecorder: ((platform: string, contactId: string, text: string) => void) | undefined;
+    try {
+      const { storeMessage } = await import('../engine/messaging-history.js');
+      const agentId = options?.agentId || '';
+      const engineDb = (options as any)?.engineDb;
+      if (engineDb && agentId) {
+        _outboundRecorder = (platform: string, contactId: string, text: string) => {
+          storeMessage(engineDb, {
+            agentId, platform, contactId, direction: 'outbound',
+            senderName: 'Agent', messageText: text,
+          }).catch(() => {});
+        };
+      }
+    } catch {}
+
     // WhatsApp
     const dataDir = options?.workspaceDir ? (await import('node:path')).resolve(options.workspaceDir, '..') : process.cwd();
-    messagingTools = messagingTools.concat(createWhatsAppTools({ agentId: options?.agentId || '', dataDir }) as any);
+    const _rec = _outboundRecorder;
+    messagingTools = messagingTools.concat(createWhatsAppTools({
+      agentId: options?.agentId || '', dataDir,
+      onOutbound: _rec ? (contactId: string, text: string) => _rec('whatsapp', contactId, text) : undefined,
+    }) as any);
     // Telegram
     const telegramConfig = (options as any)?.agentConfig?.messagingChannels?.telegram || {};
     if (telegramConfig.botToken) {
-      messagingTools = messagingTools.concat(createTelegramTools({ botToken: telegramConfig.botToken }) as any);
+      messagingTools = messagingTools.concat(createTelegramTools({
+        botToken: telegramConfig.botToken,
+        onOutbound: _rec ? (chatId: string, text: string) => _rec('telegram', chatId, text) : undefined,
+      }) as any);
     }
   } catch (e: any) {
     console.warn(`[tools] Messaging tools load failed: ${e.message}`);
+  }
+
+  // ─── Management / Hierarchy Tools (delegation, escalation, org chart) ───
+  var managementTools: AnyAgentTool[] = [];
+  if ((options as any)?.hierarchyManager && options?.agentId) {
+    try {
+      var { createManagementTools } = await import('./tools/management.js');
+      managementTools = createManagementTools({
+        hierarchyManager: (options as any).hierarchyManager,
+        agentId: options.agentId,
+        runtime: (options as any)?.runtimeRef,
+      }) as AnyAgentTool[];
+    } catch (e: any) {
+      console.warn(`[tools] Management tools load failed: ${e.message}`);
+    }
   }
 
   var enabledTools = rawTools
@@ -423,7 +461,8 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     .concat(workspaceTools)
     .concat(enterpriseBrowserTools)
     .concat(integrationTools)
-    .concat(messagingTools);
+    .concat(messagingTools)
+    .concat(managementTools);
 
   // Wrap with middleware if configured
   if (options?.middleware) {

@@ -59,6 +59,7 @@ export interface VoiceStatus {
 class VoiceCapabilityManager {
   private statusByAgent = new Map<string, VoiceStatus>();
   private static instance: VoiceCapabilityManager;
+  _announcedChatFallback = new Set<string>();
 
   static getInstance(): VoiceCapabilityManager {
     if (!this.instance) this.instance = new VoiceCapabilityManager();

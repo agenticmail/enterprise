@@ -257,7 +257,7 @@ export function ToolSecuritySection(props) {
     !dirty && Object.keys(agentOverrides).length > 0 && h('div', {
       style: { padding: '8px 12px', borderRadius: 6, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }
     },
-      I.info(),
+      I.shield(),
       'This agent has custom overrides for: ',
       h('strong', null,
         [].concat(

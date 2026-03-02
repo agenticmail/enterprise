@@ -157,7 +157,7 @@ export function ipAccessControl(_getDb?: () => any): MiddlewareHandler {
     // Extract connecting IP (from socket, not headers)
     const connectingIp =
       (c.env as any)?.remoteAddress ||
-      c.req.raw?.socket?.remoteAddress ||
+      (c.req.raw as any)?.socket?.remoteAddress ||
       'unknown';
 
     // Extract real client IP (validated against trusted proxies)

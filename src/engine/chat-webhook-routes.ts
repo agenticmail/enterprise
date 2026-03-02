@@ -68,9 +68,12 @@ export function createChatWebhookRoutes(opts: {
   getRuntime: () => any | null;
   projectNumber?: string;
   standaloneAgents?: StandaloneAgent[];
+  getStandaloneAgents?: () => StandaloneAgent[];
 }): Hono {
   const app = new Hono();
-  const { lifecycle, getRuntime, standaloneAgents = [] } = opts;
+  const { lifecycle, getRuntime, standaloneAgents: staticAgents, getStandaloneAgents } = opts;
+  // Dynamic getter preferred — falls back to static array for backwards compat
+  const resolveStandaloneAgents = () => getStandaloneAgents ? getStandaloneAgents() : (staticAgents || []);
 
   app.post('/', async (c) => {
     // ── Webhook security (DB-backed) ──────────────────
@@ -121,7 +124,7 @@ export function createChatWebhookRoutes(opts: {
         return c.json({});
 
       case 'MESSAGE':
-        return await handleMessage(c, event, lifecycle, getRuntime, standaloneAgents);
+        return await handleMessage(c, event, lifecycle, getRuntime, resolveStandaloneAgents());
 
       case 'CARD_CLICKED':
         return c.json({ text: 'Got it!' });

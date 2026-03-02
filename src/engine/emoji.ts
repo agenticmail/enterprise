@@ -16,6 +16,7 @@ export const Emoji = {
   blocked: '\uD83D\uDEAB',  // 🚫
   bolt: '\u26A1',            // ⚡
   hourglass: '\u23F3',       // ⏳
+  search: '🔍',             // 🔍
   clock: '\u23F0',           // ⏰
 
   // Communication

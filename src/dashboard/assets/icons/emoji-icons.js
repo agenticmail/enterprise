@@ -859,6 +859,22 @@ export const E = {
       h('path', { d: 'M17.47 14.38c-.27-.14-1.6-.79-1.85-.88s-.43-.14-.61.14-.7.88-.86 1.06-.32.2-.59.07a7.4 7.4 0 01-2.2-1.36 8.3 8.3 0 01-1.52-1.9c-.16-.27 0-.42.12-.56s.27-.32.41-.48.18-.27.27-.45a.5.5 0 000-.48c-.07-.14-.61-1.47-.84-2-.22-.53-.44-.46-.61-.46h-.52a1 1 0 00-.72.34A3.04 3.04 0 007.2 10a5.27 5.27 0 001.1 2.8 12.1 12.1 0 004.63 4.09c.65.28 1.15.45 1.55.58.65.21 1.24.18 1.71.11.52-.08 1.6-.66 1.83-1.29s.23-1.18.16-1.29-.25-.2-.52-.34z', fill: 'white' })
     );
   },
+  // 👥 Customers — multi-person group icon
+  customers: function(size) {
+    var s = size || 20;
+    return h('svg', svg({ width: s, height: s }),
+      h('defs', null,
+        h('linearGradient', { id: 'cust-g', x1: '0%', y1: '0%', x2: '100%', y2: '100%' },
+          h('stop', { offset: '0%', stopColor: '#8b5cf6' }),
+          h('stop', { offset: '100%', stopColor: '#6366f1' })
+        )
+      ),
+      h('circle', { cx: 9, cy: 7.5, r: 3.5, fill: 'url(#cust-g)' }),
+      h('circle', { cx: 16, cy: 8.5, r: 2.8, fill: '#a78bfa' }),
+      h('path', { d: 'M1.5 19.5c0-4.14 3.36-7 7.5-7s7.5 2.86 7.5 7', fill: 'url(#cust-g)', opacity: 0.85 }),
+      h('path', { d: 'M14 13c2.76 0 5.5 1.9 5.5 4.5v2', fill: '#a78bfa', opacity: 0.7 })
+    );
+  },
   telegram: function(size) {
     var s = size || 20;
     return h('svg', svg({ width: s, height: s }),

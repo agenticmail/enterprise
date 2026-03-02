@@ -4,7 +4,7 @@ const WHATSAPP_SKILL_DEF: SkillDefinition = {
   id: 'msg-whatsapp',
   name: 'WhatsApp',
   description: 'WhatsApp messaging via linked device.',
-  category: 'messaging',
+  category: 'messaging', risk: 'medium' as any, tools: [],
 };
 
 const WHATSAPP_TOOLS: ToolDefinition[] = [
@@ -30,7 +30,7 @@ const TELEGRAM_SKILL_DEF: SkillDefinition = {
   id: 'msg-telegram',
   name: 'Telegram',
   description: 'Telegram Bot API messaging.',
-  category: 'messaging',
+  category: 'messaging', risk: 'medium' as any, tools: [],
 };
 
 const TELEGRAM_TOOLS: ToolDefinition[] = [

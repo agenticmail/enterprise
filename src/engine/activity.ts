@@ -258,7 +258,7 @@ export class ActivityTracker {
         durationMs: opts.durationMs,
       },
       result: { success: opts.success, error: opts.error },
-      permission: { allowed: true },
+      permission: { allowed: true, reason: '', requiredApproval: false },
     };
     this.toolCalls.set(record.id, record);
     if (this.toolCalls.size > this.maxToolCalls) {

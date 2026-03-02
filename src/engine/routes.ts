@@ -123,6 +123,10 @@ const vault = new SecureVault();
 const storageManager = new StorageManager({ vault });
 const policyImporter = new PolicyImporter({ policyEngine, storageManager });
 const knowledgeContribution = new KnowledgeContributionManager({ memoryCallback: async (agentId: string) => memoryManager.queryMemories({ agentId }) });
+
+// Agent hierarchy manager (org chart, delegation, escalation)
+import { AgentHierarchyManager } from './agent-hierarchy.js';
+let hierarchyManager: AgentHierarchyManager | null = null;
 const knowledgeImport = new KnowledgeImportManager({ knowledgeContribution });
 const skillUpdater = new SkillAutoUpdater({ registry: communityRegistry });
 
@@ -202,6 +206,7 @@ engine.route('/', createAgentRoutes({
   lifecycle,
   permissions: permissionEngine,
   getAdminDb: () => _adminDb,
+  get engineDb() { return _engineDb; },
 }));
 
 engine.route('/', createKnowledgeRoutes(knowledgeBase));
@@ -286,6 +291,52 @@ engine.route('/knowledge-import', createKnowledgeImportRoutes(knowledgeImport));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
 engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
 
+// ─── Hierarchy / Management API ─────────────────────────
+engine.get('/hierarchy/org-chart', async (c) => {
+  if (!hierarchyManager) return c.json({ error: 'Hierarchy not initialized' }, 503);
+  try {
+    const chart = await hierarchyManager.buildOrgChart();
+    const nodes = await hierarchyManager.buildHierarchy();
+    return c.json({ chart, nodes: Array.from(nodes.values()) });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+engine.get('/hierarchy/team/:managerId', async (c) => {
+  if (!hierarchyManager) return c.json({ error: 'Hierarchy not initialized' }, 503);
+  try {
+    const status = await hierarchyManager.getTeamStatus(c.req.param('managerId'));
+    return c.json(status);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+engine.get('/hierarchy/tasks/:agentId', async (c) => {
+  if (!hierarchyManager) return c.json({ error: 'Hierarchy not initialized' }, 503);
+  try {
+    const status = c.req.query('status');
+    const direction = c.req.query('direction') || 'assigned'; // assigned | delegated
+    const tasks = direction === 'delegated'
+      ? await hierarchyManager.getTasksByManager(c.req.param('agentId'), status || undefined)
+      : await hierarchyManager.getTasksForAgent(c.req.param('agentId'), status || undefined);
+    return c.json({ tasks });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+engine.get('/hierarchy/escalations/:agentId', async (c) => {
+  if (!hierarchyManager) return c.json({ error: 'Hierarchy not initialized' }, 503);
+  try {
+    const escalations = await hierarchyManager.getPendingEscalations(c.req.param('agentId'));
+    return c.json({ escalations });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // ─── Integration catalog (serves all 144 MCP adapter integrations) ──
 engine.get('/integrations/catalog', async (c) => {
   try {
@@ -334,10 +385,7 @@ engine.route('/chat-webhook', createChatWebhookRoutes({
   lifecycle,
   getRuntime: () => _runtime,
   projectNumber: '927012824308',
-  standaloneAgents: [
-    { id: '3eecd57d-03ae-440d-8945-5b35f43a8d90', port: 3102 }, // Fola
-    { id: '67ba24f1-c8af-40b4-9df5-c05b81fc1e7a', port: 3101 }, // John
-  ],
+  getStandaloneAgents: () => lifecycle.getStandaloneAgents(),
 }));
 
 // ─── Chat Poller Management API ─────────────────────────
@@ -430,7 +478,7 @@ export async function setEngineDb(
     compliance.setDb(db),
     communityRegistry.setDb(db),
     knowledgeContribution.setDb(db),
-    (async () => { knowledgeImport.setDb(db?.db || db); knowledgeImport.setKnowledgeEngine(knowledgeBase); await knowledgeImport.loadJobs(); })(),
+    (async () => { knowledgeImport.setDb((db as any)?.db || db); knowledgeImport.setKnowledgeEngine(knowledgeBase); await knowledgeImport.loadJobs(); })(),
     workforce.setDb(db),
     policyEngine.setDb(db),
     memoryManager.setDb(db),
@@ -439,6 +487,10 @@ export async function setEngineDb(
     storageManager.setDb(db),
     policyImporter.setDb(db),
   ]);
+  // Initialize hierarchy manager + start background task monitor
+  hierarchyManager = new AgentHierarchyManager(db);
+  hierarchyManager.startMonitor();
+
   guardrails.startAnomalyDetection();
   workforce.startScheduler();
   knowledgeContribution.startScheduler();
@@ -462,7 +514,7 @@ export async function setEngineDb(
               frequency: 'daily',
               filters: { minConfidence: 0.6 },
             });
-            console.log(`[knowledge-contribution] Auto-created daily schedule for ${agent.config?.identity?.name || agent.id}`);
+            console.log(`[knowledge-contribution] Auto-created daily schedule for ${agent.config?.identity?.name as any || agent.id}`);
           } catch { /* skip if base not found etc */ }
         }
       }
@@ -568,8 +620,10 @@ async function startChatPoller(engineDb: any): Promise<void> {
     const name = a.config?.name || a.name || 'agent';
     const displayName = a.config?.displayName || name;
     const email = a.config?.emailConfig?.email || a.config?.email?.address || '';
-    // Known ports from standalone config, or fall back to well-known ports
-    const port = standaloneAgentPorts[a.id] || 3100;
+    // Port priority: DB standalone_agents setting → agent deployment config → fallback
+    const dep = a.config?.deployment;
+    const port = standaloneAgentPorts[a.id] || dep?.port || dep?.config?.local?.port || 3100;
+    const host = dep?.host || dep?.config?.local?.host || 'localhost';
 
     return {
       id: a.id,
@@ -577,7 +631,7 @@ async function startChatPoller(engineDb: any): Promise<void> {
       displayName,
       email,
       port,
-      host: 'localhost',
+      host,
       roles: (identity as any).roles || [identity.role].filter(Boolean),
       keywords: (identity as any).keywords || [],
       enabled: a.state === 'running',
@@ -625,10 +679,15 @@ let _messagingPoller: MessagingPoller | null = null;
 
 async function startMessagingPoller(engineDb: any): Promise<void> {
   const allAgents = lifecycle.getAllAgents();
-  const agents = allAgents.filter(a => a.state === 'running' || a.status === 'active').map(a => ({
-    id: a.id, name: a.name || '', displayName: (a.config as any)?.displayName || a.name || a.id,
-    status: 'active' as const, port: a.port || 3102,
-  }));
+  const agents = allAgents.filter(a => a.state === 'running' || (a as any).status === 'active').map(a => {
+    const dep = a.config?.deployment;
+    const port = dep?.port || dep?.config?.local?.port || 3100;
+    const host = dep?.host || dep?.config?.local?.host || 'localhost';
+    return {
+      id: a.id, name: a.name || '', displayName: (a.config as any)?.displayName || a.name || a.id,
+      status: 'active' as const, port, host,
+    };
+  });
 
   // Check platform capabilities via admin DB (has direct pool access)
   let capabilities: any = {};
@@ -661,18 +720,19 @@ async function startMessagingPoller(engineDb: any): Promise<void> {
     agents: agents as any,
     dataDir: process.env.DATA_DIR || '/tmp/agenticmail-data',
     publicUrl,
-    app: _engineApp || undefined,
+    app: (_engineApp || undefined) as any,
     engineDb,
+    lifecycle: { getAgent: (id: string) => lifecycle.getAgent(id) },
     getCapability: (key: string) => !!capabilities[key],
     getAgentChannelConfig: (agentId: string) => {
       try {
         const a = lifecycle.getAgent(agentId);
-        return a?.config?.messagingChannels || null;
+        return (a?.config as any)?.messagingChannels || null;
       } catch { return null; }
     },
     getVaultKey: (name: string) => {
       try {
-        const vault = lifecycle.getVault?.();
+        const vault = ((lifecycle as any).getVault?.() || (lifecycle as any).vault);
         return vault?.get?.(name) || null;
       } catch { return null; }
     },
@@ -699,4 +759,4 @@ export function setRuntime(runtime: any): void {
 }
 
 export { engine as engineRoutes };
-export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus };
+export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus, hierarchyManager };

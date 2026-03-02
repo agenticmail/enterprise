@@ -54,7 +54,7 @@ export function createKnowledgeSearchTools(opts: ToolCreationOptions): AnyAgentT
       },
       required: ['query'],
     },
-    async execute(input: Record<string, unknown>) {
+    async execute(_id: string, input: Record<string, unknown>) {
       const query = readStringParam(input, 'query');
       if (!query) return errorResult('query is required');
 
@@ -131,7 +131,7 @@ export function createKnowledgeSearchTools(opts: ToolCreationOptions): AnyAgentT
       },
       required: ['query'],
     },
-    async execute(input: Record<string, unknown>) {
+    async execute(_id: string, input: Record<string, unknown>) {
       const query = readStringParam(input, 'query');
       if (!query) return errorResult('query is required');
 
@@ -165,7 +165,7 @@ export function createKnowledgeSearchTools(opts: ToolCreationOptions): AnyAgentT
 
         sql += ` ORDER BY created_at DESC LIMIT 200`;
 
-        const rows = await engineDb.query<any>(sql, params);
+        const rows = await engineDb.query(sql, params);
 
         // Score results by keyword relevance
         const scored = rows
@@ -238,7 +238,7 @@ export function createKnowledgeSearchTools(opts: ToolCreationOptions): AnyAgentT
       },
       required: [],
     },
-    async execute(input: Record<string, unknown>) {
+    async execute(_id: string, input: Record<string, unknown>) {
       if (!engineDb) return errorResult('Database not available');
 
       const days = readNumberParam(input, 'days') || 7;
@@ -255,7 +255,7 @@ export function createKnowledgeSearchTools(opts: ToolCreationOptions): AnyAgentT
         }
         sql += ` ORDER BY timestamp DESC LIMIT 100`;
 
-        const rows = await engineDb.query<any>(sql, params);
+        const rows = await engineDb.query(sql, params);
 
         // Compute metrics
         const totalSearches = rows.length;

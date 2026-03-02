@@ -24,6 +24,10 @@ export function DeploymentSection(props) {
   var loading = _loading[0]; var setLoading = _loading[1];
   var _showJson = useState(false);
   var showJson = _showJson[0]; var setShowJson = _showJson[1];
+  var _pmStatus = useState(null);
+  var pmStatus = _pmStatus[0]; var setPmStatus = _pmStatus[1];
+  var _installingPm2 = useState(false);
+  var installingPm2 = _installingPm2[0]; var setInstallingPm2 = _installingPm2[1];
 
   var load = function() {
     setLoading(true);
@@ -115,8 +119,31 @@ export function DeploymentSection(props) {
       railwayApiToken: rail.apiToken || '',
       railwayProjectId: rail.projectId || '',
       railwayServiceName: rail.serviceName || '',
+      // Local
+      localPort: deployment.port || (deployment.config?.local?.port) || '',
+      localHost: deployment.host || (deployment.config?.local?.host) || 'localhost',
+      localProcessManager: deployment.config?.local?.processManager || 'pm2',
+      localProcessName: deployment.config?.local?.processName || '',
+      localWorkDir: deployment.config?.local?.workDir || '',
     });
     setEditingDeploy(true);
+    // Check process manager availability when editing local deployment
+    engineCall('/system/process-managers').then(function(d) { setPmStatus(d); }).catch(function() {});
+  };
+
+  var installPm2 = function() {
+    setInstallingPm2(true);
+    engineCall('/system/install-pm2', { method: 'POST' })
+      .then(function(d) {
+        if (d.success) {
+          toast(d.message, 'success');
+          engineCall('/system/process-managers').then(function(d2) { setPmStatus(d2); }).catch(function() {});
+        } else {
+          toast('Failed: ' + (d.error || 'Unknown error'), 'error');
+        }
+      })
+      .catch(function(err) { toast('Install failed: ' + err.message, 'error'); })
+      .finally(function() { setInstallingPm2(false); });
   };
 
   var saveDeploy = function() {
@@ -137,11 +164,17 @@ export function DeploymentSection(props) {
       deployConfig = { azure: { subscriptionId: deployForm.azureSubscriptionId, resourceGroup: deployForm.azureResourceGroup, region: deployForm.azureRegion || 'eastus', vmSize: deployForm.azureVmSize || 'Standard_B1s', tenantId: deployForm.azureTenantId || undefined, clientId: deployForm.azureClientId || undefined, clientSecret: deployForm.azureClientSecret || undefined } };
     } else if (t === 'railway') {
       deployConfig = { railway: { apiToken: deployForm.railwayApiToken || undefined, projectId: deployForm.railwayProjectId || undefined, serviceName: deployForm.railwayServiceName || undefined, region: deployForm.region || undefined } };
+    } else if (t === 'local') {
+      deployConfig = { local: { port: parseInt(deployForm.localPort) || undefined, host: deployForm.localHost || 'localhost', processManager: deployForm.localProcessManager || 'pm2', processName: deployForm.localProcessName || undefined, workDir: deployForm.localWorkDir || undefined } };
     }
+    var localPort = (t === 'local' && deployForm.localPort) ? parseInt(deployForm.localPort) : undefined;
+    var localHost = (t === 'local' && deployForm.localHost) ? deployForm.localHost : undefined;
     var updates = {
       deployment: {
         target: t,
         region: deployForm.region,
+        port: localPort,
+        host: localHost,
         config: deployConfig
       }
     };
@@ -529,13 +562,57 @@ export function DeploymentSection(props) {
           ),
           h('div', { className: 'form-group' },
             h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Work Directory'),
-            h('input', { className: 'input', value: deployForm.vpsWorkDir, onChange: function(e) { setDf('vpsWorkDir', e.target.value); }, placeholder: '/opt/agenticmail' })
+            h('input', { className: 'input', value: deployForm.vpsWorkDir, onChange: function(e) { setDf('vpsWorkDir', e.target.value); }, placeholder: '/home/user/agenticmail' })
           )
         ),
 
         // ── Local ───────────────────────────────────────────
-        deployForm.target === 'local' && h('div', { style: { padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)' } },
-          'Agent will run in-process on this server. No external deployment required. Best for development and testing.'
+        deployForm.target === 'local' && h(Fragment, null,
+          h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, border: '1px solid var(--border)' } },
+            'Agent runs as a standalone process on this server (e.g. via PM2, systemd). Configure the port so the enterprise server can route messages to it.'
+          ),
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 } },
+            h('div', { className: 'form-group' },
+              h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Port'),
+              h('input', { className: 'input', type: 'number', value: deployForm.localPort, onChange: function(e) { setDf('localPort', e.target.value); }, placeholder: '3101' }),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'HTTP port the agent listens on')
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Host'),
+              h('input', { className: 'input', value: deployForm.localHost, onChange: function(e) { setDf('localHost', e.target.value); }, placeholder: 'localhost' }),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'Hostname or IP (default: localhost)')
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Process Manager'),
+              h('select', { className: 'input', value: deployForm.localProcessManager, onChange: function(e) { setDf('localProcessManager', e.target.value); } },
+                h('option', { value: 'pm2' }, 'PM2' + (pmStatus && pmStatus.pm2?.installed ? ' (v' + pmStatus.pm2.version + ')' : '')),
+                h('option', { value: 'systemd', disabled: pmStatus && !pmStatus.systemd?.available }, 'systemd' + (pmStatus && !pmStatus.systemd?.available ? ' (not available)' : '')),
+                h('option', { value: 'manual' }, 'Manual'),
+                h('option', { value: 'in-process' }, 'In-Process (embedded)')
+              ),
+              // PM2 install prompt
+              pmStatus && deployForm.localProcessManager === 'pm2' && !pmStatus.pm2?.installed && h('div', { style: { marginTop: 6, padding: '8px 12px', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
+                h('span', { style: { color: 'var(--warning-text, #b45309)' } }, 'PM2 is not installed on this server'),
+                h('button', { className: 'btn btn-primary btn-sm', style: { fontSize: 11, padding: '4px 10px' }, disabled: installingPm2, onClick: installPm2 }, installingPm2 ? 'Installing...' : 'Install PM2')
+              ),
+              // systemd not available note
+              pmStatus && deployForm.localProcessManager === 'systemd' && !pmStatus.systemd?.available && h('div', { style: { marginTop: 6, fontSize: 12, color: 'var(--text-muted)' } }, pmStatus.systemd?.note || 'systemd is not available on this platform'),
+              // PM2 installed badge
+              pmStatus && deployForm.localProcessManager === 'pm2' && pmStatus.pm2?.installed && h('div', { style: { marginTop: 6, fontSize: 12, color: 'var(--success)' } }, 'Installed (v' + pmStatus.pm2.version + ')')
+            )
+          ),
+          deployForm.localProcessManager !== 'in-process' && h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 } },
+            h('div', { className: 'form-group' },
+              h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Process Name'),
+              h('input', { className: 'input', value: deployForm.localProcessName, onChange: function(e) { setDf('localProcessName', e.target.value); }, placeholder: 'e.g. fola-agent' }),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'PM2/systemd service name for start/stop/restart')
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Working Directory (optional)'),
+              h('input', { className: 'input', value: deployForm.localWorkDir, onChange: function(e) { setDf('localWorkDir', e.target.value); }, placeholder: 'Auto-detected from install location' }),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'Leave blank to auto-detect. Only set if running from a custom location.')
+            )
+          )
         )
       )
     ),
@@ -565,6 +642,10 @@ export function DeploymentSection(props) {
           deployment.region && h(Fragment, null,
             h('span', { style: { color: 'var(--text-muted)' } }, 'Region'),
             h('span', null, deployment.region)
+          ),
+          deployment.port && h(Fragment, null,
+            h('span', { style: { color: 'var(--text-muted)' } }, 'Port'),
+            h('span', { style: { fontFamily: 'var(--font-mono, monospace)', fontSize: 12 } }, (deployment.host || 'localhost') + ':' + deployment.port)
           )
         ),
         h('div', { style: { display: 'flex', gap: 8 } },

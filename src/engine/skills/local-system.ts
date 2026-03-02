@@ -4,7 +4,7 @@ const FS_SKILL_DEF: SkillDefinition = {
   id: 'local-filesystem',
   name: 'Filesystem',
   description: 'Read, write, edit, move, delete, search, and list files on the host.',
-  category: 'local',
+  category: 'local', risk: 'medium' as any, tools: [],
 };
 
 const FS_TOOLS: ToolDefinition[] = [
@@ -21,7 +21,7 @@ const SHELL_SKILL_DEF: SkillDefinition = {
   id: 'local-shell',
   name: 'Shell & System',
   description: 'Execute commands, interactive PTY, sudo, package install, system info.',
-  category: 'local',
+  category: 'local', risk: 'medium' as any, tools: [],
 };
 
 const SHELL_TOOLS: ToolDefinition[] = [
@@ -34,7 +34,28 @@ const SHELL_TOOLS: ToolDefinition[] = [
   { id: 'system_info', name: 'System Info', description: 'Get OS, CPU, memory info', category: 'read', risk: 'low', skillId: 'local-shell', sideEffects: [] },
 ];
 
+const CODING_SKILL_DEF: SkillDefinition = {
+  id: 'local-coding',
+  name: 'Coding & Development',
+  description: 'Advanced coding tools: plan, search, build, test, git, multi-edit, pm2.',
+  category: 'local', risk: 'medium' as any, tools: [],
+};
+
+const CODING_TOOLS: ToolDefinition[] = [
+  { id: 'code_plan', name: 'Plan Code Changes', description: 'Analyze codebase and create implementation plan', category: 'read', risk: 'low', skillId: 'local-coding', sideEffects: [] },
+  { id: 'code_search', name: 'Search Code', description: 'Search codebase with ripgrep/grep', category: 'read', risk: 'low', skillId: 'local-coding', sideEffects: [] },
+  { id: 'code_read', name: 'Read Code', description: 'Read file with line numbers, ranges, symbol outline', category: 'read', risk: 'low', skillId: 'local-coding', sideEffects: [] },
+  { id: 'code_multi_edit', name: 'Multi-Edit', description: 'Apply multiple edits to one or more files in one call', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['modifies-files'] },
+  { id: 'code_build', name: 'Build Project', description: 'Build project with error parsing', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['executes-code'] },
+  { id: 'code_test', name: 'Run Tests', description: 'Run tests with result parsing', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['executes-code'] },
+  { id: 'code_git', name: 'Git Operations', description: 'Git status, diff, log, commit, push, branch', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['modifies-files'] },
+  { id: 'code_create', name: 'Create File', description: 'Create new file with auto-directory creation', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['modifies-files'] },
+  { id: 'code_diff', name: 'Diff Preview', description: 'Preview edit as unified diff without applying', category: 'read', risk: 'low', skillId: 'local-coding', sideEffects: [] },
+  { id: 'code_pm2', name: 'PM2 Manager', description: 'Manage pm2 processes: list, restart, logs, stop', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['executes-code'] },
+];
+
 export const LOCAL_SYSTEM_SKILLS: SkillDefinition[] = [
   { ...FS_SKILL_DEF, tools: FS_TOOLS },
   { ...SHELL_SKILL_DEF, tools: SHELL_TOOLS },
+  { ...CODING_SKILL_DEF, tools: CODING_TOOLS },
 ];

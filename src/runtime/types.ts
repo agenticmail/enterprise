@@ -159,6 +159,8 @@ export interface RuntimeConfig {
     /** Max delay in ms per retry (default: 60000 = 1 min) */
     maxDelayMs?: number;
   };
+  /** Agent hierarchy manager for management tools (delegation, escalation, org chart) */
+  hierarchyManager?: import('../engine/agent-hierarchy.js').AgentHierarchyManager;
 }
 
 // ─── Hook Types ──────────────────────────────────────────

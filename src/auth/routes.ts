@@ -225,7 +225,7 @@ export function createAuthRoutes(
       timeBytes[i] = t & 0xff;
       t = Math.floor(t / 256);
     }
-    const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const key = await crypto.subtle.importKey('raw', keyBytes.buffer as ArrayBuffer, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
     const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, timeBytes));
     const offset = sig[sig.length - 1] & 0x0f;
     const code = ((sig[offset] & 0x7f) << 24 | sig[offset + 1] << 16 | sig[offset + 2] << 8 | sig[offset + 3]) % (10 ** digits);
