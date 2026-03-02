@@ -177,9 +177,9 @@ export function DomainStatusPage() {
     ),
 
     // ═══════════════════════════════════════════════
-    // DEPLOY TO PRODUCTION (shown when on localhost)
+    // CLOUDFLARE TUNNEL MANAGEMENT
     // ═══════════════════════════════════════════════
-    isLocalhost && DeployToProduction({ toast: toast }),
+    h(DeployToProduction, { toast: toast, isLocalhost: isLocalhost }),
 
     // ═══════════════════════════════════════════════
     // SECTION 1: Current Deployment
@@ -510,7 +510,7 @@ function cliRow(label, cmd) {
 
 // ─── Deploy to Production Component ─────────────────────
 
-function DeployToProduction({ toast }) {
+function DeployToProduction({ toast, isLocalhost }) {
   var [expanded, setExpanded] = useState(false);
   var [selectedMethod, setSelectedMethod] = useState(null);
   // Cloudflare Tunnel state
@@ -579,10 +579,10 @@ function DeployToProduction({ toast }) {
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }, onClick: function() { setExpanded(!expanded); } },
       h('div', null,
         h('div', { style: { fontSize: 16, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 } },
-          '\uD83D\uDE80 Deploy to Production',
-          h('span', { style: { fontSize: 10, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.15)', color: 'var(--warning)', fontWeight: 600 } }, 'LOCALHOST'),
+          isLocalhost ? '\uD83D\uDE80 Deploy to Production' : '\u2601\uFE0F Tunnel & Deployment',
+          isLocalhost && h('span', { style: { fontSize: 10, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.15)', color: 'var(--warning)', fontWeight: 600 } }, 'LOCALHOST'),
         ),
-        h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'You\'re running locally. Deploy to a domain so your agents can be reached from anywhere.'),
+        h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, isLocalhost ? 'You\'re running locally. Deploy to a domain so your agents can be reached from anywhere.' : 'Manage your Cloudflare Tunnel and deployment configuration.'),
       ),
       h('span', { style: { fontSize: 18, color: 'var(--text-muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' } }, '\u25BC'),
     ),
