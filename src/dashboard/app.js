@@ -26,6 +26,7 @@ import { SkillConnectionsPage } from './pages/skill-connections.js';
 import { VaultPage } from './pages/vault.js';
 import { OrgChartPage } from './pages/org-chart.js';
 import { TaskPipelinePage } from './pages/task-pipeline.js';
+import { DatabaseAccessPage } from './pages/database-access.js';
 
 // ─── Toast System ────────────────────────────────────────
 let toastId = 0;
@@ -156,6 +157,7 @@ function App() {
       { id: 'skills', icon: I.skills, label: 'Skills' },
       { id: 'community-skills', icon: I.marketplace, label: 'Community Skills' },
       { id: 'skill-connections', icon: I.link, label: 'Integrations & MCP' },
+      { id: 'database-access', icon: I.database, label: 'Database Access' },
       { id: 'knowledge', icon: I.knowledge, label: 'Knowledge Bases' },
       { id: 'knowledge-contributions', icon: I.knowledge, label: 'Knowledge Hub' },
       { id: 'approvals', icon: I.approvals, label: 'Approvals', badge: pendingCount || null },
@@ -202,6 +204,7 @@ function App() {
     vault: VaultPage,
     'org-chart': OrgChartPage,
     'task-pipeline': TaskPipelinePage,
+    'database-access': DatabaseAccessPage,
   };
 
   const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };
