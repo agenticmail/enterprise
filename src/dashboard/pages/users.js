@@ -210,6 +210,88 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
   );
 }
 
+// ─── Inline Permission Picker (for create modal) ──
+
+function InlinePermissionPicker({ permissions, pageRegistry, onChange }) {
+  var [expandedPage, setExpandedPage] = useState(null);
+
+  // Resolve grants from permissions
+  var grants = permissions === '*' ? (function() { var a = {}; Object.keys(pageRegistry).forEach(function(p) { a[p] = true; }); return a; })() : (permissions || {});
+
+  var togglePage = function(pid) {
+    var next = Object.assign({}, grants);
+    if (next[pid]) { delete next[pid]; if (expandedPage === pid) setExpandedPage(null); }
+    else { next[pid] = true; }
+    onChange(Object.keys(next).length === Object.keys(pageRegistry).length ? '*' : next);
+  };
+
+  var toggleTab = function(pid, tabId) {
+    var next = Object.assign({}, grants);
+    var current = next[pid];
+    var allTabs = Object.keys(pageRegistry[pid].tabs || {});
+    if (current === true) {
+      var remaining = allTabs.filter(function(t) { return t !== tabId; });
+      next[pid] = remaining.length > 0 ? remaining : true;
+    } else if (Array.isArray(current)) {
+      var idx = current.indexOf(tabId);
+      if (idx >= 0) {
+        var arr = current.filter(function(t) { return t !== tabId; });
+        if (arr.length === 0) delete next[pid];
+        else next[pid] = arr;
+      } else {
+        var newArr = current.concat([tabId]);
+        next[pid] = newArr.length === allTabs.length ? true : newArr;
+      }
+    }
+    onChange(Object.keys(next).length === Object.keys(pageRegistry).length && Object.values(next).every(function(v) { return v === true; }) ? '*' : next);
+  };
+
+  var isTabChecked = function(pid, tabId) {
+    var g = grants[pid];
+    if (!g) return false;
+    if (g === true) return true;
+    return Array.isArray(g) && g.indexOf(tabId) >= 0;
+  };
+
+  var sections = { overview: 'Overview', management: 'Management', administration: 'Administration' };
+  var grouped = {};
+  Object.keys(pageRegistry).forEach(function(pid) { var s = pageRegistry[pid].section; if (!grouped[s]) grouped[s] = []; grouped[s].push(pid); });
+
+  return h('div', { style: { maxHeight: 250, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginTop: 8 } },
+    Object.keys(sections).map(function(sKey) {
+      var pids = grouped[sKey] || [];
+      if (!pids.length) return null;
+      return h(Fragment, { key: sKey },
+        h('div', { style: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', padding: '8px 10px 2px' } }, sections[sKey]),
+        pids.map(function(pid) {
+          var page = pageRegistry[pid];
+          var checked = !!grants[pid];
+          var hasTabs = page.tabs && Object.keys(page.tabs).length > 0;
+          var isExpanded = expandedPage === pid;
+          return h(Fragment, { key: pid },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', background: checked ? 'var(--bg-tertiary)' : 'transparent' }, onClick: function(e) {
+              if (e.target.closest && e.target.closest('[data-expand]')) return;
+              togglePage(pid);
+            } },
+              h('input', { type: 'checkbox', checked: checked, readOnly: true, style: { width: 14, height: 14, accentColor: 'var(--primary)', cursor: 'pointer' } }),
+              h('span', { style: { flex: 1 } }, page.label),
+              hasTabs && checked && h('button', { 'data-expand': true, className: 'btn btn-ghost', style: { padding: '0 4px', minWidth: 0, fontSize: 10, lineHeight: 1 }, onClick: function(e) { e.stopPropagation(); setExpandedPage(isExpanded ? null : pid); } },
+                isExpanded ? I.chevronDown() : I.chevronRight()
+              )
+            ),
+            hasTabs && isExpanded && checked && Object.keys(page.tabs).map(function(tabId) {
+              return h('div', { key: tabId, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px 3px 34px', fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer' }, onClick: function() { toggleTab(pid, tabId); } },
+                h('input', { type: 'checkbox', checked: isTabChecked(pid, tabId), readOnly: true, style: { width: 13, height: 13, accentColor: 'var(--primary)', cursor: 'pointer' } }),
+                h('span', null, page.tabs[tabId])
+              );
+            })
+          );
+        })
+      );
+    })
+  );
+}
+
 // ─── Users Page ────────────────────────────────────
 
 export function UsersPage() {
@@ -357,24 +439,11 @@ export function UsersPage() {
           h('button', { type: 'button', className: 'btn btn-ghost btn-sm', onClick: function() { setShowCreatePerms(!showCreatePerms); }, style: { fontSize: 11 } }, showCreatePerms ? 'Hide' : 'Customize')
         ),
         !showCreatePerms && h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 4 } }, 'Full access (default). Click "Customize" to restrict.'),
-        showCreatePerms && pageRegistry && h('div', { style: { maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginTop: 8 } },
-          Object.keys(pageRegistry).map(function(pid) {
-            var page = pageRegistry[pid];
-            var grants = form.permissions === '*' ? null : form.permissions;
-            var checked = !grants || (grants && grants[pid]);
-            return h('div', { key: pid, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }, onClick: function() {
-              setForm(function(f) {
-                var current = f.permissions === '*' ? (function() { var a = {}; Object.keys(pageRegistry).forEach(function(p) { a[p] = true; }); return a; })() : Object.assign({}, f.permissions);
-                if (current[pid]) { delete current[pid]; } else { current[pid] = true; }
-                if (Object.keys(current).length === Object.keys(pageRegistry).length) return Object.assign({}, f, { permissions: '*' });
-                return Object.assign({}, f, { permissions: current });
-              });
-            } },
-              h('input', { type: 'checkbox', checked: checked, readOnly: true, style: { width: 14, height: 14, accentColor: 'var(--primary)' } }),
-              h('span', null, page.label)
-            );
-          })
-        )
+        showCreatePerms && pageRegistry && h(InlinePermissionPicker, {
+          permissions: form.permissions,
+          pageRegistry: pageRegistry,
+          onChange: function(p) { setForm(function(f) { return Object.assign({}, f, { permissions: p }); }); }
+        })
       ),
       (form.role === 'owner' || form.role === 'admin') && h('div', { style: { marginTop: 8, padding: 8, background: 'var(--info-soft)', borderRadius: 'var(--radius)', fontSize: 11, color: 'var(--info)' } },
         'Owner and Admin roles always have full access to all pages.'
