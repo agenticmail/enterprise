@@ -218,10 +218,9 @@ function App() {
     items: section.items.filter(item => hasAccess(item.id))
   })).filter(section => section.items.length > 0);
 
-  // Block access to pages user can't see (redirect to first available)
+  // Block access to pages user can't see — show unauthorized page
   const canAccessPage = hasAccess(page);
-  const effectivePage = canAccessPage ? page : (filteredNav[0]?.items[0]?.id || 'dashboard');
-  const PageComponent = pages[effectivePage] || DashboardPage;
+  const PageComponent = canAccessPage ? (pages[page] || DashboardPage) : null;
   const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '') + (mobileMenuOpen ? ' mobile-open' : '');
 
   return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions } },
@@ -284,7 +283,29 @@ function App() {
             ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { _setSelectedAgentId(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); } })
             : page === 'agents'
               ? h(AgentsPage, { onSelectAgent: navigateToAgent })
-              : h(PageComponent)
+              : PageComponent ? h(PageComponent)
+              : h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', padding: 40 } },
+                  h('div', { style: { width: 64, height: 64, borderRadius: '50%', background: 'var(--danger-soft, rgba(220,38,38,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 } },
+                    h('svg', { width: 32, height: 32, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--danger, #dc2626)', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+                      h('rect', { x: 3, y: 11, width: 18, height: 11, rx: 2, ry: 2 }),
+                      h('path', { d: 'M7 11V7a5 5 0 0 1 10 0v4' })
+                    )
+                  ),
+                  h('h2', { style: { fontSize: 20, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' } }, 'Access Restricted'),
+                  h('p', { style: { fontSize: 14, color: 'var(--text-muted)', maxWidth: 400, lineHeight: 1.6, marginBottom: 24 } },
+                    'You don\'t have permission to access this page. If you believe this is an error, please contact your company administrator to request access.'
+                  ),
+                  h('div', { style: { display: 'flex', gap: 12 } },
+                    filteredNav[0]?.items[0] && h('button', {
+                      className: 'btn btn-primary',
+                      onClick: () => { setPage(filteredNav[0].items[0].id); history.pushState(null, '', '/dashboard/' + filteredNav[0].items[0].id); }
+                    }, 'Go to ' + filteredNav[0].items[0].label),
+                    h('button', {
+                      className: 'btn btn-secondary',
+                      onClick: () => { window.location.href = 'mailto:?subject=Access%20Request&body=I%20need%20access%20to%20the%20' + encodeURIComponent(page) + '%20page%20in%20the%20dashboard.'; }
+                    }, 'Request Access')
+                  )
+                )
         )
       )
     ),
