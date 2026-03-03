@@ -363,6 +363,9 @@ export function OverviewSection(props) {
       )
     ),
 
+    // ─── Organization & Knowledge Access ──────────────────
+    h(OrgAndKnowledgeCards, { agentId: agentId, agent: agent, engineAgent: engineAgent, toast: toast }),
+
     // ─── Real-Time Status Card ────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
       h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
@@ -647,6 +650,113 @@ function _timeAgo(ts) {
   if (diff < 60000) return Math.floor(diff / 1000) + 's ago';
   if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
   return Math.floor(diff / 3600000) + 'h ago';
+}
+
+// ─── Organization & Knowledge Access Cards ────────────────
+function OrgAndKnowledgeCards(props) {
+  var agentId = props.agentId;
+  var toast = props.toast;
+
+  var _orgs = useState([]);
+  var orgs = _orgs[0]; var setOrgs = _orgs[1];
+  var _currentOrg = useState(null);
+  var currentOrg = _currentOrg[0]; var setCurrentOrg = _currentOrg[1];
+  var _kbs = useState([]);
+  var kbs = _kbs[0]; var setKbs = _kbs[1];
+  var _kaGrants = useState([]);
+  var kaGrants = _kaGrants[0]; var setKaGrants = _kaGrants[1];
+  var _acting = useState('');
+  var acting = _acting[0]; var setActing = _acting[1];
+  var _selOrg = useState('');
+  var selOrg = _selOrg[0]; var setSelOrg = _selOrg[1];
+
+  useEffect(function() {
+    // Load orgs list
+    apiCall('/organizations').then(function(d) { setOrgs(d.organizations || []); }).catch(function() {});
+    // Load agent's current org
+    apiCall('/agents/' + agentId).then(function(a) {
+      if (a && a.client_org_id) {
+        setSelOrg(a.client_org_id);
+        apiCall('/organizations/' + a.client_org_id).then(function(o) { setCurrentOrg(o); }).catch(function() {});
+      }
+    }).catch(function() {});
+    // Load knowledge access
+    apiCall('/agents/' + agentId + '/knowledge-access').then(function(d) { setKaGrants(d.grants || []); }).catch(function() {});
+    // Load knowledge bases
+    engineCall('/knowledge').then(function(d) { setKbs(d.knowledgeBases || d || []); }).catch(function() {});
+  }, [agentId]);
+
+  var assignOrg = function(orgId) {
+    if (!orgId) {
+      setActing('unassign');
+      apiCall('/agents/' + agentId + '/unassign-org', { method: 'POST' }).then(function() {
+        setCurrentOrg(null); setSelOrg(''); toast('Organization unassigned', 'success');
+      }).catch(function(e) { toast(e.message, 'error'); }).finally(function() { setActing(''); });
+      return;
+    }
+    setActing('assign');
+    apiCall('/agents/' + agentId + '/assign-org', { method: 'POST', body: JSON.stringify({ orgId: orgId }) }).then(function() {
+      setSelOrg(orgId);
+      var org = orgs.find(function(o) { return o.id === orgId; });
+      setCurrentOrg(org || null);
+      toast('Organization assigned', 'success');
+    }).catch(function(e) { toast(e.message, 'error'); }).finally(function() { setActing(''); });
+  };
+
+  return h(Fragment, null,
+    h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 } },
+      // Organization card
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, 'Organization'),
+        h('div', { className: 'card-body' },
+          currentOrg
+            ? h('div', null,
+                h('div', { style: { fontWeight: 600, fontSize: 14, marginBottom: 4 } }, currentOrg.name),
+                h('div', { style: { fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)', marginBottom: 8 } }, currentOrg.slug),
+                h('span', { className: 'badge badge-' + (currentOrg.is_active ? 'success' : 'warning') }, currentOrg.is_active ? 'Active' : 'Inactive')
+              )
+            : h('div', { style: { fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 } }, 'Unassigned'),
+          h('div', { style: { marginTop: 10 } },
+            h('select', { className: 'input', value: selOrg, disabled: !!acting, onChange: function(e) { assignOrg(e.target.value); }, style: { width: '100%', fontSize: 12 } },
+              h('option', { value: '' }, '— No organization —'),
+              orgs.map(function(o) { return h('option', { key: o.id, value: o.id }, o.name); })
+            )
+          )
+        )
+      ),
+      // Knowledge Access card
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, 'Knowledge Access'),
+        h('div', { className: 'card-body' },
+          kbs.length === 0
+            ? h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'No knowledge bases configured')
+            : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                kbs.map(function(kb) {
+                  var grant = kaGrants.find(function(g) { return g.knowledge_base_id === kb.id; });
+                  var accessType = grant ? grant.access_type : '';
+                  return h('div', { key: kb.id, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' } },
+                    h('span', { style: { fontSize: 13, fontWeight: 500 } }, kb.name || kb.id),
+                    h('select', { className: 'input', value: accessType, style: { width: 120, fontSize: 11, padding: '2px 6px' }, onChange: function(e) {
+                      var newVal = e.target.value;
+                      var newGrants = kaGrants.filter(function(g) { return g.knowledge_base_id !== kb.id; });
+                      if (newVal) newGrants.push({ knowledge_base_id: kb.id, access_type: newVal });
+                      var payload = newGrants.map(function(g) { return { knowledgeBaseId: g.knowledge_base_id, accessType: g.access_type }; });
+                      apiCall('/agents/' + agentId + '/knowledge-access', { method: 'PUT', body: JSON.stringify({ grants: payload }) })
+                        .then(function() { setKaGrants(newGrants); toast('Knowledge access updated', 'success'); })
+                        .catch(function(err) { toast(err.message, 'error'); });
+                    }},
+                      h('option', { value: '' }, 'No access'),
+                      h('option', { value: 'read' }, 'Read'),
+                      h('option', { value: 'contribute' }, 'Contribute'),
+                      h('option', { value: 'both' }, 'Both')
+                    )
+                  );
+                })
+              )
+        )
+      )
+    )
+  );
 }
 
 // Inject pulse animation CSS if not already present

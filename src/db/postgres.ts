@@ -193,6 +193,35 @@ export class PostgresAdapter extends DatabaseAdapter {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS must_reset_password BOOLEAN DEFAULT FALSE;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
       `).catch(() => {});
+      // ─── Client Organizations ────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS client_organizations (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          contact_name TEXT,
+          contact_email TEXT,
+          description TEXT,
+          is_active BOOLEAN DEFAULT TRUE,
+          settings JSONB DEFAULT '{}',
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+      await client.query(`
+        ALTER TABLE agents ADD COLUMN IF NOT EXISTS client_org_id TEXT REFERENCES client_organizations(id);
+      `).catch(() => {});
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS agent_knowledge_access (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+          agent_id TEXT NOT NULL,
+          knowledge_base_id TEXT NOT NULL,
+          access_type TEXT NOT NULL DEFAULT 'read',
+          created_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(agent_id, knowledge_base_id)
+        );
+      `);
+
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');

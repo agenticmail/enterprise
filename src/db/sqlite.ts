@@ -63,6 +63,32 @@ export class SqliteAdapter extends DatabaseAdapter {
       try { this.db.exec(`ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '"*"'`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE users ADD COLUMN must_reset_password INTEGER DEFAULT 0`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch { /* exists */ }
+      // ─── Client Organizations ────────────────────────────
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS client_organizations (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          contact_name TEXT,
+          contact_email TEXT,
+          description TEXT,
+          is_active INTEGER DEFAULT 1,
+          settings TEXT DEFAULT '{}',
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        );
+      `);
+      try { this.db.exec(`ALTER TABLE agents ADD COLUMN client_org_id TEXT REFERENCES client_organizations(id)`); } catch { /* exists */ }
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_knowledge_access (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          knowledge_base_id TEXT NOT NULL,
+          access_type TEXT NOT NULL DEFAULT 'read',
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(agent_id, knowledge_base_id)
+        );
+      `);
     });
     tx();
   }

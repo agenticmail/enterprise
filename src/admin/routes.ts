@@ -2137,6 +2137,262 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
   });
 
+  // ─── Client Organizations ─────────────────────────────
+
+  api.get('/organizations', requireRole('admin'), async (c) => {
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        const { rows } = await (db as any)._query(`
+          SELECT o.*, COUNT(a.id) as agent_count
+          FROM client_organizations o
+          LEFT JOIN agents a ON a.client_org_id = o.id
+          GROUP BY o.id
+          ORDER BY o.created_at DESC
+        `);
+        return c.json({ organizations: rows });
+      } else {
+        const engineDb = db.getEngineDB();
+        const rows = await engineDb!.all(`
+          SELECT o.*, COUNT(a.id) as agent_count
+          FROM client_organizations o
+          LEFT JOIN agents a ON a.client_org_id = o.id
+          GROUP BY o.id
+          ORDER BY o.created_at DESC
+        `);
+        return c.json({ organizations: rows });
+      }
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.post('/organizations', requireRole('admin'), async (c) => {
+    const body = await c.req.json();
+    validate(body, [
+      { field: 'name', type: 'string', required: true, minLength: 1, maxLength: 128 },
+      { field: 'slug', type: 'string', required: true, minLength: 1, maxLength: 64, pattern: /^[a-z0-9-]+$/ },
+      { field: 'contact_name', type: 'string', maxLength: 128 },
+      { field: 'contact_email', type: 'email' },
+      { field: 'description', type: 'string', maxLength: 512 },
+    ]);
+    const id = (await import('crypto')).randomUUID();
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        await (db as any)._query(
+          `INSERT INTO client_organizations (id, name, slug, contact_name, contact_email, description) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [id, body.name, body.slug, body.contact_name || null, body.contact_email || null, body.description || null]
+        );
+        const { rows } = await (db as any)._query(`SELECT * FROM client_organizations WHERE id = $1`, [id]);
+        return c.json(rows[0], 201);
+      } else {
+        const engineDb = db.getEngineDB();
+        await engineDb!.run(
+          `INSERT INTO client_organizations (id, name, slug, contact_name, contact_email, description) VALUES (?, ?, ?, ?, ?, ?)`,
+          [id, body.name, body.slug, body.contact_name || null, body.contact_email || null, body.description || null]
+        );
+        const row = await engineDb!.get(`SELECT * FROM client_organizations WHERE id = ?`, [id]);
+        return c.json(row, 201);
+      }
+    } catch (e: any) {
+      if (e.message?.includes('UNIQUE') || e.code === '23505') return c.json({ error: 'Slug already exists' }, 409);
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.get('/organizations/:id', requireRole('admin'), async (c) => {
+    const id = c.req.param('id');
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        const { rows: orgs } = await (db as any)._query(`SELECT * FROM client_organizations WHERE id = $1`, [id]);
+        if (!orgs[0]) return c.json({ error: 'Organization not found' }, 404);
+        const { rows: agents } = await (db as any)._query(`SELECT id, name, email, role, status FROM agents WHERE client_org_id = $1`, [id]);
+        return c.json({ ...orgs[0], agents });
+      } else {
+        const engineDb = db.getEngineDB();
+        const org = await engineDb!.get(`SELECT * FROM client_organizations WHERE id = ?`, [id]);
+        if (!org) return c.json({ error: 'Organization not found' }, 404);
+        const agents = await engineDb!.all(`SELECT id, name, email, role, status FROM agents WHERE client_org_id = ?`, [id]);
+        return c.json({ ...(org as any), agents });
+      }
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.patch('/organizations/:id', requireRole('admin'), async (c) => {
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    validate(body, [
+      { field: 'name', type: 'string', minLength: 1, maxLength: 128 },
+      { field: 'contact_name', type: 'string', maxLength: 128 },
+      { field: 'contact_email', type: 'email' },
+      { field: 'description', type: 'string', maxLength: 512 },
+    ]);
+    try {
+      const fields: string[] = [];
+      const values: any[] = [];
+      const isPostgres = (db as any).pool;
+      let idx = 1;
+      for (const key of ['name', 'contact_name', 'contact_email', 'description']) {
+        if (body[key] !== undefined) {
+          fields.push(isPostgres ? `${key} = $${idx++}` : `${key} = ?`);
+          values.push(body[key]);
+        }
+      }
+      if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400);
+      fields.push(isPostgres ? `updated_at = NOW()` : `updated_at = datetime('now')`);
+      values.push(id);
+      const where = isPostgres ? `$${idx}` : '?';
+      const sql = `UPDATE client_organizations SET ${fields.join(', ')} WHERE id = ${where}`;
+      if (isPostgres) {
+        await (db as any)._query(sql, values);
+        const { rows } = await (db as any)._query(`SELECT * FROM client_organizations WHERE id = $1`, [id]);
+        return c.json(rows[0]);
+      } else {
+        const engineDb = db.getEngineDB();
+        await engineDb!.run(sql, values);
+        const row = await engineDb!.get(`SELECT * FROM client_organizations WHERE id = ?`, [id]);
+        return c.json(row);
+      }
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.post('/organizations/:id/toggle', requireRole('admin'), async (c) => {
+    const id = c.req.param('id');
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        const { rows } = await (db as any)._query(`SELECT is_active FROM client_organizations WHERE id = $1`, [id]);
+        if (!rows[0]) return c.json({ error: 'Organization not found' }, 404);
+        const newActive = !rows[0].is_active;
+        await (db as any)._query(`UPDATE client_organizations SET is_active = $1, updated_at = NOW() WHERE id = $2`, [newActive, id]);
+        const newStatus = newActive ? 'active' : 'suspended';
+        await (db as any)._query(`UPDATE agents SET status = $1 WHERE client_org_id = $2`, [newStatus, id]);
+        return c.json({ is_active: newActive });
+      } else {
+        const engineDb = db.getEngineDB();
+        const org = await engineDb!.get<any>(`SELECT is_active FROM client_organizations WHERE id = ?`, [id]);
+        if (!org) return c.json({ error: 'Organization not found' }, 404);
+        const newActive = !(org.is_active);
+        await engineDb!.run(`UPDATE client_organizations SET is_active = ?, updated_at = datetime('now') WHERE id = ?`, [newActive ? 1 : 0, id]);
+        const newStatus = newActive ? 'active' : 'suspended';
+        await engineDb!.run(`UPDATE agents SET status = ? WHERE client_org_id = ?`, [newStatus, id]);
+        return c.json({ is_active: newActive });
+      }
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.delete('/organizations/:id', requireRole('admin'), async (c) => {
+    const id = c.req.param('id');
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        const { rows: agents } = await (db as any)._query(`SELECT id FROM agents WHERE client_org_id = $1`, [id]);
+        if (agents.length > 0) return c.json({ error: 'Cannot delete organization with linked agents. Unassign all agents first.' }, 400);
+        await (db as any)._query(`DELETE FROM client_organizations WHERE id = $1`, [id]);
+      } else {
+        const engineDb = db.getEngineDB();
+        const agents = await engineDb!.all(`SELECT id FROM agents WHERE client_org_id = ?`, [id]);
+        if (agents.length > 0) return c.json({ error: 'Cannot delete organization with linked agents. Unassign all agents first.' }, 400);
+        await engineDb!.run(`DELETE FROM client_organizations WHERE id = ?`, [id]);
+      }
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  // ─── Agent-Org Linking ──────────────────────────────────
+
+  api.post('/agents/:id/assign-org', requireRole('admin'), async (c) => {
+    const agentId = c.req.param('id');
+    const { orgId } = await c.req.json();
+    if (!orgId) return c.json({ error: 'orgId is required' }, 400);
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        await (db as any)._query(`UPDATE agents SET client_org_id = $1 WHERE id = $2`, [orgId, agentId]);
+      } else {
+        await db.getEngineDB()!.run(`UPDATE agents SET client_org_id = ? WHERE id = ?`, [orgId, agentId]);
+      }
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.post('/agents/:id/unassign-org', requireRole('admin'), async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        await (db as any)._query(`UPDATE agents SET client_org_id = NULL WHERE id = $1`, [agentId]);
+      } else {
+        await db.getEngineDB()!.run(`UPDATE agents SET client_org_id = NULL WHERE id = ?`, [agentId]);
+      }
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  // ─── Agent Knowledge Access ─────────────────────────────
+
+  api.get('/agents/:id/knowledge-access', requireRole('admin'), async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        const { rows } = await (db as any)._query(`SELECT * FROM agent_knowledge_access WHERE agent_id = $1`, [agentId]);
+        return c.json({ grants: rows });
+      } else {
+        const rows = await db.getEngineDB()!.all(`SELECT * FROM agent_knowledge_access WHERE agent_id = ?`, [agentId]);
+        return c.json({ grants: rows });
+      }
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.put('/agents/:id/knowledge-access', requireRole('admin'), async (c) => {
+    const agentId = c.req.param('id');
+    const { grants } = await c.req.json();
+    if (!Array.isArray(grants)) return c.json({ error: 'grants must be an array' }, 400);
+    try {
+      const isPostgres = (db as any).pool;
+      if (isPostgres) {
+        await (db as any)._query(`DELETE FROM agent_knowledge_access WHERE agent_id = $1`, [agentId]);
+        for (const g of grants) {
+          const id = (await import('crypto')).randomUUID();
+          await (db as any)._query(
+            `INSERT INTO agent_knowledge_access (id, agent_id, knowledge_base_id, access_type) VALUES ($1, $2, $3, $4)`,
+            [id, agentId, g.knowledgeBaseId, g.accessType || 'read']
+          );
+        }
+      } else {
+        const engineDb = db.getEngineDB()!;
+        await engineDb.run(`DELETE FROM agent_knowledge_access WHERE agent_id = ?`, [agentId]);
+        for (const g of grants) {
+          const id = (await import('crypto')).randomUUID();
+          await engineDb.run(
+            `INSERT INTO agent_knowledge_access (id, agent_id, knowledge_base_id, access_type) VALUES (?, ?, ?, ?)`,
+            [id, agentId, g.knowledgeBaseId, g.accessType || 'read']
+          );
+        }
+      }
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
   /** Stop and optionally delete tunnel */
   api.post('/tunnel/stop', requireRole('admin'), async (c) => {
     try {

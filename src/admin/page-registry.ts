@@ -92,6 +92,11 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     section: 'management',
     description: 'Review and approve pending agent actions',
   },
+  organizations: {
+    label: 'Organizations',
+    section: 'management',
+    description: 'Manage client organizations and agent deployment',
+  },
   'org-chart': {
     label: 'Org Chart',
     section: 'management',
