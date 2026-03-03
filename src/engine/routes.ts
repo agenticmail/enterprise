@@ -757,7 +757,7 @@ export async function setEngineDb(
     storageManager.setDb(db),
     policyImporter.setDb(db),
     (async () => { (taskQueue as any).db = (db as any)?.db || db; await taskQueue.init(); })(),
-    databaseManager.setDb((db as any)?.db || db),
+    databaseManager.setDb(db),
   ]);
   // Initialize hierarchy manager + start background task monitor
   hierarchyManager = new AgentHierarchyManager(db);

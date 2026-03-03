@@ -82,7 +82,7 @@ export class DatabaseConnectionManager {
   private drivers = new Map<DatabaseType, DatabaseDriver>();
   private rateLimiter = new RateLimiter();
   private stats = new Map<string, { queries: number; errors: number; totalTimeMs: number; lastActivity: number }>();
-  private engineDb?: { execute(sql: string, params?: any[]): Promise<any>; all?(sql: string, params?: any[]): Promise<any[]> };
+  private engineDb?: { run?(sql: string, params?: any[]): Promise<any>; execute?(sql: string, params?: any[]): Promise<any>; all?(sql: string, params?: any[]): Promise<any[]>; get?(sql: string, params?: any[]): Promise<any> };
   private vault?: {
     storeSecret(orgId: string, name: string, category: string, plaintext: string, metadata?: Record<string, any>): Promise<any>;
     getSecret(orgId: string, name: string, category: string): Promise<{ plaintext: string } | null>;
@@ -102,6 +102,29 @@ export class DatabaseConnectionManager {
     await this.init();
   }
 
+  /** Normalize DB execute — adapters may have run() or execute() */
+  private async dbRun(sql: string, params?: any[]): Promise<any> {
+    if (!this.engineDb) throw new Error('No database');
+    const fn = this.engineDb.run || this.engineDb.execute;
+    if (!fn) throw new Error('DB adapter has no run/execute method');
+    return fn.call(this.engineDb, sql, params);
+  }
+
+  private async dbAll(sql: string, params?: any[]): Promise<any[]> {
+    if (!this.engineDb) return [];
+    if (this.engineDb.all) return this.engineDb.all(sql, params) as Promise<any[]>;
+    // Fallback: execute returns rows for some adapters
+    const result = await this.dbRun(sql, params);
+    return Array.isArray(result) ? result : [];
+  }
+
+  private async dbGet(sql: string, params?: any[]): Promise<any> {
+    if (!this.engineDb) return null;
+    if (this.engineDb.get) return this.engineDb.get(sql, params);
+    const rows = await this.dbAll(sql, params);
+    return rows?.[0] || null;
+  }
+
   async init(): Promise<void> {
     await this.ensureTable();
     await this.loadConnections();
@@ -111,39 +134,52 @@ export class DatabaseConnectionManager {
 
   private async ensureTable(): Promise<void> {
     if (!this.engineDb) return;
+    // Detect dialect: try Postgres-style NOW() first, fall back to SQLite datetime('now')
+    let isPostgres = false;
     try {
-      await this.engineDb.execute(`
+      await this.dbRun(`SELECT NOW()`);
+      isPostgres = true;
+    } catch {
+      isPostgres = false;
+    }
+    const now = isPostgres ? 'NOW()' : "(datetime('now'))";
+    const jsonType = isPostgres ? 'JSONB' : 'TEXT';
+    const boolType = isPostgres ? 'BOOLEAN' : 'INTEGER';
+    const boolFalse = isPostgres ? 'FALSE' : '0';
+    const boolTrue = isPostgres ? 'TRUE' : '1';
+    try {
+      await this.dbRun(`
         CREATE TABLE IF NOT EXISTS database_connections (
           id TEXT PRIMARY KEY,
           org_id TEXT NOT NULL,
           name TEXT NOT NULL,
           type TEXT NOT NULL,
-          config JSONB NOT NULL DEFAULT '{}',
+          config ${jsonType} NOT NULL DEFAULT '{}',
           status TEXT NOT NULL DEFAULT 'inactive',
           last_tested_at TEXT,
           last_error TEXT,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+          created_at TEXT NOT NULL DEFAULT ${now},
+          updated_at TEXT NOT NULL DEFAULT ${now}
         )
       `);
-      await this.engineDb.execute(`
+      await this.dbRun(`
         CREATE TABLE IF NOT EXISTS agent_database_access (
           id TEXT PRIMARY KEY,
           org_id TEXT NOT NULL,
           agent_id TEXT NOT NULL,
           connection_id TEXT NOT NULL REFERENCES database_connections(id) ON DELETE CASCADE,
           permissions TEXT NOT NULL DEFAULT '["read"]',
-          query_limits JSONB,
-          schema_access JSONB,
-          log_all_queries INTEGER NOT NULL DEFAULT 0,
-          require_approval INTEGER NOT NULL DEFAULT 0,
-          enabled INTEGER NOT NULL DEFAULT 1,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          query_limits ${jsonType},
+          schema_access ${jsonType},
+          log_all_queries ${boolType} NOT NULL DEFAULT ${boolFalse},
+          require_approval ${boolType} NOT NULL DEFAULT ${boolFalse},
+          enabled ${boolType} NOT NULL DEFAULT ${boolTrue},
+          created_at TEXT NOT NULL DEFAULT ${now},
+          updated_at TEXT NOT NULL DEFAULT ${now},
           UNIQUE(agent_id, connection_id)
         )
       `);
-      await this.engineDb.execute(`
+      await this.dbRun(`
         CREATE TABLE IF NOT EXISTS database_audit_log (
           id TEXT PRIMARY KEY,
           org_id TEXT NOT NULL,
@@ -156,14 +192,14 @@ export class DatabaseConnectionManager {
           param_count INTEGER NOT NULL DEFAULT 0,
           rows_affected INTEGER NOT NULL DEFAULT 0,
           execution_time_ms INTEGER NOT NULL DEFAULT 0,
-          success INTEGER NOT NULL DEFAULT 1,
+          success ${boolType} NOT NULL DEFAULT ${boolTrue},
           error TEXT,
-          timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+          timestamp TEXT NOT NULL DEFAULT ${now}
         )
       `);
       // Index for audit log queries
-      await this.engineDb.execute(`CREATE INDEX IF NOT EXISTS idx_db_audit_agent ON database_audit_log(agent_id, timestamp)`).catch(() => {});
-      await this.engineDb.execute(`CREATE INDEX IF NOT EXISTS idx_db_audit_conn ON database_audit_log(connection_id, timestamp)`).catch(() => {});
+      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_db_audit_agent ON database_audit_log(agent_id, timestamp)`).catch(() => {});
+      await this.dbRun(`CREATE INDEX IF NOT EXISTS idx_db_audit_conn ON database_audit_log(connection_id, timestamp)`).catch(() => {});
     } catch (err: any) {
       console.error(`[db-access] Table creation failed:`, err.message);
     }
@@ -172,8 +208,7 @@ export class DatabaseConnectionManager {
   private async loadConnections(): Promise<void> {
     if (!this.engineDb) return;
     try {
-      const getter = (this.engineDb as any).all || ((sql: string, params?: any[]) => this.engineDb!.execute(sql, params));
-      const rows = await getter.call(this.engineDb, 'SELECT * FROM database_connections');
+      const rows = await this.dbAll('SELECT * FROM database_connections');
       for (const row of (rows || [])) {
         const config = this.rowToConfig(row);
         this.configs.set(config.id, config);
@@ -186,8 +221,7 @@ export class DatabaseConnectionManager {
   private async loadAgentAccess(): Promise<void> {
     if (!this.engineDb) return;
     try {
-      const getter = (this.engineDb as any).all || ((sql: string, params?: any[]) => this.engineDb!.execute(sql, params));
-      const rows = await getter.call(this.engineDb, 'SELECT * FROM agent_database_access WHERE enabled = 1');
+      const rows = await this.dbAll('SELECT * FROM agent_database_access WHERE enabled IS NOT FALSE');
       for (const row of (rows || [])) {
         const access = this.rowToAccess(row);
         const list = this.agentAccess.get(access.agentId) || [];
@@ -216,7 +250,7 @@ export class DatabaseConnectionManager {
 
     // Store config (without credentials) in DB
     if (this.engineDb) {
-      await this.engineDb.execute(
+      await this.dbRun(
         `INSERT INTO database_connections (id, org_id, name, type, config, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, full.orgId, full.name, full.type, JSON.stringify(this.configToStorable(full)), full.status, now, now]
       );
@@ -241,7 +275,7 @@ export class DatabaseConnectionManager {
     }
 
     if (this.engineDb) {
-      await this.engineDb.execute(
+      await this.dbRun(
         `UPDATE database_connections SET name = ?, type = ?, config = ?, status = ?, updated_at = ? WHERE id = ?`,
         [updated.name, updated.type, JSON.stringify(this.configToStorable(updated)), updated.status, updated.updatedAt, id]
       );
@@ -272,8 +306,8 @@ export class DatabaseConnectionManager {
     }
 
     if (this.engineDb) {
-      await this.engineDb.execute('DELETE FROM agent_database_access WHERE connection_id = ?', [id]);
-      await this.engineDb.execute('DELETE FROM database_connections WHERE id = ?', [id]);
+      await this.dbRun('DELETE FROM agent_database_access WHERE connection_id = ?', [id]);
+      await this.dbRun('DELETE FROM database_connections WHERE id = ?', [id]);
     }
 
     this.configs.delete(id);
@@ -304,14 +338,14 @@ export class DatabaseConnectionManager {
     const full: AgentDatabaseAccess = { ...access, id, createdAt: now, updatedAt: now };
 
     if (this.engineDb) {
-      await this.engineDb.execute(
+      await this.dbRun(
         `INSERT INTO agent_database_access (id, org_id, agent_id, connection_id, permissions, query_limits, schema_access, log_all_queries, require_approval, enabled, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id, full.orgId, full.agentId, full.connectionId,
           JSON.stringify(full.permissions), JSON.stringify(full.queryLimits || null),
-          JSON.stringify(full.schemaAccess || null), full.logAllQueries ? 1 : 0,
-          full.requireApproval ? 1 : 0, full.enabled ? 1 : 0, now, now,
+          JSON.stringify(full.schemaAccess || null), full.logAllQueries,
+          full.requireApproval, full.enabled, now, now,
         ]
       );
     }
@@ -325,7 +359,7 @@ export class DatabaseConnectionManager {
 
   async revokeAccess(agentId: string, connectionId: string): Promise<boolean> {
     if (this.engineDb) {
-      await this.engineDb.execute(
+      await this.dbRun(
         'DELETE FROM agent_database_access WHERE agent_id = ? AND connection_id = ?',
         [agentId, connectionId]
       );
@@ -349,12 +383,12 @@ export class DatabaseConnectionManager {
     this.agentAccess.set(agentId, list);
 
     if (this.engineDb) {
-      await this.engineDb.execute(
+      await this.dbRun(
         `UPDATE agent_database_access SET permissions = ?, query_limits = ?, schema_access = ?, log_all_queries = ?, require_approval = ?, enabled = ?, updated_at = ? WHERE agent_id = ? AND connection_id = ?`,
         [
           JSON.stringify(updated.permissions), JSON.stringify(updated.queryLimits || null),
-          JSON.stringify(updated.schemaAccess || null), updated.logAllQueries ? 1 : 0,
-          updated.requireApproval ? 1 : 0, updated.enabled ? 1 : 0, updated.updatedAt,
+          JSON.stringify(updated.schemaAccess || null), updated.logAllQueries,
+          updated.requireApproval, updated.enabled, updated.updatedAt,
           agentId, connectionId,
         ]
       );
@@ -625,13 +659,13 @@ export class DatabaseConnectionManager {
   ): Promise<void> {
     if (!this.engineDb) return;
     try {
-      await this.engineDb.execute(
+      await this.dbRun(
         `INSERT INTO database_audit_log (id, org_id, agent_id, connection_id, connection_name, operation, query, param_count, rows_affected, execution_time_ms, success, error, timestamp)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           queryId, config.orgId, query.agentId, query.connectionId, config.name,
           operation, sanitizeForLogging(query.sql || ''), (query.params || []).length,
-          rowsAffected, Date.now() - startMs, success ? 1 : 0, error || null,
+          rowsAffected, Date.now() - startMs, success, error || null,
           new Date().toISOString(),
         ]
       );
@@ -648,8 +682,7 @@ export class DatabaseConnectionManager {
     if (opts.connectionId) { conditions.push('connection_id = ?'); params.push(opts.connectionId); }
     params.push(opts.limit ?? 100, opts.offset ?? 0);
 
-    const getter = (this.engineDb as any).all || ((sql: string, p?: any[]) => this.engineDb!.execute(sql, p));
-    return getter.call(this.engineDb, 
+    return this.dbAll(
       `SELECT * FROM database_audit_log WHERE ${conditions.join(' AND ')} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
       params
     );
