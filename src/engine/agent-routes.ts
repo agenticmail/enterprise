@@ -34,8 +34,7 @@ export function createAgentRoutes(opts: {
 
   router.get('/agents', (c) => {
     const orgId = c.req.query('orgId');
-    if (!orgId) return c.json({ error: 'orgId required' }, 400);
-    const agents = lifecycle.getAgentsByOrg(orgId);
+    const agents = orgId ? lifecycle.getAgentsByOrg(orgId) : lifecycle.getAllAgents();
     return c.json({ agents, total: agents.length });
   });
 

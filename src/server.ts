@@ -355,7 +355,7 @@ export function createServer(config: ServerConfig): ServerInstance {
                 };
               }
             } catch {}
-            const { vault: vaultRef, permissionEngine: permRef } = await import('./engine/routes.js');
+            const { vault: vaultRef, permissionEngine: permRef, databaseManager: dbMgr } = await import('./engine/routes.js');
             const runtime = createAgentRuntime({
               engineDb,
               adminDb: config.db,
@@ -367,7 +367,8 @@ export function createServer(config: ServerConfig): ServerInstance {
               agentMemoryManager: agentMemoryMgr,
               vault: vaultRef,
               permissionEngine: permRef,
-            });
+              databaseManager: dbMgr,
+            } as any);
             await runtime.start();
             const runtimeApp = runtime.getApp();
             if (runtimeApp) {
@@ -620,7 +621,7 @@ export function createServer(config: ServerConfig): ServerInstance {
                             };
                           }
                         } catch {}
-                        const { vault: vaultRef2, permissionEngine: permRef2 } = await import('./engine/routes.js');
+                        const { vault: vaultRef2, permissionEngine: permRef2, databaseManager: dbMgr2 } = await import('./engine/routes.js');
                         const runtime = createAgentRuntime({
                           engineDb,
                           adminDb: config.db,
@@ -633,7 +634,8 @@ export function createServer(config: ServerConfig): ServerInstance {
                           vault: vaultRef2,
                           permissionEngine: permRef2,
                           hierarchyManager: (await import('./engine/routes.js')).hierarchyManager ?? undefined,
-                        });
+                          databaseManager: dbMgr2,
+                        } as any);
                         await runtime.start();
                         const runtimeApp = runtime.getApp();
                         if (runtimeApp) mountRuntimeApp(runtimeApp);

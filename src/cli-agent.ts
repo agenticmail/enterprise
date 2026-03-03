@@ -586,6 +586,19 @@ export async function runAgent(_args: string[]) {
     console.warn(`[agent] MCP Process Manager init failed (non-fatal): ${e.message}`);
   }
 
+  // ─── Database Connection Manager ───────────────────
+  // Enables agents to query external databases they've been granted access to
+  try {
+    const { DatabaseConnectionManager } = await import('./database-access/connection-manager.js');
+    const vault = (runtime as any).config?.vault;
+    const dbManager = new DatabaseConnectionManager({ vault });
+    await dbManager.setDb(engineDb);
+    (runtime as any).config.databaseManager = dbManager;
+    console.log(`[agent] Database Connection Manager started`);
+  } catch (e: any) {
+    console.warn(`[agent] Database Connection Manager init failed (non-fatal): ${e.message}`);
+  }
+
   await runtime.start();
   const runtimeApp = runtime.getApp();
 

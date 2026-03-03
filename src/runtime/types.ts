@@ -140,6 +140,8 @@ export interface RuntimeConfig {
   permissionEngine?: any;
   /** MCP Process Manager for external MCP server tools */
   mcpProcessManager?: import('../engine/mcp-process-manager.js').McpProcessManager;
+  /** Database Connection Manager for enterprise database access tools */
+  databaseManager?: import('../database-access/connection-manager.js').DatabaseConnectionManager;
   /** Knowledge base engine for RAG search tools */
   knowledgeEngine?: any;
   /** Real-time agent status tracker */

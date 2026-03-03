@@ -228,6 +228,10 @@ export class AgentRuntime {
     if (this.config.mcpProcessManager) {
       base.mcpProcessManager = this.config.mcpProcessManager;
     }
+    // Database Connection Manager — enterprise database access tools
+    if (this.config.databaseManager) {
+      base.databaseManager = this.config.databaseManager;
+    }
     return base;
   }
 
@@ -999,6 +1003,10 @@ Guidelines:
 - ACTIVELY USE YOUR MEMORY: After corrections, lessons, or insights, call memory_reflect to record them
 - Before complex tasks, call memory_context to recall relevant knowledge
 - Your memory persists across conversations — it's how you grow as an expert
+
+Database Tools:
+- ent_db_* tools (ent_db_query, ent_db_tables, ent_db_schema, ent_db_sample, ent_db_explain): For LOCAL databases — SQLite files in the workspace or registered local connections. Read-only.
+- db_* tools (db_query, db_list_connections, db_list_tables, db_describe_table): For CLOUD/ENTERPRISE databases — Postgres, MySQL, MongoDB, Redis, Supabase, etc. configured by your admin. Use db_list_connections first to see what databases you have access to. Supports read and write operations based on your granted permissions.
 
 Current time: ${new Date().toISOString()}`;
 

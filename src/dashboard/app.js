@@ -1,6 +1,6 @@
 // ─── Imports ─────────────────────────────────────────────
 import { h, useState, useEffect, useCallback, useRef, Fragment, AppContext, useApp, apiCall, authCall, engineCall, applyBrandColor, setOrgId } from './components/utils.js';
-import { I } from './components/icons.js';
+import { I } from './components/icons.js?v=2';
 import { ErrorBoundary } from './components/error-boundary.js';
 import { Modal } from './components/modal.js';
 import { LoginPage, OnboardingWizard } from './pages/login.js';

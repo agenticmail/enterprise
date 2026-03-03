@@ -534,6 +534,34 @@ export class DatabaseConnectionManager {
     }
   }
 
+  /**
+   * Test connection parameters without saving — creates a temporary connection,
+   * pings it, and immediately destroys it.
+   */
+  async testConnectionParams(params: {
+    type: string; host?: string; port?: number; database?: string;
+    username?: string; password?: string; connectionString?: string; ssl?: boolean;
+  }): Promise<{ success: boolean; latencyMs: number; error?: string }> {
+    const startMs = Date.now();
+    const driver = this.drivers.get(params.type as any);
+    if (!driver) return { success: false, latencyMs: 0, error: `No driver for database type: ${params.type}` };
+
+    let connection: any;
+    try {
+      connection = await driver.connect(
+        { type: params.type as any, host: params.host, port: params.port, database: params.database, ssl: params.ssl } as any,
+        { password: params.password, connectionString: params.connectionString },
+      );
+      const alive = await connection.ping();
+      const latencyMs = Date.now() - startMs;
+      return { success: alive, latencyMs };
+    } catch (err: any) {
+      return { success: false, latencyMs: Date.now() - startMs, error: err.message };
+    } finally {
+      try { if (connection?.close) await connection.close(); } catch {}
+    }
+  }
+
   // ─── Pool Management ───────────────────────────────────────────────────────
 
   private async getPooledConnection(connectionId: string): Promise<DatabaseConnection> {
@@ -694,72 +722,169 @@ export class DatabaseConnectionManager {
     this.drivers.set(type, driver);
   }
 
+  // ─── Auto-Install Helper ──────────────────────────────────────────────────
+
+  private _installCache = new Set<string>();
+
+  /**
+   * Auto-install a npm package if not already installed.
+   * Caches install attempts to avoid repeated installs in the same process.
+   */
+  private async ensurePackage(pkg: string): Promise<any> {
+    try {
+      return await import(pkg);
+    } catch {
+      // Package not installed — auto-install it
+      if (this._installCache.has(pkg)) {
+        throw new Error(`Package "${pkg}" could not be loaded after auto-install. Please install manually: npm install ${pkg}`);
+      }
+      this._installCache.add(pkg);
+      console.log(`[database-access] Auto-installing "${pkg}"...`);
+      const { execSync } = await import('child_process');
+      try {
+        execSync(`npm install --no-save ${pkg}`, {
+          stdio: 'pipe',
+          timeout: 120_000,
+          cwd: process.cwd(),
+        });
+        console.log(`[database-access] Successfully installed "${pkg}"`);
+        // Clear Node's module cache to pick up the new package
+        return await import(pkg);
+      } catch (installErr: any) {
+        const msg = installErr.stderr?.toString?.().slice(0, 200) || installErr.message;
+        throw new Error(`Failed to auto-install "${pkg}": ${msg}. Please install manually: npm install ${pkg}`);
+      }
+    }
+  }
+
+  /**
+   * Connect with a timeout wrapper — all drivers get a 15s connect timeout.
+   */
+  private async connectWithTimeout<T>(fn: () => Promise<T>, timeoutMs = 15_000, label = 'Connection'): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms — check your host/port and ensure the database is reachable`)), timeoutMs);
+      fn().then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); },
+      );
+    });
+  }
+
+  /**
+   * Detect SSL requirement from connection string or cloud provider type.
+   * Cloud-hosted databases almost always require SSL.
+   */
+  private needsSsl(config: any, credentials?: any): boolean | Record<string, any> {
+    if (config.ssl === true) return true;
+    if (config.ssl === false) return false;
+    // Auto-enable SSL for cloud providers
+    const cloudTypes: string[] = ['supabase', 'neon', 'planetscale', 'cockroachdb', 'turso', 'upstash'];
+    if (cloudTypes.includes(config.type)) return true;
+    // Detect from connection string
+    const connStr = credentials?.connectionString || '';
+    if (connStr.includes('sslmode=require') || connStr.includes('ssl=true')) return true;
+    // Supabase/Neon/etc URLs contain their domain
+    if (/supabase|neon\.tech|cockroachlabs|planetscale|turso\.io|railway\.app|render\.com|aiven\.io|timescale\.com/i.test(connStr)) return true;
+    if (/supabase|neon\.tech|cockroachlabs|planetscale|turso\.io|railway|render|aiven|timescale/i.test(config.host || '')) return true;
+    return false;
+  }
+
+  /**
+   * Parse a connection string to extract host/port/database/username when fields are missing.
+   */
+  private parseConnectionString(connStr: string, type: string): { host?: string; port?: number; database?: string; username?: string } {
+    try {
+      // Handle postgres://, mysql://, mongodb://, redis://, libsql:// etc
+      const cleaned = connStr.replace(/^(postgres|postgresql|mysql|mongodb\+srv|mongodb|redis|rediss|libsql)/, 'http');
+      const url = new URL(cleaned);
+      return {
+        host: url.hostname || undefined,
+        port: url.port ? parseInt(url.port) : undefined,
+        database: url.pathname?.replace(/^\//, '') || undefined,
+        username: url.username || undefined,
+      };
+    } catch {
+      return {};
+    }
+  }
+
   private registerBuiltinDrivers(): void {
-    // PostgreSQL / CockroachDB / Supabase / Neon
+    const self = this;
+
+    // ── PostgreSQL / CockroachDB / Supabase / Neon ─────────────────────────
     const pgDriver: DatabaseDriver = {
       async connect(config, credentials) {
-        if (credentials.connectionString) {
-          const pgMod = await import('postgres' as string);
-          const pgFn = pgMod.default || pgMod;
-          const sql = pgFn(credentials.connectionString, {
-            max: config.pool?.max ?? 10,
-            idle_timeout: (config.pool?.idleTimeoutMs ?? 30000) / 1000,
-            connect_timeout: (config.pool?.acquireTimeoutMs ?? 10000) / 1000,
-            ssl: config.ssl ? (config.sslRejectUnauthorized === false ? 'prefer' as any : 'require' as any) : false,
-          });
-          return {
-            async query(q: string, params?: any[]) {
-              const result = params?.length
-                ? await sql.unsafe(q, params)
-                : await sql.unsafe(q);
-              return {
-                rows: [...result],
-                affectedRows: result.count,
-                fields: result.columns?.map((c: any) => ({ name: c.name, type: String(c.type) })),
-              };
-            },
-            async close() { await sql.end(); },
-            async ping() { try { await sql`SELECT 1`; return true; } catch { return false; } },
-          };
+        const pgMod = await self.ensurePackage('postgres');
+        const pgFn = pgMod.default || pgMod;
+
+        // Build connection string from parts if not provided
+        let connStr = credentials.connectionString;
+        if (!connStr) {
+          const user = encodeURIComponent(config.username || 'postgres');
+          const pass = encodeURIComponent(credentials.password || '');
+          const host = config.host || 'localhost';
+          const port = config.port || 5432;
+          const db = config.database || 'postgres';
+          connStr = `postgresql://${user}:${pass}@${host}:${port}/${db}`;
         }
-        // Fallback: construct connection from parts
-        const connStr = `postgresql://${encodeURIComponent(config.username || '')}:${encodeURIComponent(credentials.password || '')}@${config.host || 'localhost'}:${config.port || 5432}/${config.database || 'postgres'}`;
-        const pgMod2 = await import('postgres' as string);
-        const postgres = pgMod2.default || pgMod2;
-        const sql = postgres(connStr, {
-          max: config.pool?.max ?? 10,
-          ssl: config.ssl ? {} : false,
-        });
+
+        const ssl = self.needsSsl(config, credentials);
+        const sql: any = await self.connectWithTimeout(() => {
+          const s = pgFn(connStr, {
+            max: config.pool?.max ?? 10,
+            idle_timeout: (config.pool?.idleTimeoutMs ?? 30_000) / 1000,
+            connect_timeout: 10,
+            ssl: ssl ? (config.sslRejectUnauthorized === false ? 'prefer' as any : 'require' as any) : false,
+          });
+          // Force a connection attempt so errors surface now
+          return s`SELECT 1`.then(() => s);
+        }, 15_000, 'PostgreSQL');
+
         return {
           async query(q: string, params?: any[]) {
             const result = params?.length ? await sql.unsafe(q, params) : await sql.unsafe(q);
-            return { rows: [...result], affectedRows: result.count };
+            return {
+              rows: [...result],
+              affectedRows: result.count,
+              fields: result.columns?.map((c: any) => ({ name: c.name, type: String(c.type) })),
+            };
           },
-          async close() { await sql.end(); },
+          async close() { try { await sql.end({ timeout: 5 }); } catch {} },
           async ping() { try { await sql`SELECT 1`; return true; } catch { return false; } },
         };
       },
     };
-
     this.drivers.set('postgresql', pgDriver);
     this.drivers.set('cockroachdb', pgDriver);
     this.drivers.set('supabase', pgDriver);
     this.drivers.set('neon', pgDriver);
 
-    // MySQL / MariaDB / PlanetScale
+    // ── MySQL / MariaDB / PlanetScale ──────────────────────────────────────
     const mysqlDriver: DatabaseDriver = {
       async connect(config, credentials) {
-        const mysql2 = await import('mysql2/promise' as string);
-        const pool = mysql2.createPool({
-          host: config.host || 'localhost',
-          port: config.port || 3306,
-          user: config.username,
-          password: credentials.password,
-          database: config.database,
-          connectionLimit: config.pool?.max ?? 10,
-          ssl: config.ssl ? {} : undefined,
-          uri: credentials.connectionString || undefined,
-        });
+        const mysql2 = await self.ensurePackage('mysql2/promise');
+
+        // Parse connection string for missing fields
+        const parsed = credentials.connectionString ? self.parseConnectionString(credentials.connectionString, config.type) : {};
+        const ssl = self.needsSsl(config, credentials);
+
+        const pool = await self.connectWithTimeout(async () => {
+          const p = mysql2.createPool({
+            host: config.host || parsed.host || 'localhost',
+            port: config.port || parsed.port || 3306,
+            user: config.username || parsed.username,
+            password: credentials.password,
+            database: config.database || parsed.database,
+            connectionLimit: config.pool?.max ?? 10,
+            connectTimeout: 10_000,
+            ssl: ssl ? { rejectUnauthorized: config.sslRejectUnauthorized !== false } : undefined,
+            uri: credentials.connectionString || undefined,
+          });
+          // Validate connection
+          await p.execute('SELECT 1');
+          return p;
+        }, 15_000, 'MySQL');
+
         return {
           async query(q: string, params?: any[]) {
             const [rows, fields] = await pool.execute(q, params);
@@ -770,51 +895,55 @@ export class DatabaseConnectionManager {
               fields: (fields as any[])?.map((f: any) => ({ name: f.name, type: String(f.type) })),
             };
           },
-          async close() { await pool.end(); },
+          async close() { try { await pool.end(); } catch {} },
           async ping() { try { await pool.execute('SELECT 1'); return true; } catch { return false; } },
         };
       },
     };
-
     this.drivers.set('mysql', mysqlDriver);
     this.drivers.set('mariadb', mysqlDriver);
     this.drivers.set('planetscale', mysqlDriver);
 
-    // SQLite
+    // ── SQLite ─────────────────────────────────────────────────────────────
     this.drivers.set('sqlite', {
-      async connect(config, _credentials) {
-        const { default: Database } = await import('better-sqlite3' as string);
-        const db = new Database(config.database || ':memory:', { readonly: !config.host });
+      async connect(config, credentials) {
+        const sqliteMod = await self.ensurePackage('better-sqlite3');
+        const Database = sqliteMod.default || sqliteMod;
+        const dbPath = credentials.connectionString || config.database || ':memory:';
+        const db = new Database(dbPath, { readonly: false });
+        // Enable WAL mode for better concurrency
+        try { db.pragma('journal_mode = WAL'); } catch {}
         return {
           async query(q: string, params?: any[]) {
-            try {
-              if (q.trim().toUpperCase().startsWith('SELECT') || q.trim().toUpperCase().startsWith('WITH') || q.trim().toUpperCase().startsWith('PRAGMA')) {
-                const stmt = db.prepare(q);
-                const rows = params?.length ? stmt.all(...params) : stmt.all();
-                return { rows, fields: rows.length > 0 ? Object.keys(rows[0]).map(k => ({ name: k, type: 'unknown' })) : [] };
-              } else {
-                const stmt = db.prepare(q);
-                const result = params?.length ? stmt.run(...params) : stmt.run();
-                return { rows: [], affectedRows: result.changes };
-              }
-            } catch (err: any) {
-              throw err;
+            const trimmed = q.trim().toUpperCase();
+            if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH') || trimmed.startsWith('PRAGMA') || trimmed.startsWith('EXPLAIN')) {
+              const stmt = db.prepare(q);
+              const rows = params?.length ? stmt.all(...params) : stmt.all();
+              return { rows, fields: rows.length > 0 ? Object.keys(rows[0]).map(k => ({ name: k, type: 'unknown' })) : [] };
+            } else {
+              const stmt = db.prepare(q);
+              const result = params?.length ? stmt.run(...params) : stmt.run();
+              return { rows: [], affectedRows: result.changes };
             }
           },
-          async close() { db.close(); },
+          async close() { try { db.close(); } catch {} },
           async ping() { try { db.prepare('SELECT 1').get(); return true; } catch { return false; } },
         };
       },
     });
 
-    // Turso / LibSQL
+    // ── Turso / LibSQL ─────────────────────────────────────────────────────
     this.drivers.set('turso', {
       async connect(config, credentials) {
-        const { createClient } = await import('@libsql/client' as string);
-        const client = createClient({
-          url: credentials.connectionString || `libsql://${config.host}`,
-          authToken: credentials.password,
-        });
+        const libsql = await self.ensurePackage('@libsql/client');
+        const { createClient } = libsql;
+
+        const url = credentials.connectionString || `libsql://${config.host}`;
+        const client = createClient({ url, authToken: credentials.password });
+
+        // Validate
+        await self.connectWithTimeout(() => client.execute('SELECT 1'), 15_000, 'Turso');
+
         return {
           async query(q: string, params?: any[]) {
             const result = await client.execute({ sql: q, args: params || [] });
@@ -824,91 +953,159 @@ export class DatabaseConnectionManager {
               fields: result.columns?.map((c: any) => ({ name: String(c), type: 'unknown' })),
             };
           },
-          async close() { client.close(); },
+          async close() { try { client.close(); } catch {} },
           async ping() { try { await client.execute('SELECT 1'); return true; } catch { return false; } },
         };
       },
     });
 
-    // MongoDB
+    // ── MongoDB ────────────────────────────────────────────────────────────
     this.drivers.set('mongodb', {
       async connect(config, credentials) {
-        const { MongoClient } = await import('mongodb' as string);
-        const uri = credentials.connectionString || `mongodb://${config.username}:${encodeURIComponent(credentials.password || '')}@${config.host || 'localhost'}:${config.port || 27017}/${config.database || 'admin'}`;
+        const mongoMod = await self.ensurePackage('mongodb');
+        const { MongoClient } = mongoMod;
+
+        const uri = credentials.connectionString || (() => {
+          const user = encodeURIComponent(config.username || '');
+          const pass = encodeURIComponent(credentials.password || '');
+          const host = config.host || 'localhost';
+          const port = config.port || 27017;
+          const db = config.database || 'admin';
+          const auth = user ? `${user}:${pass}@` : '';
+          return `mongodb://${auth}${host}:${port}/${db}`;
+        })();
+
+        const ssl = self.needsSsl(config, credentials);
+        // mongodb+srv:// always uses TLS
+        const useTls = ssl || uri.startsWith('mongodb+srv://');
+
         const client = new MongoClient(uri, {
           maxPoolSize: config.pool?.max ?? 10,
-          tls: config.ssl || false,
+          serverSelectionTimeoutMS: 10_000,
+          connectTimeoutMS: 10_000,
+          tls: useTls || undefined,
         });
-        await client.connect();
-        const db = client.db(config.database);
+
+        await self.connectWithTimeout(() => client.connect(), 15_000, 'MongoDB');
+        const db = client.db(config.database || self.parseConnectionString(uri, 'mongodb').database);
+
         return {
           async query(q: string, _params?: any[]) {
-            // MongoDB queries come as JSON strings: { collection: "users", operation: "find", filter: {...} }
             try {
               const cmd = JSON.parse(q);
               const collection = db.collection(cmd.collection);
-              if (cmd.operation === 'find') {
-                const cursor = collection.find(cmd.filter || {});
-                if (cmd.limit) cursor.limit(cmd.limit);
-                if (cmd.sort) cursor.sort(cmd.sort);
-                const rows = await cursor.toArray();
-                return { rows };
-              } else if (cmd.operation === 'insertOne') {
-                const result = await collection.insertOne(cmd.document);
-                return { rows: [{ insertedId: result.insertedId }], affectedRows: 1 };
-              } else if (cmd.operation === 'insertMany') {
-                const result = await collection.insertMany(cmd.documents);
-                return { rows: [{ insertedCount: result.insertedCount }], affectedRows: result.insertedCount };
-              } else if (cmd.operation === 'updateOne' || cmd.operation === 'updateMany') {
-                const fn = cmd.operation === 'updateOne' ? collection.updateOne.bind(collection) : collection.updateMany.bind(collection);
-                const result = await fn(cmd.filter || {}, cmd.update);
-                return { rows: [], affectedRows: result.modifiedCount };
-              } else if (cmd.operation === 'deleteOne' || cmd.operation === 'deleteMany') {
-                const fn = cmd.operation === 'deleteOne' ? collection.deleteOne.bind(collection) : collection.deleteMany.bind(collection);
-                const result = await fn(cmd.filter || {});
-                return { rows: [], affectedRows: result.deletedCount };
-              } else if (cmd.operation === 'aggregate') {
-                const rows = await collection.aggregate(cmd.pipeline || []).toArray();
-                return { rows };
-              } else if (cmd.operation === 'count') {
-                const count = await collection.countDocuments(cmd.filter || {});
-                return { rows: [{ count }] };
+              switch (cmd.operation) {
+                case 'find': {
+                  const cursor = collection.find(cmd.filter || {});
+                  if (cmd.projection) cursor.project(cmd.projection);
+                  if (cmd.sort) cursor.sort(cmd.sort);
+                  if (cmd.skip) cursor.skip(cmd.skip);
+                  cursor.limit(cmd.limit || 100);
+                  return { rows: await cursor.toArray() };
+                }
+                case 'findOne': {
+                  const doc = await collection.findOne(cmd.filter || {}, { projection: cmd.projection });
+                  return { rows: doc ? [doc] : [] };
+                }
+                case 'insertOne': {
+                  const r = await collection.insertOne(cmd.document);
+                  return { rows: [{ insertedId: r.insertedId }], affectedRows: 1 };
+                }
+                case 'insertMany': {
+                  const r = await collection.insertMany(cmd.documents);
+                  return { rows: [{ insertedCount: r.insertedCount }], affectedRows: r.insertedCount };
+                }
+                case 'updateOne': case 'updateMany': {
+                  const fn = cmd.operation === 'updateOne' ? collection.updateOne.bind(collection) : collection.updateMany.bind(collection);
+                  const r = await fn(cmd.filter || {}, cmd.update, { upsert: cmd.upsert });
+                  return { rows: [{ matchedCount: r.matchedCount, modifiedCount: r.modifiedCount, upsertedId: r.upsertedId }], affectedRows: r.modifiedCount };
+                }
+                case 'deleteOne': case 'deleteMany': {
+                  const fn = cmd.operation === 'deleteOne' ? collection.deleteOne.bind(collection) : collection.deleteMany.bind(collection);
+                  const r = await fn(cmd.filter || {});
+                  return { rows: [], affectedRows: r.deletedCount };
+                }
+                case 'aggregate': return { rows: await collection.aggregate(cmd.pipeline || []).toArray() };
+                case 'count': case 'countDocuments': return { rows: [{ count: await collection.countDocuments(cmd.filter || {}) }] };
+                case 'distinct': return { rows: [{ values: await collection.distinct(cmd.field, cmd.filter || {}) }] };
+                case 'listCollections': {
+                  const cols = await db.listCollections().toArray();
+                  return { rows: cols.map((c: any) => ({ name: c.name, type: c.type })) };
+                }
+                default: throw new Error(`Unknown operation: ${cmd.operation}. Supported: find, findOne, insertOne, insertMany, updateOne, updateMany, deleteOne, deleteMany, aggregate, count, distinct, listCollections`);
               }
-              throw new Error(`Unknown MongoDB operation: ${cmd.operation}`);
             } catch (err: any) {
-              if (err.message.startsWith('Unknown MongoDB')) throw err;
               throw new Error(`MongoDB query error: ${err.message}`);
             }
           },
-          async close() { await client.close(); },
+          async close() { try { await client.close(); } catch {} },
           async ping() { try { await db.command({ ping: 1 }); return true; } catch { return false; } },
         };
       },
     });
 
-    // Redis
+    // ── Redis (self-hosted or cloud with standard Redis protocol) ──────────
     this.drivers.set('redis', {
       async connect(config, credentials) {
-        // Dynamic import — redis is optional
-        const redisUrl = credentials.connectionString || `redis://${config.username ? config.username + ':' : ''}${credentials.password ? credentials.password + '@' : ''}${config.host || 'localhost'}:${config.port || 6379}`;
-        // Use a minimal Redis interface via net socket to avoid hard dependency
-        const net = await import('net');
-        const socket = new net.Socket();
-        await new Promise<void>((resolve, reject) => {
-          socket.connect(config.port || 6379, config.host || 'localhost', () => resolve());
-          socket.on('error', reject);
-        });
-        if (credentials.password) {
-          await sendRedisCommand(socket, `AUTH ${credentials.password}`);
+        const host = config.host || 'localhost';
+        const port = config.port || 6379;
+        const ssl = self.needsSsl(config, credentials);
+        const connStr = credentials.connectionString || '';
+
+        // Detect if connection string uses rediss:// (TLS)
+        const useTls = ssl || connStr.startsWith('rediss://');
+
+        // Parse auth from connection string if present
+        let password = credentials.password;
+        let username = config.username;
+        if (connStr) {
+          try {
+            const parsed = self.parseConnectionString(connStr, 'redis');
+            if (!password) {
+              // redis://user:pass@host:port or redis://:pass@host:port
+              const url = new URL(connStr.replace(/^redis(s?)/, 'http'));
+              password = url.password || password;
+              username = url.username || username;
+            }
+          } catch {}
         }
 
-        async function sendRedisCommand(sock: any, cmd: string): Promise<string> {
+        // Use TLS or plain net socket
+        let socket: any;
+        const connectHost = connStr ? (self.parseConnectionString(connStr, 'redis').host || host) : host;
+        const connectPort = connStr ? (self.parseConnectionString(connStr, 'redis').port || port) : port;
+
+        await self.connectWithTimeout(async () => {
+          if (useTls) {
+            const tls = await import('tls');
+            socket = tls.connect({ host: connectHost, port: connectPort, rejectUnauthorized: config.sslRejectUnauthorized !== false });
+            await new Promise<void>((resolve, reject) => {
+              socket.on('secureConnect', resolve);
+              socket.on('error', reject);
+            });
+          } else {
+            const net = await import('net');
+            socket = new net.Socket();
+            await new Promise<void>((resolve, reject) => {
+              socket.connect(connectPort, connectHost, () => resolve());
+              socket.on('error', reject);
+            });
+          }
+
+          // AUTH if needed — support Redis 6+ ACL: AUTH username password
+          if (password) {
+            const authCmd = username && username !== 'default' ? `AUTH ${username} ${password}` : `AUTH ${password}`;
+            await sendRedisCommand(socket, authCmd);
+          }
+        }, 15_000, 'Redis');
+
+        function sendRedisCommand(sock: any, cmd: string): Promise<string> {
           return new Promise((resolve, reject) => {
             let data = '';
-            const onData = (chunk: Buffer) => { data += chunk.toString(); sock.off('data', onData); resolve(data); };
+            const onData = (chunk: Buffer) => { data += chunk.toString(); if (data.includes('\r\n')) { sock.off('data', onData); resolve(data); } };
             sock.on('data', onData);
             sock.write(cmd + '\r\n');
-            setTimeout(() => { sock.off('data', onData); reject(new Error('Redis timeout')); }, 5000);
+            setTimeout(() => { sock.off('data', onData); reject(new Error('Redis command timed out after 10s')); }, 10_000);
           });
         }
 
@@ -917,8 +1114,87 @@ export class DatabaseConnectionManager {
             const result = await sendRedisCommand(socket, q);
             return { rows: [{ result: result.trim() }] };
           },
-          async close() { socket.destroy(); },
+          async close() { try { socket.destroy(); } catch {} },
           async ping() { try { const r = await sendRedisCommand(socket, 'PING'); return r.includes('PONG'); } catch { return false; } },
+        };
+      },
+    });
+
+    // ── Upstash Redis (REST API — zero dependencies) ──────────────────────
+    this.drivers.set('upstash', {
+      async connect(config, credentials) {
+        // Upstash REST: https://<endpoint>.upstash.io with Bearer token
+        // Connection string format: https://<token>@<endpoint>.upstash.io or just the URL
+        let baseUrl = '';
+        let token = credentials.password || '';
+
+        if (credentials.connectionString) {
+          const cs = credentials.connectionString;
+          // Handle https://token@host format
+          if (cs.startsWith('https://') && cs.includes('@')) {
+            try {
+              const url = new URL(cs);
+              token = token || url.username || url.password;
+              baseUrl = `https://${url.host}`;
+            } catch {
+              baseUrl = cs;
+            }
+          } else if (cs.startsWith('https://')) {
+            baseUrl = cs.replace(/\/$/, '');
+          } else if (cs.startsWith('rediss://')) {
+            // Upstash also provides redis:// URLs — extract host for REST
+            try {
+              const url = new URL(cs.replace('rediss://', 'https://'));
+              token = token || url.password;
+              baseUrl = `https://${url.hostname}`;
+            } catch {
+              baseUrl = `https://${config.host}`;
+            }
+          } else {
+            baseUrl = `https://${cs}`;
+          }
+        } else {
+          baseUrl = `https://${config.host}`;
+        }
+
+        if (!baseUrl) throw new Error('Upstash requires a REST URL or hostname. Find it in your Upstash console under REST API.');
+        if (!token) throw new Error('Upstash requires an auth token. Find it in your Upstash console under REST API.');
+
+        async function upstashRequest(command: string[]): Promise<any> {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 10_000);
+          try {
+            const resp = await fetch(baseUrl, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify(command),
+              signal: ctrl.signal,
+            });
+            if (!resp.ok) {
+              const body = await resp.text().catch(() => '');
+              throw new Error(`Upstash HTTP ${resp.status}: ${body.slice(0, 200)}`);
+            }
+            return resp.json();
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+
+        // Validate connection
+        await self.connectWithTimeout(async () => {
+          const r = await upstashRequest(['PING']);
+          if (r.result !== 'PONG') throw new Error('Upstash PING failed — check your token and endpoint URL');
+        }, 15_000, 'Upstash');
+
+        return {
+          async query(q: string) {
+            const parts = q.trim().split(/\s+/);
+            const result = await upstashRequest(parts);
+            const val = result.result ?? result;
+            return { rows: [{ result: typeof val === 'string' ? val : JSON.stringify(val) }] };
+          },
+          async close() { /* stateless REST — nothing to close */ },
+          async ping() { try { const r = await upstashRequest(['PING']); return r.result === 'PONG'; } catch { return false; } },
         };
       },
     });

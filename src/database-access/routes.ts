@@ -88,7 +88,29 @@ export function createDatabaseAccessRoutes(manager: DatabaseConnectionManager) {
     return c.json({ ok: true });
   });
 
-  /** Test a database connection */
+  /** Test connection parameters before saving (no persistence) — must come before :id routes */
+  router.post('/connections/test', async (c) => {
+    const body = await c.req.json();
+    if (!body.type) return c.json({ error: 'type is required' }, 400);
+    const startMs = Date.now();
+    try {
+      const result = await manager.testConnectionParams({
+        type: body.type,
+        host: body.host,
+        port: body.port,
+        database: body.database,
+        username: body.username,
+        password: body.password,
+        connectionString: body.connectionString,
+        ssl: body.ssl,
+      });
+      return c.json(result);
+    } catch (e: any) {
+      return c.json({ success: false, latencyMs: Date.now() - startMs, error: e.message || 'Connection test failed' });
+    }
+  });
+
+  /** Test an existing database connection */
   router.post('/connections/:id/test', async (c) => {
     const result = await manager.testConnection(c.req.param('id'));
     return c.json(result);

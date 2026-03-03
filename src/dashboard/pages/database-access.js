@@ -1,30 +1,38 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
-import { I } from '../components/icons.js';
+import { I } from '../components/icons.js?v=2';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { BrandLogo } from '../assets/brand-logos.js';
 
 var DATABASE_TYPES = [
   { section: 'Relational (SQL)', items: [
-    { value: 'postgresql', label: 'PostgreSQL', icon: '🐘' },
-    { value: 'mysql', label: 'MySQL', icon: '🐬' },
-    { value: 'mariadb', label: 'MariaDB', icon: '🦭' },
-    { value: 'mssql', label: 'Microsoft SQL Server', icon: '🪟' },
-    { value: 'oracle', label: 'Oracle', icon: '🔴' },
-    { value: 'sqlite', label: 'SQLite', icon: '📦' },
+    { value: 'postgresql', label: 'PostgreSQL' },
+    { value: 'mysql', label: 'MySQL' },
+    { value: 'mariadb', label: 'MariaDB' },
+    { value: 'mssql', label: 'Microsoft SQL Server' },
+    { value: 'oracle', label: 'Oracle' },
+    { value: 'sqlite', label: 'SQLite' },
   ]},
   { section: 'Cloud-Native SQL', items: [
-    { value: 'supabase', label: 'Supabase', icon: '⚡' },
-    { value: 'neon', label: 'Neon', icon: '🌀' },
-    { value: 'planetscale', label: 'PlanetScale', icon: '🪐' },
-    { value: 'cockroachdb', label: 'CockroachDB', icon: '🪳' },
-    { value: 'turso', label: 'Turso / LibSQL', icon: '🐢' },
+    { value: 'supabase', label: 'Supabase' },
+    { value: 'neon', label: 'Neon' },
+    { value: 'planetscale', label: 'PlanetScale' },
+    { value: 'cockroachdb', label: 'CockroachDB' },
+    { value: 'turso', label: 'Turso / LibSQL' },
   ]},
   { section: 'NoSQL / Key-Value', items: [
-    { value: 'mongodb', label: 'MongoDB', icon: '🍃' },
-    { value: 'redis', label: 'Redis', icon: '🔴' },
-    { value: 'dynamodb', label: 'AWS DynamoDB', icon: '☁️' },
+    { value: 'mongodb', label: 'MongoDB' },
+    { value: 'redis', label: 'Redis' },
+    { value: 'upstash', label: 'Upstash Redis' },
+    { value: 'dynamodb', label: 'AWS DynamoDB' },
   ]},
 ];
+
+function dbLogo(type, size) {
+  if (BrandLogo[type]) return BrandLogo[type](size || 28);
+  var dbType = ALL_DB_TYPES.find(function(d) { return d.value === type; });
+  return h('span', { style: { fontSize: (size || 28) * 0.75 + 'px', lineHeight: 1 } }, dbType ? dbType.label.charAt(0) : '?');
+}
 
 var ALL_DB_TYPES = DATABASE_TYPES.flatMap(function(s) { return s.items; });
 
@@ -38,7 +46,22 @@ var PERMISSIONS = [
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-var s = {
+// Convert CSS string to React style object
+function css(str) {
+  var obj = {};
+  str.split(';').forEach(function(pair) {
+    var p = pair.trim(); if (!p) return;
+    var i = p.indexOf(':'); if (i < 0) return;
+    var key = p.slice(0, i).trim();
+    var val = p.slice(i + 1).trim();
+    // camelCase the key
+    key = key.replace(/-([a-z])/g, function(_, c) { return c.toUpperCase(); });
+    obj[key] = val;
+  });
+  return obj;
+}
+
+var _s = {
   page: 'padding: 24px; max-width: 1200px; margin: 0 auto;',
   header: 'display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;',
   title: 'font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px;',
@@ -84,6 +107,9 @@ var s = {
   dbPickerItem: 'padding: 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; text-align: center; transition: all 0.15s; background: var(--bg-secondary);',
   dbPickerItemActive: 'padding: 12px; border-radius: 8px; border: 2px solid var(--accent); cursor: pointer; text-align: center; background: var(--accent-soft);',
 };
+// Convert all string styles to React style objects
+var s = {};
+Object.keys(_s).forEach(function(k) { s[k] = css(_s[k]); });
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -105,8 +131,8 @@ export function DatabaseAccessPage() {
         engineCall('/database/connections'),
         engineCall('/agents').catch(function() { return []; }),
       ]);
-      setConnections(conns || []);
-      setAgents(agts || []);
+      setConnections(Array.isArray(conns) ? conns : []);
+      setAgents(Array.isArray(agts) ? agts : []);
     } catch (e) { console.error('Load failed:', e); }
     setLoading(false);
   }, []);
@@ -123,13 +149,13 @@ export function DatabaseAccessPage() {
 
   var deleteConn = useCallback(async function(id) {
     if (!confirm('Delete this database connection? All agent access grants will be removed.')) return;
-    await engineCall('/database/connections/' + id, 'DELETE');
+    await engineCall('/database/connections/' + id, { method: 'DELETE' });
     loadData();
   }, []);
 
   var testConn = useCallback(async function(id) {
     try {
-      var result = await engineCall('/database/connections/' + id + '/test', 'POST');
+      var result = await engineCall('/database/connections/' + id + '/test', { method: 'POST' });
       alert(result.success ? 'Connection successful! (' + result.latencyMs + 'ms)' : 'Connection failed: ' + (result.error || 'Unknown error'));
       loadData();
     } catch (e) { alert('Test failed: ' + e.message); }
@@ -138,35 +164,35 @@ export function DatabaseAccessPage() {
   return h('div', { style: s.page },
     h('div', { style: s.header },
       h('div', { style: s.title },
-        I.database(20),
+        I.database(),
         'Database Access',
-        HelpButton({
-          title: 'Database Access',
-          content: h(Fragment, null,
-            h('p', null, 'Connect your agents to external databases. Each agent can be granted granular permissions (read, write, delete) on specific database connections.'),
-            h('p', null, 'Credentials are encrypted in the vault. All queries are sanitized, rate-limited, and logged for audit.'),
-          ),
-        }),
+        h(HelpButton, { label: 'Database Access' },
+          h('p', null, 'Connect your agents to external databases. Each agent can be granted granular permissions (read, write, delete) on specific database connections.'),
+          h('p', null, 'Credentials are encrypted in the vault. All queries are sanitized, rate-limited, and logged for audit.'),
+        ),
       ),
       h('button', { style: s.btnPrimary, onClick: function() { setShowAdd(true); } }, '+ Add Connection'),
     ),
 
     // Tabs
     h('div', { style: s.tabs },
-      h('div', { style: tab === 'connections' ? s.tabActive : s.tab, onClick: function() { setTab('connections'); } }, 'Connections'),
-      h('div', { style: tab === 'agents' ? s.tabActive : s.tab, onClick: function() { setTab('agents'); } }, 'Agent Access'),
-      h('div', { style: tab === 'audit' ? s.tabActive : s.tab, onClick: function() { setTab('audit'); } }, 'Audit Log'),
+      h('div', { style: tab === 'connections' ? s.tabActive : s.tab, onClick: function() { setTab('connections'); } },
+        h('span', { style: css('display: inline-flex; align-items: center; gap: 6px;') }, h('span', { style: css('display: flex; transform: scale(0.7);') }, I.database()), 'Connections')),
+      h('div', { style: tab === 'agents' ? s.tabActive : s.tab, onClick: function() { setTab('agents'); } },
+        h('span', { style: css('display: inline-flex; align-items: center; gap: 6px;') }, h('span', { style: css('display: flex; transform: scale(0.7);') }, I.shield()), 'Agent Access')),
+      h('div', { style: tab === 'audit' ? s.tabActive : s.tab, onClick: function() { setTab('audit'); } },
+        h('span', { style: css('display: inline-flex; align-items: center; gap: 6px;') }, h('span', { style: css('display: flex; transform: scale(0.7);') }, I.audit()), 'Audit Log')),
     ),
 
     // Content
-    tab === 'connections' && ConnectionsTab({ connections: connections, agents: agents, onDelete: deleteConn, onTest: testConn, onEdit: setEditConn, onGrant: setShowGrant, onRefresh: loadData }),
-    tab === 'agents' && AgentAccessTab({ connections: connections, agents: agents, onRefresh: loadData }),
-    tab === 'audit' && AuditTab({ auditLog: auditLog, onRefresh: loadAudit }),
+    tab === 'connections' && h(ConnectionsTab, { connections: connections, agents: agents, onDelete: deleteConn, onTest: testConn, onEdit: setEditConn, onGrant: setShowGrant, onRefresh: loadData }),
+    tab === 'agents' && h(AgentAccessTab, { connections: connections, agents: agents, onRefresh: loadData }),
+    tab === 'audit' && h(AuditTab, { auditLog: auditLog, onRefresh: loadAudit }),
 
     // Modals
-    showAdd && AddConnectionModal({ onClose: function() { setShowAdd(false); }, onSave: loadData }),
-    showGrant && GrantAccessModal({ connectionId: showGrant, agents: agents, connections: connections, onClose: function() { setShowGrant(null); }, onSave: loadData }),
-    editConn && EditConnectionModal({ connection: editConn, onClose: function() { setEditConn(null); }, onSave: loadData }),
+    showAdd && h(AddConnectionModal, { onClose: function() { setShowAdd(false); }, onSave: loadData }),
+    showGrant && h(GrantAccessModal, { connectionId: showGrant, agents: agents, connections: connections, onClose: function() { setShowGrant(null); }, onSave: loadData }),
+    editConn && h(EditConnectionModal, { connection: editConn, onClose: function() { setEditConn(null); }, onSave: loadData }),
   );
 }
 
@@ -176,8 +202,8 @@ function ConnectionsTab(props) {
   var connections = props.connections;
   if (connections.length === 0) {
     return h('div', { style: s.emptyState },
-      h('div', { style: s.emptyIcon }, I.database(48)),
-      h('div', { style: 'font-size: 16px; font-weight: 600; margin-bottom: 8px;' }, 'No Database Connections'),
+      h('div', { style: s.emptyIcon }, I.database()),
+      h('div', { style: css('font-size: 16px; font-weight: 600; margin-bottom: 8px;') }, 'No Database Connections'),
       h('div', null, 'Add a connection to let your agents query external databases.'),
     );
   }
@@ -190,16 +216,16 @@ function ConnectionsTab(props) {
       var statusStyle = conn.status === 'active' ? s.badgeActive : conn.status === 'error' ? s.badgeError : s.badgeInactive;
       return h('div', { key: conn.id, style: s.card },
         h('div', { style: s.cardHeader },
-          h('span', { style: s.cardIcon }, dbType ? dbType.icon : '🗄️'),
+          h('span', { style: s.cardIcon }, dbLogo(conn.type, 32)),
           h('div', null,
             h('div', { style: s.cardTitle }, conn.name),
             h('div', { style: s.cardType }, dbType ? dbType.label : conn.type),
           ),
-          h('span', { style: s.badge + ';' + statusStyle }, conn.status),
+          h('span', { style: Object.assign({}, s.badge, statusStyle) }, conn.status),
         ),
         conn.host && h('div', { style: s.meta }, conn.host + (conn.port ? ':' + conn.port : '') + (conn.database ? ' / ' + conn.database : '')),
         conn.description && h('div', { style: s.meta }, conn.description),
-        conn.lastError && h('div', { style: 'font-size: 11px; color: var(--danger); margin-top: 4px;' }, conn.lastError),
+        conn.lastError && h('div', { style: css('font-size: 11px; color: var(--danger); margin-top: 4px;') }, conn.lastError),
         h('div', { style: s.actions },
           h('button', { style: s.btn, onClick: function() { props.onTest(conn.id); } }, 'Test'),
           h('button', { style: s.btnPrimary, onClick: function() { props.onGrant(conn.id); } }, 'Grant Access'),
@@ -232,14 +258,14 @@ function AgentAccessTab(props) {
     load();
   }, [props.agents]);
 
-  if (loading) return h('div', { style: 'padding: 40px; text-align: center; color: var(--text-muted);' }, 'Loading agent access...');
+  if (loading) return h('div', { style: css('padding: 40px; text-align: center; color: var(--text-muted);') }, 'Loading agent access...');
 
   var agentsWithAccess = props.agents.filter(function(a) { return accessMap[a.id] && accessMap[a.id].length > 0; });
 
   if (agentsWithAccess.length === 0) {
     return h('div', { style: s.emptyState },
-      h('div', { style: s.emptyIcon }, '🔒'),
-      h('div', { style: 'font-size: 16px; font-weight: 600; margin-bottom: 8px;' }, 'No Agents Have Database Access'),
+      h('div', { style: s.emptyIcon }, I.lock()),
+      h('div', { style: css('font-size: 16px; font-weight: 600; margin-bottom: 8px;') }, 'No Agents Have Database Access'),
       h('div', null, 'Grant access from the Connections tab to allow agents to query databases.'),
     );
   }
@@ -247,9 +273,9 @@ function AgentAccessTab(props) {
   return h('div', null,
     agentsWithAccess.map(function(agent) {
       var grants = accessMap[agent.id] || [];
-      return h('div', { key: agent.id, style: s.card + '; margin-bottom: 16px;' },
+      return h('div', { key: agent.id, style: Object.assign({}, s.card, { marginBottom: '16px' }) },
         h('div', { style: s.cardHeader },
-          h('div', { style: 'width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--accent);' }, (agent.displayName || agent.name || '?')[0].toUpperCase()),
+          h('div', { style: css('width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--accent);') }, (agent.displayName || agent.name || '?')[0].toUpperCase()),
           h('div', null,
             h('div', { style: s.cardTitle }, agent.displayName || agent.name),
             h('div', { style: s.cardType }, grants.length + ' database' + (grants.length !== 1 ? 's' : '')),
@@ -259,19 +285,19 @@ function AgentAccessTab(props) {
           var conn = grant.connection || {};
           var dbType = ALL_DB_TYPES.find(function(t) { return t.value === conn.type; });
           return h('div', { key: grant.connectionId, style: s.agentRow },
-            h('div', { style: 'display: flex; align-items: center; gap: 8px;' },
-              h('span', null, dbType ? dbType.icon : '🗄️'),
+            h('div', { style: css('display: flex; align-items: center; gap: 8px;') },
+              h('span', null, dbLogo(conn.type, 20)),
               h('span', { style: s.agentName }, conn.name || grant.connectionId),
             ),
             h('div', { style: s.agentPerms },
               (grant.permissions || []).map(function(p) {
                 var permDef = PERMISSIONS.find(function(x) { return x.value === p; });
-                return h('span', { key: p, style: s.miniChip + '; background: ' + (permDef ? permDef.color : 'var(--text-muted)') + '22; color: ' + (permDef ? permDef.color : 'var(--text-muted)') }, p);
+                return h('span', { key: p, style: Object.assign({}, s.miniChip, { background: (permDef ? permDef.color : 'var(--text-muted)') + '22', color: permDef ? permDef.color : 'var(--text-muted)' }) }, p);
               })
             ),
-            h('button', { style: s.btnDanger + '; padding: 3px 8px; font-size: 11px;', onClick: async function() {
+            h('button', { style: Object.assign({}, s.btnDanger, { padding: '3px 8px', fontSize: '11px' }), onClick: async function() {
               if (!confirm('Revoke ' + (agent.displayName || agent.name) + ' access to ' + (conn.name || 'this database') + '?')) return;
-              await engineCall('/database/connections/' + grant.connectionId + '/agents/' + agent.id, 'DELETE');
+              await engineCall('/database/connections/' + grant.connectionId + '/agents/' + agent.id, { method: 'DELETE' });
               props.onRefresh();
             }}, 'Revoke'),
           );
@@ -283,45 +309,160 @@ function AgentAccessTab(props) {
 
 // ─── Audit Tab ───────────────────────────────────────────────────────────────
 
+var AUDIT_PAGE_SIZE = 15;
+
 function AuditTab(props) {
+  var [search, setSearch] = useState('');
+  var [opFilter, setOpFilter] = useState('all');
+  var [statusFilter, setStatusFilter] = useState('all');
+  var [agentFilter, setAgentFilter] = useState('all');
+  var [page, setPage] = useState(0);
+  var [expanded, setExpanded] = useState(null);
+
+  // Get unique agents from audit log
+  var agents = [];
+  var agentSet = {};
+  props.auditLog.forEach(function(e) {
+    var name = e.agent_name || e.agent_id;
+    if (name && !agentSet[name]) { agentSet[name] = true; agents.push(name); }
+  });
+
+  // Filter entries
+  var filtered = props.auditLog.filter(function(e) {
+    if (opFilter !== 'all' && e.operation !== opFilter) return false;
+    if (statusFilter === 'ok' && !e.success) return false;
+    if (statusFilter === 'fail' && e.success) return false;
+    if (agentFilter !== 'all' && (e.agent_name || e.agent_id) !== agentFilter) return false;
+    if (search) {
+      var q = search.toLowerCase();
+      var haystack = ((e.query || '') + ' ' + (e.agent_name || '') + ' ' + (e.connection_name || '') + ' ' + (e.error || '')).toLowerCase();
+      if (haystack.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+
+  var totalPages = Math.max(1, Math.ceil(filtered.length / AUDIT_PAGE_SIZE));
+  if (page >= totalPages) page = totalPages - 1;
+  var paged = filtered.slice(page * AUDIT_PAGE_SIZE, (page + 1) * AUDIT_PAGE_SIZE);
+
+  // Reset page when filters change
+  var resetPage = function() { setPage(0); };
+
   if (props.auditLog.length === 0) {
     return h('div', { style: s.emptyState },
-      h('div', { style: s.emptyIcon }, '📋'),
-      h('div', { style: 'font-size: 16px; font-weight: 600; margin-bottom: 8px;' }, 'No Query Activity Yet'),
+      h('div', { style: s.emptyIcon }, I.audit()),
+      h('div', { style: css('font-size: 16px; font-weight: 600; margin-bottom: 8px;') }, 'No Query Activity Yet'),
       h('div', null, 'Queries executed by agents will appear here with full audit details.'),
     );
   }
 
-  return h('div', { style: 'overflow-x: auto;' },
-    h('table', { style: s.auditTable },
-      h('thead', null, h('tr', null,
-        h('th', { style: s.auditTh }, 'Time'),
-        h('th', { style: s.auditTh }, 'Agent'),
-        h('th', { style: s.auditTh }, 'Database'),
-        h('th', { style: s.auditTh }, 'Op'),
-        h('th', { style: s.auditTh }, 'Query'),
-        h('th', { style: s.auditTh }, 'Rows'),
-        h('th', { style: s.auditTh }, 'Time'),
-        h('th', { style: s.auditTh }, 'Status'),
-      )),
-      h('tbody', null,
-        props.auditLog.map(function(entry) {
-          var opColor = entry.operation === 'read' ? 'var(--success)' : entry.operation === 'write' ? 'var(--warning)' : entry.operation === 'delete' ? 'var(--danger)' : 'var(--text-muted)';
-          return h('tr', { key: entry.id },
-            h('td', { style: s.auditTd }, new Date(entry.timestamp).toLocaleString()),
-            h('td', { style: s.auditTd }, entry.agent_name || entry.agent_id?.slice(0, 8)),
-            h('td', { style: s.auditTd }, entry.connection_name || entry.connection_id?.slice(0, 8)),
-            h('td', { style: s.auditTd + '; font-weight: 600; color: ' + opColor }, entry.operation),
-            h('td', { style: s.auditTd + '; font-family: monospace; font-size: 11px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;' }, entry.query),
-            h('td', { style: s.auditTd }, entry.rows_affected),
-            h('td', { style: s.auditTd }, entry.execution_time_ms + 'ms'),
-            h('td', { style: s.auditTd }, entry.success
-              ? h('span', { style: s.badge + ';' + s.badgeActive }, 'OK')
-              : h('span', { style: s.badge + ';' + s.badgeError, title: entry.error }, 'FAIL')
-            ),
-          );
-        })
+  var opColor = function(op) {
+    return op === 'read' ? 'var(--success)' : op === 'write' ? 'var(--warning)' : op === 'delete' ? 'var(--danger)' : op === 'schema' ? 'var(--accent)' : 'var(--text-muted)';
+  };
+
+  var filterBar = css('display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;');
+  var filterSelect = css('padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font-size: 12px;');
+  var searchInput = css('padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-primary); font-size: 12px; flex: 1; min-width: 180px;');
+  var countBadge = css('font-size: 11px; color: var(--text-muted); margin-left: auto; white-space: nowrap;');
+
+  return h('div', null,
+    // Filter bar
+    h('div', { style: filterBar },
+      h('div', { style: css('display: flex; align-items: center; gap: 4px; color: var(--text-muted);') },
+        h('span', { style: css('display: flex; transform: scale(0.65);') }, I.search()),
       ),
+      h('input', { style: searchInput, placeholder: 'Search queries, agents, databases, errors...', value: search, onInput: function(e) { setSearch(e.target.value); resetPage(); } }),
+      h('select', { style: filterSelect, value: opFilter, onChange: function(e) { setOpFilter(e.target.value); resetPage(); } },
+        h('option', { value: 'all' }, 'All Operations'),
+        h('option', { value: 'read' }, 'Read'),
+        h('option', { value: 'write' }, 'Write'),
+        h('option', { value: 'delete' }, 'Delete'),
+        h('option', { value: 'schema' }, 'Schema'),
+        h('option', { value: 'execute' }, 'Execute'),
+      ),
+      h('select', { style: filterSelect, value: statusFilter, onChange: function(e) { setStatusFilter(e.target.value); resetPage(); } },
+        h('option', { value: 'all' }, 'All Status'),
+        h('option', { value: 'ok' }, 'Success'),
+        h('option', { value: 'fail' }, 'Failed'),
+      ),
+      agents.length > 1 && h('select', { style: filterSelect, value: agentFilter, onChange: function(e) { setAgentFilter(e.target.value); resetPage(); } },
+        h('option', { value: 'all' }, 'All Agents'),
+        agents.map(function(a) { return h('option', { key: a, value: a }, a); })
+      ),
+      h('span', { style: countBadge }, filtered.length + ' of ' + props.auditLog.length + ' entries'),
+      h('button', { style: Object.assign({}, s.btn, { padding: '4px 10px', fontSize: '11px' }), onClick: props.onRefresh }, 'Refresh'),
+    ),
+
+    // Table
+    h('div', { style: css('overflow-x: auto; border: 1px solid var(--border); border-radius: 8px;') },
+      h('table', { style: s.auditTable },
+        h('thead', null, h('tr', null,
+          h('th', { style: s.auditTh }, 'Time'),
+          h('th', { style: s.auditTh }, 'Agent'),
+          h('th', { style: s.auditTh }, 'Database'),
+          h('th', { style: s.auditTh }, 'Operation'),
+          h('th', { style: s.auditTh }, 'Query'),
+          h('th', { style: s.auditTh }, 'Rows'),
+          h('th', { style: s.auditTh }, 'Latency'),
+          h('th', { style: s.auditTh }, 'Status'),
+        )),
+        h('tbody', null,
+          paged.length === 0 && h('tr', null,
+            h('td', { colSpan: 8, style: Object.assign({}, s.auditTd, { textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }) }, 'No entries match your filters')
+          ),
+          paged.map(function(entry) {
+            var isExpanded = expanded === entry.id;
+            return h(Fragment, { key: entry.id },
+              h('tr', { style: css('cursor: pointer; transition: background 0.1s;'), onClick: function() { setExpanded(isExpanded ? null : entry.id); } },
+                h('td', { style: s.auditTd }, new Date(entry.timestamp).toLocaleString()),
+                h('td', { style: Object.assign({}, s.auditTd, { fontWeight: 500 }) }, entry.agent_name || (entry.agent_id ? entry.agent_id.slice(0, 8) + '...' : '—')),
+                h('td', { style: s.auditTd }, entry.connection_name || (entry.connection_id ? entry.connection_id.slice(0, 8) + '...' : '—')),
+                h('td', { style: Object.assign({}, s.auditTd, { fontWeight: 600, color: opColor(entry.operation) }) }, entry.operation),
+                h('td', { style: Object.assign({}, s.auditTd, { fontFamily: 'monospace', fontSize: '11px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }, entry.query),
+                h('td', { style: Object.assign({}, s.auditTd, { textAlign: 'right' }) }, entry.rows_affected != null ? entry.rows_affected : '—'),
+                h('td', { style: Object.assign({}, s.auditTd, { textAlign: 'right', whiteSpace: 'nowrap' }) }, entry.execution_time_ms != null ? entry.execution_time_ms + 'ms' : '—'),
+                h('td', { style: s.auditTd }, entry.success
+                  ? h('span', { style: Object.assign({}, s.badge, s.badgeActive) }, 'OK')
+                  : h('span', { style: Object.assign({}, s.badge, s.badgeError) }, 'FAIL')
+                ),
+              ),
+              // Expanded row detail
+              isExpanded && h('tr', null,
+                h('td', { colSpan: 8, style: css('padding: 12px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);') },
+                  h('div', { style: css('display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px;') },
+                    h('div', null,
+                      h('div', { style: css('font-weight: 600; margin-bottom: 4px; color: var(--text-muted);') }, 'Full Query'),
+                      h('pre', { style: css('margin: 0; padding: 8px; background: var(--bg-primary); border-radius: 6px; overflow-x: auto; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 200px;') }, entry.query || '—'),
+                    ),
+                    h('div', null,
+                      h('div', { style: css('font-weight: 600; margin-bottom: 4px; color: var(--text-muted);') }, 'Details'),
+                      h('div', { style: css('display: flex; flex-direction: column; gap: 4px;') },
+                        h('div', null, h('strong', null, 'Agent ID: '), entry.agent_id || '—'),
+                        h('div', null, h('strong', null, 'Connection ID: '), entry.connection_id || '—'),
+                        h('div', null, h('strong', null, 'Rows Affected: '), entry.rows_affected != null ? String(entry.rows_affected) : '—'),
+                        h('div', null, h('strong', null, 'Execution Time: '), entry.execution_time_ms != null ? entry.execution_time_ms + 'ms' : '—'),
+                        h('div', null, h('strong', null, 'IP: '), entry.ip_address || '—'),
+                        !entry.success && entry.error && h('div', { style: css('margin-top: 4px; padding: 6px 8px; background: rgba(239,68,68,0.1); border-radius: 4px; color: var(--danger);') },
+                          h('strong', null, 'Error: '), entry.error
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          })
+        ),
+      ),
+    ),
+
+    // Pagination
+    totalPages > 1 && h('div', { style: css('display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px;') },
+      h('button', { style: Object.assign({}, s.btn, { padding: '4px 10px', fontSize: '12px' }), disabled: page === 0, onClick: function() { setPage(0); } }, '«'),
+      h('button', { style: Object.assign({}, s.btn, { padding: '4px 10px', fontSize: '12px' }), disabled: page === 0, onClick: function() { setPage(page - 1); } }, '‹'),
+      h('span', { style: css('font-size: 12px; color: var(--text-secondary);') }, 'Page ' + (page + 1) + ' of ' + totalPages),
+      h('button', { style: Object.assign({}, s.btn, { padding: '4px 10px', fontSize: '12px' }), disabled: page >= totalPages - 1, onClick: function() { setPage(page + 1); } }, '›'),
+      h('button', { style: Object.assign({}, s.btn, { padding: '4px 10px', fontSize: '12px' }), disabled: page >= totalPages - 1, onClick: function() { setPage(totalPages - 1); } }, '»'),
     ),
   );
 }
@@ -333,26 +474,63 @@ function AddConnectionModal(props) {
   var [dbType, setDbType] = useState('');
   var [form, setForm] = useState({ name: '', host: '', port: '', database: '', username: '', password: '', connectionString: '', ssl: false, description: '' });
   var [saving, setSaving] = useState(false);
+  var [testing, setTesting] = useState(false);
+  var [testResult, setTestResult] = useState(null); // { success, error, latencyMs }
 
-  var set = function(key, val) { setForm(function(f) { var n = Object.assign({}, f); n[key] = val; return n; }); };
+  var set = function(key, val) { setForm(function(f) { var n = Object.assign({}, f); n[key] = val; return n; }); setTestResult(null); };
 
   var isConnString = form.connectionString.length > 0;
 
+  var buildBody = function() {
+    var body = { type: dbType, name: form.name || (ALL_DB_TYPES.find(function(t) { return t.value === dbType; })?.label + ' Connection'), description: form.description, status: 'inactive' };
+    if (isConnString) {
+      body.connectionString = form.connectionString;
+    } else {
+      body.host = form.host;
+      body.port = form.port ? parseInt(form.port) : undefined;
+      body.database = form.database;
+      body.username = form.username;
+      body.password = form.password;
+      body.ssl = form.ssl;
+    }
+    return body;
+  };
+
+  var testConnection = async function() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      var result = await engineCall('/database/connections/test', { method: 'POST', body: JSON.stringify(buildBody()) });
+      setTestResult(result);
+    } catch (e) {
+      setTestResult({ success: false, error: e.message || 'Connection test failed' });
+    }
+    setTesting(false);
+  };
+
   var save = async function() {
+    // Test connection first if not already tested successfully
+    if (!testResult || !testResult.success) {
+      setTesting(true);
+      setTestResult(null);
+      try {
+        var result = await engineCall('/database/connections/test', { method: 'POST', body: JSON.stringify(buildBody()) });
+        setTestResult(result);
+        if (!result.success) {
+          setTesting(false);
+          return; // Don't save if test fails
+        }
+      } catch (e) {
+        setTestResult({ success: false, error: e.message || 'Connection test failed' });
+        setTesting(false);
+        return;
+      }
+      setTesting(false);
+    }
+
     setSaving(true);
     try {
-      var body = { type: dbType, name: form.name || (ALL_DB_TYPES.find(function(t) { return t.value === dbType; })?.label + ' Connection'), description: form.description, status: 'inactive' };
-      if (isConnString) {
-        body.connectionString = form.connectionString;
-      } else {
-        body.host = form.host;
-        body.port = form.port ? parseInt(form.port) : undefined;
-        body.database = form.database;
-        body.username = form.username;
-        body.password = form.password;
-        body.ssl = form.ssl;
-      }
-      await engineCall('/database/connections', 'POST', body);
+      await engineCall('/database/connections', { method: 'POST', body: JSON.stringify(buildBody()) });
       props.onSave();
       props.onClose();
     } catch (e) { alert('Failed: ' + e.message); }
@@ -376,14 +554,14 @@ function AddConnectionModal(props) {
                   style: isActive ? s.dbPickerItemActive : s.dbPickerItem,
                   onClick: function() { setDbType(item.value); },
                 },
-                  h('div', { style: 'font-size: 24px; margin-bottom: 4px;' }, item.icon),
-                  h('div', { style: 'font-size: 12px; font-weight: 500;' }, item.label),
+                  h('div', { style: css('margin-bottom: 4px; display: flex; justify-content: center;') }, dbLogo(item.value, 32)),
+                  h('div', { style: css('font-size: 12px; font-weight: 500;') }, item.label),
                 );
               })
             ),
           );
         }),
-        h('div', { style: 'display: flex; justify-content: flex-end; margin-top: 8px;' },
+        h('div', { style: css('display: flex; justify-content: flex-end; margin-top: 8px;') },
           h('button', { style: s.btnPrimary, disabled: !dbType, onClick: function() { setStep(2); } }, 'Next →'),
         ),
       ),
@@ -398,13 +576,13 @@ function AddConnectionModal(props) {
           h('input', { style: s.input, type: 'password', placeholder: 'postgresql://user:pass@host:5432/db', value: form.connectionString, onInput: function(e) { set('connectionString', e.target.value); } }),
         ),
         !isConnString && h(Fragment, null,
-          h('div', { style: 'text-align: center; font-size: 12px; color: var(--text-muted); margin: -8px 0;' }, '— or enter fields —'),
+          h('div', { style: css('text-align: center; font-size: 12px; color: var(--text-muted); margin: -8px 0;') }, '— or enter fields —'),
           h('div', { style: s.row },
             h('div', { style: s.col },
               h('div', { style: s.label }, 'Host'),
               h('input', { style: s.input, placeholder: 'localhost', value: form.host, onInput: function(e) { set('host', e.target.value); } }),
             ),
-            h('div', { style: 'width: 100px;' },
+            h('div', { style: css('width: 100px;') },
               h('div', { style: s.label }, 'Port'),
               h('input', { style: s.input, placeholder: '5432', value: form.port, onInput: function(e) { set('port', e.target.value); } }),
             ),
@@ -423,7 +601,7 @@ function AddConnectionModal(props) {
               h('input', { style: s.input, type: 'password', value: form.password, onInput: function(e) { set('password', e.target.value); } }),
             ),
           ),
-          h('label', { style: 'display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;' },
+          h('label', { style: css('display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;') },
             h('input', { type: 'checkbox', checked: form.ssl, onChange: function(e) { set('ssl', e.target.checked); } }),
             'Use SSL/TLS',
           ),
@@ -432,9 +610,21 @@ function AddConnectionModal(props) {
           h('div', { style: s.label }, 'Description (optional)'),
           h('input', { style: s.input, placeholder: 'What is this database used for?', value: form.description, onInput: function(e) { set('description', e.target.value); } }),
         ),
-        h('div', { style: 'display: flex; justify-content: space-between; margin-top: 8px;' },
+        // Connection test result
+        testResult && h('div', { style: css('padding: 8px 12px; border-radius: 6px; font-size: 12px; ' + (testResult.success
+          ? 'background: rgba(21,128,61,0.1); color: var(--success); border: 1px solid rgba(21,128,61,0.3);'
+          : 'background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3);')) },
+          testResult.success
+            ? 'Connection successful! (' + testResult.latencyMs + 'ms)'
+            : 'Connection failed: ' + (testResult.error || 'Unknown error'),
+        ),
+
+        h('div', { style: css('display: flex; justify-content: space-between; margin-top: 8px;') },
           h('button', { style: s.btn, onClick: function() { setStep(1); } }, '← Back'),
-          h('button', { style: s.btnPrimary, disabled: saving || (!isConnString && !form.host), onClick: save }, saving ? 'Saving...' : 'Add Connection'),
+          h('div', { style: css('display: flex; gap: 8px;') },
+            h('button', { style: s.btn, disabled: testing || saving || (!isConnString && !form.host), onClick: testConnection }, testing ? 'Testing...' : 'Test Connection'),
+            h('button', { style: s.btnPrimary, disabled: testing || saving || (!isConnString && !form.host), onClick: save }, saving ? 'Saving...' : testing ? 'Testing...' : 'Add Connection'),
+          ),
         ),
       ),
     ),
@@ -480,7 +670,7 @@ function GrantAccessModal(props) {
       if (blockedTables.trim()) {
         body.schemaAccess = { blockedTables: blockedTables.split(',').map(function(t) { return t.trim(); }).filter(Boolean) };
       }
-      await engineCall('/database/connections/' + props.connectionId + '/agents', 'POST', body);
+      await engineCall('/database/connections/' + props.connectionId + '/agents', { method: 'POST', body: JSON.stringify(body) });
       props.onSave();
       props.onClose();
     } catch (e) { alert('Failed: ' + e.message); }
@@ -510,7 +700,7 @@ function GrantAccessModal(props) {
               key: p.value,
               style: active ? s.permChipActive : s.permChip,
               onClick: function() { togglePerm(p.value); },
-            }, p.label, h('span', { style: 'font-size: 10px; color: var(--text-muted); margin-left: 4px;' }, p.desc));
+            }, p.label, h('span', { style: css('font-size: 10px; color: var(--text-muted); margin-left: 4px;') }, p.desc));
           })
         ),
       ),
@@ -532,15 +722,15 @@ function GrantAccessModal(props) {
         h('div', { style: s.label }, 'Blocked Tables (comma-separated)'),
         h('input', { style: s.input, placeholder: 'users_secrets, payment_tokens', value: blockedTables, onInput: function(e) { setBlockedTables(e.target.value); } }),
       ),
-      h('label', { style: 'display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;' },
+      h('label', { style: css('display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;') },
         h('input', { type: 'checkbox', checked: logAll, onChange: function(e) { setLogAll(e.target.checked); } }),
         'Log ALL queries (including reads)',
       ),
-      h('label', { style: 'display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;' },
+      h('label', { style: css('display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;') },
         h('input', { type: 'checkbox', checked: requireApproval, onChange: function(e) { setRequireApproval(e.target.checked); } }),
         'Require human approval for write/delete',
       ),
-      h('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' },
+      h('div', { style: css('display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;') },
         h('button', { style: s.btn, onClick: props.onClose }, 'Cancel'),
         h('button', { style: s.btnPrimary, disabled: saving || !agentId, onClick: save }, saving ? 'Granting...' : 'Grant Access'),
       ),
@@ -560,14 +750,14 @@ function EditConnectionModal(props) {
   var save = async function() {
     setSaving(true);
     try {
-      await engineCall('/database/connections/' + conn.id, 'PUT', {
+      await engineCall('/database/connections/' + conn.id, { method: 'PUT', body: JSON.stringify({
         name: form.name,
         host: form.host,
         port: form.port ? parseInt(form.port) : undefined,
         database: form.database,
         description: form.description,
         ssl: form.ssl,
-      });
+      }) });
       props.onSave();
       props.onClose();
     } catch (e) { alert('Failed: ' + e.message); }
@@ -588,7 +778,7 @@ function EditConnectionModal(props) {
           h('div', { style: s.label }, 'Host'),
           h('input', { style: s.input, value: form.host, onInput: function(e) { set('host', e.target.value); } }),
         ),
-        h('div', { style: 'width: 100px;' },
+        h('div', { style: css('width: 100px;') },
           h('div', { style: s.label }, 'Port'),
           h('input', { style: s.input, value: form.port, onInput: function(e) { set('port', e.target.value); } }),
         ),
@@ -601,11 +791,11 @@ function EditConnectionModal(props) {
         h('div', { style: s.label }, 'Description'),
         h('input', { style: s.input, value: form.description, onInput: function(e) { set('description', e.target.value); } }),
       ),
-      h('label', { style: 'display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;' },
+      h('label', { style: css('display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;') },
         h('input', { type: 'checkbox', checked: form.ssl, onChange: function(e) { set('ssl', e.target.checked); } }),
         'Use SSL/TLS',
       ),
-      h('div', { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;' },
+      h('div', { style: css('display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;') },
         h('button', { style: s.btn, onClick: props.onClose }, 'Cancel'),
         h('button', { style: s.btnPrimary, disabled: saving, onClick: save }, saving ? 'Saving...' : 'Save Changes'),
       ),

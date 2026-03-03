@@ -23,7 +23,8 @@ export type DatabaseType =
   | 'turso'
   | 'dynamodb'
   | 'supabase'
-  | 'neon';
+  | 'neon'
+  | 'upstash';
 
 export const DATABASE_LABELS: Record<DatabaseType, string> = {
   postgresql: 'PostgreSQL',
@@ -40,12 +41,13 @@ export const DATABASE_LABELS: Record<DatabaseType, string> = {
   dynamodb: 'AWS DynamoDB',
   supabase: 'Supabase',
   neon: 'Neon',
+  upstash: 'Upstash Redis',
 };
 
 export const DATABASE_CATEGORIES: Record<string, DatabaseType[]> = {
   'Relational (SQL)': ['postgresql', 'mysql', 'mariadb', 'mssql', 'oracle', 'sqlite'],
   'Cloud-Native SQL': ['supabase', 'neon', 'planetscale', 'cockroachdb', 'turso'],
-  'NoSQL / Key-Value': ['mongodb', 'redis', 'dynamodb'],
+  'NoSQL / Key-Value': ['mongodb', 'redis', 'upstash', 'dynamodb'],
 };
 
 // ─── Connection Configuration ────────────────────────────────────────────────

@@ -305,6 +305,17 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
   var visualMemoryTools = createVisualMemoryTools(options || {});
   rawTools = rawTools.concat(visualMemoryTools as any);
 
+  // Enterprise Database Access tools (real multi-DB connections via DatabaseConnectionManager)
+  if ((options as any)?.databaseManager && options?.agentId) {
+    try {
+      const { createDatabaseTools: createDbAccessTools } = await import('../database-access/agent-tools.js');
+      const dbAccessTools = createDbAccessTools((options as any).databaseManager, options.agentId);
+      rawTools = rawTools.concat(dbAccessTools as any);
+    } catch (e: any) {
+      console.warn('[tools] Failed to load database access tools:', e.message);
+    }
+  }
+
   // Enterprise tools (7 skills)
   var enterpriseTools: AnyAgentTool[] = [
     ...createDatabaseTools(options),

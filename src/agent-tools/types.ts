@@ -128,6 +128,8 @@ export interface ToolCreationOptions {
   };
   /** Engine database reference for tools that need DB access */
   engineDb?: any;
+  /** Database Connection Manager for enterprise database access */
+  databaseManager?: any;
   /** Middleware configuration for cross-cutting concerns */
   middleware?: {
     audit?: {

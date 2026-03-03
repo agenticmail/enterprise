@@ -174,7 +174,55 @@ Object.assign(BrandLogo, {
   heroku: function(s) { return _pill('#430098', '#fff', 'H', s); },
   firebase: function(s) { return _pill('#FFCA28', '#000', 'FB', s); },
   openai: function(s) { return _pill('#412991', '#fff', 'AI', s); },
-  mongodb: function(s) { return _pill('#47A248', '#fff', 'MG', s); },
+  mongodb: function(s) {
+    s = s || 28;
+    return h('svg', { viewBox: '0 0 28 28', width: s, height: s, style: { borderRadius: 4 } },
+      h('rect', { width: 28, height: 28, rx: 4, fill: '#023430' }),
+      h('path', { d: 'M14.5 5c-.2 1.2-.8 2.1-1.6 2.9-1.3 1.3-2.6 2.5-3 4.3-.5 2.3.3 4.2 1.8 5.8.3.3.6.6 1 .8l.1 1.8h1.4l.1-1.8c2-1 3.2-2.6 3.3-4.9.1-2.5-1.2-4.3-2.7-5.9-.3-.3-.5-.6-.5-1 0-.7.1-1.4.1-2z', fill: '#00ED64' }),
+      h('path', { d: 'M14.2 20.7l.1 1.8h-.6l.1-1.8c-.1-.1-.2-.3-.3-.4.1 0 .2-.1.4-.1s.3 0 .4.1c-.1.1-.1.3-.1.4z', fill: '#B8C4C2' })
+    );
+  },
+  postgresql: function(s) {
+    s = s || 28;
+    return h('svg', { viewBox: '0 0 28 28', width: s, height: s, style: { borderRadius: 4 } },
+      h('rect', { width: 28, height: 28, rx: 4, fill: '#336791' }),
+      h('path', { d: 'M20.3 17.6c-.4-1-.3-1.9-.2-3 .1-.7.2-1.5.1-2.4-.2-2.1-1.5-3.5-2.5-4.3.4-.1.8-.3 1.1-.5 0 0-2.7-1-5.2-.1-.6.1-1.1.3-1.6.6-1-.3-2.4-.4-3.4 0C6.3 9.2 7 11.1 7 11.1l.2-.1c.5-.3 1.1-.3 1.7-.2-.4.6-.7 1.3-.7 2.1 0 .3 0 .7.1 1 .4 1.5 1.5 2.2 2.6 2.4-.2.3-.4.7-.4 1.2v.2c-.5.2-1.2.2-1.6-.2-.5-.5-.8-1.1-1.5-1.3-.3-.1-.6 0-.5.2.5.5.8.8 1.1 1.4.3.5.7.9 1.4 1 .5.1 1.1 0 1.3-.1v1.5c0 .3-.2.5-.3.6-.1.1-.2.3.1.4.3.1 1.4.3 1.7-.4.1-.2.1-.4.1-.6v-2.2c0-.5 0-1 .1-1.1l.2-.2v3.5c0 .4-.1 1.2.2 1.5.1.2.4.5.8.4.3-.1.5-.2.5-.7v-3.8c.2 0 .2.4.2.4v2.3c0 .3.1.7.3.9.4.5 1.3.4 1.6.2.3-.2.2-.6.2-.9v-2.9c.1-.3.3-.6.3-.6s0 1.8.9 2.8c.5.6 1.3.8 1.7.3.4-.5-.2-1-.5-1.7z', fill: '#fff' })
+    );
+  },
+  mysql: function(s) {
+    s = s || 28;
+    return h('svg', { viewBox: '0 0 28 28', width: s, height: s, style: { borderRadius: 4 } },
+      h('rect', { width: 28, height: 28, rx: 4, fill: '#00546B' }),
+      h('path', { d: 'M6 19.5c0-1 .6-1.5 1.8-1.7l1.5-.2c.5-.1.7-.3.7-.6 0-.4-.4-.7-1.1-.7s-1.2.3-1.3.8H6.2c.1-1.1 1-1.8 2.5-1.8s2.4.7 2.4 1.8v3.4h-1.3v-.7c-.4.5-1 .8-1.7.8-1.1 0-2.1-.5-2.1-1.6v-.5zm4-.4v-.4l-1.3.2c-.6.1-.9.3-.9.7 0 .4.3.6.9.6.8 0 1.3-.4 1.3-1.1z', fill: '#F29111' }),
+      h('text', { x: 18, y: 20.5, textAnchor: 'middle', fill: '#F29111', fontFamily: 'system-ui,sans-serif', fontWeight: 700, fontSize: 7 }, 'SQL')
+    );
+  },
+  redis: function(s) {
+    s = s || 28;
+    return h('svg', { viewBox: '0 0 28 28', width: s, height: s, style: { borderRadius: 4 } },
+      h('rect', { width: 28, height: 28, rx: 4, fill: '#DC382D' }),
+      h('path', { d: 'M22.5 16.2c-1 .5-6 2.6-7.1 3.1-1 .6-1.6.6-2.5.1-1-.5-6.3-2.6-7.3-3.1-.5-.3-.8-.5-.8-.7v-2.2s7-1.5 8.2-2c1.2-.4 1.6-.4 2.6 0 1 .4 6.9 1.9 6.9 1.9v2.2c0 .2-.3.5-1 .7z', fill: '#fff', opacity: '.3' }),
+      h('path', { d: 'M22.5 13.9c-1 .5-6 2.6-7.1 3.1-1 .6-1.6.6-2.5.1-1-.5-6.3-2.6-7.3-3.1-1-.5-1-.8 0-1.2 1-.4 6.3-2.5 7.4-2.9 1.2-.4 1.6-.4 2.6 0 1 .4 5.8 2.3 6.8 2.8 1.1.4 1.1.8.1 1.2z', fill: '#fff' }),
+      h('path', { d: 'M14.8 12.4l-1.3-.5-1.2.5.6-1.1-.5-1 1.3.3 1-.6-.2 1.2.8.9-1.5.3z', fill: '#DC382D' })
+    );
+  },
+  sqlite: function(s) {
+    s = s || 28;
+    return h('svg', { viewBox: '0 0 28 28', width: s, height: s, style: { borderRadius: 4 } },
+      h('rect', { width: 28, height: 28, rx: 4, fill: '#003B57' }),
+      h('path', { d: 'M17.5 5L11 11.5c-.3.4-.5.9-.6 1.5-.2 1.3.2 2.8.8 4.2.6 1.3 1.2 2.3 1.6 3.1.4.8.6 1.3.6 1.7H12c0-.5-1.2-2.4-1.8-3.9-.6-1.6-1-3.3-.7-5 .2-.9.6-1.7 1.2-2.3L17.5 5z', fill: '#fff' }),
+      h('circle', { cx: 17.5, cy: 8, r: 2, fill: '#0F80CC' })
+    );
+  },
+  mariadb: function(s) { return _pill('#003545', '#C97E68', 'MDB', s); },
+  mssql: function(s) { return _pill('#CC2927', '#fff', 'SQL', s); },
+  oracle: function(s) { return _pill('#F80000', '#fff', 'ORA', s); },
+  neon: function(s) { return _pill('#00E599', '#000', 'N', s); },
+  planetscale: function(s) { return _pill('#000', '#fff', 'PS', s); },
+  cockroachdb: function(s) { return _pill('#6933FF', '#fff', 'CR', s); },
+  turso: function(s) { return _pill('#4FF8D2', '#000', 'T', s); },
+  upstash: function(s) { return _pill('#00E9A3', '#000', 'UP', s); },
+  dynamodb: function(s) { return _pill('#4053D6', '#fff', 'DDB', s); },
   paypal: function(s) { return _pill('#003087', '#fff', 'PP', s); },
   linkedin: function(s) { return _pill('#0A66C2', '#fff', 'in', s); },
   twitter: function(s) { return _pill('#000', '#fff', 'X', s); },
