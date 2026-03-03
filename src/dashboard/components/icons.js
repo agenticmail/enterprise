@@ -56,6 +56,7 @@ export const I = {
   chevronLeft: () => h('svg', S, h('polyline', { points: '15 18 9 12 15 6' })),
 chevronRight: () => h('svg', S, h('polyline', { points: '9 18 15 12 9 6' })),
 chevronDown: () => h('svg', S, h('polyline', { points: '6 9 12 15 18 9' })),
+mail: () => h('svg', S, h('path', { d: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z' }), h('polyline', { points: '22,6 12,13 2,6' })),
   building: () => h('svg', S, h('path', { d: 'M3 21h18M3 10h18M3 7l9-4 9 4M4 10v11M20 10v11M8 14v.01M12 14v.01M16 14v.01M8 18v.01M12 18v.01M16 18v.01' })),
   edit: () => h('svg', S, h('path', { d: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' }), h('path', { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' })),
 };

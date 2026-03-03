@@ -158,8 +158,9 @@ export function OrganizationsPage() {
     .finally(function() { setActing(''); });
   };
 
-  var unassignedAgents = allAgents.filter(function(a) {
-    return !a.client_org_id && detailAgents.every(function(da) { return da.id !== a.id; });
+  // Show agents not already in THIS org (includes unassigned AND agents from other orgs)
+  var assignableAgents = allAgents.filter(function(a) {
+    return detailAgents.every(function(da) { return da.id !== a.id; });
   });
 
   if (loading) return h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading organizations...');
@@ -185,7 +186,11 @@ export function OrganizationsPage() {
     // Org cards
     orgs.length === 0
       ? h('div', { className: 'card', style: { textAlign: 'center', padding: 40 } },
-          h('div', { style: { fontSize: 48, marginBottom: 12 } }, '🏢'),
+          h('div', { style: { width: 48, height: 48, margin: '0 auto 12px', borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+            h('svg', { width: 28, height: 28, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--text-muted)', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
+              h('path', { d: 'M3 21h18M3 10h18M3 7l9-4 9 4M4 10v11M20 10v11M8 14v.01M12 14v.01M16 14v.01M8 18v.01M12 18v.01M16 18v.01' })
+            )
+          ),
           h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 4 } }, 'No organizations yet'),
           h('div', { style: { color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 } }, 'Create your first client organization to start managing multi-tenant agent deployments.'),
           h('button', { className: 'btn btn-primary', onClick: openCreate }, I.plus(), ' Create Organization')
@@ -204,7 +209,7 @@ export function OrganizationsPage() {
                 org.description && h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 } }, org.description),
                 h('div', { style: { display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' } },
                   h('span', null, I.agents(), ' ', (org.agent_count || 0), ' agent', (org.agent_count || 0) !== 1 ? 's' : ''),
-                  org.contact_email && h('span', null, '✉ ', org.contact_email),
+                  org.contact_email && h('span', null, I.mail(), ' ', org.contact_email),
                   org.created_at && h('span', null, new Date(org.created_at).toLocaleDateString())
                 ),
                 h('div', { style: { display: 'flex', gap: 6, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }, onClick: function(e) { e.stopPropagation(); } },
@@ -322,9 +327,14 @@ export function OrganizationsPage() {
         h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 8 } }, 'Assign Agent'),
         h('div', { style: { display: 'flex', gap: 8 } },
           h('select', { className: 'input', value: assignAgentId, onChange: function(e) { setAssignAgentId(e.target.value); }, style: { flex: 1 } },
-            h('option', { value: '' }, '— Select an unassigned agent —'),
-            unassignedAgents.map(function(a) {
-              return h('option', { key: a.id, value: a.id }, a.name + (a.role ? ' (' + a.role + ')' : ''));
+            h('option', { value: '' }, '— Select an agent to assign —'),
+            assignableAgents.map(function(a) {
+              var label = a.name + (a.role ? ' (' + a.role + ')' : '');
+              if (a.client_org_id) {
+                var fromOrg = orgs.find(function(o) { return o.id === a.client_org_id; });
+                label += fromOrg ? ' [from ' + fromOrg.name + ']' : ' [assigned elsewhere]';
+              }
+              return h('option', { key: a.id, value: a.id }, label);
             })
           ),
           h('button', { className: 'btn btn-primary btn-sm', disabled: !assignAgentId || acting === 'assign', onClick: doAssignAgent }, acting === 'assign' ? 'Assigning...' : 'Assign')
