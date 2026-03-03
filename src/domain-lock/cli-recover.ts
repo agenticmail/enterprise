@@ -37,6 +37,28 @@ export async function runRecover(args: string[]): Promise<void> {
   const { default: chalk } = await import('chalk');
   const { default: ora } = await import('ora');
 
+  // ─── Detect recovery type ─────────────────────────
+  const isCloud = hasFlag(args, '--cloud') || hasFlag(args, '-c');
+  if (isCloud || (!getFlag(args, '--domain') && !getFlag(args, '--key'))) {
+    // Ask which type
+    if (!isCloud && !getFlag(args, '--domain')) {
+      const { recoveryType } = await inquirer.prompt([{
+        type: 'list',
+        name: 'recoveryType',
+        message: 'What are you recovering?',
+        choices: [
+          { name: `AgenticMail Cloud  ${chalk.dim('(yourname.agenticmail.io)')}`, value: 'cloud' },
+          { name: `Custom Domain  ${chalk.dim('(your own domain)')}`, value: 'domain' },
+        ],
+      }]);
+      if (recoveryType === 'cloud') {
+        return runCloudRecover(args, inquirer, chalk, ora);
+      }
+    } else if (isCloud) {
+      return runCloudRecover(args, inquirer, chalk, ora);
+    }
+  }
+
   console.log('');
   console.log(chalk.bold('  AgenticMail Enterprise — Domain Recovery'));
   console.log(chalk.dim('  Recover your domain registration on a new machine.'));
@@ -273,6 +295,286 @@ export async function runRecover(args: string[]): Promise<void> {
     console.log(chalk.dim('    2. Start your server — the dashboard will show the DNS challenge'));
     console.log(chalk.dim('    3. Run verify-domain with --db after adding DNS records'));
     console.log('');
+  }
+}
+
+// ─── AgenticMail Cloud Recovery ─────────────────────
+
+const REGISTRY_URL = process.env.AGENTICMAIL_SUBDOMAIN_REGISTRY_URL
+  || 'https://registry.agenticmail.io';
+
+async function runCloudRecover(args: string[], inquirer: any, chalk: any, ora: any): Promise<void> {
+  console.log('');
+  console.log(chalk.bold('  AgenticMail Cloud — Recovery'));
+  console.log(chalk.dim('  Recover your agenticmail.io subdomain on a new machine.'));
+  console.log('');
+  console.log(chalk.dim('  You will need your AGENTICMAIL_VAULT_KEY — the key from your'));
+  console.log(chalk.dim('  original installation\'s ~/.agenticmail/.env file.'));
+  console.log('');
+
+  // Step 1: Get vault key
+  let vaultKey = getFlag(args, '--vault-key') || process.env.AGENTICMAIL_VAULT_KEY;
+  if (!vaultKey) {
+    const answer = await inquirer.prompt([{
+      type: 'password',
+      name: 'vaultKey',
+      message: 'Your AGENTICMAIL_VAULT_KEY:',
+      mask: '*',
+      validate: (v: string) => v.trim().length >= 16 ? true : 'Key seems too short — check your backup',
+    }]);
+    vaultKey = answer.vaultKey.trim();
+  }
+
+  // Step 2: Optionally get subdomain name (speeds up recovery)
+  let subdomain = getFlag(args, '--name') || getFlag(args, '--subdomain');
+  if (!subdomain) {
+    const answer = await inquirer.prompt([{
+      type: 'input',
+      name: 'subdomain',
+      message: 'Your subdomain (optional — press Enter to auto-detect):',
+      suffix: chalk.dim('.agenticmail.io'),
+    }]);
+    subdomain = answer.subdomain?.trim() || undefined;
+  }
+
+  // Step 3: Recover from registry
+  const { createHash } = await import('crypto');
+  const vaultKeyHash = createHash('sha256').update(vaultKey!).digest('hex');
+
+  const spinner = ora('Recovering subdomain credentials...').start();
+  try {
+    const body: any = { vaultKeyHash };
+    if (subdomain) body.name = subdomain;
+
+    const resp = await fetch(`${REGISTRY_URL}/recover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json() as any;
+
+    if (!data.success) {
+      spinner.fail(data.error || 'Recovery failed');
+      console.log('');
+      console.log(chalk.dim('  Make sure you are using the exact AGENTICMAIL_VAULT_KEY from'));
+      console.log(chalk.dim('  your original installation (~/.agenticmail/.env).'));
+      return;
+    }
+
+    spinner.succeed(`Recovered: ${chalk.bold(data.fqdn)}`);
+
+    // Step 4: Save to .env
+    const { existsSync, readFileSync, writeFileSync, mkdirSync } = await import('fs');
+    const { join } = await import('path');
+    const { homedir } = await import('os');
+
+    const amDir = join(homedir(), '.agenticmail');
+    mkdirSync(amDir, { recursive: true });
+    const envPath = join(amDir, '.env');
+
+    let envContent = '';
+    if (existsSync(envPath)) {
+      envContent = readFileSync(envPath, 'utf8');
+    }
+
+    // Update or add each key
+    const updates: Record<string, string> = {
+      AGENTICMAIL_VAULT_KEY: vaultKey!,
+      AGENTICMAIL_SUBDOMAIN: data.subdomain,
+      AGENTICMAIL_DOMAIN: data.fqdn,
+      CLOUDFLARED_TOKEN: data.tunnelToken,
+    };
+
+    for (const [key, val] of Object.entries(updates)) {
+      if (!val) continue;
+      const regex = new RegExp(`^${key}=.*$`, 'm');
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `${key}=${val}`);
+      } else {
+        envContent += `${envContent.endsWith('\n') ? '' : '\n'}${key}=${val}\n`;
+      }
+    }
+
+    writeFileSync(envPath, envContent, { mode: 0o600 });
+
+    console.log('');
+    console.log(chalk.green.bold('  Recovery complete!'));
+    console.log('');
+    console.log(`  Subdomain:    ${chalk.bold(data.fqdn)}`);
+    console.log(`  Tunnel Token: ${chalk.dim('saved to ~/.agenticmail/.env')}`);
+    console.log(`  Vault Key:    ${chalk.dim('saved to ~/.agenticmail/.env')}`);
+    console.log('');
+    console.log(chalk.bold('  Next steps:'));
+    console.log('');
+
+    // Ask for DATABASE_URL right now
+    const envFilePath = join(amDir, '.env');
+    let currentEnv = '';
+    try { currentEnv = readFileSync(envFilePath, 'utf8'); } catch {}
+    const hasDbUrl = currentEnv.includes('DATABASE_URL=') && !currentEnv.includes('DATABASE_URL=\n');
+
+    if (!hasDbUrl) {
+      console.log(chalk.yellow('  Your database connection string is needed to restore your data.'));
+      console.log(chalk.dim('  This is the same DATABASE_URL from your original installation.'));
+      console.log(chalk.dim('  Example: postgresql://user:pass@host:5432/dbname\n'));
+
+      const { dbUrl } = await inquirer.prompt([{
+        type: 'input',
+        name: 'dbUrl',
+        message: 'DATABASE_URL:',
+        validate: (v: string) => v.trim().length > 5 ? true : 'Enter your database connection string',
+      }]);
+
+      const regex = /^DATABASE_URL=.*$/m;
+      if (regex.test(currentEnv)) {
+        currentEnv = currentEnv.replace(regex, `DATABASE_URL=${dbUrl.trim()}`);
+      } else {
+        currentEnv += `${currentEnv.endsWith('\n') ? '' : '\n'}DATABASE_URL=${dbUrl.trim()}\n`;
+      }
+      writeFileSync(envFilePath, currentEnv, { mode: 0o600 });
+      console.log(chalk.green('  DATABASE_URL saved'));
+    }
+
+    // Check if JWT_SECRET is present — if not, warn them
+    if (!currentEnv.includes('JWT_SECRET=') || currentEnv.includes('JWT_SECRET=\n')) {
+      console.log('');
+      console.log(chalk.yellow('  Note: JWT_SECRET is missing — a new one will be generated on start.'));
+      console.log(chalk.dim('  This means existing login sessions from the old machine won\'t work.'));
+      console.log(chalk.dim('  Users will need to log in again. This is normal for recovery.'));
+    }
+
+    // Offer to reset admin password
+    const { wantsReset } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'wantsReset',
+      message: 'Reset your admin password?',
+      default: false,
+    }]);
+
+    if (wantsReset) {
+      // Read DATABASE_URL from current env
+      let dbUrl = '';
+      for (const line of currentEnv.split('\n')) {
+        const t = line.trim();
+        if (t.startsWith('DATABASE_URL=')) dbUrl = t.slice('DATABASE_URL='.length);
+      }
+
+      if (!dbUrl) {
+        console.log(chalk.yellow('  Cannot reset password without DATABASE_URL.'));
+      } else {
+        const { newPassword } = await inquirer.prompt([{
+          type: 'password',
+          name: 'newPassword',
+          message: 'New admin password:',
+          mask: '*',
+          validate: (v: string) => v.length >= 8 ? true : 'Password must be at least 8 characters',
+        }]);
+        const { confirmPassword } = await inquirer.prompt([{
+          type: 'password',
+          name: 'confirmPassword',
+          message: 'Confirm password:',
+          mask: '*',
+          validate: (v: string) => v === newPassword ? true : 'Passwords do not match',
+        }]);
+
+        if (newPassword === confirmPassword) {
+          const resetSpinner = ora('Resetting admin password...').start();
+          try {
+            const bcryptMod = await import('bcryptjs');
+            const bcrypt = bcryptMod.default || bcryptMod;
+            const hash = await bcrypt.hash(newPassword, 12);
+
+            if (dbUrl.startsWith('postgres')) {
+              const pgMod = await import('postgres' as string);
+              const sql = (pgMod.default || pgMod)(dbUrl);
+              await sql`UPDATE users SET password_hash = ${hash} WHERE role = 'admin' OR role = 'owner' ORDER BY created_at ASC LIMIT 1`;
+              await sql.end();
+            } else {
+              // SQLite
+              const sqliteMod = await import('better-sqlite3' as string);
+              const Database = sqliteMod.default || sqliteMod;
+              const db = new Database(dbUrl.replace('file:', '').replace('sqlite:', ''));
+              db.prepare('UPDATE users SET password_hash = ? WHERE rowid = (SELECT rowid FROM users WHERE role IN (?, ?) ORDER BY created_at ASC LIMIT 1)').run(hash, 'admin', 'owner');
+              db.close();
+            }
+            resetSpinner.succeed('Admin password reset successfully');
+          } catch (e: any) {
+            resetSpinner.fail('Could not reset password: ' + e.message);
+            console.log(chalk.dim('  You can reset it later from the dashboard or by re-running recovery.'));
+          }
+        }
+      }
+    }
+
+    console.log('');
+    console.log(`  Start your instance:`);
+    console.log(`     ${chalk.cyan('npx @agenticmail/enterprise start')}`);
+    console.log('');
+    console.log(chalk.dim('  The server will auto-start cloudflared with your tunnel token.'));
+    console.log(chalk.dim('  Your dashboard will be live again at https://' + data.fqdn));
+    console.log('');
+
+    // Step 5: Offer to install cloudflared now
+    const { doInstall } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'doInstall',
+      message: 'Install cloudflared and start the tunnel now?',
+      default: true,
+    }]);
+
+    if (doInstall) {
+      const { execSync } = await import('child_process');
+      const { platform, arch } = await import('os');
+
+      // Install cloudflared if needed
+      try {
+        execSync('which cloudflared', { timeout: 3000 });
+        console.log(chalk.green('  cloudflared already installed'));
+      } catch {
+        const spinner2 = ora('Installing cloudflared...').start();
+        try {
+          const os = platform();
+          if (os === 'darwin') {
+            try {
+              execSync('brew install cloudflared', { stdio: 'pipe', timeout: 120000 });
+            } catch {
+              const cfArch = arch() === 'arm64' ? 'arm64' : 'amd64';
+              execSync(`curl -L -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-${cfArch} && chmod +x /usr/local/bin/cloudflared`, { timeout: 60000 });
+            }
+          } else {
+            const cfArch = arch() === 'arm64' ? 'arm64' : 'amd64';
+            execSync(`curl -L -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${cfArch} && chmod +x /usr/local/bin/cloudflared`, { timeout: 60000 });
+          }
+          spinner2.succeed('cloudflared installed');
+        } catch (e: any) {
+          spinner2.fail('Could not install cloudflared: ' + e.message);
+          console.log(chalk.dim('  Install manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/'));
+        }
+      }
+
+      // Start via PM2
+      try {
+        const { execSync: ex } = await import('child_process');
+        ex('which pm2', { timeout: 3000 });
+        try { ex('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch {}
+        ex(`pm2 start cloudflared --name cloudflared -- tunnel --no-autoupdate run --token ${data.tunnelToken}`, { timeout: 15000 });
+        try { ex('pm2 save 2>/dev/null', { timeout: 5000 }); } catch {}
+        // Setup PM2 to survive reboots
+        try {
+          const startupOut = ex('pm2 startup 2>&1', { encoding: 'utf8', timeout: 15000 });
+          const sudoMatch = startupOut.match(/sudo .+$/m);
+          if (sudoMatch) try { ex(sudoMatch[0], { timeout: 15000, stdio: 'pipe' }); } catch {}
+        } catch {}
+        console.log(chalk.green('  Tunnel running via PM2 (survives reboots)'));
+      } catch {
+        console.log(chalk.dim('  Start the tunnel manually:'));
+        console.log(chalk.cyan(`  cloudflared tunnel --no-autoupdate run --token ${data.tunnelToken}`));
+      }
+    }
+
+  } catch (err: any) {
+    spinner.fail('Recovery failed: ' + err.message);
+    console.log(chalk.dim('  Check your internet connection and try again.'));
   }
 }
 

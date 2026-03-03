@@ -140,4 +140,38 @@ export async function runServe(_args: string[]) {
 
   await server.start();
   console.log(`AgenticMail Enterprise server running on :${PORT}`);
+
+  // Auto-start cloudflared if tunnel token is present
+  const tunnelToken = process.env.CLOUDFLARED_TOKEN;
+  if (tunnelToken) {
+    try {
+      const { execSync, spawn } = await import('child_process');
+      try {
+        execSync('which cloudflared', { timeout: 3000 });
+      } catch {
+        console.log('[startup] cloudflared not found — skipping tunnel auto-start');
+        console.log('[startup] Install cloudflared to enable tunnel: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/');
+        return;
+      }
+
+      // Check if already running
+      try {
+        execSync('pgrep -f "cloudflared.*tunnel.*run"', { timeout: 3000 });
+        console.log('[startup] cloudflared tunnel already running');
+        return;
+      } catch { /* not running, start it */ }
+
+      const subdomain = process.env.AGENTICMAIL_SUBDOMAIN || process.env.AGENTICMAIL_DOMAIN || '';
+      console.log(`[startup] Starting cloudflared tunnel${subdomain ? ` for ${subdomain}.agenticmail.io` : ''}...`);
+
+      const child = spawn('cloudflared', ['tunnel', '--no-autoupdate', 'run', '--token', tunnelToken], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+      console.log('[startup] cloudflared tunnel started (pid ' + child.pid + ')');
+    } catch (e: any) {
+      console.warn('[startup] Could not auto-start cloudflared: ' + e.message);
+    }
+  }
 }

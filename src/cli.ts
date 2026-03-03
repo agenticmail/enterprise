@@ -44,6 +44,10 @@ switch (command) {
     import('./domain-lock/cli-verify.js').then(m => m.runVerifyDomain(args.slice(1))).catch(fatal);
     break;
 
+  case 'reset-password':
+    import('./cli-reset-password.js').then(m => m.runResetPassword(args.slice(1))).catch(fatal);
+    break;
+
   case '--help':
   case '-h':
     console.log(`
@@ -57,7 +61,8 @@ Commands:
     --json                Machine-readable output
   build-skill             AI-assisted skill scaffolding
   submit-skill <path>     Submit a skill as a PR
-  recover                 Recover a domain registration on a new machine
+  recover                 Recover a domain/subdomain on a new machine
+  reset-password          Reset admin password directly in the database
   verify-domain           Check DNS verification for your domain
 
 Domain Recovery & Verification:

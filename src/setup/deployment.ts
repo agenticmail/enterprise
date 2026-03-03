@@ -17,7 +17,7 @@ const execP = promisify(execCb);
 export type DeployTarget = 'cloud' | 'cloudflare-tunnel' | 'fly' | 'railway' | 'docker' | 'local';
 
 const SUBDOMAIN_REGISTRY_URL = process.env.AGENTICMAIL_SUBDOMAIN_REGISTRY_URL
-  || 'https://subdomain-registry.agenticmail.io';
+  || 'https://registry.agenticmail.io';
 
 export interface DeploymentSelection {
   target: DeployTarget;
@@ -52,11 +52,11 @@ export async function promptDeployment(
     message: 'Deploy to:',
     choices: [
       {
-        name: `AgenticMail Cloud  ${chalk.dim('(managed, instant URL)')}`,
+        name: `AgenticMail Cloud  ${chalk.green('← recommended')}  ${chalk.dim('(instant URL, zero config)')}`,
         value: 'cloud',
       },
       {
-        name: `Cloudflare Tunnel  ${chalk.green('← recommended')}  ${chalk.dim('(self-hosted, free, no ports)')}`,
+        name: `Cloudflare Tunnel  ${chalk.dim('(self-hosted, free, no ports)')}`,
         value: 'cloudflare-tunnel',
       },
       {
@@ -253,6 +253,25 @@ async function runCloudSetup(
   console.log(chalk.bold.green('  ✓ Setup Complete!'));
   console.log('');
   console.log(`  Your dashboard: ${chalk.bold.cyan('https://' + fqdn)}`);
+
+  // ── CRITICAL: Vault key backup warning ─────────
+  console.log('');
+  console.log(chalk.bgYellow.black.bold('  ⚠  BACK UP ~/.agenticmail/.env  ⚠  '));
+  console.log('');
+  console.log(chalk.yellow('  This file contains EVERYTHING needed to recover if your machine crashes:'));
+  console.log('');
+  console.log(chalk.yellow('    DATABASE_URL          — your database connection'));
+  console.log(chalk.yellow('    JWT_SECRET            — login session signing key'));
+  console.log(chalk.yellow('    AGENTICMAIL_VAULT_KEY — encrypted credentials + subdomain recovery'));
+  console.log(chalk.yellow('    CLOUDFLARED_TOKEN     — tunnel connection token'));
+  console.log(chalk.yellow('    PORT                  — server port'));
+  console.log('');
+  console.log(chalk.bold.yellow('  Copy this file to a safe place (password manager, cloud drive, etc.)'));
+  console.log(chalk.bold.yellow('  Without it, you CANNOT recover your subdomain or encrypted data.'));
+  console.log('');
+  console.log(chalk.dim('  To recover on a new machine:'));
+  console.log(chalk.cyan('    npx @agenticmail/enterprise recover --cloud'));
+  console.log('');
   console.log('');
   console.log(chalk.dim('  To start your instance, run these two processes:'));
   console.log('');
@@ -469,7 +488,13 @@ async function runTunnelSetup(
     try { execSync('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
     execSync(`pm2 start cloudflared --name cloudflared -- tunnel run`, { encoding: 'utf8', timeout: 15000 });
     try { execSync('pm2 save 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
-    console.log(chalk.green('     ✓ Tunnel running via PM2 (auto-restarts on crash)'));
+    // Setup PM2 to survive reboots
+    try {
+      const startupOut = execSync('pm2 startup 2>&1', { encoding: 'utf8', timeout: 15000 });
+      const sudoMatch = startupOut.match(/sudo .+$/m);
+      if (sudoMatch) try { execSync(sudoMatch[0], { timeout: 15000, stdio: 'pipe' }); } catch {}
+    } catch { /* non-fatal */ }
+    console.log(chalk.green('     ✓ Tunnel running via PM2 (auto-restarts on crash + reboot)'));
     started = true;
   } catch { /* PM2 not available */ }
 
@@ -481,7 +506,12 @@ async function runTunnelSetup(
       try { execSync('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
       execSync(`pm2 start cloudflared --name cloudflared -- tunnel run`, { encoding: 'utf8', timeout: 15000 });
       try { execSync('pm2 save 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
-      console.log(chalk.green('     ✓ PM2 installed + tunnel running (auto-restarts on crash)'));
+      try {
+        const startupOut = execSync('pm2 startup 2>&1', { encoding: 'utf8', timeout: 15000 });
+        const sudoMatch = startupOut.match(/sudo .+$/m);
+        if (sudoMatch) try { execSync(sudoMatch[0], { timeout: 15000, stdio: 'pipe' }); } catch {}
+      } catch { /* non-fatal */ }
+      console.log(chalk.green('     ✓ PM2 installed + tunnel running (auto-restarts on crash + reboot)'));
       started = true;
     } catch {
       console.log(chalk.yellow('     ⚠ PM2 not available — tunnel started in background'));

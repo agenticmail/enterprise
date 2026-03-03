@@ -93,6 +93,7 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [user, setUser] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [permissions, setPermissions] = useState('*'); // '*' = full access, or { pageId: true | ['tab1','tab2'] }
   const [needsSetup, setNeedsSetup] = useState(null);
   const [sidebarPinned, setSidebarPinned] = useState(() => localStorage.getItem('em_sidebar_pinned') === 'true');
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -136,6 +137,7 @@ function App() {
     if (!authed) return;
     engineCall('/approvals/pending').then(d => setPendingCount((d.requests || []).length)).catch(() => {});
     apiCall('/settings').then(d => { const s = d.settings || d || {}; if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
+    apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
   }, [authed]);
 
   const logout = useCallback(() => { authCall('/logout', { method: 'POST' }).catch(() => {}).finally(() => { setAuthed(false); setUser(null); }); }, []);
@@ -208,10 +210,21 @@ function App() {
   };
 
   const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };
-  const PageComponent = pages[page] || DashboardPage;
+
+  // Filter nav based on permissions
+  const hasAccess = (pageId) => permissions === '*' || (permissions && pageId in permissions);
+  const filteredNav = nav.map(section => ({
+    ...section,
+    items: section.items.filter(item => hasAccess(item.id))
+  })).filter(section => section.items.length > 0);
+
+  // Block access to pages user can't see (redirect to first available)
+  const canAccessPage = hasAccess(page);
+  const effectivePage = canAccessPage ? page : (filteredNav[0]?.items[0]?.id || 'dashboard');
+  const PageComponent = pages[effectivePage] || DashboardPage;
   const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '') + (mobileMenuOpen ? ' mobile-open' : '');
 
-  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage } },
+  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions } },
     h('div', { className: 'app-layout' },
       // Mobile hamburger
       h('button', { className: 'mobile-hamburger', onClick: () => setMobileMenuOpen(true) },
@@ -231,7 +244,7 @@ function App() {
           h('button', { className: 'sidebar-toggle' + (sidebarPinned ? ' pinned' : ''), onClick: toggleSidebarPin, title: sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar' }, sidebarPinned ? I.chevronLeft() : I.panelLeft())
         ),
         h('div', { className: 'sidebar-nav' },
-          nav.map((section, si) =>
+          filteredNav.map((section, si) =>
             h('div', { key: section.section + si, className: 'sidebar-section' },
               h('div', { className: 'sidebar-section-title' }, section.section),
               section.items.map(item =>

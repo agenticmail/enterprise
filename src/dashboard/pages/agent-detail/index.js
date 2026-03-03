@@ -44,8 +44,18 @@ export function AgentDetailPage(props) {
   var _agents = useState([]);
   var agents = _agents[0]; var setAgents = _agents[1];
 
-  var TABS = ['overview', 'personal', 'email', 'whatsapp', 'channels', 'configuration', 'manager', 'tools', 'skills', 'permissions', 'activity', 'communication', 'workforce', 'memory', 'guardrails', 'autonomy', 'budget', 'security', 'tool-security', 'deployment'];
+  var ALL_TABS = ['overview', 'personal', 'email', 'whatsapp', 'channels', 'configuration', 'manager', 'tools', 'skills', 'permissions', 'activity', 'communication', 'workforce', 'memory', 'guardrails', 'autonomy', 'budget', 'security', 'tool-security', 'deployment'];
   var TAB_LABELS = { 'security': 'Security', 'tool-security': 'Tool Security', 'manager': 'Manager', 'email': 'Email', 'whatsapp': 'WhatsApp', 'channels': 'Channels', 'tools': 'Tools', 'autonomy': 'Autonomy' };
+
+  // Filter tabs based on user permissions
+  var app = useApp();
+  var perms = app.permissions || '*';
+  var agentGrant = perms === '*' ? true : (perms.agents || false);
+  var TABS = ALL_TABS.filter(function(t) {
+    if (perms === '*' || agentGrant === true) return true;
+    if (Array.isArray(agentGrant)) return agentGrant.indexOf(t) !== -1;
+    return false;
+  });
 
   var load = function() {
     setLoading(true);

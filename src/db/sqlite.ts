@@ -59,6 +59,10 @@ export class SqliteAdapter extends DatabaseAdapter {
       this.db.prepare(
         `INSERT OR IGNORE INTO company_settings (id, name, subdomain) VALUES ('default', 'My Company', 'my-company')`
       ).run();
+      // Add permissions column if missing
+      try {
+        this.db.exec(`ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '"*"'`);
+      } catch { /* column already exists */ }
     });
     tx();
   }

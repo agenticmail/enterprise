@@ -549,6 +549,86 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     return c.json({ ok: true });
   });
 
+  // ─── Page Registry (for permission UI) ──────────────
+
+  api.get('/page-registry', requireRole('admin'), async (c) => {
+    const { PAGE_REGISTRY } = await import('./page-registry.js');
+    return c.json(PAGE_REGISTRY);
+  });
+
+  // ─── User Permissions ──────────────────────────────
+
+  api.get('/users/:id/permissions', requireRole('admin'), async (c) => {
+    const user = await db.getUser(c.req.param('id'));
+    if (!user) return c.json({ error: 'User not found' }, 404);
+    return c.json({ userId: c.req.param('id'), permissions: user.permissions ?? '*' });
+  });
+
+  api.put('/users/:id/permissions', requireRole('admin'), async (c) => {
+    const user = await db.getUser(c.req.param('id'));
+    if (!user) return c.json({ error: 'User not found' }, 404);
+
+    const body = await c.req.json();
+    const permissions = body.permissions;
+
+    // Validate: must be '*' or an object of pageId → true | string[]
+    if (permissions !== '*') {
+      if (typeof permissions !== 'object' || permissions === null || Array.isArray(permissions)) {
+        return c.json({ error: 'permissions must be "*" or an object mapping pageId to true or string[]' }, 400);
+      }
+      const { PAGE_REGISTRY } = await import('./page-registry.js');
+      for (const [pageId, grant] of Object.entries(permissions)) {
+        if (!(pageId in PAGE_REGISTRY)) {
+          return c.json({ error: `Unknown page: ${pageId}` }, 400);
+        }
+        if (grant !== true && !Array.isArray(grant)) {
+          return c.json({ error: `Permission for "${pageId}" must be true or string[]` }, 400);
+        }
+      }
+    }
+
+    const serialized = JSON.stringify(permissions);
+    try {
+      await (db as any).pool.query(
+        'UPDATE users SET permissions = $1, updated_at = NOW() WHERE id = $2',
+        [serialized, c.req.param('id')]
+      );
+    } catch {
+      // SQLite/other fallback
+      const edb = (db as any).db || (db as any).pool;
+      if (edb?.prepare) {
+        edb.prepare('UPDATE users SET permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(serialized, c.req.param('id'));
+      }
+    }
+
+    await db.logEvent({
+      actor: c.get('userId') || 'system',
+      actorType: 'user',
+      action: 'user.permissions_updated',
+      resource: `user:${c.req.param('id')}`,
+      details: { permissions, targetEmail: user.email },
+      ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+    }).catch(() => {});
+
+    return c.json({ ok: true, permissions });
+  });
+
+  // ─── Current User Permissions (for frontend filtering) ──
+
+  api.get('/me/permissions', async (c) => {
+    const userId = c.get('userId' as any);
+    const userRole = c.get('userRole' as any);
+    if (!userId) return c.json({ error: 'Not authenticated' }, 401);
+
+    // Owner and admin always get full access
+    if (userRole === 'owner' || userRole === 'admin') {
+      return c.json({ permissions: '*', role: userRole });
+    }
+
+    const user = await db.getUser(userId);
+    return c.json({ permissions: user?.permissions ?? '*', role: userRole });
+  });
+
   // ─── Platform Capabilities ──────────────────────────
 
   api.get('/platform-capabilities', requireRole('admin'), async (c) => {

@@ -65,6 +65,7 @@ export interface User {
   totpSecret?: string;      // Base32-encoded TOTP secret (encrypted)
   totpEnabled?: boolean;     // Whether 2FA is active
   totpBackupCodes?: string;  // JSON array of hashed backup codes
+  permissions?: any;         // '*' or { pageId: true | string[] }
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
