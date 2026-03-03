@@ -191,6 +191,7 @@ export class PostgresAdapter extends DatabaseAdapter {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '"*"';
         ALTER TABLE users ADD COLUMN IF NOT EXISTS must_reset_password BOOLEAN DEFAULT FALSE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
       `).catch(() => {});
       await client.query('COMMIT');
     } catch (err) {
@@ -709,6 +710,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       totpSecret: r.totp_secret, totpEnabled: !!r.totp_enabled, totpBackupCodes: r.totp_backup_codes,
       permissions: r.permissions != null ? (typeof r.permissions === 'string' ? (() => { try { return JSON.parse(r.permissions); } catch { return '*'; } })() : r.permissions) : '*',
       mustResetPassword: !!r.must_reset_password,
+      isActive: r.is_active !== false && r.is_active !== 0, // default true
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
       lastLoginAt: r.last_login_at ? new Date(r.last_login_at) : undefined,
     };

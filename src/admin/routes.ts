@@ -564,17 +564,73 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     return c.json({ ok: true, message: 'Password reset successfully' });
   });
 
+  // ─── Deactivate / Reactivate User ──────────────────
+
+  api.post('/users/:id/deactivate', requireRole('admin'), async (c) => {
+    const existing = await db.getUser(c.req.param('id'));
+    if (!existing) return c.json({ error: 'User not found' }, 404);
+    const requesterId = c.get('userId');
+    if (requesterId === c.req.param('id')) return c.json({ error: 'Cannot deactivate your own account' }, 400);
+
+    try {
+      await (db as any).pool.query('UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = $1', [c.req.param('id')]);
+    } catch {
+      const edb = (db as any).db;
+      if (edb?.prepare) edb.prepare('UPDATE users SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(c.req.param('id'));
+    }
+
+    await db.logEvent({
+      actor: c.get('userId') || 'system', actorType: 'user', action: 'user.deactivated',
+      resource: `user:${c.req.param('id')}`, details: { targetEmail: existing.email },
+      ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+    }).catch(() => {});
+
+    return c.json({ ok: true, message: 'User deactivated' });
+  });
+
+  api.post('/users/:id/reactivate', requireRole('admin'), async (c) => {
+    const existing = await db.getUser(c.req.param('id'));
+    if (!existing) return c.json({ error: 'User not found' }, 404);
+
+    try {
+      await (db as any).pool.query('UPDATE users SET is_active = TRUE, updated_at = NOW() WHERE id = $1', [c.req.param('id')]);
+    } catch {
+      const edb = (db as any).db;
+      if (edb?.prepare) edb.prepare('UPDATE users SET is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(c.req.param('id'));
+    }
+
+    await db.logEvent({
+      actor: c.get('userId') || 'system', actorType: 'user', action: 'user.reactivated',
+      resource: `user:${c.req.param('id')}`, details: { targetEmail: existing.email },
+      ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+    }).catch(() => {});
+
+    return c.json({ ok: true, message: 'User reactivated' });
+  });
+
+  // ─── Delete User (owner only, requires confirmation token) ──
+
   api.delete('/users/:id', requireRole('owner'), async (c) => {
     const existing = await db.getUser(c.req.param('id'));
     if (!existing) return c.json({ error: 'User not found' }, 404);
 
-    // Cannot delete yourself
     const requesterId = c.get('userId');
-    if (requesterId === c.req.param('id')) {
-      return c.json({ error: 'Cannot delete your own account' }, 400);
+    if (requesterId === c.req.param('id')) return c.json({ error: 'Cannot delete your own account' }, 400);
+
+    // Require confirmation token from frontend (5-step modal flow)
+    const body = await c.req.json().catch(() => ({}));
+    if (body.confirmationToken !== 'DELETE_USER_' + existing.email) {
+      return c.json({ error: 'Invalid confirmation. Delete requires 5-step confirmation from the dashboard.' }, 400);
     }
 
     await db.deleteUser(c.req.param('id'));
+
+    await db.logEvent({
+      actor: c.get('userId') || 'system', actorType: 'user', action: 'user.deleted',
+      resource: `user:${c.req.param('id')}`, details: { targetEmail: existing.email },
+      ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+    }).catch(() => {});
+
     return c.json({ ok: true });
   });
 

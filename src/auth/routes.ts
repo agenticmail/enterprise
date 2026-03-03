@@ -275,6 +275,11 @@ export function createAuthRoutes(
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
+    // Check if account is deactivated
+    if (user.isActive === false) {
+      return c.json({ error: 'Your account has been deactivated by your organization. Please contact your organization administrator to restore access.' }, 403);
+    }
+
     const { default: bcrypt } = await import('bcryptjs');
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {

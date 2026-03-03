@@ -62,6 +62,7 @@ export class SqliteAdapter extends DatabaseAdapter {
       // Add permissions column if missing
       try { this.db.exec(`ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '"*"'`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE users ADD COLUMN must_reset_password INTEGER DEFAULT 0`); } catch { /* exists */ }
+      try { this.db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch { /* exists */ }
     });
     tx();
   }

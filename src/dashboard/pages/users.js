@@ -295,7 +295,8 @@ function InlinePermissionPicker({ permissions, pageRegistry, onChange }) {
 // ─── Users Page ────────────────────────────────────
 
 export function UsersPage() {
-  var { toast } = useApp();
+  var app = useApp();
+  var toast = app.toast;
   var [users, setUsers] = useState([]);
   var [creating, setCreating] = useState(false);
   var [form, setForm] = useState({ email: '', password: '', name: '', role: 'viewer', permissions: '*' });
@@ -343,19 +344,36 @@ export function UsersPage() {
     setResetting(false);
   };
 
-  var deleteUser = async function(user) {
+  var toggleActive = async function(user) {
+    var action = user.isActive === false ? 'reactivate' : 'deactivate';
     var ok = await showConfirm({
-      title: 'Delete User',
-      message: 'Are you sure you want to delete "' + (user.name || user.email) + '"? This cannot be undone.',
-      warning: 'The user will lose all access immediately.',
-      danger: true,
-      confirmText: 'Delete User'
+      title: action === 'deactivate' ? 'Deactivate User' : 'Reactivate User',
+      message: action === 'deactivate'
+        ? 'Deactivate "' + (user.name || user.email) + '"? They will be unable to log in and will see a message to contact their organization.'
+        : 'Reactivate "' + (user.name || user.email) + '"? They will be able to log in again.',
+      danger: action === 'deactivate',
+      confirmText: action === 'deactivate' ? 'Deactivate' : 'Reactivate'
     });
     if (!ok) return;
     try {
-      await apiCall('/users/' + user.id, { method: 'DELETE' });
-      toast('User deleted', 'success');
+      await apiCall('/users/' + user.id + '/' + action, { method: 'POST' });
+      toast('User ' + action + 'd', 'success');
       load();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  var [deleteStep, setDeleteStep] = useState(0);
+  var [deleteTarget, setDeleteTarget] = useState(null);
+  var [deleteTyped, setDeleteTyped] = useState('');
+
+  var startDelete = function(user) { setDeleteTarget(user); setDeleteStep(1); setDeleteTyped(''); };
+  var cancelDelete = function() { setDeleteTarget(null); setDeleteStep(0); setDeleteTyped(''); };
+
+  var confirmDelete = async function() {
+    try {
+      await apiCall('/users/' + deleteTarget.id, { method: 'DELETE', body: JSON.stringify({ confirmationToken: 'DELETE_USER_' + deleteTarget.email }) });
+      toast('User permanently deleted', 'success');
+      cancelDelete(); load();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -485,18 +503,100 @@ export function UsersPage() {
       onClose: function() { setPermTarget(null); }
     }),
 
+    // 5-step delete confirmation modal
+    deleteTarget && h(Modal, {
+      title: 'Delete User — Step ' + deleteStep + ' of 5',
+      onClose: cancelDelete,
+      width: 480,
+      footer: h(Fragment, null,
+        h('button', { className: 'btn btn-secondary', onClick: deleteStep === 1 ? cancelDelete : function() { setDeleteStep(deleteStep - 1); } }, deleteStep === 1 ? 'Cancel' : 'Back'),
+        deleteStep < 5
+          ? h('button', { className: 'btn btn-' + (deleteStep >= 3 ? 'danger' : 'primary'), onClick: function() { setDeleteStep(deleteStep + 1); } }, 'Continue')
+          : h('button', { className: 'btn btn-danger', onClick: confirmDelete, disabled: deleteTyped !== deleteTarget.email }, 'Permanently Delete')
+      )
+    },
+      // Step 1: Warning
+      deleteStep === 1 && h('div', null,
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'var(--danger-soft, rgba(220,38,38,0.08))', borderRadius: 8, marginBottom: 16 } },
+          h('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--danger)', strokeWidth: 2 }, h('path', { d: 'M12 9v4m0 4h.01M10.29 3.86l-8.6 14.86A2 2 0 0 0 3.4 21h17.2a2 2 0 0 0 1.71-2.98L13.71 3.86a2 2 0 0 0-3.42 0z' })),
+          h('div', null,
+            h('strong', null, 'Permanent Deletion'),
+            h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, 'This action cannot be undone.')
+          )
+        ),
+        h('p', { style: { fontSize: 13 } }, 'You are about to permanently delete the user account for:'),
+        h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, marginTop: 8 } },
+          h('strong', null, deleteTarget.name || 'Unnamed'), h('br'),
+          h('span', { style: { fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' } }, deleteTarget.email)
+        ),
+        h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 12 } }, 'Consider deactivating instead — deactivated users can be reactivated later.')
+      ),
+      // Step 2: Data loss
+      deleteStep === 2 && h('div', null,
+        h('h4', { style: { marginBottom: 12 } }, 'Data That Will Be Lost'),
+        h('ul', { style: { paddingLeft: 20, fontSize: 13, lineHeight: 1.8 } },
+          h('li', null, 'All login sessions will be terminated immediately'),
+          h('li', null, 'Audit log entries will be orphaned (no user reference)'),
+          h('li', null, 'Any API keys created by this user will be revoked'),
+          h('li', null, 'Permission grants and role assignments will be removed'),
+          h('li', null, '2FA configuration and backup codes will be destroyed')
+        )
+      ),
+      // Step 3: Impact
+      deleteStep === 3 && h('div', null,
+        h('h4', { style: { marginBottom: 12 } }, 'Impact Assessment'),
+        h('div', { style: { padding: 12, background: 'var(--warning-soft, rgba(245,158,11,0.08))', borderRadius: 8, fontSize: 13, lineHeight: 1.6 } },
+          h('p', null, 'If this user manages or supervises any agents, those agents will lose their manager assignment.'),
+          h('p', { style: { marginTop: 8 } }, 'If this user created approval workflows, pending approvals may become orphaned.'),
+          h('p', { style: { marginTop: 8 } }, 'Any scheduled tasks or cron jobs created by this user will continue to run but cannot be modified.')
+        )
+      ),
+      // Step 4: Alternative
+      deleteStep === 4 && h('div', null,
+        h('h4', { style: { marginBottom: 12 } }, 'Are You Sure?'),
+        h('div', { style: { padding: 16, background: 'var(--success-soft, rgba(21,128,61,0.08))', borderRadius: 8, marginBottom: 16 } },
+          h('strong', null, 'Recommended alternative: Deactivate'),
+          h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 } }, 'Deactivating blocks login while preserving all data. The user can be reactivated at any time. This is the safe option.')
+        ),
+        h('div', { style: { padding: 16, background: 'var(--danger-soft, rgba(220,38,38,0.08))', borderRadius: 8 } },
+          h('strong', null, 'Permanent deletion'),
+          h('p', { style: { fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 } }, 'Removes the user and all associated data forever. There is no recovery.')
+        )
+      ),
+      // Step 5: Type email to confirm
+      deleteStep === 5 && h('div', null,
+        h('h4', { style: { marginBottom: 12, color: 'var(--danger)' } }, 'Final Confirmation'),
+        h('p', { style: { fontSize: 13, marginBottom: 12 } }, 'Type the user\'s email address to confirm permanent deletion:'),
+        h('div', { style: { padding: 8, background: 'var(--bg-tertiary)', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: 13, textAlign: 'center', marginBottom: 12 } }, deleteTarget.email),
+        h('input', {
+          className: 'input', type: 'text', value: deleteTyped,
+          onChange: function(e) { setDeleteTyped(e.target.value); },
+          placeholder: 'Type email to confirm',
+          autoFocus: true,
+          style: { fontFamily: 'var(--font-mono)', fontSize: 13, borderColor: deleteTyped === deleteTarget.email ? 'var(--danger)' : 'var(--border)' }
+        }),
+        deleteTyped && deleteTyped !== deleteTarget.email && h('div', { style: { fontSize: 11, color: 'var(--danger)', marginTop: 4 } }, 'Email does not match')
+      )
+    ),
+
     // Users table
     h('div', { className: 'card' },
       h('div', { className: 'card-body-flush' },
         users.length === 0 ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No users')
         : h('table', null,
-            h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Email'), h('th', null, 'Role'), h('th', null, 'Access'), h('th', null, '2FA'), h('th', null, 'Created'), h('th', { style: { width: 180 } }, 'Actions'))),
+            h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Email'), h('th', null, 'Role'), h('th', null, 'Status'), h('th', null, 'Access'), h('th', null, '2FA'), h('th', null, 'Created'), h('th', { style: { width: 200 } }, 'Actions'))),
             h('tbody', null, users.map(function(u) {
               var isRestricted = u.role === 'member' || u.role === 'viewer';
-              return h('tr', { key: u.id },
+              var isDeactivated = u.isActive === false;
+              var isSelf = u.id === ((app || {}).user || {}).id;
+              return h('tr', { key: u.id, style: isDeactivated ? { opacity: 0.6 } : {} },
                 h('td', null, h('strong', null, u.name || '-')),
                 h('td', null, h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, u.email)),
                 h('td', null, h('span', { className: 'badge badge-' + (u.role === 'owner' ? 'warning' : u.role === 'admin' ? 'primary' : 'neutral') }, u.role)),
+                h('td', null, isDeactivated
+                  ? h('span', { className: 'badge badge-danger', style: { fontSize: 10 } }, 'Deactivated')
+                  : h('span', { className: 'badge badge-success', style: { fontSize: 10 } }, 'Active')
+                ),
                 h('td', null, permBadge(u)),
                 h('td', null, u.totpEnabled ? h('span', { className: 'badge badge-success' }, 'On') : h('span', { className: 'badge badge-neutral' }, 'Off')),
                 h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'),
@@ -509,7 +609,15 @@ export function UsersPage() {
                       style: !isRestricted ? { opacity: 0.4 } : {}
                     }, I.shield()),
                     h('button', { className: 'btn btn-ghost btn-sm', title: 'Reset Password', onClick: function() { setResetTarget(u); setNewPassword(''); } }, I.lock()),
-                    h('button', { className: 'btn btn-ghost btn-sm', title: 'Delete User', onClick: function() { deleteUser(u); }, style: { color: 'var(--danger)' } }, I.trash())
+                    // Deactivate / Reactivate
+                    !isSelf && h('button', {
+                      className: 'btn btn-ghost btn-sm',
+                      title: isDeactivated ? 'Reactivate User' : 'Deactivate User',
+                      onClick: function() { toggleActive(u); },
+                      style: { color: isDeactivated ? 'var(--success, #15803d)' : 'var(--warning, #f59e0b)' }
+                    }, isDeactivated ? I.check() : I.pause()),
+                    // Delete (owner only)
+                    !isSelf && h('button', { className: 'btn btn-ghost btn-sm', title: 'Delete User Permanently', onClick: function() { startDelete(u); }, style: { color: 'var(--danger)' } }, I.trash())
                   )
                 )
               );

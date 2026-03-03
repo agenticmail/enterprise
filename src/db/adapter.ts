@@ -67,6 +67,7 @@ export interface User {
   totpBackupCodes?: string;  // JSON array of hashed backup codes
   permissions?: any;         // '*' or { pageId: true | string[] }
   mustResetPassword?: boolean;
+  isActive?: boolean;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
