@@ -20,6 +20,16 @@ export function LoginPage({ onLogin }) {
   var [challengeToken, setChallengeToken] = useState('');
   var [totpCode, setTotpCode] = useState('');
 
+  // Forgot password state
+  var [forgotMode, setForgotMode] = useState(false);   // show forgot password form
+  var [forgotEmail, setForgotEmail] = useState('');
+  var [forgotCode, setForgotCode] = useState('');
+  var [forgotNewPw, setForgotNewPw] = useState('');
+  var [forgotNewPw2, setForgotNewPw2] = useState('');
+  var [forgotStep, setForgotStep] = useState('email');  // 'email' | 'code' | 'no2fa' | 'done'
+  var [forgotLoading, setForgotLoading] = useState(false);
+  var [forgotError, setForgotError] = useState('');
+
   useEffect(function() {
     fetch('/auth/sso/providers').then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
       if (d && d.providers && d.providers.length > 0) setSsoProviders(d.providers);
@@ -57,6 +67,43 @@ export function LoginPage({ onLogin }) {
       onLogin(d);
     } catch (err) { setError(err.message); }
     setLoading(false);
+  };
+
+  var submitForgotEmail = async function() {
+    setForgotLoading(true); setForgotError('');
+    try {
+      // Check if user has 2FA by attempting reset without code
+      var d = await authCall('/reset-password-self', { method: 'POST', body: JSON.stringify({ email: forgotEmail, newPassword: 'check__only__12', totpCode: '' }) });
+      if (d.has2fa) { setForgotStep('code'); }
+      else if (d.no2fa) { setForgotStep('no2fa'); }
+      else { setForgotStep('code'); }
+    } catch (err) {
+      var msg = err.message || '';
+      if (msg.indexOf('not enabled') >= 0 || msg.indexOf('administrator') >= 0) {
+        setForgotStep('no2fa');
+      } else {
+        setForgotStep('code');
+      }
+    }
+    setForgotLoading(false);
+  };
+
+  var submitForgotReset = async function() {
+    if (forgotNewPw !== forgotNewPw2) { setForgotError('Passwords do not match'); return; }
+    if (forgotNewPw.length < 8) { setForgotError('Password must be at least 8 characters'); return; }
+    setForgotLoading(true); setForgotError('');
+    try {
+      var d = await authCall('/reset-password-self', { method: 'POST', body: JSON.stringify({ email: forgotEmail, totpCode: forgotCode, newPassword: forgotNewPw }) });
+      if (d.ok) { setForgotStep('done'); }
+      else if (d.no2fa) { setForgotStep('no2fa'); setForgotError(d.error); }
+      else if (d.error) { setForgotError(d.error); }
+    } catch (err) { setForgotError(err.message); }
+    setForgotLoading(false);
+  };
+
+  var cancelForgot = function() {
+    setForgotMode(false); setForgotStep('email'); setForgotEmail(''); setForgotCode('');
+    setForgotNewPw(''); setForgotNewPw2(''); setForgotError('');
   };
 
   var cancel2fa = function() {
@@ -110,6 +157,103 @@ export function LoginPage({ onLogin }) {
     );
   }
 
+  // ─── Forgot Password Screen ──────────────────────────
+
+  if (forgotMode) {
+    return h('div', { className: 'login-page', style: _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {} },
+      h('div', { className: 'login-card' },
+        h('div', { className: 'login-logo' },
+          h('img', { src: _brandLogo, alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
+          h('h1', null, 'Reset Password'),
+          h('p', null, forgotStep === 'email' ? 'Enter your email address' : forgotStep === 'code' ? 'Verify with your authenticator app' : forgotStep === 'done' ? 'Password updated' : 'Contact your administrator')
+        ),
+
+        // Step: enter email
+        forgotStep === 'email' && h('div', null,
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Email Address'),
+            h('input', { className: 'input', type: 'email', value: forgotEmail, onChange: function(e) { setForgotEmail(e.target.value); }, placeholder: 'you@company.com', autoFocus: true })
+          ),
+          forgotError && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 12 } }, forgotError),
+          h('button', { className: 'btn btn-primary', onClick: submitForgotEmail, disabled: forgotLoading || !forgotEmail, style: { width: '100%', justifyContent: 'center', padding: '8px' } }, forgotLoading ? 'Checking...' : 'Continue'),
+          h('div', { style: { textAlign: 'center', marginTop: 16 } },
+            h('button', { type: 'button', className: 'btn btn-ghost btn-sm', onClick: cancelForgot }, 'Back to login')
+          )
+        ),
+
+        // Step: enter 2FA code + new password
+        forgotStep === 'code' && h('div', null,
+          h('div', { style: { background: 'var(--info-soft, rgba(59,130,246,0.1))', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)' } },
+            'Enter the 6-digit code from your authenticator app (or a backup code) along with your new password.'
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, '2FA Code'),
+            h('input', {
+              className: 'input', type: 'text', inputMode: 'numeric', autoComplete: 'one-time-code',
+              value: forgotCode, onChange: function(e) { setForgotCode(e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 8)); },
+              placeholder: '000000', autoFocus: true, maxLength: 8,
+              style: { textAlign: 'center', fontSize: 20, letterSpacing: '0.2em', fontFamily: 'var(--font-mono)' }
+            })
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'New Password'),
+            h('input', { className: 'input', type: 'password', value: forgotNewPw, onChange: function(e) { setForgotNewPw(e.target.value); }, placeholder: 'Min 8 characters' })
+          ),
+          h('div', { className: 'form-group' },
+            h('label', { className: 'form-label' }, 'Confirm Password'),
+            h('input', { className: 'input', type: 'password', value: forgotNewPw2, onChange: function(e) { setForgotNewPw2(e.target.value); }, placeholder: 'Confirm new password' })
+          ),
+          forgotError && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 12 } }, forgotError),
+          h('button', { className: 'btn btn-primary', onClick: submitForgotReset, disabled: forgotLoading || !forgotCode || !forgotNewPw || !forgotNewPw2, style: { width: '100%', justifyContent: 'center', padding: '8px' } }, forgotLoading ? 'Resetting...' : 'Reset Password'),
+          h('div', { style: { textAlign: 'center', marginTop: 16 } },
+            h('button', { type: 'button', className: 'btn btn-ghost btn-sm', onClick: cancelForgot }, 'Back to login')
+          )
+        ),
+
+        // Step: no 2FA — contact admin
+        forgotStep === 'no2fa' && h('div', null,
+          h('div', { style: { textAlign: 'center', padding: '12px 0' } },
+            h('div', { style: { width: 48, height: 48, borderRadius: '50%', background: 'var(--danger-soft, rgba(220,38,38,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' } },
+              h('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--danger, #dc2626)', strokeWidth: 2, strokeLinecap: 'round' },
+                h('path', { d: 'M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' })
+              )
+            ),
+            h('h3', { style: { fontSize: 16, fontWeight: 600, marginBottom: 8 } }, 'Cannot Reset Password'),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 320, margin: '0 auto' } },
+              'Two-factor authentication is not enabled on this account. Without 2FA, you cannot reset your password yourself.'
+            ),
+            h('div', { style: { marginTop: 16, padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: 13 } },
+              h('strong', null, 'What to do:'), h('br', null),
+              'Contact your organization administrator and ask them to reset your password from the Users page.'
+            ),
+            h('div', { style: { marginTop: 16, padding: 10, background: 'var(--warning-soft, rgba(245,158,11,0.08))', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)' } },
+              'Tip: Once you regain access, enable 2FA immediately so you can reset your own password in the future.'
+            )
+          ),
+          h('div', { style: { textAlign: 'center', marginTop: 16 } },
+            h('button', { type: 'button', className: 'btn btn-primary', onClick: cancelForgot, style: { width: '100%', justifyContent: 'center' } }, 'Back to Login')
+          )
+        ),
+
+        // Step: done
+        forgotStep === 'done' && h('div', null,
+          h('div', { style: { textAlign: 'center', padding: '12px 0' } },
+            h('div', { style: { width: 48, height: 48, borderRadius: '50%', background: 'var(--success-soft, rgba(21,128,61,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' } },
+              h('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--success, #15803d)', strokeWidth: 2, strokeLinecap: 'round' },
+                h('path', { d: 'M20 6L9 17l-5-5' })
+              )
+            ),
+            h('h3', { style: { fontSize: 16, fontWeight: 600, marginBottom: 8 } }, 'Password Reset Successfully'),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'You can now sign in with your new password.')
+          ),
+          h('div', { style: { textAlign: 'center', marginTop: 16 } },
+            h('button', { type: 'button', className: 'btn btn-primary', onClick: cancelForgot, style: { width: '100%', justifyContent: 'center' } }, 'Sign In')
+          )
+        )
+      )
+    );
+  }
+
   // ─── Main Login Screen ────────────────────────────────
 
   return h('div', { className: 'login-page', style: _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {} },
@@ -138,7 +282,10 @@ export function LoginPage({ onLogin }) {
           h('input', { className: 'input', type: 'password', value: password, onChange: function(e) { setPassword(e.target.value); }, placeholder: 'Enter password', required: true })
         ),
         error && h('div', { style: { color: 'var(--danger)', fontSize: 13, marginBottom: 16 } }, error),
-        h('button', { className: 'btn btn-primary', type: 'submit', disabled: loading, style: { width: '100%', justifyContent: 'center', padding: '8px' } }, loading ? 'Signing in...' : 'Sign In')
+        h('button', { className: 'btn btn-primary', type: 'submit', disabled: loading, style: { width: '100%', justifyContent: 'center', padding: '8px' } }, loading ? 'Signing in...' : 'Sign In'),
+        h('div', { style: { textAlign: 'center', marginTop: 12 } },
+          h('button', { type: 'button', className: 'btn btn-ghost btn-sm', onClick: function() { setForgotMode(true); setForgotEmail(email); setError(''); }, style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Forgot Password?')
+        )
       ),
 
       // ── API Key Tab ─────────────────────────────────

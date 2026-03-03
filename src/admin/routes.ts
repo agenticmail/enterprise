@@ -481,6 +481,35 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     if (existing) return c.json({ error: 'Email already registered' }, 409);
 
     const user = await db.createUser(body);
+
+    // Mark as must-reset-password (admin-created accounts)
+    try {
+      await (db as any).pool.query(
+        'UPDATE users SET must_reset_password = TRUE WHERE id = $1',
+        [user.id]
+      );
+    } catch {
+      try {
+        const edb = (db as any).db;
+        if (edb?.prepare) edb.prepare('UPDATE users SET must_reset_password = 1 WHERE id = ?').run(user.id);
+      } catch { /* ignore */ }
+    }
+
+    // Set initial permissions if provided
+    if (body.permissions && body.permissions !== '*') {
+      try {
+        await (db as any).pool.query(
+          'UPDATE users SET permissions = $1 WHERE id = $2',
+          [JSON.stringify(body.permissions), user.id]
+        );
+      } catch {
+        try {
+          const edb = (db as any).db;
+          if (edb?.prepare) edb.prepare('UPDATE users SET permissions = ? WHERE id = ?').run(JSON.stringify(body.permissions), user.id);
+        } catch { /* ignore */ }
+      }
+    }
+
     const { passwordHash, ...safe } = user;
     return c.json(safe, 201);
   });

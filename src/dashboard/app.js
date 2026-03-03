@@ -94,6 +94,12 @@ function App() {
   const [user, setUser] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [permissions, setPermissions] = useState('*'); // '*' = full access, or { pageId: true | ['tab1','tab2'] }
+  const [mustResetPassword, setMustResetPassword] = useState(false);
+  const [show2faReminder, setShow2faReminder] = useState(false);
+  const [forceResetPw, setForceResetPw] = useState('');
+  const [forceResetPw2, setForceResetPw2] = useState('');
+  const [forceResetLoading, setForceResetLoading] = useState(false);
+  const [forceResetError, setForceResetError] = useState('');
   const [needsSetup, setNeedsSetup] = useState(null);
   const [sidebarPinned, setSidebarPinned] = useState(() => localStorage.getItem('em_sidebar_pinned') === 'true');
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -150,7 +156,54 @@ function App() {
 
   if (!authChecked) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Loading...');
   if (needsSetup === true && !authed) return h(OnboardingWizard, { onComplete: () => { setNeedsSetup(false); setAuthed(true); authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {}); } });
-  if (!authed) return h(LoginPage, { onLogin: (d) => { setAuthed(true); if (d?.user) setUser(d.user); } });
+  if (!authed) return h(LoginPage, { onLogin: (d) => {
+    setAuthed(true);
+    if (d?.user) { setUser(d.user); if (!d.user.totpEnabled) setShow2faReminder(true); }
+    if (d?.mustResetPassword) setMustResetPassword(true);
+  } });
+
+  // Force password reset modal
+  const doForceReset = async () => {
+    if (forceResetPw !== forceResetPw2) { setForceResetError('Passwords do not match'); return; }
+    if (forceResetPw.length < 8) { setForceResetError('Password must be at least 8 characters'); return; }
+    setForceResetLoading(true); setForceResetError('');
+    try {
+      await authCall('/force-reset-password', { method: 'POST', body: JSON.stringify({ newPassword: forceResetPw }) });
+      setMustResetPassword(false);
+      toast('Password updated successfully', 'success');
+    } catch (e) { setForceResetError(e.message); }
+    setForceResetLoading(false);
+  };
+
+  if (mustResetPassword) {
+    return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 20 } },
+      h('div', { style: { maxWidth: 420, width: '100%', background: 'var(--bg-secondary)', borderRadius: 12, padding: 32, border: '1px solid var(--border)' } },
+        h('div', { style: { textAlign: 'center', marginBottom: 24 } },
+          h('div', { style: { width: 48, height: 48, borderRadius: '50%', background: 'var(--warning-soft, rgba(245,158,11,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' } },
+            h('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--warning, #f59e0b)', strokeWidth: 2, strokeLinecap: 'round' },
+              h('path', { d: 'M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' })
+            )
+          ),
+          h('h2', { style: { fontSize: 18, fontWeight: 700 } }, 'Password Reset Required'),
+          h('p', { style: { color: 'var(--text-muted)', fontSize: 13, marginTop: 4 } }, 'Your administrator created this account with a temporary password. Please set a new password to continue.')
+        ),
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+          h('div', null,
+            h('label', { style: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 } }, 'New Password'),
+            h('input', { className: 'input', type: 'password', value: forceResetPw, onChange: (e) => setForceResetPw(e.target.value), placeholder: 'Min 8 characters', autoFocus: true })
+          ),
+          h('div', null,
+            h('label', { style: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 } }, 'Confirm Password'),
+            h('input', { className: 'input', type: 'password', value: forceResetPw2, onChange: (e) => setForceResetPw2(e.target.value), placeholder: 'Confirm new password', onKeyDown: (e) => { if (e.key === 'Enter') doForceReset(); } })
+          ),
+          forceResetError && h('div', { style: { color: 'var(--danger)', fontSize: 12 } }, forceResetError),
+          h('button', { className: 'btn btn-primary', onClick: doForceReset, disabled: forceResetLoading || !forceResetPw || !forceResetPw2, style: { width: '100%', justifyContent: 'center', marginTop: 4 } },
+            forceResetLoading ? 'Updating...' : 'Set New Password'
+          )
+        )
+      )
+    );
+  }
 
   const nav = [
     { section: 'Overview', items: [{ id: 'dashboard', icon: I.dashboard, label: 'Dashboard' }] },
@@ -279,6 +332,16 @@ function App() {
           )
         ),
         h('div', { className: 'page-content' },
+          // 2FA recommendation banner
+          show2faReminder && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', margin: '0 0 16px', background: 'var(--warning-soft, rgba(245,158,11,0.1))', border: '1px solid var(--warning, #f59e0b)', borderRadius: 8, fontSize: 13 } },
+            I.shield(),
+            h('div', { style: { flex: 1 } },
+              h('strong', null, 'Enable Two-Factor Authentication'),
+              h('span', { style: { color: 'var(--text-secondary)', marginLeft: 6 } }, 'Protect your account and enable self-service password reset.')
+            ),
+            h('button', { className: 'btn btn-warning btn-sm', onClick: () => { setPage('settings'); setShow2faReminder(false); history.pushState(null, '', '/dashboard/settings'); } }, 'Set Up 2FA'),
+            h('button', { className: 'btn btn-ghost btn-sm', onClick: () => setShow2faReminder(false), style: { padding: '2px 6px', minWidth: 0 } }, '\u00d7')
+          ),
           selectedAgentId
             ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { _setSelectedAgentId(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); } })
             : page === 'agents'

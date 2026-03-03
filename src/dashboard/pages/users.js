@@ -216,7 +216,7 @@ export function UsersPage() {
   var { toast } = useApp();
   var [users, setUsers] = useState([]);
   var [creating, setCreating] = useState(false);
-  var [form, setForm] = useState({ email: '', password: '', name: '', role: 'viewer' });
+  var [form, setForm] = useState({ email: '', password: '', name: '', role: 'viewer', permissions: '*' });
   var [resetTarget, setResetTarget] = useState(null);
   var [newPassword, setNewPassword] = useState('');
   var [resetting, setResetting] = useState(false);
@@ -230,10 +230,22 @@ export function UsersPage() {
     apiCall('/page-registry').then(function(d) { setPageRegistry(d); }).catch(function() {});
   }, []);
 
+  var generateCreatePassword = function() {
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+    var pw = '';
+    for (var i = 0; i < 16; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    setForm(function(f) { return Object.assign({}, f, { password: pw }); });
+  };
+
+  var [showCreatePerms, setShowCreatePerms] = useState(false);
+
   var create = async function() {
     try {
-      await apiCall('/users', { method: 'POST', body: JSON.stringify(form) });
-      toast('User created', 'success'); setCreating(false); setForm({ email: '', password: '', name: '', role: 'viewer' }); load();
+      var body = { email: form.email, password: form.password, name: form.name, role: form.role };
+      if (form.permissions !== '*') body.permissions = form.permissions;
+      await apiCall('/users', { method: 'POST', body: JSON.stringify(body) });
+      toast('User created. They will be prompted to set a new password on first login.', 'success');
+      setCreating(false); setForm({ email: '', password: '', name: '', role: 'viewer', permissions: '*' }); setShowCreatePerms(false); load();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -324,13 +336,48 @@ export function UsersPage() {
     ),
 
     // Create user modal
-    creating && h(Modal, { title: 'Add User', onClose: function() { setCreating(false); }, footer: h(Fragment, null, h('button', { className: 'btn btn-secondary', onClick: function() { setCreating(false); } }, 'Cancel'), h('button', { className: 'btn btn-primary', onClick: create, disabled: !form.email || !form.password }, 'Create')) },
-      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Name'), h('input', { className: 'input', value: form.name, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { name: e.target.value }); }); } })),
+    creating && h(Modal, { title: 'Add User', onClose: function() { setCreating(false); setShowCreatePerms(false); }, width: 520, footer: h(Fragment, null, h('button', { className: 'btn btn-secondary', onClick: function() { setCreating(false); setShowCreatePerms(false); } }, 'Cancel'), h('button', { className: 'btn btn-primary', onClick: create, disabled: !form.email || !form.password }, 'Create User')) },
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Name'), h('input', { className: 'input', value: form.name, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { name: e.target.value }); }); }, autoFocus: true })),
       h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Email *'), h('input', { className: 'input', type: 'email', value: form.email, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { email: e.target.value }); }); } })),
-      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Password *'), h('input', { className: 'input', type: 'password', value: form.password, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { password: e.target.value }); }); } })),
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Initial Password *'),
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('input', { className: 'input', type: 'text', value: form.password, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { password: e.target.value }); }); }, placeholder: 'Min 8 characters', style: { flex: 1, fontFamily: 'var(--font-mono)', fontSize: 13 } }),
+          h('button', { type: 'button', className: 'btn btn-secondary btn-sm', onClick: generateCreatePassword, title: 'Generate random password', style: { whiteSpace: 'nowrap' } }, I.refresh(), ' Generate')
+        ),
+        form.password && h('div', { style: { marginTop: 6, padding: 8, background: 'var(--warning-soft, rgba(245,158,11,0.08))', borderRadius: 6, fontSize: 11, color: 'var(--text-secondary)' } },
+          'The user will be required to change this password on their first login. Share it securely.'
+        )
+      ),
       h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Role'), h('select', { className: 'input', value: form.role, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { role: e.target.value }); }); } }, h('option', { value: 'viewer' }, 'Viewer'), h('option', { value: 'member' }, 'Member'), h('option', { value: 'admin' }, 'Admin'), h('option', { value: 'owner' }, 'Owner'))),
-      (form.role === 'member' || form.role === 'viewer') && h('div', { style: { marginTop: 8, padding: 10, background: 'var(--info-soft)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--info)' } },
-        'After creating this user, click the shield icon to set their page permissions. By default, new Member/Viewer users have full access.'
+      // Inline permissions for member/viewer
+      (form.role === 'member' || form.role === 'viewer') && h('div', { style: { marginTop: 4 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
+          h('label', { className: 'form-label', style: { marginBottom: 0 } }, 'Page Permissions'),
+          h('button', { type: 'button', className: 'btn btn-ghost btn-sm', onClick: function() { setShowCreatePerms(!showCreatePerms); }, style: { fontSize: 11 } }, showCreatePerms ? 'Hide' : 'Customize')
+        ),
+        !showCreatePerms && h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 4 } }, 'Full access (default). Click "Customize" to restrict.'),
+        showCreatePerms && pageRegistry && h('div', { style: { maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginTop: 8 } },
+          Object.keys(pageRegistry).map(function(pid) {
+            var page = pageRegistry[pid];
+            var grants = form.permissions === '*' ? null : form.permissions;
+            var checked = !grants || (grants && grants[pid]);
+            return h('div', { key: pid, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }, onClick: function() {
+              setForm(function(f) {
+                var current = f.permissions === '*' ? (function() { var a = {}; Object.keys(pageRegistry).forEach(function(p) { a[p] = true; }); return a; })() : Object.assign({}, f.permissions);
+                if (current[pid]) { delete current[pid]; } else { current[pid] = true; }
+                if (Object.keys(current).length === Object.keys(pageRegistry).length) return Object.assign({}, f, { permissions: '*' });
+                return Object.assign({}, f, { permissions: current });
+              });
+            } },
+              h('input', { type: 'checkbox', checked: checked, readOnly: true, style: { width: 14, height: 14, accentColor: 'var(--primary)' } }),
+              h('span', null, page.label)
+            );
+          })
+        )
+      ),
+      (form.role === 'owner' || form.role === 'admin') && h('div', { style: { marginTop: 8, padding: 8, background: 'var(--info-soft)', borderRadius: 'var(--radius)', fontSize: 11, color: 'var(--info)' } },
+        'Owner and Admin roles always have full access to all pages.'
       )
     ),
 

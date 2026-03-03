@@ -298,7 +298,8 @@ export function createAuthRoutes(
       token,
       refreshToken,
       csrf,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, totpEnabled: !!user.totpEnabled },
+      mustResetPassword: !!user.mustResetPassword,
     });
   });
 
@@ -356,9 +357,111 @@ export function createAuthRoutes(
       token,
       refreshToken,
       csrf,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, totpEnabled: true },
+      mustResetPassword: !!user.mustResetPassword,
       ...(backupUsed ? { warning: 'Backup code used. You have fewer backup codes remaining.' } : {}),
     });
+  });
+
+  // ─── Self-Service Password Reset (email + 2FA) ─────────
+
+  auth.post('/reset-password-self', async (c) => {
+    const { email, totpCode, newPassword } = await c.req.json();
+    if (!email || !newPassword) {
+      return c.json({ error: 'Email and new password are required' }, 400);
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    }
+
+    const user = await db.getUserByEmail(email);
+    if (!user) {
+      // Don't reveal whether email exists
+      return c.json({ error: 'If this email exists with 2FA enabled, a reset will be processed' }, 200);
+    }
+
+    // If user has 2FA, require code
+    if (user.totpEnabled && user.totpSecret) {
+      if (!totpCode) {
+        return c.json({ has2fa: true, message: 'Enter your 2FA code to reset password' });
+      }
+      const valid = await verifyTotp(user.totpSecret, totpCode.replace(/\s/g, ''));
+      if (!valid) {
+        // Try backup codes
+        let backupValid = false;
+        if (user.totpBackupCodes) {
+          try {
+            const { default: bcrypt } = await import('bcryptjs');
+            const codes: string[] = JSON.parse(user.totpBackupCodes);
+            for (let i = 0; i < codes.length; i++) {
+              if (await bcrypt.compare(totpCode.toUpperCase().replace(/\s/g, ''), codes[i])) {
+                codes.splice(i, 1);
+                await db.updateUser(user.id, { totpBackupCodes: JSON.stringify(codes) } as any);
+                backupValid = true;
+                break;
+              }
+            }
+          } catch { /* ignore */ }
+        }
+        if (!backupValid) {
+          return c.json({ error: 'Invalid 2FA code' }, 401);
+        }
+      }
+    } else {
+      // No 2FA — cannot self-reset
+      return c.json({ no2fa: true, error: 'Two-factor authentication is not enabled on this account. Please contact your organization administrator to reset your password.' }, 403);
+    }
+
+    // Reset password
+    const { default: bcrypt } = await import('bcryptjs');
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    try {
+      await (db as any).pool.query(
+        'UPDATE users SET password_hash = $1, must_reset_password = FALSE, updated_at = NOW() WHERE id = $2',
+        [passwordHash, user.id]
+      );
+    } catch {
+      const edb = (db as any).db;
+      if (edb?.prepare) edb.prepare('UPDATE users SET password_hash = ?, must_reset_password = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(passwordHash, user.id);
+    }
+
+    return c.json({ ok: true, message: 'Password reset successfully. You can now sign in.' });
+  });
+
+  // ─── Force Password Reset (authenticated, must-reset users) ──
+
+  auth.post('/force-reset-password', async (c) => {
+    const token = await extractToken(c);
+    if (!token) return c.json({ error: 'Authentication required' }, 401);
+
+    let userId: string;
+    try {
+      const { jwtVerify } = await import('jose');
+      const secret = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jwtVerify(token, secret);
+      userId = payload.sub as string;
+    } catch {
+      return c.json({ error: 'Invalid session' }, 401);
+    }
+
+    const { newPassword } = await c.req.json();
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    }
+
+    const { default: bcrypt } = await import('bcryptjs');
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    try {
+      await (db as any).pool.query(
+        'UPDATE users SET password_hash = $1, must_reset_password = FALSE, updated_at = NOW() WHERE id = $2',
+        [passwordHash, userId]
+      );
+    } catch {
+      const edb = (db as any).db;
+      if (edb?.prepare) edb.prepare('UPDATE users SET password_hash = ?, must_reset_password = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(passwordHash, userId);
+    }
+
+    return c.json({ ok: true });
   });
 
   // ─── 2FA Setup (authenticated users) ───────────────────

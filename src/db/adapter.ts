@@ -66,6 +66,7 @@ export interface User {
   totpEnabled?: boolean;     // Whether 2FA is active
   totpBackupCodes?: string;  // JSON array of hashed backup codes
   permissions?: any;         // '*' or { pageId: true | string[] }
+  mustResetPassword?: boolean;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
