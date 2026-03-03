@@ -2181,16 +2181,16 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const isPostgres = (db as any).pool;
       if (isPostgres) {
         await (db as any)._query(
-          `INSERT INTO client_organizations (id, name, slug, contact_name, contact_email, description) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [id, body.name, body.slug, body.contact_name || null, body.contact_email || null, body.description || null]
+          `INSERT INTO client_organizations (id, name, slug, contact_name, contact_email, description, billing_rate_per_agent, currency) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [id, body.name, body.slug, body.contact_name || null, body.contact_email || null, body.description || null, body.billing_rate_per_agent || 0, body.currency || 'USD']
         );
         const { rows } = await (db as any)._query(`SELECT * FROM client_organizations WHERE id = $1`, [id]);
         return c.json(rows[0], 201);
       } else {
         const engineDb = db.getEngineDB();
         await engineDb!.run(
-          `INSERT INTO client_organizations (id, name, slug, contact_name, contact_email, description) VALUES (?, ?, ?, ?, ?, ?)`,
-          [id, body.name, body.slug, body.contact_name || null, body.contact_email || null, body.description || null]
+          `INSERT INTO client_organizations (id, name, slug, contact_name, contact_email, description, billing_rate_per_agent, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, body.name, body.slug, body.contact_name || null, body.contact_email || null, body.description || null, body.billing_rate_per_agent || 0, body.currency || 'USD']
         );
         const row = await engineDb!.get(`SELECT * FROM client_organizations WHERE id = ?`, [id]);
         return c.json(row, 201);
@@ -2236,7 +2236,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const values: any[] = [];
       const isPostgres = (db as any).pool;
       let idx = 1;
-      for (const key of ['name', 'contact_name', 'contact_email', 'description']) {
+      for (const key of ['name', 'contact_name', 'contact_email', 'description', 'billing_rate_per_agent', 'currency']) {
         if (body[key] !== undefined) {
           fields.push(isPostgres ? `${key} = $${idx++}` : `${key} = ?`);
           values.push(body[key]);
@@ -2388,6 +2388,95 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         }
       }
       return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  // ─── Organization Billing ────────────────────────────
+
+  api.get('/organizations/:id/billing', requireRole('admin'), async (c) => {
+    const orgId = c.req.param('id');
+    const months = parseInt(c.req.query('months') || '12');
+    try {
+      const isPostgres = (db as any).pool;
+      let records: any[];
+      if (isPostgres) {
+        const { rows } = await (db as any)._query(
+          `SELECT * FROM org_billing_records WHERE org_id = $1 ORDER BY month DESC LIMIT $2`,
+          [orgId, months]
+        );
+        records = rows;
+      } else {
+        records = await db.getEngineDB()!.all(
+          `SELECT * FROM org_billing_records WHERE org_id = ? ORDER BY month DESC LIMIT ?`,
+          [orgId, months]
+        );
+      }
+      return c.json({ records });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.put('/organizations/:id/billing', requireRole('admin'), async (c) => {
+    const orgId = c.req.param('id');
+    const { records } = await c.req.json();
+    if (!Array.isArray(records)) return c.json({ error: 'records must be an array' }, 400);
+    try {
+      const isPostgres = (db as any).pool;
+      const { randomUUID } = await import('crypto');
+      for (const r of records) {
+        if (!r.month) continue;
+        if (isPostgres) {
+          await (db as any)._query(
+            `INSERT INTO org_billing_records (id, org_id, agent_id, month, revenue, token_cost, input_tokens, output_tokens, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             ON CONFLICT (org_id, agent_id, month) DO UPDATE SET
+               revenue = EXCLUDED.revenue, token_cost = EXCLUDED.token_cost,
+               input_tokens = EXCLUDED.input_tokens, output_tokens = EXCLUDED.output_tokens,
+               notes = EXCLUDED.notes, updated_at = NOW()`,
+            [randomUUID(), orgId, r.agentId || null, r.month, r.revenue || 0, r.tokenCost || 0, r.inputTokens || 0, r.outputTokens || 0, r.notes || null]
+          );
+        } else {
+          const id = randomUUID();
+          await db.getEngineDB()!.run(
+            `INSERT OR REPLACE INTO org_billing_records (id, org_id, agent_id, month, revenue, token_cost, input_tokens, output_tokens, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, orgId, r.agentId || null, r.month, r.revenue || 0, r.tokenCost || 0, r.inputTokens || 0, r.outputTokens || 0, r.notes || null]
+          );
+        }
+      }
+      return c.json({ success: true });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  // ─── Organization Billing Summary ─────────────────────
+
+  api.get('/organizations/:id/billing-summary', requireRole('admin'), async (c) => {
+    const orgId = c.req.param('id');
+    try {
+      const isPostgres = (db as any).pool;
+      let rows: any[];
+      if (isPostgres) {
+        const result = await (db as any)._query(
+          `SELECT month, SUM(revenue) as total_revenue, SUM(token_cost) as total_cost,
+                  SUM(input_tokens) as total_input_tokens, SUM(output_tokens) as total_output_tokens
+           FROM org_billing_records WHERE org_id = $1
+           GROUP BY month ORDER BY month ASC`, [orgId]
+        );
+        rows = result.rows;
+      } else {
+        rows = await db.getEngineDB()!.all(
+          `SELECT month, SUM(revenue) as total_revenue, SUM(token_cost) as total_cost,
+                  SUM(input_tokens) as total_input_tokens, SUM(output_tokens) as total_output_tokens
+           FROM org_billing_records WHERE org_id = ?
+           GROUP BY month ORDER BY month ASC`, [orgId]
+        );
+      }
+      return c.json({ summary: rows });
     } catch (e: any) {
       return c.json({ error: e.message }, 500);
     }

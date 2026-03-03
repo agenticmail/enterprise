@@ -41,8 +41,18 @@ export function OrganizationsPage() {
   var femail = _femail[0]; var setFemail = _femail[1];
   var _fdesc = useState('');
   var fdesc = _fdesc[0]; var setFdesc = _fdesc[1];
+  var _fbilling = useState('');
+  var fbilling = _fbilling[0]; var setFbilling = _fbilling[1];
+  var _fcurrency = useState('USD');
+  var fcurrency = _fcurrency[0]; var setFcurrency = _fcurrency[1];
   var _slugManual = useState(false);
   var slugManual = _slugManual[0]; var setSlugManual = _slugManual[1];
+  var _detailTab = useState('agents');
+  var detailTab = _detailTab[0]; var setDetailTab = _detailTab[1];
+  var _billingSummary = useState([]);
+  var billingSummary = _billingSummary[0]; var setBillingSummary = _billingSummary[1];
+  var _billingRecords = useState([]);
+  var billingRecords = _billingRecords[0]; var setBillingRecords = _billingRecords[1];
 
   var loadOrgs = useCallback(function() {
     setLoading(true);
@@ -62,29 +72,33 @@ export function OrganizationsPage() {
   };
 
   var openCreate = function() {
-    setFname(''); setFslug(''); setFcontact(''); setFemail(''); setFdesc(''); setSlugManual(false);
+    setFname(''); setFslug(''); setFcontact(''); setFemail(''); setFdesc(''); setFbilling(''); setFcurrency('USD'); setSlugManual(false);
     setShowCreate(true);
   };
 
   var openEdit = function(org) {
     setFname(org.name || ''); setFslug(org.slug || ''); setFcontact(org.contact_name || ''); setFemail(org.contact_email || ''); setFdesc(org.description || '');
+    setFbilling(org.billing_rate_per_agent ? String(org.billing_rate_per_agent) : ''); setFcurrency(org.currency || 'USD');
     setEditOrg(org);
   };
 
   var openDetail = function(org) {
     setDetailOrg(org);
+    setDetailTab('agents');
     loadAllAgents();
     apiCall('/organizations/' + org.id).then(function(data) {
       setDetailAgents(data.agents || []);
       setDetailOrg(data);
     }).catch(function(err) { toast(err.message, 'error'); });
+    apiCall('/organizations/' + org.id + '/billing-summary').then(function(d) { setBillingSummary(d.summary || []); }).catch(function() {});
+    apiCall('/organizations/' + org.id + '/billing').then(function(d) { setBillingRecords(d.records || []); }).catch(function() {});
   };
 
   var doCreate = function() {
     setActing('create');
     apiCall('/organizations', {
       method: 'POST',
-      body: JSON.stringify({ name: fname, slug: fslug, contact_name: fcontact, contact_email: femail, description: fdesc })
+      body: JSON.stringify({ name: fname, slug: fslug, contact_name: fcontact, contact_email: femail, description: fdesc, billing_rate_per_agent: fbilling ? parseFloat(fbilling) : 0, currency: fcurrency })
     }).then(function() {
       toast('Organization created', 'success');
       setShowCreate(false);
@@ -97,7 +111,7 @@ export function OrganizationsPage() {
     setActing('edit');
     apiCall('/organizations/' + editOrg.id, {
       method: 'PATCH',
-      body: JSON.stringify({ name: fname, contact_name: fcontact, contact_email: femail, description: fdesc })
+      body: JSON.stringify({ name: fname, contact_name: fcontact, contact_email: femail, description: fdesc, billing_rate_per_agent: fbilling ? parseFloat(fbilling) : 0, currency: fcurrency })
     }).then(function() {
       toast('Organization updated', 'success');
       setEditOrg(null);
@@ -209,8 +223,8 @@ export function OrganizationsPage() {
                 org.description && h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 } }, org.description),
                 h('div', { style: { display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' } },
                   h('span', null, I.agents(), ' ', (org.agent_count || 0), ' agent', (org.agent_count || 0) !== 1 ? 's' : ''),
-                  org.contact_email && h('span', null, I.mail(), ' ', org.contact_email),
-                  org.created_at && h('span', null, new Date(org.created_at).toLocaleDateString())
+                  org.billing_rate_per_agent > 0 && h('span', { style: { fontWeight: 600, color: 'var(--success, #15803d)' } }, (org.currency || '$') + ' ', parseFloat(org.billing_rate_per_agent).toFixed(2), '/agent/mo'),
+                  org.contact_email && h('span', null, I.mail(), ' ', org.contact_email)
                 ),
                 h('div', { style: { display: 'flex', gap: 6, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }, onClick: function(e) { e.stopPropagation(); } },
                   h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { openEdit(org); } }, I.edit(), ' Edit'),
@@ -229,23 +243,35 @@ export function OrganizationsPage() {
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14, padding: 4 } },
         h('div', null,
           h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Name *'),
-          h('input', { className: 'input', value: fname, onInput: function(e) { setFname(e.target.value); if (!slugManual) setFslug(slugify(e.target.value)); }, placeholder: 'Acme Corporation' })
+          h('input', { className: 'input', value: fname, onInput: function(e) { setFname(e.target.value); if (!slugManual) setFslug(slugify(e.target.value)); }, placeholder: 'AgenticMail' })
         ),
         h('div', null,
           h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Slug *'),
-          h('input', { className: 'input', value: fslug, onInput: function(e) { setFslug(e.target.value); setSlugManual(true); }, placeholder: 'acme-corporation', style: { fontFamily: 'var(--font-mono, monospace)' } })
+          h('input', { className: 'input', value: fslug, onInput: function(e) { setFslug(e.target.value); setSlugManual(true); }, placeholder: 'agenticmail', style: { fontFamily: 'var(--font-mono, monospace)' } })
         ),
         h('div', null,
           h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Contact Name'),
-          h('input', { className: 'input', value: fcontact, onInput: function(e) { setFcontact(e.target.value); }, placeholder: 'John Doe' })
+          h('input', { className: 'input', value: fcontact, onInput: function(e) { setFcontact(e.target.value); }, placeholder: 'Ope Olatunji' })
         ),
         h('div', null,
           h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Contact Email'),
-          h('input', { className: 'input', type: 'email', value: femail, onInput: function(e) { setFemail(e.target.value); }, placeholder: 'john@acme.com' })
+          h('input', { className: 'input', type: 'email', value: femail, onInput: function(e) { setFemail(e.target.value); }, placeholder: 'ope@agenticmail.io' })
         ),
         h('div', null,
           h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Description'),
           h('textarea', { className: 'input', value: fdesc, onInput: function(e) { setFdesc(e.target.value); }, placeholder: 'Brief description...', rows: 3, style: { resize: 'vertical' } })
+        ),
+        h('div', { style: { display: 'flex', gap: 12 } },
+          h('div', { style: { flex: 1 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Billing Rate / Agent / Month'),
+            h('input', { className: 'input', type: 'number', step: '0.01', min: '0', value: fbilling, onInput: function(e) { setFbilling(e.target.value); }, placeholder: '0.00' })
+          ),
+          h('div', { style: { width: 100 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Currency'),
+            h('select', { className: 'input', value: fcurrency, onChange: function(e) { setFcurrency(e.target.value); } },
+              h('option', { value: 'USD' }, 'USD'), h('option', { value: 'EUR' }, 'EUR'), h('option', { value: 'GBP' }, 'GBP'), h('option', { value: 'NGN' }, 'NGN'), h('option', { value: 'CAD' }, 'CAD'), h('option', { value: 'AUD' }, 'AUD')
+            )
+          )
         ),
         h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } },
           h('button', { className: 'btn btn-secondary', onClick: function() { setShowCreate(false); } }, 'Cancel'),
@@ -277,6 +303,18 @@ export function OrganizationsPage() {
           h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Description'),
           h('textarea', { className: 'input', value: fdesc, onInput: function(e) { setFdesc(e.target.value); }, rows: 3, style: { resize: 'vertical' } })
         ),
+        h('div', { style: { display: 'flex', gap: 12 } },
+          h('div', { style: { flex: 1 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Billing Rate / Agent / Month'),
+            h('input', { className: 'input', type: 'number', step: '0.01', min: '0', value: fbilling, onInput: function(e) { setFbilling(e.target.value); }, placeholder: '0.00' })
+          ),
+          h('div', { style: { width: 100 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Currency'),
+            h('select', { className: 'input', value: fcurrency, onChange: function(e) { setFcurrency(e.target.value); } },
+              h('option', { value: 'USD' }, 'USD'), h('option', { value: 'EUR' }, 'EUR'), h('option', { value: 'GBP' }, 'GBP'), h('option', { value: 'NGN' }, 'NGN'), h('option', { value: 'CAD' }, 'CAD'), h('option', { value: 'AUD' }, 'AUD')
+            )
+          )
+        ),
         h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } },
           h('button', { className: 'btn btn-secondary', onClick: function() { setEditOrg(null); } }, 'Cancel'),
           h('button', { className: 'btn btn-primary', disabled: !fname || acting === 'edit', onClick: doEdit }, acting === 'edit' ? 'Saving...' : 'Save Changes')
@@ -285,10 +323,10 @@ export function OrganizationsPage() {
     ),
 
     // Detail Modal
-    detailOrg && h(Modal, { title: detailOrg.name || 'Organization Detail', onClose: function() { setDetailOrg(null); }, wide: true },
+    detailOrg && h(Modal, { title: detailOrg.name || 'Organization Detail', onClose: function() { setDetailOrg(null); }, width: 700 },
       h('div', { style: { padding: 4 } },
         // Org info
-        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 } },
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 } },
           h('div', null,
             h('div', { style: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 } }, 'Slug'),
             h('div', { style: { fontFamily: 'var(--font-mono, monospace)', fontSize: 13 } }, detailOrg.slug)
@@ -303,10 +341,29 @@ export function OrganizationsPage() {
             detailOrg.contact_email && h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, detailOrg.contact_email)
           )
         ),
+        // Billing rate in header
+        detailOrg.billing_rate_per_agent > 0 && h('div', { style: { display: 'flex', alignItems: 'center', gap: 16, padding: '10px 14px', background: 'var(--success-soft, rgba(21,128,61,0.06))', borderRadius: 8, marginBottom: 16, fontSize: 13 } },
+          h('div', null, h('strong', null, 'Rate: '), (detailOrg.currency || 'USD') + ' ' + parseFloat(detailOrg.billing_rate_per_agent).toFixed(2) + '/agent/month'),
+          h('div', null, h('strong', null, 'Monthly Revenue: '), (detailOrg.currency || 'USD') + ' ' + (parseFloat(detailOrg.billing_rate_per_agent) * detailAgents.length).toFixed(2)),
+          h('div', null, h('strong', null, 'Agents: '), detailAgents.length)
+        ),
+
         detailOrg.description && h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, padding: 12, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)' } }, detailOrg.description),
 
-        // Linked agents
-        h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 10 } }, 'Linked Agents (' + detailAgents.length + ')'),
+        // Tabs
+        h('div', { style: { display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16 } },
+          ['agents', 'billing'].map(function(t) {
+            return h('button', {
+              key: t, type: 'button',
+              style: { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', color: detailTab === t ? 'var(--primary)' : 'var(--text-muted)', borderBottom: detailTab === t ? '2px solid var(--primary)' : '2px solid transparent', fontFamily: 'var(--font)' },
+              onClick: function() { setDetailTab(t); }
+            }, t === 'agents' ? 'Agents (' + detailAgents.length + ')' : 'Billing & Costs');
+          })
+        ),
+
+        // ── Agents Tab ────────────────────────────
+        detailTab === 'agents' && h(Fragment, null,
+        h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 10 } }, 'Linked Agents'),
         detailAgents.length > 0
           ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 } },
               detailAgents.map(function(a) {
@@ -339,6 +396,102 @@ export function OrganizationsPage() {
           ),
           h('button', { className: 'btn btn-primary btn-sm', disabled: !assignAgentId || acting === 'assign', onClick: doAssignAgent }, acting === 'assign' ? 'Assigning...' : 'Assign')
         )
+        ), // end agents tab
+
+        // ── Billing Tab ───────────────────────────
+        detailTab === 'billing' && h(Fragment, null,
+          // Revenue vs Cost chart
+          billingSummary.length > 0 && h('div', { style: { marginBottom: 20 } },
+            h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 12 } }, 'Revenue vs Cost'),
+            h('div', { style: { display: 'flex', alignItems: 'flex-end', gap: 4, height: 160, padding: '0 8px', borderBottom: '1px solid var(--border)' } },
+              billingSummary.map(function(m, i) {
+                var rev = parseFloat(m.total_revenue) || 0;
+                var cost = parseFloat(m.total_cost) || 0;
+                var maxVal = Math.max.apply(null, billingSummary.map(function(s) { return Math.max(parseFloat(s.total_revenue) || 0, parseFloat(s.total_cost) || 0); })) || 1;
+                var revH = Math.max(4, (rev / maxVal) * 140);
+                var costH = Math.max(4, (cost / maxVal) * 140);
+                var profit = rev - cost;
+                return h('div', { key: i, style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 } },
+                  h('div', { style: { display: 'flex', alignItems: 'flex-end', gap: 2, height: 144 } },
+                    h('div', { title: 'Revenue: ' + rev.toFixed(2), style: { width: 14, height: revH, background: 'var(--success, #15803d)', borderRadius: '3px 3px 0 0', minHeight: 4 } }),
+                    h('div', { title: 'Cost: ' + cost.toFixed(2), style: { width: 14, height: costH, background: 'var(--danger, #dc2626)', borderRadius: '3px 3px 0 0', minHeight: 4, opacity: 0.7 } })
+                  ),
+                  h('div', { style: { fontSize: 9, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap' } }, m.month ? m.month.slice(5) : ''),
+                  h('div', { style: { fontSize: 9, color: profit >= 0 ? 'var(--success, #15803d)' : 'var(--danger)', fontWeight: 600 } }, profit >= 0 ? '+' + profit.toFixed(0) : profit.toFixed(0))
+                );
+              })
+            ),
+            h('div', { style: { display: 'flex', gap: 16, marginTop: 8, fontSize: 11 } },
+              h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, h('span', { style: { width: 10, height: 10, borderRadius: 2, background: 'var(--success, #15803d)', display: 'inline-block' } }), 'Revenue'),
+              h('span', { style: { display: 'flex', alignItems: 'center', gap: 4 } }, h('span', { style: { width: 10, height: 10, borderRadius: 2, background: 'var(--danger)', opacity: 0.7, display: 'inline-block' } }), 'Token Cost'),
+              (function() {
+                var totRev = billingSummary.reduce(function(a, m) { return a + (parseFloat(m.total_revenue) || 0); }, 0);
+                var totCost = billingSummary.reduce(function(a, m) { return a + (parseFloat(m.total_cost) || 0); }, 0);
+                return h('span', { style: { marginLeft: 'auto', fontWeight: 600, color: (totRev - totCost) >= 0 ? 'var(--success, #15803d)' : 'var(--danger)' } },
+                  'Net: ' + (detailOrg.currency || 'USD') + ' ' + (totRev - totCost).toFixed(2)
+                );
+              })()
+            )
+          ),
+
+          billingSummary.length === 0 && h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, background: 'var(--bg-tertiary)', borderRadius: 8, marginBottom: 16 } },
+            'No billing data yet. Billing records are created as agents process tasks and accumulate token costs.'
+          ),
+
+          // Stats summary
+          (function() {
+            var totRev = billingSummary.reduce(function(a, m) { return a + (parseFloat(m.total_revenue) || 0); }, 0);
+            var totCost = billingSummary.reduce(function(a, m) { return a + (parseFloat(m.total_cost) || 0); }, 0);
+            var totIn = billingSummary.reduce(function(a, m) { return a + (parseInt(m.total_input_tokens) || 0); }, 0);
+            var totOut = billingSummary.reduce(function(a, m) { return a + (parseInt(m.total_output_tokens) || 0); }, 0);
+            var margin = totRev > 0 ? ((totRev - totCost) / totRev * 100) : 0;
+            return h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 } },
+              h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, textAlign: 'center' } },
+                h('div', { style: { fontSize: 18, fontWeight: 700, color: 'var(--success, #15803d)' } }, (detailOrg.currency || 'USD') + ' ' + totRev.toFixed(2)),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Total Revenue')
+              ),
+              h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, textAlign: 'center' } },
+                h('div', { style: { fontSize: 18, fontWeight: 700, color: 'var(--danger)' } }, (detailOrg.currency || 'USD') + ' ' + totCost.toFixed(4)),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Token Cost')
+              ),
+              h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, textAlign: 'center' } },
+                h('div', { style: { fontSize: 18, fontWeight: 700, color: margin >= 0 ? 'var(--success, #15803d)' : 'var(--danger)' } }, margin.toFixed(1) + '%'),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Margin')
+              ),
+              h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, textAlign: 'center' } },
+                h('div', { style: { fontSize: 18, fontWeight: 700 } }, ((totIn + totOut) / 1000).toFixed(1) + 'K'),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Total Tokens')
+              )
+            );
+          })(),
+
+          // Per-agent breakdown table
+          billingRecords.length > 0 && h(Fragment, null,
+            h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 8 } }, 'Records'),
+            h('div', { style: { overflowX: 'auto' } },
+              h('table', null,
+                h('thead', null, h('tr', null,
+                  h('th', null, 'Month'), h('th', null, 'Agent'), h('th', { style: { textAlign: 'right' } }, 'Revenue'), h('th', { style: { textAlign: 'right' } }, 'Token Cost'), h('th', { style: { textAlign: 'right' } }, 'Profit'), h('th', { style: { textAlign: 'right' } }, 'Tokens')
+                )),
+                h('tbody', null,
+                  billingRecords.map(function(r, i) {
+                    var rev = parseFloat(r.revenue) || 0;
+                    var cost = parseFloat(r.token_cost) || 0;
+                    var agent = detailAgents.find(function(a) { return a.id === r.agent_id; });
+                    return h('tr', { key: i },
+                      h('td', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, r.month),
+                      h('td', null, agent ? agent.name : (r.agent_id ? r.agent_id.slice(0, 8) : 'All')),
+                      h('td', { style: { textAlign: 'right', color: 'var(--success, #15803d)' } }, rev.toFixed(2)),
+                      h('td', { style: { textAlign: 'right', color: 'var(--danger)' } }, cost.toFixed(4)),
+                      h('td', { style: { textAlign: 'right', fontWeight: 600, color: (rev - cost) >= 0 ? 'var(--success, #15803d)' : 'var(--danger)' } }, (rev - cost).toFixed(2)),
+                      h('td', { style: { textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' } }, ((parseInt(r.input_tokens) || 0) + (parseInt(r.output_tokens) || 0)).toLocaleString())
+                    );
+                  })
+                )
+              )
+            )
+          )
+        ) // end billing tab
       )
     )
   );

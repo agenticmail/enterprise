@@ -209,7 +209,24 @@ export class PostgresAdapter extends DatabaseAdapter {
         );
       `);
       await client.query(`
+        ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS billing_rate_per_agent NUMERIC(10,2) DEFAULT 0;
+        ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
         ALTER TABLE agents ADD COLUMN IF NOT EXISTS client_org_id TEXT REFERENCES client_organizations(id);
+
+        CREATE TABLE IF NOT EXISTS org_billing_records (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+          org_id TEXT NOT NULL REFERENCES client_organizations(id) ON DELETE CASCADE,
+          agent_id TEXT,
+          month TEXT NOT NULL,
+          revenue NUMERIC(10,2) DEFAULT 0,
+          token_cost NUMERIC(10,4) DEFAULT 0,
+          input_tokens BIGINT DEFAULT 0,
+          output_tokens BIGINT DEFAULT 0,
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(org_id, agent_id, month)
+        );
       `).catch(() => {});
       await client.query(`
         CREATE TABLE IF NOT EXISTS agent_knowledge_access (
