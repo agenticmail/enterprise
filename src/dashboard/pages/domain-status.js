@@ -463,7 +463,7 @@ export function DomainStatusPage() {
         h('span', { style: { fontSize: 20 } }, '\uD83D\uDCE6'),
         h('div', null,
           h('div', { style: { fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Migrate to Another Machine', h(HelpButton, { label: 'Migration' },
-            h('p', null, 'Move your entire AgenticMail deployment to a different server or computer. All you need is the .env file — it contains all configuration and encryption keys.'),
+            h('p', null, 'Move your entire AgenticMail deployment to a different server or computer. You need the .env file (configuration and encryption keys) and optionally the ~/.agenticmail/branding/ folder (company logo, favicon, login background).'),
             h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Always back up your .env file securely. Without the VAULT_KEY, encrypted credentials cannot be recovered.')
           )),
           h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Move your entire deployment to a new server or computer')
@@ -480,7 +480,8 @@ export function DomainStatusPage() {
           h('li', null, 'On the new machine, create the directory: ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'mkdir -p ~/.agenticmail')),
           h('li', null, 'Save the .env file there: ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '~/.agenticmail/.env')),
           h('li', null, 'Start the server: ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'npx @agenticmail/enterprise@latest start')),
-          h('li', null, 'If using Cloudflare Tunnel: run ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'cloudflared tunnel login'), ' on the new machine (same CF account), then redeploy the tunnel from the dashboard')
+          h('li', null, 'If using Cloudflare Tunnel: run ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'cloudflared tunnel login'), ' on the new machine (same CF account), then redeploy the tunnel from the dashboard'),
+          h('li', null, 'If you have company branding (logo, favicon, login background): copy the ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '~/.agenticmail/branding/'), ' folder to the new machine')
         )
       ),
       h('div', { style: { padding: '12px 16px', background: 'var(--bg-primary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 } },
@@ -490,13 +491,17 @@ export function DomainStatusPage() {
         '\u2022 ', h('strong', null, 'AGENTICMAIL_VAULT_KEY'), ' — decrypts stored credentials (email passwords, API keys)', h('br'),
         '\u2022 ', h('strong', null, 'PORT'), ' — the port your server runs on', h('br'),
         h('br'),
+        h('strong', { style: { color: 'var(--text-secondary)' } }, 'Branding assets:'), h('br'),
+        'Company branding files (logo, favicon, login background) are stored on disk at ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '~/.agenticmail/branding/'),
+        '. These are ', h('strong', null, 'not'), ' in the database — copy this folder to keep your branding on the new machine. If you skip this, you can re-upload them from Settings after migration.',
+        h('br'), h('br'),
         h('strong', { style: { color: 'var(--warning)' } }, 'Important:'), ' Without the same VAULT_KEY, encrypted credentials (agent email passwords, API keys) cannot be decrypted. You would need to re-enter them in the dashboard.'
       ),
       h('div', { style: { marginTop: 12 } },
         h('button', {
           className: 'btn btn-sm',
           onClick: function() {
-            var text = 'To migrate AgenticMail to a new machine:\\n\\n1. mkdir -p ~/.agenticmail\\n2. Copy this file to ~/.agenticmail/.env on the new machine\\n3. npx @agenticmail/enterprise@latest start\\n4. If using CF Tunnel: cloudflared tunnel login + redeploy from dashboard';
+            var text = 'To migrate AgenticMail to a new machine:\\n\\n1. mkdir -p ~/.agenticmail\\n2. Copy this file to ~/.agenticmail/.env on the new machine\\n3. Copy ~/.agenticmail/branding/ folder (if you have company branding)\\n4. npx @agenticmail/enterprise@latest start\\n5. If using CF Tunnel: cloudflared tunnel login + redeploy from dashboard';
             navigator.clipboard.writeText(text);
             toast('Migration instructions copied!', 'success');
           }

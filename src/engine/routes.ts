@@ -86,6 +86,8 @@ import { createChatWebhookRoutes } from './chat-webhook-routes.js';
 import { ChatPoller } from './chat-poller.js';
 import { EmailPoller } from './email-poller.js';
 import { MessagingPoller } from './messaging-poller.js';
+import { TaskQueueManager } from './task-queue.js';
+import { createTaskQueueRoutes } from './task-queue-routes.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 
 const engine = new Hono<AppEnv>();
@@ -128,6 +130,7 @@ const knowledgeContribution = new KnowledgeContributionManager({ memoryCallback:
 import { AgentHierarchyManager } from './agent-hierarchy.js';
 let hierarchyManager: AgentHierarchyManager | null = null;
 const knowledgeImport = new KnowledgeImportManager({ knowledgeContribution });
+const taskQueue = new TaskQueueManager();
 const skillUpdater = new SkillAutoUpdater({ registry: communityRegistry });
 
 // Wire onboarding into guardrails for onboarding gate checks
@@ -190,6 +193,7 @@ engine.route('/anomaly-rules', createAnomalyRoutes(guardrails));
 engine.route('/journal', createJournalRoutes(journal));
 engine.route('/messages', createCommunicationRoutes(commBus));
 engine.route('/tasks', createTaskRoutes(commBus));
+engine.route('/task-pipeline', createTaskQueueRoutes(taskQueue));
 engine.route('/compliance', createComplianceRoutes(compliance));
 
 engine.route('/', createCatalogRoutes({
@@ -335,6 +339,267 @@ engine.get('/hierarchy/escalations/:agentId', async (c) => {
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
+});
+
+// ─── MCP Server Management ──────────────────────────────────────────
+// CRUD for external MCP server connections (stdio, SSE, HTTP)
+engine.get('/mcp-servers', async (c) => {
+  try {
+    const rows = await _engineDb!.query(`SELECT * FROM mcp_servers WHERE org_id = $1 ORDER BY created_at DESC`, ['default']);
+    const servers = (rows || []).map((r: any) => {
+      const config = typeof r.config === 'string' ? JSON.parse(r.config) : (r.config || {});
+      return { id: r.id, ...config, status: r.status || 'unknown', toolCount: r.tool_count || 0, tools: r.tools ? (typeof r.tools === 'string' ? JSON.parse(r.tools) : r.tools) : [] };
+    });
+    return c.json({ servers });
+  } catch (e: any) {
+    // Table may not exist yet
+    if (e.message?.includes('does not exist') || e.message?.includes('no such table')) {
+      return c.json({ servers: [] });
+    }
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+engine.post('/mcp-servers', async (c) => {
+  try {
+    await _engineDb!.execute(`CREATE TABLE IF NOT EXISTS mcp_servers (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      org_id TEXT NOT NULL DEFAULT 'default',
+      config JSONB NOT NULL DEFAULT '{}',
+      status TEXT DEFAULT 'unknown',
+      tool_count INTEGER DEFAULT 0,
+      tools JSONB DEFAULT '[]',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    const body = await c.req.json();
+    const id = crypto.randomUUID();
+    await _engineDb!.execute(`INSERT INTO mcp_servers (id, org_id, config) VALUES ($1, $2, $3)`, [id, 'default', JSON.stringify(body)]);
+    return c.json({ ok: true, id });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+engine.put('/mcp-servers/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    // Merge with existing config
+    const rows = await _engineDb!.query(`SELECT config FROM mcp_servers WHERE id = $1`, [id]);
+    if (!rows?.length) return c.json({ error: 'Server not found' }, 404);
+    const existing = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : (rows[0].config || {});
+    const merged = { ...existing, ...body };
+    await _engineDb!.execute(`UPDATE mcp_servers SET config = $1, updated_at = NOW() WHERE id = $2`, [JSON.stringify(merged), id]);
+    return c.json({ ok: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+engine.delete('/mcp-servers/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    // Fetch config before deleting (for agent notification)
+    const rows = await _engineDb!.query(`SELECT config, tools FROM mcp_servers WHERE id = $1`, [id]);
+    const serverConfig = rows?.[0] ? (typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config) : null;
+    const serverTools = rows?.[0]?.tools ? (typeof rows[0].tools === 'string' ? JSON.parse(rows[0].tools) : rows[0].tools) : [];
+
+    await _engineDb!.execute(`DELETE FROM mcp_servers WHERE id = $1`, [id]);
+
+    // Write a memory entry for each assigned agent so they know tools were removed
+    if (serverConfig?.assignedAgents?.length && memoryManager) {
+      const toolNames = (serverTools || []).map((t: any) => t.name).join(', ');
+      for (const agentId of serverConfig.assignedAgents) {
+        try {
+          await memoryManager.createMemory({
+            agentId,
+            orgId: 'default',
+            category: 'system_notice',
+            title: `MCP Server "${serverConfig.name}" was deleted`,
+            content: `The MCP server "${serverConfig.name}" has been permanently removed by an administrator. The following tools are no longer available and should NOT be called: ${toolNames || 'unknown'}. If a task requires these tools, inform the user that they are no longer available.`,
+            source: 'mcp_server_deletion',
+            importance: 'high',
+          });
+        } catch { /* non-fatal */ }
+      }
+    }
+
+    return c.json({ ok: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+// ─── MCP Server Agent Assignment ─────────────────────
+engine.put('/mcp-servers/:id/agents', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { agentIds } = await c.req.json<{ agentIds: string[] }>();
+    const rows = await _engineDb!.query(`SELECT config FROM mcp_servers WHERE id = $1`, [id]);
+    if (!rows?.length) return c.json({ error: 'Server not found' }, 404);
+    const existing = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : (rows[0].config || {});
+    existing.assignedAgents = agentIds || [];
+    await _engineDb!.execute(`UPDATE mcp_servers SET config = $1, updated_at = NOW() WHERE id = $2`, [JSON.stringify(existing), id]);
+    return c.json({ ok: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+// ─── MCP Server Reload (after config change) ─────────
+engine.post('/mcp-servers/:id/reload', async (c) => {
+  try {
+    // Signal to runtime to reload this MCP server
+    // The actual reload happens via the mcpProcessManager reference
+    return c.json({ ok: true, message: 'Server will be reloaded on next agent session' });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+engine.post('/mcp-servers/:id/test', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const rows = await _engineDb!.query(`SELECT config FROM mcp_servers WHERE id = $1`, [id]);
+    if (!rows?.length) return c.json({ error: 'Server not found' }, 404);
+    const config = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : (rows[0].config || {});
+
+    if (config.type === 'stdio') {
+      // Test stdio: spawn process, send initialize, read response
+      const { spawn } = await import('node:child_process');
+      const args = config.args || [];
+      const env = { ...process.env, ...(config.env || {}) };
+      const child = spawn(config.command, args, { stdio: ['pipe', 'pipe', 'pipe'], env, timeout: (config.timeout || 30) * 1000 });
+
+      const initMsg = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'AgenticMail', version: '1.0' } } });
+      child.stdin.write(initMsg + '\n');
+
+      const result: any = await new Promise((resolve) => {
+        let buf = '';
+        const timer = setTimeout(() => { child.kill(); resolve({ error: 'Timeout after ' + (config.timeout || 30) + 's' }); }, (config.timeout || 30) * 1000);
+        child.stdout.on('data', (chunk: Buffer) => {
+          buf += chunk.toString();
+          try {
+            const parsed = JSON.parse(buf.trim());
+            clearTimeout(timer);
+            child.kill();
+            resolve(parsed);
+          } catch { /* wait for more data */ }
+        });
+        child.on('error', (err: any) => { clearTimeout(timer); resolve({ error: err.message }); });
+        child.on('exit', (code: number) => { if (!buf) { clearTimeout(timer); resolve({ error: 'Process exited with code ' + code }); } });
+      });
+
+      if (result.error) return c.json({ error: typeof result.error === 'string' ? result.error : result.error.message || 'Unknown error' });
+
+      // Now list tools
+      const listMsg = JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+      const child2 = spawn(config.command, args, { stdio: ['pipe', 'pipe', 'pipe'], env, timeout: 15000 });
+      child2.stdin.write(initMsg + '\n');
+
+      const tools: any[] = await new Promise((resolve) => {
+        let phase = 'init';
+        let buf2 = '';
+        const timer2 = setTimeout(() => { child2.kill(); resolve([]); }, 15000);
+        child2.stdout.on('data', (chunk: Buffer) => {
+          buf2 += chunk.toString();
+          const lines = buf2.split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const parsed = JSON.parse(line.trim());
+              if (phase === 'init' && parsed.id === 1) {
+                phase = 'tools';
+                buf2 = '';
+                child2.stdin.write(listMsg + '\n');
+              } else if (phase === 'tools' && parsed.id === 2) {
+                clearTimeout(timer2);
+                child2.kill();
+                resolve(parsed.result?.tools || []);
+                return;
+              }
+            } catch { /* partial line */ }
+          }
+        });
+        child2.on('error', () => { clearTimeout(timer2); resolve([]); });
+      });
+
+      // Save discovered tools
+      await _engineDb!.execute(`UPDATE mcp_servers SET status = 'connected', tool_count = $1, tools = $2, updated_at = NOW() WHERE id = $3`,
+        [tools.length, JSON.stringify(tools.map((t: any) => ({ name: t.name, description: t.description }))), id]);
+
+      return c.json({ ok: true, tools: tools.length, serverInfo: result.result?.serverInfo });
+
+    } else {
+      // Test HTTP/SSE: send initialize via HTTP
+      const url = config.url;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(config.headers || {}) };
+      if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'AgenticMail', version: '1.0' } } }),
+        signal: AbortSignal.timeout((config.timeout || 30) * 1000),
+      });
+
+      if (!resp.ok) return c.json({ error: `Server returned ${resp.status}` });
+      const data = await resp.json() as any;
+      if (data.error) return c.json({ error: data.error.message || 'Server error' });
+
+      // List tools
+      const toolResp = await fetch(url, {
+        method: 'POST', headers,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+        signal: AbortSignal.timeout(15000),
+      });
+      let tools: any[] = [];
+      if (toolResp.ok) {
+        const td = await toolResp.json() as any;
+        tools = td.result?.tools || [];
+      }
+
+      await _engineDb!.execute(`UPDATE mcp_servers SET status = 'connected', tool_count = $1, tools = $2, updated_at = NOW() WHERE id = $3`,
+        [tools.length, JSON.stringify(tools.map((t: any) => ({ name: t.name, description: t.description }))), id]);
+
+      return c.json({ ok: true, tools: tools.length, serverInfo: data.result?.serverInfo });
+    }
+  } catch (e: any) {
+    // Update status to error
+    try { await _engineDb!.execute(`UPDATE mcp_servers SET status = 'error', updated_at = NOW() WHERE id = $1`, [c.req.param('id')]); } catch {}
+    return c.json({ error: e.message });
+  }
+});
+
+// ─── Integration Credentials Management ─────────────────
+engine.put('/integrations/:skillId/credentials', async (c) => {
+  try {
+    const skillId = c.req.param('skillId');
+    const body = await c.req.json();
+    const orgId = c.req.query('orgId') || 'default';
+    // Store each credential field as a vault secret
+    for (const [key, value] of Object.entries(body)) {
+      if (!value) continue;
+      const secretName = `skill:${skillId}:${key}`;
+      // Check if exists, update or create
+      try {
+        const entries = await vault.getSecretsByOrg(orgId, 'skill_credential');
+        const existing = entries.find((e: any) => e.name === secretName);
+        if (existing) {
+          await vault.updateSecret(existing.id, value as string);
+        } else {
+          await vault.storeSecret(orgId, secretName, 'skill_credential', value as string);
+        }
+      } catch {
+        await vault.storeSecret(orgId, secretName, 'skill_credential', value as string);
+      }
+    }
+    return c.json({ ok: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+engine.delete('/integrations/:skillId/credentials', async (c) => {
+  try {
+    const skillId = c.req.param('skillId');
+    const orgId = c.req.query('orgId') || 'default';
+    const entries = await vault.getSecretsByOrg(orgId, 'skill_credential');
+    const matching = entries.filter((e: any) => e.name?.startsWith(`skill:${skillId}:`));
+    for (const entry of matching) {
+      await vault.deleteSecret(entry.id);
+    }
+    return c.json({ ok: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
 });
 
 // ─── Integration catalog (serves all 144 MCP adapter integrations) ──
@@ -486,6 +751,7 @@ export async function setEngineDb(
     vault.setDb(db),
     storageManager.setDb(db),
     policyImporter.setDb(db),
+    (async () => { (taskQueue as any).db = (db as any)?.db || db; await taskQueue.init(); })(),
   ]);
   // Initialize hierarchy manager + start background task monitor
   hierarchyManager = new AgentHierarchyManager(db);
@@ -608,7 +874,7 @@ async function startChatPoller(engineDb: any): Promise<void> {
   const standaloneAgentPorts: Record<string, number> = {};
   // Check chat-webhook config for known ports
   try {
-    const rows = await engineDb.query(`SELECT key, value FROM engine_settings WHERE key = 'standalone_agents'`);
+    const rows = await _engineDb!.query(`SELECT key, value FROM engine_settings WHERE key = 'standalone_agents'`);
     if (rows?.[0]) {
       const sa = JSON.parse((rows[0] as any).value);
       for (const a of sa) standaloneAgentPorts[a.id] = a.port;
@@ -679,10 +945,11 @@ let _messagingPoller: MessagingPoller | null = null;
 
 async function startMessagingPoller(engineDb: any): Promise<void> {
   const allAgents = lifecycle.getAllAgents();
-  const agents = allAgents.filter(a => a.state === 'running' || (a as any).status === 'active').map(a => {
+  const agents = allAgents.filter(a => a.state === 'running' || a.state === 'draft' || a.state === 'stopped' || (a as any).status === 'active').map(a => {
     const dep = a.config?.deployment;
     const port = dep?.port || dep?.config?.local?.port || 3100;
     const host = dep?.host || dep?.config?.local?.host || 'localhost';
+    // Debug removed — dynamic resolution in messaging-poller.resolveEndpoint()
     return {
       id: a.id, name: a.name || '', displayName: (a.config as any)?.displayName || a.name || a.id,
       status: 'active' as const, port, host,

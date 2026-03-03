@@ -753,10 +753,92 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       { field: 'cfAccountId', type: 'string', maxLength: 100 },
       { field: 'plan', type: 'string', maxLength: 32 },
       { field: 'signatureTemplate', type: 'string', maxLength: 10000 },
+      { field: 'branding', type: 'object' },
     ]);
 
     const settings = await updateSettingsAndEmit(body);
     return c.json(settings);
+  });
+
+  // ─── Branding Asset Upload ──────────────────────────
+
+  api.post('/settings/branding', requireRole('admin'), async (c) => {
+    const body = await c.req.json();
+    const { type, data, filename } = body; // type: 'logo' | 'favicon' | 'login_bg', data: base64 string
+    if (!type || !data) return c.json({ error: 'type and data are required' }, 400);
+    if (!['logo', 'favicon', 'login_bg', 'login_logo'].includes(type)) return c.json({ error: 'Invalid type' }, 400);
+
+    const os = await import('node:os');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+
+    const brandDir = path.join(os.homedir(), '.agenticmail', 'branding');
+    if (!fs.existsSync(brandDir)) fs.mkdirSync(brandDir, { recursive: true });
+
+    // Decode base64 (strip data URL prefix if present)
+    const base64 = data.replace(/^data:[^;]+;base64,/, '');
+    const buffer = Buffer.from(base64, 'base64');
+
+    // Determine extension from filename or data URL
+    const ext = filename ? path.extname(filename).toLowerCase() : '.png';
+    const validExts = ['.png', '.jpg', '.jpeg', '.svg', '.ico', '.gif', '.webp'];
+    if (!validExts.includes(ext)) return c.json({ error: 'Invalid file type. Supported: ' + validExts.join(', ') }, 400);
+
+    // Save original
+    const savedName = type + ext;
+    fs.writeFileSync(path.join(brandDir, savedName), buffer);
+
+    // Auto-generate favicon from logo upload
+    if (type === 'logo' || type === 'favicon') {
+      try {
+        // Generate multiple sizes for favicon
+        const sharp = (await import('sharp')).default;
+        const sizes = [16, 32, 48, 64, 180, 192, 512];
+        for (const size of sizes) {
+          await sharp(buffer).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(path.join(brandDir, `icon-${size}.png`));
+        }
+        // Generate ICO (just use 32px PNG as simple favicon)
+        await sharp(buffer).resize(32, 32, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(path.join(brandDir, 'favicon.png'));
+        // Apple touch icon
+        await sharp(buffer).resize(180, 180, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(path.join(brandDir, 'apple-touch-icon.png'));
+      } catch (e: any) {
+        console.warn('[branding] Sharp not available, skipping icon generation:', e.message);
+        // Still save the original — just won't have auto-generated sizes
+      }
+    }
+
+    // Save branding config to settings (with cache-busting timestamp)
+    const settings = await db.getSettings();
+    const branding = settings?.branding || {};
+    const v = Date.now();
+    (branding as any)[type] = `/branding/${savedName}?v=${v}`;
+    if (type === 'logo' || type === 'favicon') {
+      (branding as any).favicon = `/branding/favicon.png?v=${v}`;
+      (branding as any).appleTouchIcon = `/branding/apple-touch-icon.png?v=${v}`;
+      (branding as any).icon192 = `/branding/icon-192.png?v=${v}`;
+      (branding as any).icon512 = `/branding/icon-512.png?v=${v}`;
+    }
+    await updateSettingsAndEmit({ branding });
+
+    return c.json({ success: true, branding, message: 'Branding assets saved. Refresh to see changes.' });
+  });
+
+  api.delete('/settings/branding/:type', requireRole('admin'), async (c) => {
+    const type = c.req.param('type');
+    if (!['logo', 'favicon', 'login_bg', 'login_logo'].includes(type)) return c.json({ error: 'Invalid type' }, 400);
+
+    const settings = await db.getSettings();
+    const branding = settings?.branding || {};
+    delete (branding as any)[type];
+    // If removing logo, also remove auto-generated icons
+    if (type === 'logo') {
+      delete (branding as any).favicon;
+      delete (branding as any).appleTouchIcon;
+      delete (branding as any).icon192;
+      delete (branding as any).icon512;
+    }
+    await updateSettingsAndEmit({ branding });
+    return c.json({ success: true, branding });
   });
 
   // ─── SSO Configuration ────────────────────────────
@@ -1860,7 +1942,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       // 5. Update CORS to allow the new domain
       try {
         if (db) {
-          const corsRows = await db.query(`SELECT value FROM admin_settings WHERE key = 'cors_origins'`);
+          const corsRows = await (db as any).query(`SELECT value FROM admin_settings WHERE key = 'cors_origins'`);
           let origins: string[] = [];
           if (corsRows?.[0]) {
             try { origins = JSON.parse((corsRows[0] as any).value); } catch { origins = []; }
@@ -1868,7 +1950,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           const newOrigin = 'https://' + domain;
           if (!origins.includes(newOrigin)) {
             origins.push(newOrigin);
-            await db.execute(
+            await (db as any).execute(
               `INSERT INTO admin_settings (key, value) VALUES ('cors_origins', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
               [JSON.stringify(origins)]
             );

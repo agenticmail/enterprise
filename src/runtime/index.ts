@@ -224,6 +224,10 @@ export class AgentRuntime {
     if (this.config.hierarchyManager) {
       base.hierarchyManager = this.config.hierarchyManager;
     }
+    // MCP Process Manager — external MCP server tools
+    if (this.config.mcpProcessManager) {
+      base.mcpProcessManager = this.config.mcpProcessManager;
+    }
     return base;
   }
 

@@ -180,6 +180,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       await client.query(`
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS platform_capabilities JSONB;
       `).catch(() => {});
+      // Branding assets config
+      await client.query(`
+        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS branding JSONB;
+      `).catch(() => {});
       // 2FA / TOTP columns on users
       await client.query(`
         ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
@@ -270,6 +274,11 @@ export class PostgresAdapter extends DatabaseAdapter {
     if ((updates as any).platformCapabilities !== undefined) {
       fields.push(`platform_capabilities = $${i}`);
       values.push(JSON.stringify((updates as any).platformCapabilities));
+      i++;
+    }
+    if ((updates as any).branding !== undefined) {
+      fields.push(`branding = $${i}`);
+      values.push(JSON.stringify((updates as any).branding));
       i++;
     }
     fields.push(`updated_at = NOW()`);
@@ -745,6 +754,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       orgEmailConfig: r.org_email_config ? (typeof r.org_email_config === 'string' ? JSON.parse(r.org_email_config) : r.org_email_config) : undefined,
       platformCapabilities: r.platform_capabilities ? (typeof r.platform_capabilities === 'string' ? JSON.parse(r.platform_capabilities) : r.platform_capabilities) : undefined,
       signatureTemplate: r.signature_template || undefined,
+      branding: r.branding ? (typeof r.branding === 'string' ? JSON.parse(r.branding) : r.branding) : undefined,
     } as any;
   }
 }

@@ -84,7 +84,8 @@ export type ToolCategory =
   | 'execute'          // Runs code/commands
   | 'communicate'      // Sends messages externally
   | 'destroy'          // Deletes data
-  | 'memory';          // Memory read/write
+  | 'memory'           // Memory read/write
+  | 'utility';         // General-purpose utility
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
@@ -107,7 +108,9 @@ export type SideEffect =
   | 'spawns-agent'
   | 'writes-data'
   | 'creates-account'
-  | 'configures-email';
+  | 'configures-email'
+  | 'database_write'
+  | 'external_api';
 
 // ─── Individual Skill File Imports ──────────────────────
 import { Emoji } from './emoji.js';

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browser Provider Setup Guide — AgenticMail Enterprise</title>
+<style>
+  /* ── Match the enterprise dashboard theme exactly ── */
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  /* Light theme (warm golden parchment — matches dashboard) */
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-easy { background: rgba(21,128,61,0.2); color: var(--success); }
+  .badge-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge-advanced { background: rgba(239,68,68,0.2); color: var(--danger); }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+</style>
+<script>
+  // Sync theme with dashboard preference
+  (function() {
+    var saved = localStorage.getItem('em-theme');
+    if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/agents">&#8592; Back to Dashboard</a>
+
+<h1>Browser Provider Setup Guide</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Complete reference for connecting your AI agents to browsers — local, remote, or cloud-hosted.</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Quick Comparison</h3>
+  <table>
+    <tr><th>Provider</th><th>Best For</th><th>Video Calls</th><th>Difficulty</th><th>Cost</th></tr>
+    <tr><td><strong>Local Chromium</strong></td><td>Web scraping, form filling, screenshots</td><td>No (headless) / Yes (headed + display)</td><td><span class="badge badge-easy">Easy</span></td><td>Free</td></tr>
+    <tr><td><strong>Remote CDP</strong></td><td>Video calls, persistent sessions, full control</td><td>Yes</td><td><span class="badge badge-medium">Medium</span></td><td>VM cost only</td></tr>
+    <tr><td><strong>Browserless.io</strong></td><td>Scalable scraping, stealth, managed infra</td><td>No</td><td><span class="badge badge-easy">Easy</span></td><td>Free tier available</td></tr>
+    <tr><td><strong>Browserbase</strong></td><td>AI automation, session replay, anti-detection</td><td>No</td><td><span class="badge badge-easy">Easy</span></td><td>Free tier available</td></tr>
+    <tr><td><strong>Steel.dev</strong></td><td>Self-hostable, AI-native, open-source</td><td>No</td><td><span class="badge badge-medium">Medium</span></td><td>Free (self-hosted)</td></tr>
+    <tr><td><strong>ScrapingBee</strong></td><td>Proxy rotation, CAPTCHA solving</td><td>No</td><td><span class="badge badge-easy">Easy</span></td><td>Free tier available</td></tr>
+  </table>
+</div>
+
+<h2 id="local">1. Local Chromium (Default)</h2>
+<p>The simplest option. A headless Chromium browser runs on the same machine as AgenticMail. No external services needed.</p>
+<h3>When to use</h3>
+<ul>
+  <li>Web scraping and data extraction</li>
+  <li>Taking screenshots of web pages</li>
+  <li>Filling out forms and automating websites</li>
+  <li>Any task that doesn't need camera, microphone, or visible display</li>
+</ul>
+<h3>Setup</h3>
+<p>No setup needed — it's the default. Chromium is auto-detected (Google Chrome, system Chromium, or Playwright's bundled Chromium). If none found, we install Playwright Chromium automatically on first launch.</p>
+<div class="tip"><strong>Headed mode:</strong> If your server has a display (desktop machine, not headless server), switch to "Headed" in the dashboard to see the browser window. Useful for debugging.</div>
+<h3>Troubleshooting</h3>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>Chromium not found</td><td>We auto-install on first use. If it fails, check disk space (~300MB needed).</td></tr>
+  <tr><td>Missing dependencies on Linux</td><td><code>apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libdrm2 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 libasound2</code></td></tr>
+  <tr><td>"Display not available" in headed mode</td><td>Headed mode requires X11/Wayland. Use headless on servers, or install Xvfb: <code>apt-get install xvfb && Xvfb :99 &</code></td></tr>
+  <tr><td>Timeout on navigation</td><td>Increase timeout in browser settings. Some sites need longer with JS rendering.</td></tr>
+</table>
+
+<h2 id="remote-cdp">2. Remote Browser (CDP)</h2>
+<p>Connect to a Chrome browser running on another machine. The agent controls it remotely via Chrome DevTools Protocol. This is the <strong>only option that supports video calls</strong> (Google Meet, Teams, Zoom) because it can access a real camera, microphone, and display.</p>
+<h3>When to use</h3>
+<ul>
+  <li>Video calls and meetings (Google Meet, Microsoft Teams, Zoom)</li>
+  <li>Persistent browser sessions (stay logged in across restarts)</li>
+  <li>When you need a real display, camera, or microphone</li>
+  <li>Agent on headless server but needs browser GUI</li>
+</ul>
+<h3>What you need</h3>
+<ol>
+  <li>A machine with Google Chrome installed (any OS)</li>
+  <li>Chrome launched with remote debugging enabled</li>
+  <li>Network access between your AgenticMail server and that machine</li>
+</ol>
+
+<h3>Setup: macOS</h3>
+<div class="card">
+  <p><strong>Step 1:</strong> Open Terminal on the Mac where Chrome should run.</p>
+  <p><strong>Step 2:</strong> Launch Chrome with remote debugging:</p>
+  <pre><code>/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --remote-debugging-address=0.0.0.0 \
+  --user-data-dir=/tmp/chrome-remote \
+  --no-first-run</code></pre>
+  <p><strong>Step 3:</strong> In AgenticMail dashboard, enter: <code>192.168.x.x:9222</code> (the Mac's IP)</p>
+  <p><strong>Step 4:</strong> Click "Test Connection" — you should see the Chrome version.</p>
+</div>
+<div class="tip"><strong>Run at startup:</strong> Add the command to Login Items in System Settings, or create a Launch Agent plist at <code>~/Library/LaunchAgents/com.chrome.remote.plist</code>.</div>
+
+<h3>Setup: Linux (Ubuntu/Debian)</h3>
+<div class="card">
+  <p><strong>Step 1:</strong> Install Chrome:</p>
+  <pre><code>wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+sudo apt-get update && sudo apt-get install -y google-chrome-stable</code></pre>
+  <p><strong>Step 2:</strong> For headless servers (no display), install virtual display:</p>
+  <pre><code>sudo apt-get install -y xvfb pulseaudio
+Xvfb :99 -screen 0 1920x1080x24 &
+export DISPLAY=:99
+pulseaudio --start</code></pre>
+  <p><strong>Step 3:</strong> Launch Chrome:</p>
+  <pre><code>google-chrome-stable \
+  --remote-debugging-port=9222 \
+  --remote-debugging-address=0.0.0.0 \
+  --no-sandbox --disable-gpu \
+  --user-data-dir=/tmp/chrome-remote \
+  --no-first-run &</code></pre>
+  <p><strong>Step 4:</strong> Enter <code>your-server-ip:9222</code> in the dashboard.</p>
+</div>
+<div class="tip"><strong>For video calls on Linux:</strong> Virtual camera: <code>sudo apt install v4l2loopback-dkms</code>. Virtual audio: PulseAudio virtual sinks.</div>
+
+<h3>Setup: Windows</h3>
+<div class="card">
+  <p><strong>Step 1:</strong> Open PowerShell:</p>
+  <pre><code>& "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+  --remote-debugging-port=9222 `
+  --remote-debugging-address=0.0.0.0 `
+  --user-data-dir="$env:TEMP\chrome-remote" `
+  --no-first-run</code></pre>
+  <p><strong>Step 2:</strong> Allow Chrome through Windows Firewall when prompted.</p>
+  <p><strong>Step 3:</strong> Enter the Windows machine's IP:9222 in the dashboard.</p>
+</div>
+
+<h3>Setup: Cloud VMs</h3>
+<div class="card">
+  <table>
+    <tr><th>Provider</th><th>Recommended</th><th>Notes</th></tr>
+    <tr><td>AWS</td><td>EC2 Ubuntu Desktop / WorkSpaces</td><td>t3.medium+. Open port 9222 in security group (restrict to your AgenticMail IP).</td></tr>
+    <tr><td>Azure</td><td>Virtual Desktop or VM</td><td>B2s+. Open port 9222 in NSG.</td></tr>
+    <tr><td>Google Cloud</td><td>Compute Engine with Desktop</td><td>e2-medium+. Open port 9222 in firewall.</td></tr>
+    <tr><td>Hetzner</td><td>Cloud Server with Ubuntu Desktop</td><td>Cost-effective (~&#8364;4/mo). Open port 9222.</td></tr>
+    <tr><td>DigitalOcean</td><td>Droplet with Desktop</td><td>2GB+ RAM. Open port 9222.</td></tr>
+  </table>
+  <p style="margin-top: 8px;">Follow the Linux setup above, then configure firewall to only allow your AgenticMail server's IP.</p>
+</div>
+
+<h3>Securing the Connection</h3>
+<div class="warning"><strong>Security:</strong> Chrome's debug port has NO authentication by default. Anyone who reaches port 9222 has full browser control. Always restrict access.</div>
+<p><strong>Option A: Firewall (simplest)</strong></p>
+<pre><code># Linux (ufw)
+sudo ufw allow from YOUR_AGENTICMAIL_IP to any port 9222
+
+# Linux (iptables)
+sudo iptables -A INPUT -p tcp --dport 9222 -s YOUR_AGENTICMAIL_IP -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 9222 -j DROP</code></pre>
+<p><strong>Option B: SSH Tunnel (most secure)</strong></p>
+<ol>
+  <li>Don't expose port 9222 publicly</li>
+  <li>In the dashboard, set Remote Browser Address to <code>localhost:9222</code></li>
+  <li>In SSH Tunnel field, enter: <code>user@remote-host</code></li>
+  <li>We auto-create the tunnel before connecting — all traffic encrypted</li>
+</ol>
+
+<h3>Troubleshooting</h3>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>"Cannot connect to CDP"</td><td>Check: Chrome running with --remote-debugging-port, firewall allows it, IP/port correct</td></tr>
+  <tr><td>"Connection refused"</td><td>Ensure <code>--remote-debugging-address=0.0.0.0</code> is set, or use SSH tunnel</td></tr>
+  <tr><td>"WebSocket handshake failed"</td><td>Use host:port format (e.g. <code>192.168.1.100:9222</code>) — we auto-discover the WebSocket URL</td></tr>
+  <tr><td>No camera in video call</td><td>Remote machine needs a camera (physical or virtual). Linux: <code>sudo modprobe v4l2loopback</code></td></tr>
+  <tr><td>No audio</td><td>Install PulseAudio on Linux. macOS/Windows: works automatically.</td></tr>
+  <tr><td>SSH tunnel fails</td><td>Check: SSH key configured (no password), host reachable, user has access</td></tr>
+</table>
+
+<h2 id="browserless">3. Browserless.io</h2>
+<p>Managed cloud browser service. Chrome in the cloud, connect via API token. Scalable and maintenance-free.</p>
+<h3>Setup</h3>
+<ol>
+  <li>Sign up at <a href="https://www.browserless.io" target="_blank">browserless.io</a></li>
+  <li>Copy your API token from the <a href="https://www.browserless.io/dashboard" target="_blank">dashboard</a></li>
+  <li>Paste in AgenticMail → Browser → Browserless → API Token</li>
+  <li>Click "Test Connection"</li>
+</ol>
+<h3>Self-hosted</h3>
+<pre><code>docker run -d --name browserless -p 3000:3000 -e TOKEN=your-secret ghcr.io/browserless/chromium</code></pre>
+<p>Set endpoint to <code>ws://your-server:3000</code>.</p>
+<div class="warning"><strong>No video calls.</strong> Cloud browsers don't have camera/mic. Use Remote CDP for meetings.</div>
+
+<h2 id="browserbase">4. Browserbase</h2>
+<p>AI-native cloud browser. Session replay, anti-detection, built for agent automation.</p>
+<h3>Setup</h3>
+<ol>
+  <li>Sign up at <a href="https://www.browserbase.com" target="_blank">browserbase.com</a></li>
+  <li>Copy API key from <a href="https://www.browserbase.com/settings" target="_blank">Settings</a></li>
+  <li>Copy Project ID from dashboard</li>
+  <li>Enter both in AgenticMail → Browser → Browserbase</li>
+  <li>"Test Connection"</li>
+</ol>
+<div class="tip"><strong>Session replay:</strong> Watch exactly what your agent did at browserbase.com.</div>
+
+<h2 id="steel">5. Steel.dev</h2>
+<p>Open-source browser API for AI agents. Self-host for free or use managed cloud.</p>
+<h3>Cloud setup</h3>
+<ol>
+  <li>Sign up at <a href="https://app.steel.dev" target="_blank">app.steel.dev</a></li>
+  <li>Copy API key</li>
+  <li>Enter in AgenticMail → Browser → Steel</li>
+</ol>
+<h3>Self-hosted</h3>
+<pre><code>docker run -d --name steel -p 3000:3000 ghcr.io/nichochar/steel-browser:latest</code></pre>
+<p>Set endpoint to <code>http://your-server:3000</code>.</p>
+
+<h2 id="scrapingbee">6. ScrapingBee</h2>
+<p>Scraping API with proxy rotation and CAPTCHA solving. Routes your browser through their network for anti-detection.</p>
+<h3>Setup</h3>
+<ol>
+  <li>Sign up at <a href="https://www.scrapingbee.com" target="_blank">scrapingbee.com</a></li>
+  <li>Copy API key from <a href="https://www.scrapingbee.com/dashboard" target="_blank">dashboard</a></li>
+  <li>Enter in AgenticMail → Browser → ScrapingBee</li>
+  <li>"Test Connection" — shows remaining credits</li>
+</ol>
+<div class="warning"><strong>Proxy-based:</strong> Works differently from other providers. Some advanced Playwright features (file uploads, complex interactions) may not work through the proxy. Use Browserless or Browserbase for those.</div>
+
+<h2 id="security">Security Best Practices</h2>
+<div class="card">
+  <h3 style="margin-top: 0;">All providers</h3>
+  <ul>
+    <li><strong>Domain allowlists:</strong> Restrict which websites agents can visit</li>
+    <li><strong>Page limits:</strong> Limit concurrent pages to prevent runaway browsing</li>
+    <li><strong>SSRF protection:</strong> Blocks navigation to internal IPs (enabled by default)</li>
+    <li><strong>Rotate API keys:</strong> Change cloud provider keys periodically</li>
+  </ul>
+  <h3>Remote CDP</h3>
+  <ul>
+    <li><strong>Never expose port 9222 publicly</strong> without firewall or SSH tunnel</li>
+    <li><strong>Use SSH tunnels</strong> for encrypted connections</li>
+    <li><strong>Dedicated Chrome profile</strong> (--user-data-dir) — don't use your personal browser</li>
+    <li><strong>Non-root user</strong> on Linux</li>
+    <li><strong>Keep Chrome updated</strong></li>
+  </ul>
+  <h3>Cloud providers</h3>
+  <ul>
+    <li><strong>Credentials encrypted</strong> in AgenticMail vault</li>
+    <li><strong>IP allowlists</strong> on provider dashboards</li>
+    <li><strong>Usage alerts</strong> for unusual activity</li>
+  </ul>
+</div>
+
+<h2 id="faq">FAQ</h2>
+<div class="card">
+  <h3 style="margin-top: 0;">Can I use video calls with cloud providers?</h3>
+  <p>No. Cloud providers don't have camera/mic. Use <strong>Remote CDP</strong> for meetings.</p>
+  <h3>Which provider is fastest?</h3>
+  <p>Local Chromium (no network latency). For cloud: Browserless and Steel are fastest.</p>
+  <h3>Can I switch providers without losing anything?</h3>
+  <p>Yes. Sessions are independent. Switching takes effect on next browser action. Cookies don't transfer between providers.</p>
+  <h3>What if cloud provider goes down?</h3>
+  <p>Agent falls back to local Chromium automatically.</p>
+  <h3>Multiple browsers for different tasks?</h3>
+  <p>Each agent has its own browser config. Create different agents for different purposes.</p>
+</div>
+
+<p style="margin-top: 32px; color: var(--text-muted); font-size: 12px; text-align: center;">
+  AgenticMail Enterprise — Browser Provider Setup Guide
+</p>
+
+</body>
+</html>

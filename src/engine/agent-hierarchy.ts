@@ -788,7 +788,8 @@ export class AgentHierarchyManager {
     const rows = await this.db.query<any>(`SELECT subject, context FROM agent_escalations WHERE id = $1`, [escalationId]);
     const original = rows?.[0];
     if (!original) throw new Error('Escalation not found');
-    return this.escalate(fromAgentId, original.subject, `[Forwarded] ${original.context}`);
+    const result = await this.escalate(fromAgentId, original.subject, `[Forwarded] ${original.context}`);
+    return { ...result, newEscalationId: result.escalationId };
   }
 
   async getPendingEscalations(managerId: string): Promise<EscalationRecord[]> {

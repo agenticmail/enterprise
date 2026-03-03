@@ -56,16 +56,46 @@ export function createAgentRoutes(opts: {
   router.patch('/agents/:id/config', async (c) => {
     const { updates, updatedBy } = await c.req.json();
     try {
+      const agentId = c.req.param('id');
       const actor = c.req.header('X-User-Id') || updatedBy;
-      const agent = await lifecycle.updateConfig(c.req.param('id'), updates, actor);
+
+      // Capture old deployment config for change detection
+      const oldAgent = lifecycle.getAgent(agentId);
+      const oldDep = oldAgent?.config?.deployment;
+
+      const agent = await lifecycle.updateConfig(agentId, updates, actor);
+
       // Sync name/email to admin agents table
       const adminDb = getAdminDb();
       if (adminDb && (updates.name || updates.email)) {
         const sync: any = {};
         if (updates.name) sync.name = updates.name;
         if (updates.email) sync.email = updates.email;
-        adminDb.updateAgent(c.req.param('id'), sync).catch(() => {});
+        adminDb.updateAgent(agentId, sync).catch(() => {});
       }
+
+      // Auto-restart agent if deployment config changed (port, host, target)
+      if (updates.deployment) {
+        const newDep = agent.config?.deployment;
+        const portChanged = oldDep?.port !== newDep?.port;
+        const hostChanged = oldDep?.host !== newDep?.host;
+        const targetChanged = oldDep?.target !== newDep?.target;
+        if (portChanged || hostChanged || targetChanged) {
+          console.log(`[agent-routes] Deployment config changed for ${agent.name || agentId} (port: ${oldDep?.port}→${newDep?.port}, host: ${oldDep?.host}→${newDep?.host}). Triggering agent restart...`);
+          // Try PM2 restart for locally deployed agents
+          try {
+            const { exec } = await import('node:child_process');
+            const pm2Name = (agent.name || '').toLowerCase().replace(/\s+/g, '-') + '-agent';
+            exec(`pm2 restart ${pm2Name} --update-env 2>/dev/null || pm2 restart ${agentId} --update-env 2>/dev/null`, (err) => {
+              if (err) console.warn(`[agent-routes] PM2 restart for ${pm2Name} failed (may not be PM2-managed): ${err.message}`);
+              else console.log(`[agent-routes] PM2 restart triggered for ${pm2Name}`);
+            });
+          } catch (e: any) {
+            console.warn(`[agent-routes] Agent restart failed: ${e.message}`);
+          }
+        }
+      }
+
       return c.json({ agent });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
@@ -1124,6 +1154,9 @@ export function createAgentRoutes(opts: {
     return c.json({ config: managed.config?.browserConfig || {} });
   });
 
+  // ── In-memory registry of running meeting browsers (survives config save/reload issues) ──
+  const meetingBrowsers = new Map<string, { port: number; cdpUrl: string; pid?: number }>();
+
   /**
    * POST /bridge/agents/:id/browser-config/launch-meeting-browser
    * Launches a meeting-ready headed Chrome instance with virtual display + audio.
@@ -1150,18 +1183,154 @@ export function createAgentRoutes(opts: {
       }
 
       const { execSync, spawn } = await import('node:child_process');
-      const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || '/usr/bin/chromium';
+      const { existsSync, mkdirSync, writeFileSync } = await import('node:fs');
+      const { join, dirname } = await import('node:path');
+      const { homedir } = await import('node:os');
 
-      // Check if a meeting browser is already running for this agent
-      const existingPort = (managed.config as any)?.meetingBrowserPort;
+      // ── Auto-detect Chrome/Chromium across all platforms ──
+      const chromeCandidates = [
+        process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+        // macOS
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        // Linux
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/snap/bin/chromium',
+        '/usr/local/bin/chromium',
+        // Windows
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        // Playwright bundled (check common install locations)
+        join(homedir(), '.cache', 'ms-playwright', 'chromium-*', 'chrome-linux', 'chrome'),
+        join(homedir(), '.cache', 'ms-playwright', 'chromium-*', 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+      ].filter(Boolean) as string[];
+
+      let chromePath = '';
+      for (const candidate of chromeCandidates) {
+        if (candidate.includes('*')) {
+          // Glob pattern — resolve with fs
+          try {
+            const { globSync } = await import('node:fs');
+            const matches = (globSync as any)(candidate);
+            if (matches?.length && existsSync(matches[0])) { chromePath = matches[0]; break; }
+          } catch {
+            // globSync not available in older Node, try manual resolve
+            try {
+              const parentDir = dirname(candidate.split('*')[0]);
+              if (existsSync(parentDir)) {
+                const { readdirSync } = await import('node:fs');
+                const dirs = readdirSync(parentDir).filter((d: string) => d.startsWith('chromium-')).sort().reverse();
+                for (const d of dirs) {
+                  const suffix = candidate.split('*')[1];
+                  const resolved = join(parentDir, d, suffix);
+                  if (existsSync(resolved)) { chromePath = resolved; break; }
+                }
+                if (chromePath) break;
+              }
+            } catch { /* skip */ }
+          }
+        } else if (existsSync(candidate)) {
+          chromePath = candidate;
+          break;
+        }
+      }
+
+      // If no Chrome found, try to install Playwright Chromium automatically
+      if (!chromePath) {
+        try {
+          console.log('[meeting-browser] No Chrome/Chromium found — installing Playwright Chromium...');
+          execSync('npx playwright install chromium 2>&1', { timeout: 120_000, stdio: 'pipe' });
+          // Re-check for Playwright Chromium
+          const pwCacheDir = join(homedir(), '.cache', 'ms-playwright');
+          if (existsSync(pwCacheDir)) {
+            const { readdirSync } = await import('node:fs');
+            const chromiumDirs = readdirSync(pwCacheDir).filter((d: string) => d.startsWith('chromium-')).sort().reverse();
+            for (const d of chromiumDirs) {
+              // Try Linux path
+              const linuxPath = join(pwCacheDir, d, 'chrome-linux', 'chrome');
+              if (existsSync(linuxPath)) { chromePath = linuxPath; break; }
+              // Try macOS path
+              const macPath = join(pwCacheDir, d, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
+              if (existsSync(macPath)) { chromePath = macPath; break; }
+            }
+          }
+        } catch (installErr: any) {
+          console.error('[meeting-browser] Failed to auto-install Chromium:', installErr.message);
+        }
+      }
+
+      if (!chromePath) {
+        return c.json({
+          error: 'No Chrome or Chromium browser found on this machine. Install Google Chrome or run: npx playwright install chromium',
+          hint: 'On macOS: brew install --cask google-chrome | On Linux: apt install chromium-browser | On Windows: download from google.com/chrome',
+        }, 400);
+      }
+
+      // Check if a meeting browser is already running for this agent (in-memory registry first, then config fallback)
+      const tracked = meetingBrowsers.get(agentId);
+      const existingPort = tracked?.port || (managed.config as any)?.meetingBrowserPort;
       if (existingPort) {
         try {
           const resp = await fetch(`http://127.0.0.1:${existingPort}/json/version`, { signal: AbortSignal.timeout(2000) });
           if (resp.ok) {
             const data = await resp.json() as any;
+            // Ensure registry is up to date
+            meetingBrowsers.set(agentId, { port: existingPort, cdpUrl: data.webSocketDebuggerUrl, pid: tracked?.pid });
             return c.json({ ok: true, alreadyRunning: true, cdpUrl: data.webSocketDebuggerUrl, port: existingPort, browserVersion: data.Browser });
           }
         } catch { /* not running, will launch new one */ }
+        // Was tracked but not responding — clean up
+        meetingBrowsers.delete(agentId);
+      }
+
+      // ── Create a realistic browser profile using agent identity ──
+      const agentName = managed.displayName || managed.display_name || managed.name || (managed.config as any)?.displayName || (managed.config as any)?.name || 'Agent';
+      const agentRole = (managed.config as any)?.role || (managed.config as any)?.description || 'AI Assistant';
+      const profileDir = join(homedir(), '.agenticmail', 'browser-profiles', agentId);
+      mkdirSync(profileDir, { recursive: true });
+
+      // Write Chrome preferences to make the browser look like a real user
+      const prefsDir = join(profileDir, 'Default');
+      mkdirSync(prefsDir, { recursive: true });
+      const prefsFile = join(prefsDir, 'Preferences');
+      if (!existsSync(prefsFile)) {
+        const prefs = {
+          profile: {
+            name: agentName,
+            avatar_index: Math.floor(Math.random() * 28), // Chrome has 28 avatar options
+            managed_user_id: '',
+            is_using_default_name: false,
+            is_using_default_avatar: false,
+          },
+          browser: {
+            has_seen_welcome_page: true,
+            check_default_browser: false,
+          },
+          distribution: {
+            import_bookmarks: false,
+            import_history: false,
+            import_search_engine: false,
+            suppress_first_run_bubble: true,
+            suppress_first_run_default_browser_prompt: true,
+            skip_first_run_ui: true,
+            make_chrome_default_for_user: false,
+          },
+          session: { restore_on_startup: 1 },
+          search: { suggest_enabled: true },
+          translate: { enabled: false },
+          net: { network_prediction_options: 2 }, // don't prefetch
+          webkit: { webprefs: { default_font_size: 16 } },
+          download: { prompt_for_download: true, default_directory: join(profileDir, 'Downloads') },
+          savefile: { default_directory: join(profileDir, 'Downloads') },
+          credentials_enable_service: false,
+          credentials_enable_autosign_in: false,
+        };
+        mkdirSync(join(profileDir, 'Downloads'), { recursive: true });
+        writeFileSync(prefsFile, JSON.stringify(prefs, null, 2));
       }
 
       // Find available port
@@ -1175,7 +1344,7 @@ export function createAgentRoutes(opts: {
         srv.on('error', reject);
       });
 
-      // Launch Chrome with meeting-optimized flags
+      // Launch Chrome with meeting-optimized flags and realistic profile
       const chromeArgs = [
         `--remote-debugging-port=${port}`,
         '--remote-debugging-address=127.0.0.1',
@@ -1185,23 +1354,35 @@ export function createAgentRoutes(opts: {
         '--disable-sync',
         '--disable-translate',
         '--metrics-recording-only',
-        '--no-sandbox',
         // Meeting-specific: auto-grant camera/mic permissions
         '--use-fake-ui-for-media-stream',
         '--auto-accept-camera-and-microphone-capture',
-        // Use virtual audio
-        '--use-fake-device-for-media-stream',
+        // Anti-detection: remove automation indicators
+        '--disable-blink-features=AutomationControlled',
+        '--disable-infobars',
         // Window size for meeting UI
         '--window-size=1920,1080',
         '--start-maximized',
-        // User data dir for persistent logins
-        `/tmp/meeting-browser-${agentId.slice(0, 8)}`,
+        // Use the agent's persistent profile directory
+        `--user-data-dir=${profileDir}`,
+        // Realistic user-agent lang
+        '--lang=en-US',
       ];
+
+      // Add --no-sandbox on Linux (required for non-root in containers)
+      if (process.platform === 'linux') {
+        chromeArgs.push('--no-sandbox');
+      }
+
+      // Detect display environment
+      const display = process.env.DISPLAY || (process.platform === 'linux' ? ':99' : undefined);
+      const envVars: Record<string, string> = { ...process.env } as any;
+      if (display) envVars.DISPLAY = display;
 
       const child = spawn(chromePath, chromeArgs, {
         detached: true,
         stdio: 'ignore',
-        env: { ...process.env, DISPLAY: ':99' },
+        env: envVars,
       });
       child.unref();
 
@@ -1225,12 +1406,13 @@ export function createAgentRoutes(opts: {
         return c.json({ error: 'Chrome launched but CDP not responding after 15s' });
       }
 
-      // Save port to agent config for reuse
+      // Save to in-memory registry (primary) and agent config (backup)
+      meetingBrowsers.set(agentId, { port, cdpUrl, pid: child.pid });
       if (!managed.config) managed.config = {} as any;
       (managed.config as any).meetingBrowserPort = port;
       (managed.config as any).meetingBrowserCdpUrl = cdpUrl;
       managed.updatedAt = new Date().toISOString();
-      await lifecycle.saveAgent(agentId);
+      try { await lifecycle.saveAgent(agentId); } catch (e) { console.warn('[meeting-browser] Config save failed (non-fatal):', e); }
 
       return c.json({ ok: true, cdpUrl, port, browserVersion, pid: child.pid });
     } catch (e: any) {
@@ -1248,7 +1430,9 @@ export function createAgentRoutes(opts: {
     if (!managed) return c.json({ error: 'Agent not found' }, 404);
 
     try {
-      const port = (managed.config as any)?.meetingBrowserPort;
+      const body = await c.req.json().catch(() => ({})) as any;
+      const tracked = meetingBrowsers.get(agentId);
+      const port = tracked?.port || (managed.config as any)?.meetingBrowserPort || body.port;
       if (!port) return c.json({ error: 'No meeting browser is tracked for this agent' }, 400);
 
       // Try to close gracefully via CDP
@@ -1267,20 +1451,28 @@ export function createAgentRoutes(opts: {
         }
       } catch { /* not running or not reachable */ }
 
-      // Fallback: kill by port
+      // Fallback: kill by PID first (most reliable), then by port
+      if (!closed && tracked?.pid) {
+        try { process.kill(tracked.pid, 'SIGTERM'); closed = true; } catch { /* already dead */ }
+      }
       if (!closed) {
         try {
           const { execSync } = await import('node:child_process');
-          execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`, { timeout: 5000 });
+          if (process.platform === 'win32') {
+            execSync(`for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port}') do taskkill /PID %a /F 2>nul`, { timeout: 5000 });
+          } else {
+            execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || fuser -k ${port}/tcp 2>/dev/null || true`, { timeout: 5000 });
+          }
           closed = true;
         } catch { /* already dead */ }
       }
 
-      // Clear config
+      // Clear from registry and config
+      meetingBrowsers.delete(agentId);
       delete (managed.config as any).meetingBrowserPort;
       delete (managed.config as any).meetingBrowserCdpUrl;
       managed.updatedAt = new Date().toISOString();
-      await lifecycle.saveAgent(agentId);
+      try { await lifecycle.saveAgent(agentId); } catch (e) { console.warn('[meeting-browser] Config save failed (non-fatal):', e); }
 
       return c.json({ ok: true, stopped: true, port });
     } catch (e: any) {
@@ -1298,15 +1490,45 @@ export function createAgentRoutes(opts: {
 
     try {
       if (provider === 'local') {
-        // Test local Chromium availability
+        // Test local Chromium availability — auto-detect across platforms
         try {
           const { execSync } = await import('node:child_process');
-          const chromePath = cfg.executablePath || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || '/usr/bin/chromium';
-          const version = execSync(`${chromePath} --version 2>/dev/null || echo "not found"`, { timeout: 5000 }).toString().trim();
-          if (version.includes('not found')) {
-            return c.json({ error: 'Chromium not found at ' + chromePath });
+          const { existsSync } = await import('node:fs');
+          const { homedir } = await import('node:os');
+          const { join } = await import('node:path');
+          const candidates = [
+            cfg.executablePath,
+            process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium',
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          ].filter(Boolean) as string[];
+          let foundPath = '';
+          for (const p of candidates) { if (existsSync(p)) { foundPath = p; break; } }
+          // Also check Playwright bundled chromium
+          if (!foundPath) {
+            const pwCache = join(homedir(), '.cache', 'ms-playwright');
+            if (existsSync(pwCache)) {
+              const { readdirSync } = await import('node:fs');
+              const dirs = readdirSync(pwCache).filter((d: string) => d.startsWith('chromium-')).sort().reverse();
+              for (const d of dirs) {
+                const linuxP = join(pwCache, d, 'chrome-linux', 'chrome');
+                const macP = join(pwCache, d, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
+                if (existsSync(linuxP)) { foundPath = linuxP; break; }
+                if (existsSync(macP)) { foundPath = macP; break; }
+              }
+            }
           }
-          return c.json({ ok: true, browserVersion: version, provider: 'local' });
+          if (!foundPath) {
+            return c.json({ error: 'No Chrome or Chromium found. Install Google Chrome or run: npx playwright install chromium' });
+          }
+          const version = execSync(`"${foundPath}" --version 2>/dev/null || echo "not found"`, { timeout: 5000 }).toString().trim();
+          if (version.includes('not found')) {
+            return c.json({ error: 'Chrome found at ' + foundPath + ' but --version failed' });
+          }
+          return c.json({ ok: true, browserVersion: version, provider: 'local', path: foundPath });
         } catch (e: any) {
           return c.json({ error: 'Chromium not available: ' + e.message });
         }
@@ -1372,6 +1594,20 @@ export function createAgentRoutes(opts: {
           return c.json({ ok: true, browserVersion: 'Session: ' + (data.id || 'OK'), provider: 'steel' });
         } catch (e: any) {
           return c.json({ error: 'Cannot connect to Steel: ' + e.message });
+        }
+      }
+
+      if (provider === 'scrapingbee') {
+        if (!cfg.scrapingbeeApiKey) return c.json({ error: 'ScrapingBee API key not configured' });
+        try {
+          const resp = await fetch(`https://app.scrapingbee.com/api/v1/usage?api_key=${cfg.scrapingbeeApiKey}`, {
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!resp.ok) return c.json({ error: `ScrapingBee returned ${resp.status}` });
+          const data = await resp.json() as any;
+          return c.json({ ok: true, provider: 'scrapingbee', creditsUsed: data.used_api_credit, creditsMax: data.max_api_credit });
+        } catch (e: any) {
+          return c.json({ error: 'Cannot connect to ScrapingBee: ' + e.message });
         }
       }
 

@@ -14,6 +14,7 @@
 import type { AgentConfig, AgentMessage, RuntimeHooks, SessionState, StreamEvent, ToolCall } from './types.js';
 import { callLLM, toolsToDefinitions, estimateMessageTokens, type LLMResponse } from './llm-client.js';
 import { ToolRegistry, executeTool } from './tool-executor.js';
+import { compactContext, needsCompaction, COMPACTION_THRESHOLD } from './compaction.js';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -21,7 +22,7 @@ const DEFAULT_MAX_TURNS = 0; // 0 = unlimited
 const DEFAULT_MAX_TOKENS = 8192;
 const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_CONTEXT_WINDOW = 2_000_000; // 1M — most frontier models support this (Feb 2026)
-const COMPACTION_THRESHOLD = 0.8; // compact when 80% of context used
+// COMPACTION_THRESHOLD imported from ./compaction.js
 
 /**
  * Fix ALL tool_use / tool_result pairing issues in message history.
@@ -174,6 +175,7 @@ export interface AgentLoopResult {
   turnCount: number;
   textContent: string;
   stopReason: string;
+  usage?: { inputTokens: number; outputTokens: number; costUsd: number };
 }
 
 export async function runAgentLoop(
@@ -210,6 +212,7 @@ export async function runAgentLoop(
   var totalTextContent = '';
   var lastStopReason = 'end_turn';
   var sessionId = options.sessionId || ''; // Set by caller
+  var cumulativeUsage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
 
   // Emit session start
   var sessionStartEvent: StreamEvent = { type: 'session_start', sessionId: config.agentId };
@@ -218,7 +221,7 @@ export async function runAgentLoop(
   while (maxTurns === 0 || turnCount < maxTurns) {
     // Check abort
     if (options.signal?.aborted) {
-      return buildResult(messages, 'paused', turnCount, totalTextContent, 'aborted');
+      return buildResult(messages, 'paused', turnCount, totalTextContent, 'aborted', cumulativeUsage);
     }
 
     turnCount++;
@@ -259,7 +262,7 @@ export async function runAgentLoop(
           console.log(`[agent-loop] BUDGET EXCEEDED for agent ${config.agentId}: ${budgetResult.reason}`);
           var budgetEvent: StreamEvent = { type: 'budget_exceeded', reason: budgetResult.reason || 'Budget limit reached' };
           options.onEvent?.(budgetEvent);
-          return buildResult(messages, 'completed', turnCount, totalTextContent, 'budget_exceeded');
+          return buildResult(messages, 'completed', turnCount, totalTextContent, 'budget_exceeded', cumulativeUsage);
         }
         if (budgetResult.remainingUsd !== undefined && budgetResult.remainingUsd < 1.0) {
           var warnEvent: StreamEvent = { type: 'budget_warning', remainingUsd: budgetResult.remainingUsd, usedUsd: 0 };
@@ -329,7 +332,7 @@ export async function runAgentLoop(
         console.error(`[agent-loop] LLM call failed after ${llmAttempt + 1} attempts: ${err.message}`);
         var errorEvent: StreamEvent = { type: 'error', message: err.message, retryable: isTransient };
         options.onEvent?.(errorEvent);
-        return buildResult(messages, 'failed', turnCount, totalTextContent, 'error');
+        return buildResult(messages, 'failed', turnCount, totalTextContent, 'error', cumulativeUsage);
       }
     }
 
@@ -349,6 +352,9 @@ export async function runAgentLoop(
           outputTokens: usageOutput,
           costUsd,
         });
+        cumulativeUsage.inputTokens += usageInput;
+        cumulativeUsage.outputTokens += usageOutput;
+        cumulativeUsage.costUsd += costUsd;
       } catch {}
     }
 
@@ -605,6 +611,7 @@ export async function runAgentLoop(
     turnCount,
     totalTextContent,
     lastStopReason,
+    cumulativeUsage,
   );
 }
 
@@ -703,6 +710,7 @@ function buildResult(
   turnCount: number,
   textContent: string,
   stopReason: string,
+  usage?: { inputTokens: number; outputTokens: number; costUsd: number },
 ): AgentLoopResult {
   return {
     messages,
@@ -711,206 +719,9 @@ function buildResult(
     turnCount,
     textContent,
     stopReason,
+    usage,
   };
 }
 
-/**
- * Compact the context window using LLM-generated summary.
- *
- * When the context fills up (80% of window), this function:
- * 1. Takes all messages except system + last 20
- * 2. Asks the LLM to produce a structured summary preserving ALL critical data
- * 3. Saves the summary to persistent agent memory (survives crashes)
- * 4. Returns: system messages + summary + last 20 messages
- *
- * The summary is structured to preserve:
- * - Original task/goal
- * - Work completed so far
- * - Key data: IDs, paths, URLs, names, numbers (exact values, not paraphrases)
- * - Decisions made and why
- * - Current state and next steps
- * - Errors encountered and resolutions
- *
- * Fallback: If LLM call fails, uses extractive summary (500 chars per message)
- * which is still much better than losing context entirely.
- */
-var KEEP_RECENT_MESSAGES = 20;
-
-async function compactContext(
-  messages: AgentMessage[],
-  config: AgentConfig,
-  hooks: RuntimeHooks,
-  options?: { apiKey?: string; sessionId?: string },
-): Promise<AgentMessage[]> {
-  var systemMessages = messages.filter(function(m) { return m.role === 'system'; });
-  var nonSystem = messages.filter(function(m) { return m.role !== 'system'; });
-
-  if (nonSystem.length <= KEEP_RECENT_MESSAGES) return messages;
-
-  // Find a safe cut point that doesn't split tool_use/tool_result pairs.
-  // We start at the desired cut index and walk backwards until we find a safe boundary.
-  var desiredCut = nonSystem.length - KEEP_RECENT_MESSAGES;
-  var cutIndex = desiredCut;
-
-  // A safe cut point is one where the message AT cutIndex (first of keepRecent)
-  // does NOT start with tool_result blocks that reference tool_use from the message before it.
-  for (var ci = desiredCut; ci > 0; ci--) {
-    var msg = nonSystem[ci];
-    if (msg.role === 'user' && Array.isArray(msg.content)) {
-      var hasToolResult = (msg.content as any[]).some((b: any) => b.type === 'tool_result');
-      if (hasToolResult) {
-        // This message has tool_results — cutting here would orphan them.
-        // Move cut point earlier (include this message AND its preceding assistant tool_use).
-        continue;
-      }
-    }
-    cutIndex = ci;
-    break;
-  }
-
-  var keepRecent = nonSystem.slice(cutIndex);
-  var toSummarize = nonSystem.slice(0, cutIndex);
-
-  console.log(`[compaction] Compacting ${toSummarize.length} messages (keeping ${keepRecent.length} recent + ${systemMessages.length} system)`);
-
-  // Build transcript of messages to summarize
-  var transcript: string[] = [];
-  for (var msg of toSummarize) {
-    var text = '';
-    if (typeof msg.content === 'string') {
-      text = msg.content;
-    } else if (Array.isArray(msg.content)) {
-      var parts: string[] = [];
-      for (var block of msg.content) {
-        if (block && typeof block === 'object') {
-          if ((block as any).type === 'text') parts.push((block as any).text || '');
-          else if ((block as any).type === 'tool_use') parts.push(`[Tool Call: ${(block as any).name}(${JSON.stringify((block as any).input || {}).slice(0, 300)})]`);
-          else if ((block as any).type === 'tool_result') {
-            var resultContent = String((block as any).content || '').slice(0, 500);
-            parts.push(`[Tool Result: ${resultContent}]`);
-          }
-        }
-      }
-      text = parts.join('\n');
-    }
-    if (text.length > 0) {
-      transcript.push(`[${msg.role}]: ${text.slice(0, 1000)}`);
-    }
-  }
-
-  var transcriptText = transcript.join('\n\n');
-  if (transcriptText.length > 100_000) {
-    transcriptText = transcriptText.slice(0, 100_000) + '\n\n... (earlier messages truncated for summary)';
-  }
-
-  // Try LLM-powered summarization
-  var summaryText = '';
-  var usedLLM = false;
-
-  if (options?.apiKey) {
-    try {
-      var summaryPrompt: AgentMessage[] = [
-        {
-          role: 'system' as const,
-          content: `You are a context summarizer for an AI agent that is in the middle of a long-running task. Your job is to create a comprehensive summary that preserves ALL critical information the agent needs to continue working seamlessly.
-
-Your summary MUST include ALL of these sections:
-
-## Original Task
-What was the agent asked to do? What's the overall goal?
-
-## Work Completed
-What has been accomplished so far? List specific actions taken, in order.
-
-## Key Data & References
-ALL important identifiers, file paths, URLs, names, numbers, email addresses, message IDs, thread IDs, API response values, folder IDs, document IDs — ANYTHING the agent might need to reference later. Be exhaustive and use exact values. Losing a single ID means the agent cannot continue its work.
-
-## Decisions Made
-What choices were made and why? Include any corrections or changes in approach.
-
-## Current State
-Where did things leave off? What was the agent in the middle of doing?
-
-## Pending / Next Steps
-What still needs to be done? Any scheduled tasks, follow-ups, or promises made?
-
-## Errors & Lessons
-Any errors encountered, what caused them, and how they were resolved. Include workarounds discovered.
-
-CRITICAL: This summary REPLACES the full conversation. If you omit something, the agent loses it forever. When in doubt, include it. Use exact values — never paraphrase IDs, paths, or technical data.`,
-        },
-        {
-          role: 'user' as const,
-          content: `Summarize this conversation transcript:\n\n${transcriptText}`,
-        },
-      ];
-
-      var summaryResponse = await callLLM(
-        {
-          provider: config.model.provider,
-          modelId: config.model.modelId,
-          apiKey: options.apiKey,
-        },
-        summaryPrompt,
-        [],
-        { maxTokens: 4096, temperature: 0.3 },
-      );
-
-      if (summaryResponse.textContent && summaryResponse.textContent.length > 50) {
-        summaryText = summaryResponse.textContent;
-        usedLLM = true;
-        console.log(`[compaction] LLM summary generated: ${summaryText.length} chars (${summaryResponse.usage?.inputTokens || 0} in / ${summaryResponse.usage?.outputTokens || 0} out tokens)`);
-      }
-    } catch (err: any) {
-      console.warn(`[compaction] LLM summary failed: ${err.message} — using extractive fallback`);
-    }
-  }
-
-  // Fallback: extractive summary (keeps 500 chars per message instead of old 200)
-  if (!usedLLM) {
-    var extractParts: string[] = [];
-    extractParts.push(`[Context Summary — ${toSummarize.length} earlier messages compacted (extractive fallback)]`);
-    extractParts.push('');
-
-    for (var msg2 of toSummarize) {
-      if (typeof msg2.content === 'string' && msg2.content.length > 0) {
-        extractParts.push(`[${msg2.role}]: ${msg2.content.slice(0, 500)}`);
-      } else if (Array.isArray(msg2.content)) {
-        for (var block2 of msg2.content) {
-          if (block2 && typeof block2 === 'object') {
-            if ((block2 as any).type === 'text' && (block2 as any).text?.length > 0) {
-              extractParts.push(`[${msg2.role}]: ${(block2 as any).text.slice(0, 500)}`);
-            } else if ((block2 as any).type === 'tool_use') {
-              extractParts.push(`[tool_call]: ${(block2 as any).name}(${JSON.stringify((block2 as any).input || {}).slice(0, 400)})`);
-            } else if ((block2 as any).type === 'tool_result') {
-              extractParts.push(`[tool_result]: ${String((block2 as any).content || '').slice(0, 400)}`);
-            }
-          }
-        }
-      }
-    }
-
-    summaryText = extractParts.join('\n');
-    if (summaryText.length > 20_000) {
-      summaryText = summaryText.slice(0, 20_000) + '\n\n... (truncated)';
-    }
-    console.log(`[compaction] Extractive fallback: ${summaryText.length} chars`);
-  }
-
-  // Save to persistent agent memory (survives crashes, available to future sessions)
-  try {
-    await hooks.onContextCompaction(options?.sessionId || '', config.agentId, summaryText);
-    console.log(`[compaction] Summary persisted to agent memory`);
-  } catch (memErr: any) {
-    console.warn(`[compaction] Memory save failed: ${memErr?.message}`);
-  }
-
-  var summaryMessage: AgentMessage = {
-    role: 'user' as const,
-    content: `[CONTEXT COMPACTION — Your conversation history was summarized to fit the context window. Below is a comprehensive summary of everything that happened before your most recent ${keepRecent.length} messages. Treat this as ground truth.]\n\n${summaryText}`,
-  };
-
-  var result = [...systemMessages, summaryMessage, ...keepRecent];
-  console.log(`[compaction] ${messages.length} messages → ${result.length} messages`);
-  return result;
-}
+// Context compaction is now in ./compaction.ts
+// Exported: compactContext, needsCompaction, COMPACTION_THRESHOLD

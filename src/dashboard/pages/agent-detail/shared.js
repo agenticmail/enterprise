@@ -73,11 +73,11 @@ export function formatTime(iso) { return iso ? new Date(iso).toLocaleString() : 
 export var MEMORY_CATEGORIES = [
   { value: 'org_knowledge', label: 'Org Knowledge', color: '#6366f1' },
   { value: 'interaction_pattern', label: 'Interaction Pattern', color: '#0ea5e9' },
-  { value: 'preference', label: 'Preference', color: '#10b981' },
+  { value: 'preference', label: 'Preference', color: '#15803d' },
   { value: 'correction', label: 'Correction', color: '#f59e0b' },
   { value: 'skill', label: 'Skill', color: '#8b5cf6' },
   { value: 'context', label: 'Context', color: '#64748b' },
-  { value: 'reflection', label: 'Reflection', color: '#ec4899' },
+  { value: 'reflection', label: 'Reflection', color: '#9d174d' },
 ];
 
 export function memCatColor(cat) { var f = MEMORY_CATEGORIES.find(function(c) { return c.value === cat; }); return f ? f.color : '#64748b'; }

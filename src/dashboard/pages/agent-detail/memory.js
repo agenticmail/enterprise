@@ -154,7 +154,7 @@ export function MemorySection(props) {
   var sourcesCount = memoryStats && memoryStats.bySource ? Object.keys(memoryStats.bySource).length : 0;
 
   var catColor = function(c) {
-    var m = { preference: '#8b5cf6', interaction_pattern: '#ec4899', context: '#3b82f6', skill: '#10b981', processed_email: '#6366f1', org_knowledge: '#f59e0b', procedure: '#14b8a6', relationship: '#f43f5e', reflection: '#a855f7', domain_expertise: '#0ea5e9', error_pattern: '#ef4444' };
+    var m = { preference: '#8b5cf6', interaction_pattern: '#9d174d', context: '#3b82f6', skill: '#15803d', processed_email: '#6366f1', org_knowledge: '#f59e0b', procedure: '#14b8a6', relationship: '#f43f5e', reflection: '#a855f7', domain_expertise: '#0ea5e9', error_pattern: '#ef4444' };
     return m[c] || '#64748b';
   };
   var impColor = function(i) {

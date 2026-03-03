@@ -138,6 +138,8 @@ export interface RuntimeConfig {
   vault?: any;
   /** PermissionEngine for dynamic MCP tool registration */
   permissionEngine?: any;
+  /** MCP Process Manager for external MCP server tools */
+  mcpProcessManager?: import('../engine/mcp-process-manager.js').McpProcessManager;
   /** Knowledge base engine for RAG search tools */
   knowledgeEngine?: any;
   /** Real-time agent status tracker */

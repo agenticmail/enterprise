@@ -72,7 +72,7 @@ export const E = {
     return h('svg', svg({ width: s, height: s }),
       h('defs', null,
         h('linearGradient', { id: 'brain-g', x1: '0%', y1: '0%', x2: '100%', y2: '100%' },
-          h('stop', { offset: '0%', stopColor: '#ec4899' }),
+          h('stop', { offset: '0%', stopColor: '#9d174d' }),
           h('stop', { offset: '100%', stopColor: '#a855f7' })
         )
       ),
@@ -91,7 +91,7 @@ export const E = {
     return h('svg', svg({ width: s, height: s }),
       h('defs', null,
         h('linearGradient', { id: 'clip-g', x1: '0%', y1: '0%', x2: '0%', y2: '100%' },
-          h('stop', { offset: '0%', stopColor: '#10b981' }),
+          h('stop', { offset: '0%', stopColor: '#15803d' }),
           h('stop', { offset: '100%', stopColor: '#059669' })
         )
       ),
@@ -202,7 +202,7 @@ export const E = {
   checkCircle: function(size) {
     var s = size || 20;
     return h('svg', svg({ width: s, height: s }),
-      h('circle', { cx: 12, cy: 12, r: 10, fill: '#22c55e', stroke: 'none' }),
+      h('circle', { cx: 12, cy: 12, r: 10, fill: '#15803d', stroke: 'none' }),
       h('path', { d: 'M7.5 12.5l3 3 6-6', stroke: '#fff', strokeWidth: 2.5, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' })
     );
   },
@@ -608,7 +608,7 @@ export const E = {
     return h('svg', svg({ width: s, height: s }),
       h('rect', { x: 3, y: 4, width: 5, height: 17, rx: 1, fill: '#ef4444', stroke: 'none' }),
       h('rect', { x: 9, y: 2, width: 5, height: 19, rx: 1, fill: '#3b82f6', stroke: 'none' }),
-      h('rect', { x: 15, y: 5, width: 5, height: 16, rx: 1, fill: '#22c55e', stroke: 'none' }),
+      h('rect', { x: 15, y: 5, width: 5, height: 16, rx: 1, fill: '#15803d', stroke: 'none' }),
       h('rect', { x: 4, y: 7, width: 3, height: 1, rx: 0.5, fill: '#fca5a5', stroke: 'none', opacity: 0.6 }),
       h('rect', { x: 10, y: 5, width: 3, height: 1, rx: 0.5, fill: '#93c5fd', stroke: 'none', opacity: 0.6 }),
       h('rect', { x: 16, y: 8, width: 3, height: 1, rx: 0.5, fill: '#86efac', stroke: 'none', opacity: 0.6 })
@@ -782,8 +782,8 @@ export const E = {
     var s = size || 20;
     return h('svg', svg({ width: s, height: s }),
       h('path', { d: 'M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z', fill: '#86efac', stroke: 'none' }),
-      h('path', { d: 'M8 2v16', stroke: '#22c55e', strokeWidth: 1.5 }),
-      h('path', { d: 'M16 6v16', stroke: '#22c55e', strokeWidth: 1.5 }),
+      h('path', { d: 'M8 2v16', stroke: '#15803d', strokeWidth: 1.5 }),
+      h('path', { d: 'M16 6v16', stroke: '#15803d', strokeWidth: 1.5 }),
       h('circle', { cx: 12, cy: 10, r: 2, fill: '#ef4444', stroke: 'none' })
     );
   },
@@ -886,8 +886,8 @@ export const E = {
     var s = size || 20;
     return h('svg', svg({ width: s, height: s }),
       h('rect', { x: 2, y: 3, width: 20, height: 18, rx: 3, fill: '#1e1e1e' }),
-      h('path', { d: 'M6 8l4 4-4 4', stroke: '#4ade80', strokeWidth: 2, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }),
-      h('line', { x1: 12, y1: 16, x2: 18, y2: 16, stroke: '#4ade80', strokeWidth: 2, strokeLinecap: 'round' })
+      h('path', { d: 'M6 8l4 4-4 4', stroke: '#16a34a', strokeWidth: 2, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      h('line', { x1: 12, y1: 16, x2: 18, y2: 16, stroke: '#16a34a', strokeWidth: 2, strokeLinecap: 'round' })
     );
   },
 };

@@ -279,6 +279,120 @@ export function SettingsPage() {
         )
       ),
 
+      // ─── Branding & Assets ──────────────────────────────
+      h('div', { className: 'card', style: { marginBottom: 16 } },
+        h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Branding & Assets', h(HelpButton, { label: 'Branding & Assets' },
+          h('p', null, 'Upload your company logo, favicon, and login page assets. The system automatically generates all required icon sizes (16px, 32px, 48px, 180px, 192px, 512px) and favicon from your logo.'),
+          h('p', { style: { marginTop: 8 } }, h('strong', null, 'Supported formats: '), 'PNG, JPG, SVG, WebP, GIF'),
+          h('p', { style: { marginTop: 8, padding: 8, background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 13 } }, h('strong', null, 'Tip: '), 'Upload a square PNG logo (512x512 or larger) for best results. The system auto-converts it to favicon.ico and all app icon sizes.')
+        ))),
+        h('div', { className: 'card-body' },
+          // Page Title
+          h('div', { className: 'form-group', style: { marginBottom: 16 } },
+            h('label', { className: 'form-label' }, 'Page Title'),
+            h('p', { className: 'form-help', style: { marginBottom: 8 } }, 'Displayed in browser tab. Your name will be appended with "by AgenticMail".'),
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              h('input', { className: 'input', value: (settings.branding && settings.branding.pageTitle) || '', onChange: function(e) { setSettings(function(s) { var b = Object.assign({}, s.branding || {}); b.pageTitle = e.target.value; return Object.assign({}, s, { branding: b }); }); }, placeholder: settings.name || 'Your Company Name', style: { maxWidth: 300 } }),
+              h('span', { style: { color: 'var(--text-muted)', fontSize: 12 } }, 'by AgenticMail'),
+              h('button', { className: 'btn btn-primary btn-sm', style: { marginLeft: 8 }, onClick: function() { apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ branding: settings.branding }) }).then(function() { toast('Page title saved! Refresh to see changes.', 'success'); }).catch(function(e) { toast(e.message, 'error'); }); } }, 'Save')
+            )
+          ),
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            // Company Logo
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Company Logo'),
+              h('p', { className: 'form-help', style: { marginBottom: 8 } }, 'Used in dashboard sidebar, emails, and auto-generates favicon + app icons'),
+              (settings.branding && settings.branding.logo) && h('div', { style: { marginBottom: 8, padding: 8, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', display: 'inline-flex', alignItems: 'center', gap: 8 } },
+                h('img', { src: settings.branding.logo, style: { maxWidth: 120, maxHeight: 60, objectFit: 'contain' } }),
+                h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)', fontSize: 11 }, onClick: function() { apiCall('/settings/branding/logo', { method: 'DELETE' }).then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Logo removed', 'success'); }).catch(function(e) { toast(e.message, 'error'); }); } }, '\u00D7 Remove')
+              ),
+              h('input', { type: 'file', accept: 'image/*', style: { fontSize: 12 }, onChange: function(e) {
+                var file = e.target.files && e.target.files[0];
+                if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { toast('File too large (max 5MB)', 'error'); return; }
+                var reader = new FileReader();
+                reader.onload = function() {
+                  apiCall('/settings/branding', { method: 'POST', body: JSON.stringify({ type: 'logo', data: reader.result, filename: file.name }) })
+                    .then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Logo uploaded! Favicon and icons auto-generated. Refresh to see changes.', 'success'); })
+                    .catch(function(err) { toast(err.message, 'error'); });
+                };
+                reader.readAsDataURL(file);
+              } })
+            ),
+            // Login Page Logo (separate from main logo)
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Login Page Logo'),
+              h('p', { className: 'form-help', style: { marginBottom: 8 } }, 'Shown on the login page. Falls back to company logo if not set.'),
+              (settings.branding && settings.branding.login_logo) && h('div', { style: { marginBottom: 8, padding: 8, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', display: 'inline-flex', alignItems: 'center', gap: 8 } },
+                h('img', { src: settings.branding.login_logo, style: { maxWidth: 120, maxHeight: 60, objectFit: 'contain' } }),
+                h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)', fontSize: 11 }, onClick: function() { apiCall('/settings/branding/login_logo', { method: 'DELETE' }).then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Login logo removed', 'success'); }).catch(function(e) { toast(e.message, 'error'); }); } }, '\u00D7 Remove')
+              ),
+              h('input', { type: 'file', accept: 'image/*', style: { fontSize: 12 }, onChange: function(e) {
+                var file = e.target.files && e.target.files[0];
+                if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { toast('File too large (max 5MB)', 'error'); return; }
+                var reader = new FileReader();
+                reader.onload = function() {
+                  apiCall('/settings/branding', { method: 'POST', body: JSON.stringify({ type: 'login_logo', data: reader.result, filename: file.name }) })
+                    .then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Login logo saved!', 'success'); })
+                    .catch(function(err) { toast(err.message, 'error'); });
+                };
+                reader.readAsDataURL(file);
+              } })
+            ),
+            // Login Background
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Login Page Background'),
+              h('p', { className: 'form-help', style: { marginBottom: 8 } }, 'Background image for the login page'),
+              (settings.branding && settings.branding.login_bg) && h('div', { style: { marginBottom: 8, padding: 4, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', display: 'inline-flex', alignItems: 'center', gap: 8 } },
+                h('img', { src: settings.branding.login_bg, style: { maxWidth: 160, maxHeight: 80, objectFit: 'cover', borderRadius: 'var(--radius)' } }),
+                h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)', fontSize: 11 }, onClick: function() { apiCall('/settings/branding/login_bg', { method: 'DELETE' }).then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Background removed', 'success'); }).catch(function(e) { toast(e.message, 'error'); }); } }, '\u00D7 Remove')
+              ),
+              h('input', { type: 'file', accept: 'image/*', style: { fontSize: 12 }, onChange: function(e) {
+                var file = e.target.files && e.target.files[0];
+                if (!file) return;
+                if (file.size > 10 * 1024 * 1024) { toast('File too large (max 10MB)', 'error'); return; }
+                var reader = new FileReader();
+                reader.onload = function() {
+                  apiCall('/settings/branding', { method: 'POST', body: JSON.stringify({ type: 'login_bg', data: reader.result, filename: file.name }) })
+                    .then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Login background saved!', 'success'); })
+                    .catch(function(err) { toast(err.message, 'error'); });
+                };
+                reader.readAsDataURL(file);
+              } })
+            ),
+            // Favicon (manual override)
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Custom Favicon'),
+              h('p', { className: 'form-help', style: { marginBottom: 8 } }, 'Override the auto-generated favicon. Upload .ico or .png'),
+              (settings.branding && settings.branding.favicon) && h('div', { style: { marginBottom: 8, display: 'inline-flex', alignItems: 'center', gap: 8 } },
+                h('img', { src: settings.branding.favicon, style: { width: 32, height: 32, objectFit: 'contain' } }),
+                h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Current favicon'),
+                h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)', fontSize: 11 }, onClick: function() { apiCall('/settings/branding/favicon', { method: 'DELETE' }).then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Favicon removed', 'success'); }).catch(function(e) { toast(e.message, 'error'); }); } }, '\u00D7 Remove')
+              ),
+              h('input', { type: 'file', accept: '.ico,.png,.svg', style: { fontSize: 12 }, onChange: function(e) {
+                var file = e.target.files && e.target.files[0];
+                if (!file) return;
+                var reader = new FileReader();
+                reader.onload = function() {
+                  apiCall('/settings/branding', { method: 'POST', body: JSON.stringify({ type: 'favicon', data: reader.result, filename: file.name }) })
+                    .then(function(r) { setSettings(function(s) { return Object.assign({}, s, { branding: r.branding }); }); toast('Favicon saved! Refresh to see changes.', 'success'); })
+                    .catch(function(err) { toast(err.message, 'error'); });
+                };
+                reader.readAsDataURL(file);
+              } })
+            )
+          ),
+          // Current branding status
+          (settings.branding && Object.keys(settings.branding).length > 0) && h('div', { style: { marginTop: 12, padding: 10, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', fontSize: 12 } },
+            h('strong', null, 'Active branding: '),
+            Object.keys(settings.branding).filter(function(k) { return settings.branding[k]; }).map(function(k) {
+              return h('span', { key: k, style: { display: 'inline-block', padding: '2px 8px', margin: '2px 4px', background: 'var(--success-soft)', color: 'var(--success)', borderRadius: 4, fontSize: 11 } }, k.replace(/_/g, ' '));
+            })
+          )
+        )
+      ),
+
       // ─── Email Signature Template ─────────────────────
       h('div', { className: 'card' },
         h('div', { className: 'card-header' },
@@ -410,7 +524,7 @@ export function SettingsPage() {
 
           // Info about per-agent auth
           orgEmail.configured && h('div', { style: { marginTop: 16, padding: '12px 16px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-muted)' } },
-            '\u2139\uFE0F Each agent still needs to individually authorize via their Email tab. This org config provides the shared OAuth app credentials so agents don\'t need to enter Client ID/Secret individually.'
+            'Each agent still needs to individually authorize via their Email tab. This org config provides the shared OAuth app credentials so agents don\'t need to enter Client ID/Secret individually.'
           )
         )
       ),
@@ -618,7 +732,7 @@ export function SettingsPage() {
           h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
             settings.smtpUser && h('div', { style: { padding: 12, background: 'var(--bg-success, rgba(34,197,94,0.08))', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
-                h('span', { style: { color: '#22c55e', fontSize: 18 } }, '\u2713'),
+                h('span', { style: { color: '#15803d', fontSize: 18 } }, '\u2713'),
                 h('strong', null, 'Relay Configured')
               ),
               h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
@@ -629,7 +743,7 @@ export function SettingsPage() {
             ),
             settings.cfApiToken && h('div', { style: { padding: 12, background: 'var(--bg-success, rgba(34,197,94,0.08))', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
-                h('span', { style: { color: '#22c55e', fontSize: 18 } }, '\u2713'),
+                h('span', { style: { color: '#15803d', fontSize: 18 } }, '\u2713'),
                 h('strong', null, 'Custom Domain Configured')
               ),
               h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
@@ -2070,7 +2184,7 @@ function LLMProvidersTab(props) {
               return h('div', { key: p.id, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--border)' } },
                 h('div', null,
                   h('span', { style: { fontWeight: 600, fontSize: 14 } }, p.name),
-                  h('span', { style: { marginLeft: 8, color: 'var(--success, #22c55e)', fontSize: 12 } }, '\u2713 Connected'),
+                  h('span', { style: { marginLeft: 8, color: 'var(--success, #15803d)', fontSize: 12 } }, '\u2713 Connected'),
                   h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, meta.desc || '')
                 ),
                 h('button', {

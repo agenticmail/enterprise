@@ -401,6 +401,25 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     }
   }
 
+  // ─── External MCP Server Tools ───
+  // Tools from MCP servers registered via Dashboard → Integrations & MCP
+  var mcpServerTools: AnyAgentTool[] = [];
+  if ((options as any)?.mcpProcessManager) {
+    try {
+      var { createMcpServerTools } = await import('./tools/mcp-server-tools.js');
+      mcpServerTools = createMcpServerTools({
+        mcpManager: (options as any).mcpProcessManager,
+        agentId: options?.agentId,
+        permissionEngine: (options as any)?.permissionEngine,
+      });
+      if (mcpServerTools.length > 0) {
+        console.log(`[tools] Loaded ${mcpServerTools.length} MCP server tools for agent ${options?.agentId || 'all'}`);
+      }
+    } catch (e: any) {
+      console.warn(`[tools] MCP server tools load failed: ${e.message}`);
+    }
+  }
+
   // ─── Messaging Tools (WhatsApp, Telegram) ───
   var messagingTools: AnyAgentTool[] = [];
   try {
@@ -461,6 +480,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     .concat(workspaceTools)
     .concat(enterpriseBrowserTools)
     .concat(integrationTools)
+    .concat(mcpServerTools)
     .concat(messagingTools)
     .concat(managementTools);
 

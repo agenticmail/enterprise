@@ -245,7 +245,7 @@ export class ValidationError extends Error {
 
 type Validator = {
   field: string;
-  type: 'string' | 'number' | 'boolean' | 'email' | 'url' | 'uuid';
+  type: 'string' | 'number' | 'boolean' | 'email' | 'url' | 'uuid' | 'object';
   required?: boolean;
   minLength?: number;
   maxLength?: number;

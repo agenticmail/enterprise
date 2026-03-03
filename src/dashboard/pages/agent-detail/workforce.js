@@ -4,6 +4,7 @@ import { E } from '../../assets/icons/emoji-icons.js';
 import { TimezoneSelect } from '../../components/timezones.js';
 import { Badge, StatCard, EmptyState, formatTime } from './shared.js?v=4';
 import { HelpButton } from '../../components/help-button.js';
+import { AgentTaskPipeline } from '../task-pipeline.js';
 
 // ════════════════════════════════════════════════════════════
 // WORKFORCE SECTION
@@ -445,6 +446,19 @@ export function WorkforceSection(props) {
         : h('div', { className: 'card-body' },
             h('div', { style: { textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 13 } }, 'No tasks in queue.')
           )
+    ),
+
+    // ─── Centralized Task Pipeline ─────────────────────
+    h('div', { className: 'card', style: { marginBottom: 20 } },
+      h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Task Pipeline', h(HelpButton, { label: 'Task Pipeline' },
+          h('p', null, 'Centralized task pipeline for this agent. Shows all tasks automatically recorded when the agent is spawned for work — including status, duration, model used, and results.'),
+          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Tasks update in real-time via SSE. Click any task for full details. This is separate from the manual Task Queue above — pipeline tasks are created automatically by the system.')
+        ))
+      ),
+      h('div', { className: 'card-body' },
+        h(AgentTaskPipeline, { agentId: agentId })
+      )
     ),
 
     // ─── Clock History ──────────────────────────────────

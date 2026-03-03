@@ -267,7 +267,19 @@ export function KnowledgeContributionsPage() {
 
     return h(Fragment, null,
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
-        h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, bases.length + ' knowledge base' + (bases.length !== 1 ? 's' : '')),
+        h('span', { style: { fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, bases.length + ' knowledge base' + (bases.length !== 1 ? 's' : ''),
+          h(HelpButton, { label: 'Knowledge Bases' },
+            h('p', null, 'Each knowledge base is a searchable collection of documents. Agents use these to answer questions with real organizational data instead of guessing.'),
+            h('h4', { style: _h4 }, 'How It Works'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Create'), ' a knowledge base and give it a descriptive name (e.g., "HR Policies", "Product Docs").'),
+              h('li', null, h('strong', null, 'Import'), ' documents via the Knowledge Import page — upload files, crawl URLs, or paste text.'),
+              h('li', null, h('strong', null, 'Assign'), ' the knowledge base to agents in their Deployment tab.'),
+              h('li', null, h('strong', null, 'Search'), ' happens automatically when agents use the knowledge_base_search tool.')
+            ),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Click on a knowledge base to see its documents and chunks. Chunks are the small pieces of text that get matched during search — smaller chunks give more precise results.')
+          )
+        ),
         h('button', { className: 'btn btn-primary', onClick: function() { setShowCreateBase(true); } }, I.plus(), ' Create Knowledge Base')
       ),
       bases.length === 0
@@ -425,6 +437,21 @@ export function KnowledgeContributionsPage() {
   var agentData = buildAgentDataMap(agents);
 
   var renderContributions = function() {
+    // Header with help
+    var _contribHeader = h('div', { style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 } },
+      h('span', { style: { fontSize: 14, fontWeight: 600 } }, 'Agent Contributions'),
+      h(HelpButton, { label: 'Agent Contributions' },
+        h('p', null, 'Every entry here is a piece of knowledge an agent contributed — a fact learned, a decision recorded, a process documented, or an insight captured during work.'),
+        h('h4', { style: _h4 }, 'Contribution Details'),
+        h('ul', { style: _ul },
+          h('li', null, h('strong', null, 'Confidence'), ' — How certain the agent is about this knowledge (0-100%). Higher confidence = more reliable. Contributions below your threshold are flagged for review.'),
+          h('li', null, h('strong', null, 'Category'), ' — The type of knowledge (fact, process, decision, preference, etc.). Helps organize and filter.'),
+          h('li', null, h('strong', null, 'Source'), ' — Where the agent learned this (conversation, email, document, etc.).')
+        ),
+        h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Review low-confidence contributions periodically. You can edit, approve, or delete them. High-quality contributions improve all agents that share this knowledge base.')
+      )
+    );
+
     // Filter
     var filtered = contributions;
     if (contribAgent) filtered = filtered.filter(function(c) { return c.agentId === contribAgent; });
@@ -440,6 +467,7 @@ export function KnowledgeContributionsPage() {
     var paged = filtered.slice(contribPage * CONTRIB_PAGE_SIZE, (contribPage + 1) * CONTRIB_PAGE_SIZE);
 
     return h(Fragment, null,
+      _contribHeader,
       // Filter bar
       h('div', { style: { display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' } },
         h('input', {
@@ -506,7 +534,18 @@ export function KnowledgeContributionsPage() {
   var renderSchedules = function() {
     return h(Fragment, null,
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
-        h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, schedules.length + ' schedule' + (schedules.length !== 1 ? 's' : '')),
+        h('span', { style: { fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, schedules.length + ' schedule' + (schedules.length !== 1 ? 's' : ''),
+          h(HelpButton, { label: 'Contribution Schedules' },
+            h('p', null, 'Schedules automate knowledge contributions. Instead of relying on agents to contribute spontaneously, schedules trigger periodic knowledge synthesis.'),
+            h('h4', { style: _h4 }, 'How Schedules Work'),
+            h('ul', { style: _ul },
+              h('li', null, 'Pick an agent and a target knowledge base.'),
+              h('li', null, 'Set the frequency (hourly, daily, weekly, monthly) and a minimum confidence threshold.'),
+              h('li', null, 'At each interval, the agent reviews its recent memories and contributes relevant knowledge above the confidence threshold.')
+            ),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Weekly schedules with 60%+ confidence work well for most use cases. Daily schedules generate more granular but potentially noisier contributions.')
+          )
+        ),
         h('button', { className: 'btn btn-primary', onClick: function() { setShowCreateSchedule(true); } }, I.plus(), ' Create Schedule')
       ),
       schedules.length === 0
@@ -579,7 +618,7 @@ export function KnowledgeContributionsPage() {
   useEffect(function() { if (tab === 'stats') loadTimeline(); }, [tab, loadTimeline]);
 
   // SVG chart helpers — clean background, dark mode, hover tooltips
-  var CHART_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
+  var CHART_COLORS = ['#6366f1', '#15803d', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#9d174d', '#14b8a6'];
   var [tooltip, setTooltip] = useState(null); // { x, y, lines: [] }
 
   // Shared tooltip overlay (rendered once, positioned absolutely)
@@ -1183,6 +1222,20 @@ export function KnowledgeContributionsPage() {
     var m = searchMetrics;
 
     return h('div', null,
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 16 } },
+        h('span', { style: { fontSize: 14, fontWeight: 600 } }, 'Search Metrics'),
+        h(HelpButton, { label: 'Search Metrics' },
+          h('p', null, 'Track how agents are searching your knowledge bases. This helps you understand which bases are useful and where there are gaps.'),
+          h('h4', { style: _h4 }, 'Key Metrics'),
+          h('ul', { style: _ul },
+            h('li', null, h('strong', null, 'Total Searches'), ' — How many times agents searched knowledge bases in the selected period.'),
+            h('li', null, h('strong', null, 'KB vs Hub Searches'), ' — KB searches target a specific knowledge base; Hub searches query across all bases.'),
+            h('li', null, h('strong', null, 'Hit Rate'), ' — Percentage of searches that returned useful results. Low hit rates mean agents are searching for things not in your knowledge bases.'),
+            h('li', null, h('strong', null, 'Avg Results'), ' — Average number of results per search. Too few = gaps in content; too many = content may be too broad.')
+          ),
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'If hit rate is low, check the "Top Queries with No Results" section to see what\'s missing from your knowledge bases, then import relevant content.')
+        )
+      ),
       // Filters
       h('div', { style: { display: 'flex', gap: 12, marginBottom: 20 } },
         h('select', {
@@ -1325,7 +1378,20 @@ export function KnowledgeContributionsPage() {
     // Header
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Knowledge Contributions'),
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Knowledge Contributions',
+          h(HelpButton, { label: 'Knowledge Contributions' },
+            h('p', null, 'This is where your agents build shared organizational knowledge. Agents contribute what they learn from conversations, tasks, and research into knowledge bases that all agents can search.'),
+            h('h4', { style: _h4 }, 'Tabs'),
+            h('ul', { style: _ul },
+              h('li', null, h('strong', null, 'Knowledge Bases'), ' — Create and manage knowledge bases. Each is a collection of documents that agents can search via RAG (Retrieval-Augmented Generation).'),
+              h('li', null, h('strong', null, 'Contributions'), ' — Browse individual knowledge entries that agents have contributed. Filter by agent, search by content, and review quality.'),
+              h('li', null, h('strong', null, 'Schedules'), ' — Automate knowledge contributions on a schedule (e.g., weekly synthesis of learnings).'),
+              h('li', null, h('strong', null, 'Stats'), ' — Charts showing contribution volume, confidence levels, category distribution, and agent quality over time.'),
+              h('li', null, h('strong', null, 'Search Metrics'), ' — How agents are using knowledge search — query volume, hit rates, and which bases are most useful.')
+            ),
+            h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Start by creating a knowledge base, then enable knowledge contributions in each agent\'s Autonomy settings. Agents will automatically contribute what they learn.')
+          )
+        ),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } },
           'Collaborative knowledge building from agent memories and experiences'
         )

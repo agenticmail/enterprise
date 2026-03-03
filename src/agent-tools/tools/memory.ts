@@ -95,6 +95,7 @@ const CATEGORY_KEYWORDS: Record<MemoryCategory, string[]> = {
   context: ['background', 'history', 'context', 'situation', 'project', 'team', 'department'],
   reflection: ['realized', 'insight', 'lesson', 'takeaway', 'going forward', 'next time', 'reflection', 'learned'],
   session_learning: ['session', 'conversation', 'learned from', 'during chat'],
+  system_notice: ['system', 'notice', 'configuration', 'removed', 'deleted', 'disabled'],
 };
 
 function inferCategory(title: string, content: string): MemoryCategory {

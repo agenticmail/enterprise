@@ -7,7 +7,7 @@ import { HelpButton } from '../../components/help-button.js';
 
 var CATEGORY_COLORS = {
   code_of_conduct: '#6366f1', communication: '#0ea5e9', data_handling: '#f59e0b',
-  brand_voice: '#ec4899', security: '#ef4444', escalation: '#8b5cf6', custom: '#64748b'
+  brand_voice: '#9d174d', security: '#ef4444', escalation: '#8b5cf6', custom: '#64748b'
 };
 var ENFORCEMENT_COLORS = { mandatory: '#ef4444', recommended: '#f59e0b', informational: '#0ea5e9' };
 
@@ -119,17 +119,17 @@ export function OverviewSection(props) {
       .finally(function() { setActing(''); });
   };
 
-  // Triple-confirmation delete flow
-  var [deleteStep, setDeleteStep] = useState(0); // 0=hidden, 1=first, 2=second, 3=type-name
+  // 5-step confirmation delete flow
+  var [deleteStep, setDeleteStep] = useState(0); // 0=hidden, 1-5=steps
   var [deleteTyped, setDeleteTyped] = useState('');
+  var [deleteChecked, setDeleteChecked] = useState(false);
 
-  var startDelete = function() { setDeleteStep(1); setDeleteTyped(''); };
-  var cancelDelete = function() { setDeleteStep(0); setDeleteTyped(''); };
+  var startDelete = function() { setDeleteStep(1); setDeleteTyped(''); setDeleteChecked(false); };
+  var cancelDelete = function() { setDeleteStep(0); setDeleteTyped(''); setDeleteChecked(false); };
 
   var advanceDelete = async function() {
-    if (deleteStep === 1) { setDeleteStep(2); return; }
-    if (deleteStep === 2) { setDeleteStep(3); return; }
-    if (deleteStep === 3) {
+    if (deleteStep < 5) { setDeleteStep(deleteStep + 1); setDeleteChecked(false); return; }
+    if (deleteStep === 5) {
       var expectedName = (engineAgent?.name || '').trim().toLowerCase();
       if (deleteTyped.trim().toLowerCase() !== expectedName) {
         toast('Agent name does not match', 'error');
@@ -515,35 +515,95 @@ export function OverviewSection(props) {
 
     // ─── Triple Confirmation Modals ───────────────────────
     deleteStep >= 1 && h('div', { className: 'modal-overlay', onClick: cancelDelete },
-      h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { width: 440 } },
+      h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { width: 480 } },
         h('div', { className: 'modal-header' },
           h('h2', { style: { color: 'var(--danger)' } },
-            deleteStep === 1 ? 'Are you sure?' : deleteStep === 2 ? 'This is irreversible' : 'Final confirmation'
+            ['', 'Step 1: Are you sure?', 'Step 2: Data Loss Warning', 'Step 3: Memory & Knowledge Loss', 'Step 4: Communication & Integration Impact', 'Step 5: Final Confirmation'][deleteStep]
           ),
           h('button', { className: 'btn btn-ghost btn-icon', onClick: cancelDelete }, '\u00D7')
         ),
+        // Step indicator
+        h('div', { style: { display: 'flex', gap: 4, padding: '0 20px', paddingTop: 12 } },
+          [1,2,3,4,5].map(function(s) {
+            return h('div', { key: s, style: { flex: 1, height: 4, borderRadius: 2, background: s <= deleteStep ? 'var(--danger)' : 'var(--border)' } });
+          })
+        ),
         h('div', { className: 'modal-body', style: { padding: 20 } },
+
+          // Step 1 — Initial warning
           deleteStep === 1 && h(Fragment, null,
             h('p', { style: { marginBottom: 12 } }, 'You are about to delete agent ', h('strong', null, engineAgent?.name || agentId), '.'),
-            h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'This will permanently remove the agent, all sessions, memory, and configuration. There is no way to recover this data.'),
-            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
-              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
-              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'Yes, I want to delete')
-            )
-          ),
-          deleteStep === 2 && h(Fragment, null,
-            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
-              h('strong', { style: { color: 'var(--danger)' } }, 'WARNING: '),
-              h('span', null, 'All data for this agent will be permanently destroyed including emails, conversations, memory entries, tool logs, and configurations.')
-            ),
-            h('p', { style: { marginBottom: 8 } }, 'This action ', h('strong', null, 'CANNOT'), ' be undone. Are you absolutely sure?'),
+            h('p', { style: { color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 } }, 'This is a destructive action that will permanently remove this agent and everything associated with it. There is no undo, no recycle bin, and no way to recover.'),
+            h('p', { style: { fontSize: 13 } }, 'Please proceed through the next steps to understand exactly what will be lost.'),
             h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
               h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
               h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'I understand, continue')
             )
           ),
+
+          // Step 2 — Data loss
+          deleteStep === 2 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
+              h('strong', { style: { color: 'var(--danger)', display: 'block', marginBottom: 6 } }, 'ALL AGENT DATA WILL BE DESTROYED'),
+              h('ul', { style: { margin: '4px 0 0', paddingLeft: 18, fontSize: 13 } },
+                h('li', null, 'All email messages (inbox, sent, drafts, folders)'),
+                h('li', null, 'All conversation sessions and chat history'),
+                h('li', null, 'All tool execution logs and audit trails'),
+                h('li', null, 'All configuration, settings, and deployment config'),
+                h('li', null, 'All scheduled jobs, cron tasks, and automations')
+              )
+            ),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'If you need any of this data, export it BEFORE proceeding.'),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'Continue anyway')
+            )
+          ),
+
+          // Step 3 — Memory & knowledge loss
           deleteStep === 3 && h(Fragment, null,
-            h('p', { style: { marginBottom: 12 } }, 'To confirm, type the agent name ', h('strong', { style: { fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 } }, engineAgent?.name || agentId), ' below:'),
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
+              h('strong', { style: { color: 'var(--danger)', display: 'block', marginBottom: 6 } }, 'MEMORY & KNOWLEDGE PERMANENTLY LOST'),
+              h('ul', { style: { margin: '4px 0 0', paddingLeft: 18, fontSize: 13 } },
+                h('li', null, 'All long-term memory entries the agent has built over time'),
+                h('li', null, 'All learned preferences, patterns, and behavioral adaptations'),
+                h('li', null, 'All knowledge base contributions and embeddings'),
+                h('li', null, 'All training data, fine-tuning, and custom instructions'),
+                h('li', null, 'The agent\'s entire personality and relationship context')
+              )
+            ),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'This agent has been learning and building context. Once deleted, this knowledge cannot be reconstructed even if you create a new agent with the same name.'),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'Continue anyway')
+            )
+          ),
+
+          // Step 4 — Communication & integration impact
+          deleteStep === 4 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
+              h('strong', { style: { color: 'var(--danger)', display: 'block', marginBottom: 6 } }, 'COMMUNICATION & INTEGRATION IMPACT'),
+              h('ul', { style: { margin: '4px 0 0', paddingLeft: 18, fontSize: 13 } },
+                h('li', null, 'The agent\'s email address will stop working immediately'),
+                h('li', null, 'Any external services or APIs relying on this agent will break'),
+                h('li', null, 'Other agents that communicate with this agent will lose their connection'),
+                h('li', null, 'Active workflows, approval chains, and escalation paths will be disrupted'),
+                h('li', null, 'Contacts and external parties will receive bounced emails')
+              )
+            ),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'If this agent is part of a team or workflow, consider reassigning its responsibilities first.'),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'I accept the consequences')
+            )
+          ),
+
+          // Step 5 — Type name to confirm
+          deleteStep === 5 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16, textAlign: 'center' } },
+              h('strong', { style: { color: 'var(--danger)', fontSize: 15 } }, 'THIS ACTION IS PERMANENT AND IRREVERSIBLE')
+            ),
+            h('p', { style: { marginBottom: 12 } }, 'To confirm deletion, type the agent name ', h('strong', { style: { fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 } }, engineAgent?.name || agentId), ' below:'),
             h('input', {
               type: 'text',
               className: 'form-control',

@@ -58,7 +58,10 @@ export function MeetingCapabilitiesSection(props) {
 
   function stopMeetingBrowser() {
     setStopping(true);
-    engineCall('/bridge/agents/' + agentId + '/browser-config/stop-meeting-browser', { method: 'POST' })
+    var body = {};
+    if (browserStatus && browserStatus.port) body.port = browserStatus.port;
+    if (browserStatus && browserStatus.cdpUrl) body.cdpUrl = browserStatus.cdpUrl;
+    engineCall('/bridge/agents/' + agentId + '/browser-config/stop-meeting-browser', { method: 'POST', body: JSON.stringify(body) })
       .then(function(d) {
         if (d.error) { toast(d.error, 'error'); }
         else { toast('Meeting browser stopped', 'success'); setBrowserStatus(null); }
@@ -75,7 +78,7 @@ export function MeetingCapabilitiesSection(props) {
   var canJoinFullMedia = sysCaps && sysCaps.raw && sysCaps.raw.canJoinMeetingsFullMedia;
 
   return h('div', { style: sectionStyle },
-    sectionTitle('\uD83C\uDFA5', 'Meetings & Video Calls'),
+    sectionTitle(I.play(), 'Meetings & Video Calls'),
 
     // Deployment capability warning — show for no-meeting OR observer-only
     sysCaps && (!canJoinMeetings || isObserverOnly) && h('div', { style: {
@@ -167,7 +170,7 @@ export function MeetingCapabilitiesSection(props) {
                   disabled: stopping,
                   onClick: stopMeetingBrowser,
                   style: { background: 'var(--danger)', color: '#fff', border: 'none', marginTop: 4 },
-                }, stopping ? 'Stopping...' : '\u23F9\uFE0F Stop Meeting Browser'),
+                }, stopping ? 'Stopping...' : [I.stop(), ' Stop Meeting Browser']),
                 isContainer && !canJoinMeetings && !isObserverOnly && h('div', { style: { fontSize: 11, color: 'var(--warning)', marginTop: 4 } },
                   h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } }, E.warning(14), ' Browser is headless-only on this container. It cannot join video calls (no display/audio).')
                 )
@@ -185,8 +188,8 @@ export function MeetingCapabilitiesSection(props) {
                   title: isContainer && !canJoinMeetings ? 'Not available on container deployments' : '',
                 },
                   isContainer && !canJoinMeetings
-                    ? '\u274C Not available on containers'
-                    : launching ? 'Launching...' : '\u25B6\uFE0F Launch Meeting Browser'
+                    ? [I.x(), ' Not available on containers']
+                    : launching ? 'Launching...' : [I.play(), ' Launch Meeting Browser']
                 )
               )
         )
@@ -203,7 +206,7 @@ export function MeetingCapabilitiesSection(props) {
             onClick: function() { update(p.key, !p.enabled); }
           },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 } },
-              h('span', null, p.icon),
+              I[p.icon] ? I[p.icon]() : h('span', null, p.icon),
               h('span', { style: { fontWeight: 600, fontSize: 12 } }, p.name),
               h('span', { style: { marginLeft: 'auto', fontSize: 11, color: p.enabled ? 'var(--success)' : 'var(--text-muted)' } }, p.enabled ? 'ON' : 'OFF')
             ),
@@ -329,17 +332,17 @@ export function BrowserConfigCard(props) {
   var sectionStyle = { padding: '12px 0', borderBottom: '1px solid var(--border)' };
   var sectionTitle = function(icon, text) {
     return h('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 } },
-      h('span', null, icon), text);
+      typeof icon === 'string' ? h('span', { style: { width: 16, height: 16, display: 'inline-flex' } }, icon) : icon, text);
   };
 
   // Provider descriptions
   var providers = [
-    { id: 'local', name: 'Local Chromium', icon: '\uD83D\uDCBB', desc: 'Built-in headless Chromium on this server. Best for web automation, scraping, screenshots, form filling.' },
-    { id: 'remote-cdp', name: 'Remote Browser (CDP)', icon: '\uD83C\uDF10', desc: 'Connect to a Chrome/Chromium instance via Chrome DevTools Protocol. Required for headed mode, video calls, persistent sessions.' },
-    { id: 'browserless', name: 'Browserless.io', icon: '\u2601\uFE0F', desc: 'Cloud browser service. Scalable, managed infrastructure. Supports stealth mode, residential proxies, and concurrent sessions.' },
-    { id: 'browserbase', name: 'Browserbase', icon: '\uD83D\uDE80', desc: 'AI-native cloud browser. Built for agent automation with session replay, anti-detection, and managed infrastructure.' },
-    { id: 'steel', name: 'Steel.dev', icon: '\u26A1', desc: 'Open-source browser API designed for AI agents. Self-hostable, session management, built-in stealth.' },
-    { id: 'scrapingbee', name: 'ScrapingBee', icon: '\uD83D\uDC1D', desc: 'Web scraping API with browser rendering, proxy rotation, and CAPTCHA solving.' },
+    { id: 'local', name: 'Local Chromium', icon: 'dashboard', desc: 'Built-in headless Chromium on this server. Best for web automation, scraping, screenshots, form filling.' },
+    { id: 'remote-cdp', name: 'Remote Browser (CDP)', icon: 'globe', desc: 'Connect to a Chrome/Chromium instance via Chrome DevTools Protocol. Required for headed mode, video calls, persistent sessions.' },
+    { id: 'browserless', name: 'Browserless.io', icon: 'globe', desc: 'Cloud browser service. Scalable, managed infrastructure. Supports stealth mode, residential proxies, and concurrent sessions.' },
+    { id: 'browserbase', name: 'Browserbase', icon: 'upload', desc: 'AI-native cloud browser. Built for agent automation with session replay, anti-detection, and managed infrastructure.' },
+    { id: 'steel', name: 'Steel.dev', icon: 'activity', desc: 'Open-source browser API designed for AI agents. Self-hostable, session management, built-in stealth.' },
+    { id: 'scrapingbee', name: 'ScrapingBee', icon: 'search', desc: 'Web scraping API with browser rendering, proxy rotation, and CAPTCHA solving.' },
   ];
 
   return h('div', { className: 'card', style: { marginTop: 16 } },
@@ -349,7 +352,7 @@ export function BrowserConfigCard(props) {
       onClick: function() { setCollapsed(!collapsed); }
     },
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-        '\uD83C\uDF10 Browser & Web Automation', h(HelpButton, { label: 'Browser & Web Automation' },
+        I.globe(), ' Browser & Web Automation', h(HelpButton, { label: 'Browser & Web Automation' },
           h('p', null, 'Configure how this agent accesses web pages. Choose from local Chromium, remote browsers (CDP), or cloud browser services.'),
           h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
             h('li', null, h('strong', null, 'Local Chromium'), ' — Built-in headless browser. Best for most automation tasks.'),
@@ -368,7 +371,7 @@ export function BrowserConfigCard(props) {
 
       // ─── Section 1: Browser Provider ─────────────────
       h('div', { style: sectionStyle },
-        sectionTitle('\uD83D\uDD27', 'Browser Provider'),
+        sectionTitle(I.settings(), 'Browser Provider'),
         h('div', { style: { display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } },
           providers.map(function(p) {
             var selected = provider === p.id;
@@ -383,9 +386,9 @@ export function BrowserConfigCard(props) {
               }
             },
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
-                h('span', { style: { fontSize: 18 } }, p.icon),
+                I[p.icon] ? I[p.icon]() : h('span', { style: { fontSize: 18 } }, p.icon),
                 h('span', { style: { fontWeight: 600, fontSize: 13 } }, p.name),
-                selected && h('span', { style: { marginLeft: 'auto', color: 'var(--accent)', fontSize: 14 } }, '\u2713')
+                selected && h('span', { style: { marginLeft: 'auto', color: 'var(--accent)', fontSize: 14 } }, I.check())
               ),
               h('div', { style: { fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 } }, p.desc)
             );
@@ -398,7 +401,7 @@ export function BrowserConfigCard(props) {
 
         // Local Chromium
         provider === 'local' && h(Fragment, null,
-          sectionTitle('\uD83D\uDCBB', 'Local Chromium Settings'),
+          sectionTitle(I.dashboard(), 'Local Chromium Settings'),
           h('div', { style: { display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' } },
             h('div', { className: 'form-group' },
               h('label', { style: labelStyle }, 'Display Mode'),
@@ -439,57 +442,70 @@ export function BrowserConfigCard(props) {
 
         // Remote CDP
         provider === 'remote-cdp' && h(Fragment, null,
-          sectionTitle('\uD83C\uDF10', 'Remote Browser Connection'),
+          sectionTitle(I.globe(), 'Remote Browser Connection'),
           h('div', { style: { padding: '10px 14px', background: 'var(--info-soft)', borderRadius: 'var(--radius)', marginBottom: 12, fontSize: 12, lineHeight: 1.5 } },
             h('strong', null, 'How it works: '),
-            'The agent connects to a Chrome/Chromium browser running on another machine via the Chrome DevTools Protocol (CDP). ',
-            'This is required for video calls (Google Meet, Teams, Zoom) where the browser needs a camera, microphone, and display. ',
+            'The agent connects to a Chrome browser running on another machine (a VM, cloud desktop, or remote server). ',
+            'This is ideal for video calls (Google Meet, Teams, Zoom) where the browser needs a camera, microphone, and display.',
             h('br', null), h('br', null),
-            h('strong', null, 'Setup options:'), h('br', null),
-            '\u2022 Run Chrome with --remote-debugging-port=9222 on a VM/desktop', h('br', null),
-            '\u2022 Use a cloud desktop (AWS WorkSpaces, Azure Virtual Desktop, Hetzner)', h('br', null),
-            '\u2022 Set up a dedicated browser VM with virtual camera/audio for meetings', h('br', null),
-            '\u2022 Use SSH tunneling to expose Chrome DevTools securely'
+            h('strong', null, 'What you need: '), 'A machine with Chrome installed and remote debugging enabled. ',
+            'Just enter the connection URL below — we handle everything else automatically, including SSH tunneling if needed.',
+            h('br', null), h('br', null),
+            h('strong', null, 'Connection format: '), 'Enter either:',
+            h('br', null),
+            '\u2022 A hostname and port (e.g., ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '192.168.1.100:9222'), ') — we auto-discover the WebSocket URL',
+            h('br', null),
+            '\u2022 A full WebSocket URL (e.g., ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, 'ws://192.168.1.100:9222/devtools/browser/...'), ')',
+            h('br', null), h('br', null),
+            h('strong', null, 'Don\'t have a remote browser yet? '), h('a', { href: '/docs/browser-providers', target: '_blank', style: { color: 'var(--accent)' } }, 'Read our setup guide'),
+            ' for step-by-step instructions on setting up Chrome for remote access on any machine (Mac, Linux, Windows, cloud VMs).'
           ),
           h('div', { style: { display: 'grid', gap: 12 } },
             h('div', { className: 'form-group' },
-              h('label', { style: labelStyle }, 'CDP WebSocket URL *'),
-              h('input', { className: 'input', placeholder: 'ws://192.168.1.100:9222/devtools/browser/...',
+              h('label', { style: labelStyle }, 'Remote Browser Address *'),
+              h('input', { className: 'input', placeholder: '192.168.1.100:9222  or  ws://host:9222/devtools/browser/...',
                 value: cfg.cdpUrl || '',
                 onChange: function(e) { update('cdpUrl', e.target.value); }
               }),
-              h('div', { style: helpStyle }, 'WebSocket URL from chrome://inspect or --remote-debugging-port output. Format: ws://host:port/devtools/browser/<id>')
+              h('div', { style: helpStyle }, 'IP address and port of the remote Chrome browser. We auto-detect the connection details.')
             ),
             h('div', { style: { display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' } },
               h('div', { className: 'form-group' },
                 h('label', { style: labelStyle }, 'Auth Token'),
-                h('input', { className: 'input', type: 'password', placeholder: 'Optional — for authenticated CDP endpoints',
+                h('input', { className: 'input', type: 'password', placeholder: 'Optional — for authenticated endpoints',
                   value: cfg.cdpAuthToken || '',
                   onChange: function(e) { update('cdpAuthToken', e.target.value || undefined); }
-                })
+                }),
+                h('div', { style: helpStyle }, 'Only needed if the remote browser requires authentication.')
               ),
               h('div', { className: 'form-group' },
-                h('label', { style: labelStyle }, 'Connection Timeout (ms)'),
-                h('input', { className: 'input', type: 'number', min: 5000, max: 60000,
-                  value: cfg.cdpTimeout || 30000,
-                  onChange: function(e) { update('cdpTimeout', parseInt(e.target.value) || 30000); }
-                })
+                h('label', { style: labelStyle }, 'Connection Timeout'),
+                h('select', { className: 'input', value: String(cfg.cdpTimeout || 30000),
+                  onChange: function(e) { update('cdpTimeout', parseInt(e.target.value)); }
+                },
+                  h('option', { value: '10000' }, '10 seconds'),
+                  h('option', { value: '30000' }, '30 seconds (recommended)'),
+                  h('option', { value: '60000' }, '60 seconds (slow networks)')
+                )
               )
             ),
             h('div', { className: 'form-group' },
-              h('label', { style: labelStyle }, 'SSH Tunnel (auto-connect)'),
-              h('input', { className: 'input', placeholder: 'ssh -L 9222:localhost:9222 user@remote-host (optional)',
-                value: cfg.sshTunnel || '',
-                onChange: function(e) { update('sshTunnel', e.target.value || undefined); }
-              }),
-              h('div', { style: helpStyle }, 'SSH command to establish tunnel before connecting. Agent will run this automatically.')
+              h('label', { style: labelStyle }, 'SSH Tunnel'),
+              h('div', { style: { display: 'grid', gap: 8, gridTemplateColumns: '1fr auto' } },
+                h('input', { className: 'input', placeholder: 'user@remote-host (we handle the rest automatically)',
+                  value: cfg.sshTunnel || '',
+                  onChange: function(e) { update('sshTunnel', e.target.value || undefined); }
+                }),
+                cfg.sshTunnel && h('span', { style: { display: 'flex', alignItems: 'center', fontSize: 11, color: 'var(--success)', whiteSpace: 'nowrap' } }, I.check(), ' Auto-connect enabled')
+              ),
+              h('div', { style: helpStyle }, 'Optional. If the remote browser is behind a firewall, enter the SSH user@host and we\'ll automatically create a secure tunnel before connecting. The SSH key must be configured on this server.')
             )
           )
         ),
 
         // Browserless
         provider === 'browserless' && h(Fragment, null,
-          sectionTitle('\u2601\uFE0F', 'Browserless.io Configuration'),
+          sectionTitle(I.globe(), 'Browserless.io Configuration'),
           h('div', { style: { display: 'grid', gap: 12 } },
             h('div', { className: 'form-group' },
               h('label', { style: labelStyle }, 'API Token *'),
@@ -539,7 +555,7 @@ export function BrowserConfigCard(props) {
 
         // Browserbase
         provider === 'browserbase' && h(Fragment, null,
-          sectionTitle('\uD83D\uDE80', 'Browserbase Configuration'),
+          sectionTitle(I.upload(), 'Browserbase Configuration'),
           h('div', { style: { display: 'grid', gap: 12 } },
             h('div', { className: 'form-group' },
               h('label', { style: labelStyle }, 'API Key *'),
@@ -581,7 +597,7 @@ export function BrowserConfigCard(props) {
 
         // Steel
         provider === 'steel' && h(Fragment, null,
-          sectionTitle('\u26A1', 'Steel.dev Configuration'),
+          sectionTitle(I.activity(), 'Steel.dev Configuration'),
           h('div', { style: { display: 'grid', gap: 12 } },
             h('div', { className: 'form-group' },
               h('label', { style: labelStyle }, 'API Key *'),
@@ -612,7 +628,7 @@ export function BrowserConfigCard(props) {
 
         // ScrapingBee
         provider === 'scrapingbee' && h(Fragment, null,
-          sectionTitle('\uD83D\uDC1D', 'ScrapingBee Configuration'),
+          sectionTitle(I.search(), 'ScrapingBee Configuration'),
           h('div', { style: { display: 'grid', gap: 12 } },
             h('div', { className: 'form-group' },
               h('label', { style: labelStyle }, 'API Key *'),
@@ -655,7 +671,7 @@ export function BrowserConfigCard(props) {
 
       // ─── Section 3: Security & Limits ────────────────
       h('div', { style: sectionStyle },
-        sectionTitle('\uD83D\uDD12', 'Security & Limits'),
+        sectionTitle(I.shield(), 'Security & Limits'),
         h('div', { style: { display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' } },
           h('div', { className: 'form-group' },
             h('label', { style: labelStyle }, 'URL Protection'),
@@ -728,7 +744,7 @@ export function BrowserConfigCard(props) {
 
       // ─── Section 5: Persistent Sessions ──────────────
       h('div', { style: { paddingTop: 12 } },
-        sectionTitle('\uD83D\uDD04', 'Session Persistence'),
+        sectionTitle(I.refresh(), 'Session Persistence'),
         h('div', { style: { display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' } },
           h('div', { className: 'form-group' },
             h('label', { style: labelStyle }, 'Persist Login Sessions'),
@@ -758,7 +774,7 @@ export function BrowserConfigCard(props) {
             testing ? 'Testing...' : '\u{1F50C} Test Connection'
           ),
           testResult && h('span', { style: { fontSize: 12, color: testResult.error ? 'var(--danger)' : 'var(--success)', alignSelf: 'center' } },
-            testResult.error ? '\u274C ' + testResult.error : '\u2705 Connected — ' + (testResult.browserVersion || 'OK')
+            testResult.error ? 'Failed: ' + testResult.error : 'Connected — ' + (testResult.browserVersion || 'OK')
           )
         ),
         h('button', { className: 'btn', disabled: saving, onClick: save }, saving ? 'Saving...' : 'Save Browser Config')
@@ -810,7 +826,7 @@ export function ToolRestrictionsCard(props) {
       style: { cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
       onClick: function() { setCollapsed(!collapsed); }
     },
-      h('span', { style: { display: 'flex', alignItems: 'center' } }, '\uD83D\uDD12 Tool Restrictions', h(HelpButton, { label: 'Tool Restrictions' },
+      h('span', { style: { display: 'flex', alignItems: 'center' } }, I.shield(), ' Tool Restrictions', h(HelpButton, { label: 'Tool Restrictions' },
         h('p', null, 'Per-agent restrictions on file sizes, shell access, web fetching, email sending, database access, and file sharing. These are independent of tool security sandboxes.'),
         h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Use these to limit what an agent can do beyond its tool security settings. For example, block shell execution for agents that only need email access.')
       )),

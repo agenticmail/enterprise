@@ -130,7 +130,7 @@ const PLATFORMS = [
     sourceType: 'url',
   },
   {
-    id: 'upload', label: 'File Upload', color: '#22c55e',
+    id: 'upload', label: 'File Upload', color: '#15803d',
     desc: 'Upload files directly',
     icon: () => h('svg', { viewBox: '0 0 24 24', width: 28, height: 28, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
       h('path', { d: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12' })
@@ -257,7 +257,7 @@ export function KnowledgeImportWizard({ kbId, kbName, onClose, onDone }) {
         h('div', { style: { position: 'relative', width: 100, height: 100, margin: '0 auto 20px' } },
           h('svg', { viewBox: '0 0 100 100', width: 100, height: 100 },
             h('circle', { cx: 50, cy: 50, r: 42, fill: 'none', stroke: 'var(--border)', strokeWidth: 6 }),
-            h('circle', { cx: 50, cy: 50, r: 42, fill: 'none', stroke: done ? (success ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)') : 'var(--accent, #6366f1)', strokeWidth: 6, strokeLinecap: 'round', strokeDasharray: 2 * Math.PI * 42, strokeDashoffset: 2 * Math.PI * 42 * (1 - pct / 100), transform: 'rotate(-90 50 50)', style: { transition: 'stroke-dashoffset 0.5s' } })
+            h('circle', { cx: 50, cy: 50, r: 42, fill: 'none', stroke: done ? (success ? 'var(--success, #15803d)' : 'var(--danger, #ef4444)') : 'var(--accent, #6366f1)', strokeWidth: 6, strokeLinecap: 'round', strokeDasharray: 2 * Math.PI * 42, strokeDashoffset: 2 * Math.PI * 42 * (1 - pct / 100), transform: 'rotate(-90 50 50)', style: { transition: 'stroke-dashoffset 0.5s' } })
           ),
           h('div', { style: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
             h('div', { style: { fontSize: 24, fontWeight: 700 } }, pct + '%'),
@@ -271,7 +271,7 @@ export function KnowledgeImportWizard({ kbId, kbName, onClose, onDone }) {
         // Stats row
         h('div', { style: { display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 16 } },
           stat('Discovered', prog.totalItems || 0),
-          stat('Imported', prog.importedItems || 0, 'var(--success, #22c55e)'),
+          stat('Imported', prog.importedItems || 0, 'var(--success, #15803d)'),
           prog.skippedItems > 0 && stat('Skipped', prog.skippedItems, 'var(--warning, #f59e0b)'),
           prog.failedItems > 0 && stat('Failed', prog.failedItems, 'var(--danger, #ef4444)'),
         ),

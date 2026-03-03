@@ -209,6 +209,14 @@ export interface CompanySettings {
   modelPricingConfig?: ModelPricingConfig;
   orgEmailConfig?: OrgEmailConfig;
   platformCapabilities?: PlatformCapabilities;
+  branding?: {
+    logo?: string;
+    favicon?: string;
+    login_logo?: string;
+    login_bg?: string;
+    appleTouchIcon?: string;
+    [key: string]: string | undefined;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

@@ -209,19 +209,29 @@ export function DeploymentSection(props) {
       .catch(function(err) { toast(err.message, 'error'); });
   };
 
-  var deleteAgent = function() {
-    showConfirm({
-      title: 'Delete Agent',
-      message: 'Are you sure you want to delete agent "' + (ea.name || identity.name || agentId) + '"? This will remove all associated data.',
-      warning: 'This action cannot be undone.',
-      danger: true,
-      confirmText: 'Delete Agent'
-    }).then(function(confirmed) {
-      if (!confirmed) return;
-      apiCall('/bridge/agents/' + agentId, { method: 'DELETE' })
-        .then(function() { toast('Agent deleted', 'success'); if (onBack) onBack(); })
-        .catch(function(err) { toast(err.message, 'error'); });
-    });
+  // 5-step delete confirmation flow
+  var [deleteStep, setDeleteStep] = useState(0);
+  var [deleteTyped, setDeleteTyped] = useState('');
+  var _agentName = ea.name || identity.name || agentId;
+
+  var startDelete = function() { setDeleteStep(1); setDeleteTyped(''); };
+  var cancelDelete = function() { setDeleteStep(0); setDeleteTyped(''); };
+  var [deleting, setDeleting] = useState(false);
+
+  var advanceDelete = async function() {
+    if (deleteStep < 5) { setDeleteStep(deleteStep + 1); return; }
+    if (deleteStep === 5) {
+      if (deleteTyped.trim().toLowerCase() !== _agentName.trim().toLowerCase()) {
+        toast('Agent name does not match', 'error'); return;
+      }
+      setDeleting(true);
+      try {
+        await apiCall('/bridge/agents/' + agentId, { method: 'DELETE' });
+        toast('Agent deleted', 'success');
+        if (onBack) onBack();
+      } catch (err) { toast(err.message, 'error'); }
+      setDeleting(false); setDeleteStep(0);
+    }
   };
 
   if (loading) {
@@ -777,7 +787,110 @@ export function DeploymentSection(props) {
             h('div', { style: { fontSize: 14, fontWeight: 600, marginBottom: 4 } }, 'Delete Agent'),
             h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Permanently delete this agent and all associated data. This action cannot be undone.')
           ),
-          h('button', { className: 'btn btn-danger btn-sm', onClick: deleteAgent }, I.trash(), ' Delete Agent')
+          h('button', { className: 'btn btn-danger btn-sm', onClick: startDelete }, I.trash(), ' Delete Agent')
+        )
+      )
+    ),
+
+    // ─── 5-Step Delete Confirmation Modal ──────────────────
+    deleteStep >= 1 && h('div', { className: 'modal-overlay', onClick: cancelDelete },
+      h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { width: 480 } },
+        h('div', { className: 'modal-header' },
+          h('h2', { style: { color: 'var(--danger)' } },
+            ['', 'Step 1: Are you sure?', 'Step 2: Data Loss Warning', 'Step 3: Memory & Knowledge Loss', 'Step 4: Communication & Integration Impact', 'Step 5: Final Confirmation'][deleteStep]
+          ),
+          h('button', { className: 'btn btn-ghost btn-icon', onClick: cancelDelete }, '\u00D7')
+        ),
+        h('div', { style: { display: 'flex', gap: 4, padding: '0 20px', paddingTop: 12 } },
+          [1,2,3,4,5].map(function(s) {
+            return h('div', { key: s, style: { flex: 1, height: 4, borderRadius: 2, background: s <= deleteStep ? 'var(--danger)' : 'var(--border)' } });
+          })
+        ),
+        h('div', { className: 'modal-body', style: { padding: 20 } },
+          deleteStep === 1 && h(Fragment, null,
+            h('p', { style: { marginBottom: 12 } }, 'You are about to delete agent ', h('strong', null, _agentName), '.'),
+            h('p', { style: { color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 } }, 'This is a destructive action that will permanently remove this agent and everything associated with it. There is no undo, no recycle bin, and no way to recover.'),
+            h('p', { style: { fontSize: 13 } }, 'Please proceed through the next steps to understand exactly what will be lost.'),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'I understand, continue')
+            )
+          ),
+          deleteStep === 2 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
+              h('strong', { style: { color: 'var(--danger)', display: 'block', marginBottom: 6 } }, 'ALL AGENT DATA WILL BE DESTROYED'),
+              h('ul', { style: { margin: '4px 0 0', paddingLeft: 18, fontSize: 13 } },
+                h('li', null, 'All email messages (inbox, sent, drafts, folders)'),
+                h('li', null, 'All conversation sessions and chat history'),
+                h('li', null, 'All tool execution logs and audit trails'),
+                h('li', null, 'All configuration, settings, and deployment config'),
+                h('li', null, 'All scheduled jobs, cron tasks, and automations')
+              )
+            ),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'If you need any of this data, export it BEFORE proceeding.'),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'Continue anyway')
+            )
+          ),
+          deleteStep === 3 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
+              h('strong', { style: { color: 'var(--danger)', display: 'block', marginBottom: 6 } }, 'MEMORY & KNOWLEDGE PERMANENTLY LOST'),
+              h('ul', { style: { margin: '4px 0 0', paddingLeft: 18, fontSize: 13 } },
+                h('li', null, 'All long-term memory entries the agent has built over time'),
+                h('li', null, 'All learned preferences, patterns, and behavioral adaptations'),
+                h('li', null, 'All knowledge base contributions and embeddings'),
+                h('li', null, 'All training data, fine-tuning, and custom instructions'),
+                h('li', null, 'The agent\'s entire personality and relationship context')
+              )
+            ),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'This agent has been learning and building context. Once deleted, this knowledge cannot be reconstructed even if you create a new agent with the same name.'),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'Continue anyway')
+            )
+          ),
+          deleteStep === 4 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16 } },
+              h('strong', { style: { color: 'var(--danger)', display: 'block', marginBottom: 6 } }, 'COMMUNICATION & INTEGRATION IMPACT'),
+              h('ul', { style: { margin: '4px 0 0', paddingLeft: 18, fontSize: 13 } },
+                h('li', null, 'The agent\'s email address will stop working immediately'),
+                h('li', null, 'Any external services or APIs relying on this agent will break'),
+                h('li', null, 'Other agents that communicate with this agent will lose their connection'),
+                h('li', null, 'Active workflows, approval chains, and escalation paths will be disrupted'),
+                h('li', null, 'Contacts and external parties will receive bounced emails')
+              )
+            ),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'If this agent is part of a team or workflow, consider reassigning its responsibilities first.'),
+            h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', { className: 'btn btn-danger', onClick: advanceDelete }, 'I accept the consequences')
+            )
+          ),
+          deleteStep === 5 && h(Fragment, null,
+            h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16, textAlign: 'center' } },
+              h('strong', { style: { color: 'var(--danger)', fontSize: 15 } }, 'THIS ACTION IS PERMANENT AND IRREVERSIBLE')
+            ),
+            h('p', { style: { marginBottom: 12 } }, 'To confirm deletion, type the agent name ', h('strong', { style: { fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 } }, _agentName), ' below:'),
+            h('input', {
+              type: 'text',
+              className: 'form-control',
+              placeholder: 'Type agent name to confirm...',
+              value: deleteTyped,
+              autoFocus: true,
+              onInput: function(e) { setDeleteTyped(e.target.value); },
+              onKeyDown: function(e) { if (e.key === 'Enter') advanceDelete(); },
+              style: { marginBottom: 16, borderColor: deleteTyped.trim().toLowerCase() === _agentName.trim().toLowerCase() ? 'var(--danger)' : 'var(--border)' }
+            }),
+            h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+              h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
+              h('button', {
+                className: 'btn btn-danger',
+                disabled: deleteTyped.trim().toLowerCase() !== _agentName.trim().toLowerCase() || deleting,
+                onClick: advanceDelete
+              }, deleting ? 'Deleting...' : 'Permanently delete agent')
+            )
+          )
         )
       )
     )

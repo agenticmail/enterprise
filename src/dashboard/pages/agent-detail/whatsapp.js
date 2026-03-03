@@ -563,7 +563,7 @@ function ConversationsCard(props) {
     !loading && convos.length > 0 && h('div', null,
       convos.map(function(c) {
         var initial = (c.name || c.contactId || '?').charAt(0).toUpperCase();
-        var colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
+        var colors = ['#6366f1', '#9d174d', '#f59e0b', '#15803d', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
         var colorIdx = (initial.charCodeAt(0) || 0) % colors.length;
         return h('div', { key: c.contactId,
           style: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '10px', cursor: 'pointer', transition: 'background 0.15s', marginBottom: '2px' },

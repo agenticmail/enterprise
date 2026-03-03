@@ -49,6 +49,20 @@ export class MessagingPoller {
     this.config = config;
   }
 
+  /** Resolve fresh agent endpoint from lifecycle (picks up port/host changes) */
+  private resolveEndpoint(agentId: string, fallback: AgentEndpoint): AgentEndpoint {
+    try {
+      var managed = this.config.lifecycle.getAgent(agentId);
+      if (managed) {
+        var dep = managed.config?.deployment;
+        var port = dep?.port || dep?.config?.local?.port || fallback.port;
+        var host = dep?.host || dep?.config?.local?.host || fallback.host;
+        return { ...fallback, port, host };
+      }
+    } catch {}
+    return fallback;
+  }
+
   async start() {
     if (this.running) return;
     this.running = true;
@@ -437,7 +451,9 @@ export class MessagingPoller {
       }).catch(() => {});
     }
     try {
-      var resp = await fetch(`http://${agent.host}:${agent.port}/api/runtime/chat`, {
+      var resolved = this.resolveEndpoint(agent.id, agent);
+      console.log(`[messaging] Dispatching to ${agent.displayName} at ${resolved.host}:${resolved.port}`);
+      var resp = await fetch(`http://${resolved.host}:${resolved.port}/api/runtime/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

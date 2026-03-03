@@ -222,7 +222,7 @@ export function PermissionsSection(props) {
 
   var CATEGORY_COLORS = {
     code_of_conduct: '#6366f1', communication: '#0ea5e9', data_handling: '#f59e0b',
-    brand_voice: '#ec4899', security: '#ef4444', escalation: '#8b5cf6', custom: '#64748b'
+    brand_voice: '#9d174d', security: '#ef4444', escalation: '#8b5cf6', custom: '#64748b'
   };
   var ENFORCEMENT_COLORS = { mandatory: '#ef4444', recommended: '#f59e0b', informational: '#0ea5e9' };
   var inputStyle = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, width: '100%' };

@@ -81,13 +81,13 @@ var catColor = function(cat) {
   if (cat === 'deploy') return '#6366f1';
   if (cat === 'cloud_storage') return '#0ea5e9';
   if (cat === 'api_key') return '#f59e0b';
-  if (cat === 'skill_credential') return '#10b981';
+  if (cat === 'skill_credential') return '#15803d';
   return '#6b7280';
 };
 
 var actionColor = function(action) {
   if (action === 'read' || action === 'decrypt') return '#0ea5e9';
-  if (action === 'create' || action === 'encrypt') return '#10b981';
+  if (action === 'create' || action === 'encrypt') return '#15803d';
   if (action === 'delete') return '#ef4444';
   if (action === 'rotate') return '#f59e0b';
   if (action === 'migrate') return '#8b5cf6';

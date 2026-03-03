@@ -2,6 +2,10 @@ import { h, useState, useEffect, useCallback, Fragment } from '../components/uti
 import { apiCall, authCall, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 
+var _b = typeof window !== 'undefined' && window.__EM_BRANDING__ || {};
+var _brandLogo = _b.login_logo || _b.logo || _brandLogo;
+var _brandBg = _b.login_bg || null;
+
 export function LoginPage({ onLogin }) {
   var [tab, setTab] = useState('password'); // 'password' | 'apikey' | 'sso'
   var [email, setEmail] = useState('');
@@ -76,10 +80,10 @@ export function LoginPage({ onLogin }) {
   // ─── 2FA Verification Screen ──────────────────────────
 
   if (needs2fa) {
-    return h('div', { className: 'login-page' },
+    return h('div', { className: 'login-page', style: _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {} },
       h('div', { className: 'login-card' },
         h('div', { className: 'login-logo' },
-          h('img', { src: '/dashboard/assets/logo.png', alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
+          h('img', { src: _brandLogo, alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
           h('h1', null, 'Two-Factor Authentication'),
           h('p', null, 'Enter the code from your authenticator app')
         ),
@@ -108,10 +112,10 @@ export function LoginPage({ onLogin }) {
 
   // ─── Main Login Screen ────────────────────────────────
 
-  return h('div', { className: 'login-page' },
+  return h('div', { className: 'login-page', style: _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {} },
     h('div', { className: 'login-card' },
       h('div', { className: 'login-logo' },
-        h('img', { src: '/dashboard/assets/logo.png', alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
+        h('img', { src: _brandLogo, alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
         h('h1', null, 'AgenticMail Enterprise'),
         h('p', null, 'AI Agent Identity & Management Platform')
       ),
@@ -425,7 +429,7 @@ export function OnboardingWizard({ onComplete }) {
             onClick: doTestDb,
             style: { fontSize: 13 }
           }, dbTesting ? 'Testing...' : 'Test Connection'),
-          dbTestResult && dbTestResult.ok && h('span', { style: { color: 'var(--success, #22c55e)', fontSize: 13 } }, 'Connection successful'),
+          dbTestResult && dbTestResult.ok && h('span', { style: { color: 'var(--success, #15803d)', fontSize: 13 } }, 'Connection successful'),
           dbTestResult && !dbTestResult.ok && h('span', { style: { color: 'var(--danger)', fontSize: 13 } }, dbTestResult.error)
         ),
         errorBox,

@@ -522,6 +522,26 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
       } catch (err: any) {
         console.warn(`[hooks] Failed to persist compaction summary: ${err?.message}`);
       }
+
+      // Link compaction to task pipeline — update task progress with compaction event
+      try {
+        var { TaskQueueManager } = await import('../engine/task-queue.js');
+        var tq = new TaskQueueManager();
+        (tq as any).db = deps.engineDb;
+        await tq.init();
+        var sessionTask = await tq.getTaskBySessionId(sessionId);
+        if (sessionTask) {
+          await tq.updateTask(sessionTask.id, {
+            activityLog: [...(sessionTask.activityLog || []), {
+              ts: new Date().toISOString(),
+              type: 'compaction',
+              agent: agentId,
+              detail: `Context compacted (${summary.length} chars summary). Agent continues from compacted state.`,
+            }],
+          });
+          console.log(`[hooks] Task ${sessionTask.id.slice(0, 8)} updated with compaction event`);
+        }
+      } catch { /* non-fatal */ }
     },
   };
 }

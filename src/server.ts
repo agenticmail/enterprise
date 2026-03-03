@@ -11,6 +11,7 @@ import type { AppEnv } from './types/hono-env.js';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { readFileSync, existsSync } from 'fs';
+import { homedir } from 'os';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createRequire } from 'module';
@@ -240,6 +241,14 @@ export function createServer(config: ServerConfig): ServerInstance {
       return next();
     }
 
+    // Skip auth for runtime/chat and runtime/hooks — internal dispatch from enterprise to agent process
+    if (c.req.path.includes('/runtime/chat') && c.req.method === 'POST') {
+      return next();
+    }
+    if (c.req.path.includes('/runtime/hooks/') && c.req.method === 'POST') {
+      return next();
+    }
+
     // Check API key first
     const apiKeyHeader = c.req.header('X-API-Key');
     if (apiKeyHeader) {
@@ -430,6 +439,17 @@ export function createServer(config: ServerConfig): ServerInstance {
       html = html.replace('</head>', injection + '</head>');
     }
 
+    // Inject branding config
+    try {
+      const settings0 = await config.db.getSettings();
+      const branding = settings0?.branding || {};
+      if (settings0?.name && !branding.companyName) branding.companyName = settings0.name;
+      if (Object.keys(branding).length > 0) {
+        const brandScript = `<script>window.__EM_BRANDING__=${JSON.stringify(branding)};</script>`;
+        html = html.replace('</head>', brandScript + '</head>');
+      }
+    } catch { /* non-blocking */ }
+
     // Inject domain verification status (informational, does not block)
     try {
       const settings = await config.db.getSettings();
@@ -448,8 +468,35 @@ export function createServer(config: ServerConfig): ServerInstance {
     return c.html(html);
   }
 
+  // Serve branding assets from ~/.agenticmail/branding/
+  app.get('/branding/*', (c) => {
+    const reqPath = c.req.path.replace('/branding/', '').split('?')[0];
+    if (reqPath.includes('..')) return c.json({ error: 'Forbidden' }, 403);
+    const ext = reqPath.substring(reqPath.lastIndexOf('.'));
+    const mimeMap: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.gif': 'image/gif', '.webp': 'image/webp' };
+    const mime = mimeMap[ext];
+    if (!mime) return c.json({ error: 'Not found' }, 404);
+    const brandDir = join(homedir(), '.agenticmail', 'branding');
+    const filePath = join(brandDir, reqPath);
+    if (!filePath.startsWith(brandDir) || !existsSync(filePath)) return c.json({ error: 'Not found' }, 404);
+    const content = readFileSync(filePath);
+    return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': 'public, max-age=3600' } });
+  });
+
   app.get('/', (c) => c.redirect('/dashboard'));
   app.get('/dashboard', serveDashboard);
+
+  // Serve documentation pages (browser-providers, etc.)
+  app.get('/docs/:page', (c) => {
+    const page = c.req.param('page').replace(/[^a-z0-9-]/gi, ''); // sanitize
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const filePath = join(dir, 'dashboard', 'docs', page + '.html');
+    if (existsSync(filePath)) {
+      const content = readFileSync(filePath, 'utf-8');
+      return new Response(content, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+    return c.json({ error: 'Documentation page not found' }, 404);
+  });
 
   // Serve dashboard JS modules and static assets (components/*.js, pages/*.js, app.js, assets/*)
   const STATIC_MIME: Record<string, string> = { '.js': 'application/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.gif': 'image/gif', '.webp': 'image/webp', '.css': 'text/css; charset=utf-8' };
@@ -585,7 +632,7 @@ export function createServer(config: ServerConfig): ServerInstance {
                           agentMemoryManager: agentMemoryMgr,
                           vault: vaultRef2,
                           permissionEngine: permRef2,
-                          hierarchyManager: (await import('./engine/routes.js')).hierarchyManager,
+                          hierarchyManager: (await import('./engine/routes.js')).hierarchyManager ?? undefined,
                         });
                         await runtime.start();
                         const runtimeApp = runtime.getApp();

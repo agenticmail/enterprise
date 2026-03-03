@@ -25,6 +25,7 @@ import { KnowledgeContributionsPage } from './pages/knowledge-contributions.js';
 import { SkillConnectionsPage } from './pages/skill-connections.js';
 import { VaultPage } from './pages/vault.js';
 import { OrgChartPage } from './pages/org-chart.js';
+import { TaskPipelinePage } from './pages/task-pipeline.js';
 
 // ─── Toast System ────────────────────────────────────────
 let toastId = 0;
@@ -154,13 +155,14 @@ function App() {
       { id: 'agents', icon: I.agents, label: 'Agents' },
       { id: 'skills', icon: I.skills, label: 'Skills' },
       { id: 'community-skills', icon: I.marketplace, label: 'Community Skills' },
-      { id: 'skill-connections', icon: I.link, label: 'Skill Connections' },
+      { id: 'skill-connections', icon: I.link, label: 'Integrations & MCP' },
       { id: 'knowledge', icon: I.knowledge, label: 'Knowledge Bases' },
       { id: 'knowledge-contributions', icon: I.knowledge, label: 'Knowledge Hub' },
       { id: 'approvals', icon: I.approvals, label: 'Approvals', badge: pendingCount || null },
     ]},
     { section: 'Management', items: [
       { id: 'org-chart', icon: I.orgChart, label: 'Org Chart' },
+      { id: 'task-pipeline', icon: I.workflow, label: 'Task Pipeline' },
       { id: 'workforce', icon: I.clock, label: 'Workforce' },
       { id: 'messages', icon: I.messages, label: 'Messages' },
       { id: 'guardrails', icon: I.guardrails, label: 'Guardrails' },
@@ -199,6 +201,7 @@ function App() {
     'skill-connections': SkillConnectionsPage,
     vault: VaultPage,
     'org-chart': OrgChartPage,
+    'task-pipeline': TaskPipelinePage,
   };
 
   const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };
@@ -220,8 +223,8 @@ function App() {
       // Sidebar
       h('div', { className: sidebarClass, onMouseEnter: onSidebarEnter, onMouseLeave: onSidebarLeave },
         h('div', { className: 'sidebar-brand' },
-          h('img', { src: '/dashboard/assets/logo.png', alt: 'AgenticMail', style: { width: 28, height: 28, objectFit: 'contain' } }),
-          h('div', { className: 'sidebar-brand-text' }, h('h2', null, 'AgenticMail'), h('span', null, 'Enterprise')),
+          h('img', { src: (window.__EM_BRANDING__ && window.__EM_BRANDING__.logo) || '/dashboard/assets/logo.png', alt: 'AgenticMail', style: { width: 28, height: 28, objectFit: 'contain' } }),
+          h('div', { className: 'sidebar-brand-text' }, h('h2', null, (window.__EM_BRANDING__ && window.__EM_BRANDING__.companyName) || 'AgenticMail'), h('span', null, 'Enterprise')),
           h('button', { className: 'sidebar-toggle' + (sidebarPinned ? ' pinned' : ''), onClick: toggleSidebarPin, title: sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar' }, sidebarPinned ? I.chevronLeft() : I.panelLeft())
         ),
         h('div', { className: 'sidebar-nav' },

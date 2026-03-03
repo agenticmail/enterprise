@@ -21,6 +21,9 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { TaskQueueManager } from './engine/task-queue.js';
+import { beforeSpawn } from './engine/task-queue-before-spawn.js';
+import { afterSpawn, markInProgress } from './engine/task-queue-after-spawn.js';
 
 // ════════════════════════════════════════════════════════════
 // SYSTEM DEPENDENCY AUTO-INSTALLER
@@ -564,8 +567,31 @@ export async function runAgent(_args: string[]) {
     resumeOnStartup: false, // Disabled: zombie sessions exhaust Supabase pool on restart
   });
 
+  // ─── MCP Process Manager ───────────────────────────
+  // Manages external MCP servers registered via Dashboard → Integrations & MCP
+  try {
+    const { McpProcessManager } = await import('./engine/mcp-process-manager.js');
+    const mcpManager = new McpProcessManager({ engineDb, orgId: 'default' });
+    await mcpManager.start();
+    (runtime as any).config.mcpProcessManager = mcpManager;
+    console.log(`[agent] MCP Process Manager started`);
+
+    // Graceful shutdown
+    const origStop = runtime.stop?.bind(runtime);
+    (runtime as any).stop = async () => {
+      await mcpManager.stop();
+      if (origStop) await origStop();
+    };
+  } catch (e: any) {
+    console.warn(`[agent] MCP Process Manager init failed (non-fatal): ${e.message}`);
+  }
+
   await runtime.start();
   const runtimeApp = runtime.getApp();
+
+  // ─── Task Pipeline ──────────────────────────────────────
+  const taskQueue = new TaskQueueManager();
+  try { (taskQueue as any).db = engineDb; await taskQueue.init(); } catch (e: any) { console.warn(`[task-pipeline] Init: ${e.message}`); }
 
   // ─── Real-Time Status Reporting ─────────────────────────
   // Report status to the enterprise server (separate process)
@@ -649,6 +675,23 @@ export async function runAgent(_args: string[]) {
       const identity = agent.config?.identity || {};
 
       const { buildTaskPrompt, buildScheduleInfo } = await import('./system-prompts/index.js');
+
+      // Record task in pipeline BEFORE spawning
+      let pipelineTaskId: string | undefined;
+      try {
+        pipelineTaskId = await beforeSpawn(taskQueue, {
+          orgId: agent.org_id || '',
+          agentId: agentId,
+          agentName: agentName,
+          createdBy: 'api',
+          createdByName: 'API Task',
+          task: body.task,
+          model: (config.model ? `${config.model.provider}/${config.model.modelId}` : undefined) || process.env.AGENTICMAIL_MODEL,
+          sessionId: undefined,
+          source: 'api',
+        });
+      } catch (e: any) { /* non-fatal */ }
+
       const session = await runtime.spawnSession({
         agentId: agentId,
         message: body.task,
@@ -660,8 +703,28 @@ export async function runAgent(_args: string[]) {
         }),
       });
 
-      console.log(`[task] Session ${session.id} created for task: "${body.task.slice(0, 80)}"`);
-      return c.json({ ok: true, sessionId: session.id, taskId: body.taskId });
+      // Mark task as in progress
+      if (pipelineTaskId) {
+        markInProgress(taskQueue, pipelineTaskId, { sessionId: session.id }).catch(() => {});
+      }
+
+      // Record task completion when session finishes
+      if (pipelineTaskId) {
+        runtime.onSessionComplete(session.id, async (result: any) => {
+          const usage = result?.usage || {};
+          afterSpawn(taskQueue, {
+            taskId: pipelineTaskId!,
+            status: result?.error ? 'failed' : 'completed',
+            error: result?.error?.message || result?.error,
+            modelUsed: result?.model || config.model,
+            tokensUsed: (usage.inputTokens || 0) + (usage.outputTokens || 0),
+            costUsd: usage.costUsd || usage.cost || 0,
+          }).catch(() => {});
+        });
+      }
+
+      console.log(`[task] Session ${session.id} created for task: "${body.task.slice(0, 80)}"${pipelineTaskId ? ` (pipeline: ${pipelineTaskId.slice(0, 8)})` : ''}`);
+      return c.json({ ok: true, sessionId: session.id, taskId: body.taskId || pipelineTaskId });
     } catch (err: any) {
       console.error(`[task] Error: ${err.message}`);
       return c.json({ error: err.message }, 500);
@@ -879,12 +942,34 @@ export async function runAgent(_args: string[]) {
         }
       }
 
+      // Record task in pipeline BEFORE spawning
+      let taskId: string | undefined;
+      try {
+        const agentDisplayName = agent.display_name || agent.name || 'Agent';
+        taskId = await beforeSpawn(taskQueue, {
+          orgId: agent.org_id || '',
+          agentId: agentId,
+          agentName: agentDisplayName,
+          createdBy: ctx.senderEmail || ctx.senderName || 'external',
+          createdByName: ctx.senderName || ctx.senderEmail || 'User',
+          task: ctx.messageText,
+          model: (config.model ? `${config.model.provider}/${config.model.modelId}` : undefined) || process.env.AGENTICMAIL_MODEL,
+          sessionId: undefined,
+          source: ctx.source || 'internal',
+        });
+      } catch (e: any) { /* non-fatal */ }
+
       const session = await runtime.spawnSession({
         agentId: agentId,
         message: ctx.messageText,
         systemPrompt,
         ...(sessionContext ? { sessionContext } : {}),
       });
+
+      // Mark task as in progress
+      if (taskId) {
+        markInProgress(taskQueue, taskId, { sessionId: session.id }).catch(() => {});
+      }
 
       // Register in session router
       sessionRouter.register({
@@ -899,6 +984,21 @@ export async function runAgent(_args: string[]) {
       // Unregister when session completes + deliver reply if agent didn't send one via tool
       runtime.onSessionComplete(session.id, async (result: any) => {
         sessionRouter?.unregister(agentId, session.id);
+
+        // Record task completion in pipeline
+        if (taskId) {
+          const usage = result?.usage || {};
+          afterSpawn(taskQueue, {
+            taskId,
+            status: result?.error ? 'failed' : 'completed',
+            error: result?.error?.message || result?.error,
+            modelUsed: result?.model || config.model,
+            tokensUsed: (usage.inputTokens || 0) + (usage.outputTokens || 0),
+            costUsd: usage.costUsd || usage.cost || 0,
+            sessionId: session.id,
+            result: { messageCount: (result?.messages || []).length },
+          }).catch(() => {});
+        }
 
         // Check if agent sent a reply via the appropriate tool
         const messages = result?.messages || [];

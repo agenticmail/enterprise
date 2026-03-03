@@ -27,7 +27,8 @@ export type MemoryCategory =
   | 'skill'
   | 'context'
   | 'reflection'
-  | 'session_learning';
+  | 'session_learning'
+  | 'system_notice';
 
 export type MemoryImportance = 'critical' | 'high' | 'normal' | 'low';
 
@@ -38,7 +39,8 @@ export type MemorySource =
   | 'self_reflection'
   | 'correction'
   | 'system'
-  | 'context_compaction';
+  | 'context_compaction'
+  | 'mcp_server_deletion';
 
 export const MEMORY_CATEGORIES: Record<MemoryCategory, { label: string; description: string }> = {
   org_knowledge: {
@@ -72,6 +74,10 @@ export const MEMORY_CATEGORIES: Record<MemoryCategory, { label: string; descript
   session_learning: {
     label: 'Session Learnings',
     description: 'Insights captured during conversation sessions',
+  },
+  system_notice: {
+    label: 'System Notices',
+    description: 'System-generated notifications about configuration changes',
   },
 };
 

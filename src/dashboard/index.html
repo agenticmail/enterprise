@@ -30,8 +30,8 @@
   --accent-hover: var(--brand-hover, #4f46e5);
   --accent-soft: var(--brand-soft, rgba(99,102,241,0.12));
   --accent-text: var(--brand-text, #818cf8);
-  --success: #22c55e;
-  --success-soft: rgba(34,197,94,0.12);
+  --success: #15803d;
+  --success-soft: rgba(21,128,61,0.15);
   --warning: #f59e0b;
   --warning-soft: rgba(245,158,11,0.12);
   --danger: #ef4444;
@@ -55,23 +55,23 @@
 }
 
 [data-theme="light"] {
-  --bg-primary: #f8f9fb;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f1f3f8;
-  --bg-hover: #e8ebf0;
-  --bg-active: #dde1ea;
-  --bg-card: #ffffff;
-  --bg-input: #f1f3f8;
+  --bg-primary: #d0c5a0;
+  --bg-secondary: #ddd3b2;
+  --bg-tertiary: #c8bc94;
+  --bg-hover: #c0b488;
+  --bg-active: #b8ab7e;
+  --bg-card: #ddd3b2;
+  --bg-input: #c8bc94;
   --bg-modal: rgba(0,0,0,0.4);
-  --border: #e2e5ed;
-  --border-light: #eceef4;
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  --border: #b0a47a;
+  --border-light: #c4b890;
+  --text-primary: #2c2410;
+  --text-secondary: #4a3f28;
+  --text-muted: #7a6e50;
   --text-inverse: #ffffff;
-  --shadow: 0 1px 3px rgba(0,0,0,0.08);
-  --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
-  --shadow-xl: 0 8px 24px rgba(0,0,0,0.12);
+  --shadow: 0 1px 3px rgba(44,36,16,0.12);
+  --shadow-lg: 0 4px 12px rgba(44,36,16,0.15);
+  --shadow-xl: 0 8px 24px rgba(44,36,16,0.18);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -342,9 +342,9 @@ tbody tr:hover { background: var(--bg-hover); }
 .toast-info { background: var(--accent); color: white; }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
 
 /* Responsive */
@@ -430,5 +430,15 @@ tbody tr:hover { background: var(--bg-hover); }
 <body>
 <div id="root"></div>
 <script type="module" src="/dashboard/app.js?v=6"></script>
+<script>
+(function() {
+  var b = window.__EM_BRANDING__;
+  if (!b) return;
+  if (b.favicon) { var link = document.querySelector('link[rel="icon"]'); if (link) link.href = b.favicon; }
+  if (b.appleTouchIcon) { var at = document.createElement('link'); at.rel = 'apple-touch-icon'; at.href = b.appleTouchIcon; document.head.appendChild(at); }
+  if (b.pageTitle) { document.title = b.pageTitle + ' by AgenticMail'; }
+  else if (b.companyName) { document.title = b.companyName + ' by AgenticMail'; }
+})();
+</script>
 </body>
 </html>

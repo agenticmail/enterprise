@@ -46,7 +46,7 @@ export function MessagesPage() {
   const dirBadge = (dir) => {
     if (dir === 'internal') return h('span', { className: 'status-badge', style: { background: 'rgba(59,130,246,0.15)', color: '#3b82f6' } }, 'Internal');
     if (dir === 'external_outbound') return h('span', { className: 'status-badge', style: { background: 'rgba(249,115,22,0.15)', color: '#f97316' } }, 'Ext Out');
-    if (dir === 'external_inbound') return h('span', { className: 'status-badge', style: { background: 'rgba(34,197,94,0.15)', color: '#22c55e' } }, 'Ext In');
+    if (dir === 'external_inbound') return h('span', { className: 'status-badge', style: { background: 'rgba(34,197,94,0.15)', color: '#15803d' } }, 'Ext In');
     return h('span', { className: 'status-badge' }, dir || 'unknown');
   };
 
@@ -184,7 +184,7 @@ export function MessagesPage() {
             const opacity = dimmed ? 0.25 : 1;
             return h('g', { key: 'n' + i, style: { cursor: 'pointer', opacity: opacity }, onClick: () => setSelectedNode(n.id === selectedNode ? null : n.id) },
               isAgent
-                ? h('circle', { cx: n.x, cy: n.y, r: isSelected ? 18 : 14, fill: n.state === 'running' ? '#22c55e' : '#9ca3af', stroke: isSelected ? '#fff' : 'none', strokeWidth: isSelected ? 3 : 0 })
+                ? h('circle', { cx: n.x, cy: n.y, r: isSelected ? 18 : 14, fill: n.state === 'running' ? '#15803d' : '#9ca3af', stroke: isSelected ? '#fff' : 'none', strokeWidth: isSelected ? 3 : 0 })
                 : h('rect', { x: n.x - (isSelected ? 12 : 9), y: n.y - (isSelected ? 12 : 9), width: isSelected ? 24 : 18, height: isSelected ? 24 : 18, rx: 3, fill: '#f97316', stroke: isSelected ? '#fff' : 'none', strokeWidth: isSelected ? 3 : 0 }),
               h('text', { x: n.x, y: n.y + (isAgent ? 28 : 26), textAnchor: 'middle', fontSize: 11, fill: 'var(--text-secondary)' }, n.name.length > 16 ? n.name.substring(0, 14) + '..' : n.name)
             );
