@@ -6,23 +6,37 @@ import { HelpButton } from '../components/help-button.js';
 // ─── Permission Editor Component ───────────────────
 
 function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave, onClose }) {
-  // Deep clone perms
+  // Deep clone perms (skip _allowedAgents from page grants)
   var [grants, setGrants] = useState(function() {
     if (currentPerms === '*') {
-      // Start with all pages selected (all tabs)
       var all = {};
       Object.keys(pageRegistry).forEach(function(pid) { all[pid] = true; });
       return all;
     }
-    // Clone existing
     var c = {};
     Object.keys(currentPerms || {}).forEach(function(pid) {
+      if (pid === '_allowedAgents') return; // skip agent field
       var g = currentPerms[pid];
       c[pid] = g === true ? true : (Array.isArray(g) ? g.slice() : true);
     });
     return c;
   });
   var [fullAccess, setFullAccess] = useState(currentPerms === '*');
+
+  // Agent access control
+  var [agents, setAgents] = useState([]);
+  var [allowedAgents, setAllowedAgents] = useState(function() {
+    if (currentPerms === '*') return '*';
+    return (currentPerms || {})._allowedAgents || '*';
+  });
+  var [allAgentsAccess, setAllAgentsAccess] = useState(function() {
+    if (currentPerms === '*') return true;
+    return (currentPerms || {})._allowedAgents === '*' || !(currentPerms || {})._allowedAgents;
+  });
+
+  useEffect(function() {
+    apiCall('/agents').then(function(d) { setAgents(d.agents || d || []); }).catch(function() {});
+  }, []);
   var [saving, setSaving] = useState(false);
   var [expandedPage, setExpandedPage] = useState(null);
 
@@ -86,8 +100,11 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
       var all = {};
       Object.keys(pageRegistry).forEach(function(pid) { all[pid] = true; });
       setGrants(all);
+      setAllAgentsAccess(true);
+      setAllowedAgents('*');
     } else {
       setGrants({});
+      setAllAgentsAccess(true);
     }
   };
 
@@ -101,7 +118,17 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
   var doSave = async function() {
     setSaving(true);
     try {
-      var permsToSave = fullAccess ? '*' : grants;
+      var permsToSave;
+      if (fullAccess) {
+        permsToSave = '*';
+      } else {
+        permsToSave = Object.assign({}, grants);
+        if (!allAgentsAccess && Array.isArray(allowedAgents)) {
+          permsToSave._allowedAgents = allowedAgents;
+        } else {
+          permsToSave._allowedAgents = '*';
+        }
+      }
       await onSave(permsToSave);
     } catch(e) { /* handled by parent */ }
     setSaving(false);
@@ -201,11 +228,61 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
       })
     ),
 
+    // ─── Agent Access ──────────────────────────
+    !fullAccess && h('div', { style: { marginTop: 16 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } },
+        h('div', null,
+          h('strong', { style: { fontSize: 13 } }, 'Agent Access'),
+          h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 1 } }, 'Which agents this user can see and manage')
+        ),
+        h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' } },
+          h('input', { type: 'checkbox', checked: allAgentsAccess, onChange: function() {
+            var newVal = !allAgentsAccess;
+            setAllAgentsAccess(newVal);
+            if (newVal) setAllowedAgents('*');
+            else setAllowedAgents([]);
+          }, style: _checkbox }),
+          'All Agents'
+        )
+      ),
+      !allAgentsAccess && h('div', { style: { maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 } },
+        agents.length === 0
+          ? h('div', { style: { padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 } }, 'No agents found')
+          : agents.map(function(a) {
+              var checked = Array.isArray(allowedAgents) && allowedAgents.indexOf(a.id) >= 0;
+              return h('div', {
+                key: a.id,
+                style: Object.assign({}, _cs, checked ? { background: 'var(--bg-tertiary)' } : {}),
+                onClick: function() {
+                  setAllowedAgents(function(prev) {
+                    var arr = Array.isArray(prev) ? prev.slice() : [];
+                    var idx = arr.indexOf(a.id);
+                    if (idx >= 0) arr.splice(idx, 1);
+                    else arr.push(a.id);
+                    return arr;
+                  });
+                }
+              },
+                h('input', { type: 'checkbox', checked: checked, readOnly: true, style: _checkbox }),
+                h('div', { style: { flex: 1 } },
+                  h('div', { style: { fontWeight: 500, fontSize: 13 } }, a.displayName || a.name || a.id),
+                  a.role && h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, a.role)
+                ),
+                a.status && h('span', { className: 'badge badge-' + (a.status === 'active' || a.status === 'running' ? 'success' : 'neutral'), style: { fontSize: 9 } }, a.status)
+              );
+            })
+      ),
+      !allAgentsAccess && Array.isArray(allowedAgents) && h('div', { style: { marginTop: 4, fontSize: 11, color: 'var(--text-muted)' } },
+        allowedAgents.length === 0 ? 'No agents selected — user will see no agents' : allowedAgents.length + ' agent' + (allowedAgents.length !== 1 ? 's' : '') + ' selected'
+      )
+    ),
+
     // Summary
     h('div', { style: { marginTop: 12, padding: 8, background: 'var(--bg-tertiary)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted)' } },
       fullAccess
-        ? 'This user has full access to all pages and tabs.'
-        : 'Access to ' + Object.keys(grants).length + ' of ' + Object.keys(pageRegistry).length + ' pages.'
+        ? 'This user has full access to all pages, tabs, and agents.'
+        : 'Access to ' + Object.keys(grants).length + ' of ' + Object.keys(pageRegistry).length + ' pages' +
+          (allAgentsAccess ? ', all agents.' : ', ' + (Array.isArray(allowedAgents) ? allowedAgents.length : 0) + ' agents.')
     )
   );
 }
@@ -214,15 +291,31 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
 
 function InlinePermissionPicker({ permissions, pageRegistry, onChange }) {
   var [expandedPage, setExpandedPage] = useState(null);
+  var [agents, setAgents] = useState([]);
+  useEffect(function() { apiCall('/agents').then(function(d) { setAgents(d.agents || d || []); }).catch(function() {}); }, []);
 
-  // Resolve grants from permissions
-  var grants = permissions === '*' ? (function() { var a = {}; Object.keys(pageRegistry).forEach(function(p) { a[p] = true; }); return a; })() : (permissions || {});
+  // Resolve grants from permissions (skip _allowedAgents)
+  var rawGrants = permissions === '*' ? (function() { var a = {}; Object.keys(pageRegistry).forEach(function(p) { a[p] = true; }); return a; })() : (permissions || {});
+  var grants = {};
+  Object.keys(rawGrants).forEach(function(k) { if (k !== '_allowedAgents') grants[k] = rawGrants[k]; });
+  var currentAllowed = permissions === '*' ? '*' : (rawGrants._allowedAgents || '*');
+  var allAgentsMode = currentAllowed === '*';
+
+  var emitChange = function(nextGrants, nextAllowed) {
+    var result = Object.assign({}, nextGrants);
+    if (nextAllowed !== undefined) result._allowedAgents = nextAllowed;
+    else if (currentAllowed !== '*') result._allowedAgents = currentAllowed;
+    var allPages = Object.keys(nextGrants).length === Object.keys(pageRegistry).length && Object.values(nextGrants).every(function(v) { return v === true; });
+    var allAg = (result._allowedAgents || '*') === '*';
+    if (allPages && allAg) return onChange('*');
+    onChange(result);
+  };
 
   var togglePage = function(pid) {
     var next = Object.assign({}, grants);
     if (next[pid]) { delete next[pid]; if (expandedPage === pid) setExpandedPage(null); }
     else { next[pid] = true; }
-    onChange(Object.keys(next).length === Object.keys(pageRegistry).length ? '*' : next);
+    emitChange(next);
   };
 
   var toggleTab = function(pid, tabId) {
@@ -243,7 +336,7 @@ function InlinePermissionPicker({ permissions, pageRegistry, onChange }) {
         next[pid] = newArr.length === allTabs.length ? true : newArr;
       }
     }
-    onChange(Object.keys(next).length === Object.keys(pageRegistry).length && Object.values(next).every(function(v) { return v === true; }) ? '*' : next);
+    emitChange(next);
   };
 
   var isTabChecked = function(pid, tabId) {
@@ -288,7 +381,30 @@ function InlinePermissionPicker({ permissions, pageRegistry, onChange }) {
           );
         })
       );
-    })
+    }),
+    // Agent access section
+    agents.length > 0 && h('div', { style: { marginTop: 8 } },
+      h('div', { style: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', padding: '4px 10px 2px' } }, 'Agent Access'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }, onClick: function() {
+        emitChange(grants, allAgentsMode ? [] : '*');
+      } },
+        h('input', { type: 'checkbox', checked: allAgentsMode, readOnly: true, style: { width: 14, height: 14, accentColor: 'var(--primary)', cursor: 'pointer' } }),
+        h('span', { style: { fontWeight: 500 } }, 'All Agents')
+      ),
+      !allAgentsMode && agents.map(function(a) {
+        var checked = Array.isArray(currentAllowed) && currentAllowed.indexOf(a.id) >= 0;
+        return h('div', { key: a.id, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px 3px 28px', fontSize: 11, cursor: 'pointer' }, onClick: function() {
+          var arr = Array.isArray(currentAllowed) ? currentAllowed.slice() : [];
+          var idx = arr.indexOf(a.id);
+          if (idx >= 0) arr.splice(idx, 1); else arr.push(a.id);
+          emitChange(grants, arr);
+        } },
+          h('input', { type: 'checkbox', checked: checked, readOnly: true, style: { width: 13, height: 13, accentColor: 'var(--primary)', cursor: 'pointer' } }),
+          h('span', null, a.displayName || a.name || a.id),
+          a.role && h('span', { style: { color: 'var(--text-muted)', marginLeft: 4 } }, '(' + a.role + ')')
+        );
+      })
+    )
   );
 }
 

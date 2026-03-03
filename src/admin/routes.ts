@@ -663,6 +663,13 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
       const { PAGE_REGISTRY } = await import('./page-registry.js');
       for (const [pageId, grant] of Object.entries(permissions)) {
+        if (pageId === '_allowedAgents') {
+          // Validate: must be '*' or string[]
+          if (grant !== '*' && !Array.isArray(grant)) {
+            return c.json({ error: '_allowedAgents must be "*" or string[]' }, 400);
+          }
+          continue;
+        }
         if (!(pageId in PAGE_REGISTRY)) {
           return c.json({ error: `Unknown page: ${pageId}` }, 400);
         }

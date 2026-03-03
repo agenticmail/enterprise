@@ -1125,11 +1125,21 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
 // ════════════════════════════════════════════════════════════
 
 export function AgentsPage({ onSelectAgent }) {
-  const { toast } = useApp();
+  const app = useApp();
+  const toast = app.toast;
   const [agents, setAgents] = useState([]);
   const [creating, setCreating] = useState(false);
 
-  const load = () => apiCall('/agents').then(d => setAgents(d.agents || d || [])).catch(() => {});
+  const perms = app.permissions || '*';
+  const allowedAgents = perms === '*' ? '*' : (perms._allowedAgents || '*');
+
+  const load = () => apiCall('/agents').then(d => {
+    var all = d.agents || d || [];
+    if (allowedAgents !== '*' && Array.isArray(allowedAgents)) {
+      all = all.filter(a => allowedAgents.indexOf(a.id) >= 0);
+    }
+    setAgents(all);
+  }).catch(() => {});
   useEffect(() => { load(); }, []);
 
   // Delete moved to agent detail overview tab with triple confirmation

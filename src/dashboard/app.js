@@ -143,7 +143,9 @@ function App() {
     if (!authed) return;
     engineCall('/approvals/pending').then(d => setPendingCount((d.requests || []).length)).catch(() => {});
     apiCall('/settings').then(d => { const s = d.settings || d || {}; if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
-    apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
+    apiCall('/me/permissions').then(d => {
+      if (d && d.permissions) setPermissions(d.permissions);
+    }).catch(() => {});
   }, [authed]);
 
   const logout = useCallback(() => { authCall('/logout', { method: 'POST' }).catch(() => {}).finally(() => { setAuthed(false); setUser(null); }); }, []);

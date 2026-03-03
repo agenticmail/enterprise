@@ -174,10 +174,16 @@ export function getPageTabs(pageId: string): string[] {
 
 /**
  * Permission grant structure stored per user.
- * If pages is '*', user has access to everything (owner/admin default).
- * Otherwise, it's a map of pageId → true (all tabs) | string[] (specific tabs).
+ * If '*', user has access to everything (owner/admin default).
+ * Otherwise, object with:
+ *   pages: { pageId → true (all tabs) | string[] (specific tabs) }
+ *   allowedAgents: '*' | string[] (agent IDs the user can see/manage)
+ *
+ * Legacy format (flat object without _allowedAgents) is still supported.
  */
-export type PermissionGrant = '*' | Record<string, true | string[]>;
+export type PermissionGrant = '*' | (Record<string, true | string[] | '*'> & {
+  _allowedAgents?: '*' | string[];
+});
 
 /** Check if a user has access to a specific page */
 export function hasPageAccess(grants: PermissionGrant, pageId: string): boolean {
@@ -199,6 +205,6 @@ export function getAccessibleTabs(grants: PermissionGrant, pageId: string): stri
   if (grants === '*') return 'all';
   const pageGrant = grants[pageId];
   if (!pageGrant) return [];
-  if (pageGrant === true) return 'all';
-  return pageGrant;
+  if (pageGrant === true || pageGrant === '*') return 'all';
+  return Array.isArray(pageGrant) ? pageGrant : [];
 }

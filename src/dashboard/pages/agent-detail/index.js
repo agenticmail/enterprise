@@ -57,6 +57,26 @@ export function AgentDetailPage(props) {
     return false;
   });
 
+  // Check agent-level access
+  var allowedAgents = perms === '*' ? '*' : (perms._allowedAgents || '*');
+  var hasAgentAccess = allowedAgents === '*' || (Array.isArray(allowedAgents) && allowedAgents.indexOf(agentId) >= 0);
+
+  if (!hasAgentAccess) {
+    return h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', padding: 40 } },
+      h('div', { style: { width: 64, height: 64, borderRadius: '50%', background: 'var(--danger-soft, rgba(220,38,38,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 } },
+        h('svg', { width: 32, height: 32, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--danger, #dc2626)', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+          h('rect', { x: 3, y: 11, width: 18, height: 11, rx: 2, ry: 2 }),
+          h('path', { d: 'M7 11V7a5 5 0 0 1 10 0v4' })
+        )
+      ),
+      h('h2', { style: { fontSize: 20, fontWeight: 700, marginBottom: 8 } }, 'Agent Access Restricted'),
+      h('p', { style: { fontSize: 14, color: 'var(--text-muted)', maxWidth: 400, lineHeight: 1.6 } },
+        'You don\'t have permission to access this agent. Contact your organization administrator to request access.'
+      ),
+      h('button', { className: 'btn btn-primary', style: { marginTop: 16 }, onClick: onBack }, 'Back to Agents')
+    );
+  }
+
   var load = function() {
     setLoading(true);
     Promise.all([
