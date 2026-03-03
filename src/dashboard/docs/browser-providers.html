@@ -49,6 +49,13 @@
   strong { color: var(--text-primary); }
 </style>
 <script>
+  // Sync theme with dashboard (reads from localStorage)
+  (function() {
+    var t = localStorage.getItem('em_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<script>
   // Sync theme with dashboard preference
   (function() {
     var saved = localStorage.getItem('em-theme');
