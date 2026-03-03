@@ -192,6 +192,8 @@ export class PostgresAdapter extends DatabaseAdapter {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '"*"';
         ALTER TABLE users ADD COLUMN IF NOT EXISTS must_reset_password BOOLEAN DEFAULT FALSE;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS client_org_id TEXT;
+        ALTER TABLE agents ADD COLUMN IF NOT EXISTS billing_rate NUMERIC(10,2) DEFAULT 0;
       `).catch(() => {});
       // ─── Client Organizations ────────────────────────────
       await client.query(`
@@ -757,6 +759,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       permissions: r.permissions != null ? (typeof r.permissions === 'string' ? (() => { try { return JSON.parse(r.permissions); } catch { return '*'; } })() : r.permissions) : '*',
       mustResetPassword: !!r.must_reset_password,
       isActive: r.is_active !== false && r.is_active !== 0, // default true
+      clientOrgId: r.client_org_id || null,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
       lastLoginAt: r.last_login_at ? new Date(r.last_login_at) : undefined,
     };

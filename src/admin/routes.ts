@@ -268,6 +268,17 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
 
     const agent = await db.updateAgent(id, body);
+
+    // Update billing_rate if provided
+    if ('billingRate' in body || 'billing_rate' in body) {
+      const rate = body.billingRate ?? body.billing_rate ?? 0;
+      try {
+        await (db as any).pool.query('UPDATE agents SET billing_rate = $1 WHERE id = $2', [rate, id]);
+      } catch {
+        try { const edb = (db as any).db; if (edb?.prepare) edb.prepare('UPDATE agents SET billing_rate = ? WHERE id = ?').run(rate, id); } catch { /* ignore */ }
+      }
+    }
+
     configBus.emitAgentUpdate(id, Object.keys(body));
     return c.json(agent);
   });
@@ -495,6 +506,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       } catch { /* ignore */ }
     }
 
+    // Set client org if provided
+    if (body.clientOrgId) {
+      try {
+        await (db as any).pool.query('UPDATE users SET client_org_id = $1 WHERE id = $2', [body.clientOrgId, user.id]);
+      } catch {
+        try { const edb = (db as any).db; if (edb?.prepare) edb.prepare('UPDATE users SET client_org_id = ? WHERE id = ?').run(body.clientOrgId, user.id); } catch { /* ignore */ }
+      }
+    }
+
     // Set initial permissions if provided
     if (body.permissions && body.permissions !== '*') {
       try {
@@ -526,6 +546,17 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     ]);
 
     const user = await db.updateUser(c.req.param('id'), body);
+
+    // Update client_org_id if provided
+    if ('clientOrgId' in body) {
+      const orgVal = body.clientOrgId || null;
+      try {
+        await (db as any).pool.query('UPDATE users SET client_org_id = $1 WHERE id = $2', [orgVal, user.id]);
+      } catch {
+        try { const edb = (db as any).db; if (edb?.prepare) edb.prepare('UPDATE users SET client_org_id = ? WHERE id = ?').run(orgVal, user.id); } catch { /* ignore */ }
+      }
+    }
+
     const { passwordHash, ...safe } = user;
     return c.json(safe);
   });
@@ -718,7 +749,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
 
     const user = await db.getUser(userId);
-    return c.json({ permissions: user?.permissions ?? '*', role: userRole });
+    return c.json({ permissions: user?.permissions ?? '*', role: userRole, clientOrgId: user?.clientOrgId || null });
   });
 
   // ─── Platform Capabilities ──────────────────────────

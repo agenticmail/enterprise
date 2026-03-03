@@ -5,7 +5,7 @@ import { HelpButton } from '../components/help-button.js';
 
 // ─── Permission Editor Component ───────────────────
 
-function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave, onClose }) {
+function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave, onClose, userObj }) {
   // Deep clone perms (skip _allowedAgents from page grants)
   var [grants, setGrants] = useState(function() {
     if (currentPerms === '*') {
@@ -34,8 +34,13 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
     return (currentPerms || {})._allowedAgents === '*' || !(currentPerms || {})._allowedAgents;
   });
 
+  // Client org assignment
+  var [permOrgs, setPermOrgs] = useState([]);
+  var [userOrgId, setUserOrgId] = useState((userObj && userObj.clientOrgId) || '');
+
   useEffect(function() {
     apiCall('/agents').then(function(d) { setAgents(d.agents || d || []); }).catch(function() {});
+    apiCall('/organizations').then(function(d) { setPermOrgs(d.organizations || []); }).catch(function() {});
   }, []);
   var [saving, setSaving] = useState(false);
   var [expandedPage, setExpandedPage] = useState(null);
@@ -130,6 +135,8 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
         }
       }
       await onSave(permsToSave);
+      // Save org assignment
+      await apiCall('/users/' + userId, { method: 'PATCH', body: JSON.stringify({ clientOrgId: userOrgId || null }) }).catch(function() {});
     } catch(e) { /* handled by parent */ }
     setSaving(false);
   };
@@ -226,6 +233,30 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
           })
         );
       })
+    ),
+
+    // ─── Organization Assignment ──────────────────────
+    permOrgs.length > 0 && h('div', { style: { marginTop: 16, padding: '12px 14px', background: 'var(--bg-tertiary)', borderRadius: 8 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 } },
+        h('div', null,
+          h('strong', { style: { fontSize: 13 } }, 'Client Organization'),
+          h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 1 } }, 'Bind this user to a client org — they will only see that org\'s agents and data')
+        )
+      ),
+      h('select', {
+        className: 'input',
+        value: userOrgId,
+        onChange: function(e) { setUserOrgId(e.target.value); },
+        style: { fontSize: 13 }
+      },
+        h('option', { value: '' }, 'None (Internal User)'),
+        permOrgs.filter(function(o) { return o.is_active !== false; }).map(function(o) {
+          return h('option', { key: o.id, value: o.id }, o.name);
+        })
+      ),
+      userOrgId && h('div', { style: { fontSize: 11, color: 'var(--warning, #f59e0b)', marginTop: 6 } },
+        'This user will only see agents and data belonging to this organization. The org switcher will be locked for them.'
+      )
     ),
 
     // ─── Agent Access ──────────────────────────
@@ -415,8 +446,9 @@ export function UsersPage() {
   var toast = app.toast;
   var [users, setUsers] = useState([]);
   var [creating, setCreating] = useState(false);
-  var [form, setForm] = useState({ email: '', password: '', name: '', role: 'viewer', permissions: '*' });
+  var [form, setForm] = useState({ email: '', password: '', name: '', role: 'viewer', permissions: '*', clientOrgId: '' });
   var [resetTarget, setResetTarget] = useState(null);
+  var [clientOrgs, setClientOrgs] = useState([]);
   var [newPassword, setNewPassword] = useState('');
   var [resetting, setResetting] = useState(false);
   var [permTarget, setPermTarget] = useState(null);    // user object for permission editing
@@ -427,6 +459,7 @@ export function UsersPage() {
   useEffect(function() {
     load();
     apiCall('/page-registry').then(function(d) { setPageRegistry(d); }).catch(function() {});
+    apiCall('/organizations').then(function(d) { setClientOrgs(d.organizations || []); }).catch(function() {});
   }, []);
 
   var generateCreatePassword = function() {
@@ -442,9 +475,10 @@ export function UsersPage() {
     try {
       var body = { email: form.email, password: form.password, name: form.name, role: form.role };
       if (form.permissions !== '*') body.permissions = form.permissions;
+      if (form.clientOrgId) body.clientOrgId = form.clientOrgId;
       await apiCall('/users', { method: 'POST', body: JSON.stringify(body) });
       toast('User created. They will be prompted to set a new password on first login.', 'success');
-      setCreating(false); setForm({ email: '', password: '', name: '', role: 'viewer', permissions: '*' }); setShowCreatePerms(false); load();
+      setCreating(false); setForm({ email: '', password: '', name: '', role: 'viewer', permissions: '*', clientOrgId: '' }); setShowCreatePerms(false); load();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -566,6 +600,17 @@ export function UsersPage() {
         )
       ),
       h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Role'), h('select', { className: 'input', value: form.role, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { role: e.target.value }); }); } }, h('option', { value: 'viewer' }, 'Viewer'), h('option', { value: 'member' }, 'Member'), h('option', { value: 'admin' }, 'Admin'), h('option', { value: 'owner' }, 'Owner'))),
+      // Client organization assignment
+      clientOrgs.length > 0 && h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Client Organization'),
+        h('select', { className: 'input', value: form.clientOrgId, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { clientOrgId: e.target.value }); }); } },
+          h('option', { value: '' }, 'None (internal user)'),
+          clientOrgs.filter(function(o) { return o.is_active !== false; }).map(function(o) {
+            return h('option', { key: o.id, value: o.id }, o.name);
+          })
+        ),
+        h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Assigning to a client org restricts this user to only see that organization\'s agents and data.')
+      ),
       // Inline permissions for member/viewer
       (form.role === 'member' || form.role === 'viewer') && h('div', { style: { marginTop: 4 } },
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
@@ -616,7 +661,8 @@ export function UsersPage() {
       currentPerms: permGrants,
       pageRegistry: pageRegistry,
       onSave: savePermissions,
-      onClose: function() { setPermTarget(null); }
+      onClose: function() { setPermTarget(null); },
+      userObj: permTarget
     }),
 
     // 5-step delete confirmation modal
@@ -700,7 +746,7 @@ export function UsersPage() {
       h('div', { className: 'card-body-flush' },
         users.length === 0 ? h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'No users')
         : h('table', null,
-            h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Email'), h('th', null, 'Role'), h('th', null, 'Status'), h('th', null, 'Access'), h('th', null, '2FA'), h('th', null, 'Created'), h('th', { style: { width: 200 } }, 'Actions'))),
+            h('thead', null, h('tr', null, h('th', null, 'Name'), h('th', null, 'Email'), h('th', null, 'Role'), h('th', null, 'Organization'), h('th', null, 'Status'), h('th', null, 'Access'), h('th', null, '2FA'), h('th', null, 'Created'), h('th', { style: { width: 240 } }, 'Actions'))),
             h('tbody', null, users.map(function(u) {
               var isRestricted = u.role === 'member' || u.role === 'viewer';
               var isDeactivated = u.isActive === false;
@@ -709,6 +755,10 @@ export function UsersPage() {
                 h('td', null, h('strong', null, u.name || '-')),
                 h('td', null, h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, u.email)),
                 h('td', null, h('span', { className: 'badge badge-' + (u.role === 'owner' ? 'warning' : u.role === 'admin' ? 'primary' : 'neutral') }, u.role)),
+                h('td', null, (function() {
+                  var org = u.clientOrgId && clientOrgs.find(function(o) { return o.id === u.clientOrgId; });
+                  return org ? h('span', { className: 'badge badge-info', style: { fontSize: 10 } }, org.name) : h('span', { style: { color: 'var(--text-muted)', fontSize: 11 } }, 'Internal');
+                })()),
                 h('td', null, isDeactivated
                   ? h('span', { className: 'badge badge-danger', style: { fontSize: 10 } }, 'Deactivated')
                   : h('span', { className: 'badge badge-success', style: { fontSize: 10 } }, 'Active')
@@ -725,6 +775,13 @@ export function UsersPage() {
                       style: !isRestricted ? { opacity: 0.4 } : {}
                     }, I.shield()),
                     h('button', { className: 'btn btn-ghost btn-sm', title: 'Reset Password', onClick: function() { setResetTarget(u); setNewPassword(''); } }, I.lock()),
+                    // Impersonate (owner-only, not self)
+                    !isSelf && app.user && app.user.role === 'owner' && !isDeactivated && h('button', {
+                      className: 'btn btn-ghost btn-sm',
+                      title: 'View as ' + (u.name || u.email),
+                      onClick: function() { if (app.startImpersonation) app.startImpersonation(u.id); },
+                      style: { color: 'var(--primary)' }
+                    }, I.agents()),
                     // Deactivate / Reactivate
                     !isSelf && h('button', {
                       className: 'btn btn-ghost btn-sm',

@@ -97,6 +97,7 @@ function App() {
   const [permissions, setPermissions] = useState('*'); // '*' = full access, or { pageId: true | ['tab1','tab2'] }
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [show2faReminder, setShow2faReminder] = useState(false);
+  const [impersonating, setImpersonating] = useState(null); // { user, impersonatedBy }
   const [forceResetPw, setForceResetPw] = useState('');
   const [forceResetPw2, setForceResetPw2] = useState('');
   const [forceResetLoading, setForceResetLoading] = useState(false);
@@ -146,6 +147,12 @@ function App() {
     apiCall('/settings').then(d => { const s = d.settings || d || {}; if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
     apiCall('/me/permissions').then(d => {
       if (d && d.permissions) setPermissions(d.permissions);
+      // If user is assigned to a client org, auto-set org context
+      if (d && d.clientOrgId) {
+        localStorage.setItem('em_client_org_id', d.clientOrgId);
+      } else {
+        localStorage.removeItem('em_client_org_id');
+      }
     }).catch(() => {});
   }, [authed]);
 
@@ -281,7 +288,44 @@ function App() {
   const PageComponent = canAccessPage ? (pages[page] || DashboardPage) : null;
   const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '') + (mobileMenuOpen ? ' mobile-open' : '');
 
-  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions } },
+  // Impersonation functions
+  const startImpersonation = useCallback(async (userId) => {
+    try {
+      const d = await authCall('/impersonate/' + userId, { method: 'POST' });
+      if (d.token && d.user) {
+        // Store real user info
+        setImpersonating({ user: d.user, impersonatedBy: d.impersonatedBy, originalToken: localStorage.getItem('em_token') });
+        // Set impersonated user's token
+        localStorage.setItem('em_token', d.token);
+        setUser(d.user);
+        if (d.user.permissions) setPermissions(d.user.permissions);
+        if (d.user.clientOrgId) {
+          localStorage.setItem('em_client_org_id', d.user.clientOrgId);
+          // Fetch org name for display
+          apiCall('/organizations/' + d.user.clientOrgId).then(function(o) {
+            if (o && o.name) setImpersonating(function(prev) { return prev ? Object.assign({}, prev, { user: Object.assign({}, prev.user, { clientOrgName: o.name }) }) : prev; });
+          }).catch(function() {});
+        } else localStorage.removeItem('em_client_org_id');
+        toast('Now viewing as ' + d.user.name, 'info');
+        setPage('dashboard');
+      }
+    } catch (e) { toast(e.message || 'Impersonation failed', 'error'); }
+  }, []);
+
+  const stopImpersonation = useCallback(() => {
+    if (impersonating && impersonating.originalToken) {
+      localStorage.setItem('em_token', impersonating.originalToken);
+    }
+    setImpersonating(null);
+    localStorage.removeItem('em_client_org_id');
+    // Reload real user
+    authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {});
+    apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
+    toast('Stopped impersonation', 'success');
+    setPage('users');
+  }, [impersonating]);
+
+  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions, impersonating, startImpersonation, stopImpersonation } },
     h('div', { className: 'app-layout' },
       // Mobile hamburger
       h('button', { className: 'mobile-hamburger', onClick: () => setMobileMenuOpen(true) },
@@ -337,6 +381,18 @@ function App() {
           )
         ),
         h('div', { className: 'page-content' },
+          // Impersonation banner
+          impersonating && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', margin: '0 0 16px', background: 'rgba(99,102,241,0.12)', border: '2px solid var(--primary, #6366f1)', borderRadius: 8, fontSize: 13 } },
+            I.agents(),
+            h('div', { style: { flex: 1 } },
+              h('strong', null, 'Viewing as: '),
+              impersonating.user.name + ' (' + impersonating.user.email + ')',
+              impersonating.user.role && h('span', { className: 'badge badge-neutral', style: { marginLeft: 8, fontSize: 10 } }, impersonating.user.role),
+              impersonating.user.clientOrgName && h('span', { className: 'badge badge-info', style: { marginLeft: 8, fontSize: 10 } }, 'Org: ' + impersonating.user.clientOrgName),
+              impersonating.user.clientOrgId && !impersonating.user.clientOrgName && h('span', { className: 'badge badge-info', style: { marginLeft: 8, fontSize: 10 } }, 'Client Org')
+            ),
+            h('button', { className: 'btn btn-primary btn-sm', onClick: stopImpersonation }, 'Stop Impersonating')
+          ),
           // 2FA recommendation banner
           show2faReminder && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', margin: '0 0 16px', background: 'var(--warning-soft, rgba(245,158,11,0.1))', border: '1px solid var(--warning, #f59e0b)', borderRadius: 8, fontSize: 13 } },
             I.shield(),

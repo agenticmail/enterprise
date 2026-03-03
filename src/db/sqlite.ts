@@ -63,6 +63,8 @@ export class SqliteAdapter extends DatabaseAdapter {
       try { this.db.exec(`ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '"*"'`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE users ADD COLUMN must_reset_password INTEGER DEFAULT 0`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch { /* exists */ }
+      try { this.db.exec(`ALTER TABLE users ADD COLUMN client_org_id TEXT`); } catch { /* exists */ }
+      try { this.db.exec(`ALTER TABLE agents ADD COLUMN billing_rate REAL DEFAULT 0`); } catch { /* exists */ }
       // ─── Client Organizations ────────────────────────────
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS client_organizations (
@@ -433,6 +435,11 @@ export class SqliteAdapter extends DatabaseAdapter {
     return {
       id: r.id, email: r.email, name: r.name, role: r.role,
       passwordHash: r.password_hash, ssoProvider: r.sso_provider, ssoSubject: r.sso_subject,
+      totpSecret: r.totp_secret, totpEnabled: !!r.totp_enabled, totpBackupCodes: r.totp_backup_codes,
+      permissions: r.permissions != null ? (typeof r.permissions === 'string' ? (() => { try { return JSON.parse(r.permissions); } catch { return '*'; } })() : r.permissions) : '*',
+      mustResetPassword: !!r.must_reset_password,
+      isActive: r.is_active !== 0 && r.is_active !== false,
+      clientOrgId: r.client_org_id || null,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
       lastLoginAt: r.last_login_at ? new Date(r.last_login_at) : undefined,
     };

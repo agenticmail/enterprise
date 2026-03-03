@@ -68,6 +68,7 @@ export interface User {
   permissions?: any;         // '*' or { pageId: true | string[] }
   mustResetPassword?: boolean;
   isActive?: boolean;
+  clientOrgId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;

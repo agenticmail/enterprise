@@ -342,9 +342,15 @@ export function OrganizationsPage() {
           )
         ),
         // Billing rate in header
-        detailOrg.billing_rate_per_agent > 0 && h('div', { style: { display: 'flex', alignItems: 'center', gap: 16, padding: '10px 14px', background: 'var(--success-soft, rgba(21,128,61,0.06))', borderRadius: 8, marginBottom: 16, fontSize: 13 } },
-          h('div', null, h('strong', null, 'Rate: '), (detailOrg.currency || 'USD') + ' ' + parseFloat(detailOrg.billing_rate_per_agent).toFixed(2) + '/agent/month'),
-          h('div', null, h('strong', null, 'Monthly Revenue: '), (detailOrg.currency || 'USD') + ' ' + (parseFloat(detailOrg.billing_rate_per_agent) * detailAgents.length).toFixed(2)),
+        (detailOrg.billing_rate_per_agent > 0 || detailAgents.some(function(a) { return a.billing_rate > 0; })) && h('div', { style: { display: 'flex', alignItems: 'center', gap: 16, padding: '10px 14px', background: 'var(--success-soft, rgba(21,128,61,0.06))', borderRadius: 8, marginBottom: 16, fontSize: 13, flexWrap: 'wrap' } },
+          h('div', null, h('strong', null, 'Default Rate: '), (detailOrg.currency || 'USD') + ' ' + parseFloat(detailOrg.billing_rate_per_agent || 0).toFixed(2) + '/agent/month'),
+          h('div', null, h('strong', null, 'Monthly Revenue: '), (function() {
+            var total = detailAgents.reduce(function(sum, a) {
+              var rate = a.billing_rate > 0 ? parseFloat(a.billing_rate) : parseFloat(detailOrg.billing_rate_per_agent || 0);
+              return sum + rate;
+            }, 0);
+            return (detailOrg.currency || 'USD') + ' ' + total.toFixed(2);
+          })()),
           h('div', null, h('strong', null, 'Agents: '), detailAgents.length)
         ),
 
@@ -436,6 +442,36 @@ export function OrganizationsPage() {
 
           billingSummary.length === 0 && h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, background: 'var(--bg-tertiary)', borderRadius: 8, marginBottom: 16 } },
             'No billing data yet. Billing records are created as agents process tasks and accumulate token costs.'
+          ),
+
+          // Per-agent billing rates
+          detailAgents.length > 0 && h('div', { style: { marginBottom: 20 } },
+            h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 8 } }, 'Per-Agent Billing Rates'),
+            h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 } }, 'Set custom billing rates per agent. Leave blank to use the default org rate (' + (detailOrg.currency || 'USD') + ' ' + parseFloat(detailOrg.billing_rate_per_agent || 0).toFixed(2) + '/agent/month).'),
+            h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 } },
+              detailAgents.map(function(a) {
+                var agentRate = a.billing_rate > 0 ? parseFloat(a.billing_rate) : 0;
+                var effectiveRate = agentRate > 0 ? agentRate : parseFloat(detailOrg.billing_rate_per_agent || 0);
+                return h('div', { key: a.id, style: { padding: 10, background: 'var(--bg-tertiary)', borderRadius: 8 } },
+                  h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 6 } }, a.name || a.id),
+                  h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
+                    h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, detailOrg.currency || 'USD'),
+                    h('input', { className: 'input', type: 'number', step: '0.01', min: '0', value: agentRate > 0 ? agentRate : '',
+                      placeholder: effectiveRate.toFixed(2),
+                      onChange: function(e) {
+                        var val = parseFloat(e.target.value) || 0;
+                        apiCall('/agents/' + a.id, { method: 'PATCH', body: JSON.stringify({ billingRate: val }) })
+                          .then(function() { toast('Rate updated for ' + (a.name || a.id), 'success'); })
+                          .catch(function(err) { toast(err.message, 'error'); });
+                      },
+                      style: { width: 90, fontSize: 12, padding: '4px 6px' }
+                    }),
+                    h('span', { style: { fontSize: 10, color: 'var(--text-muted)' } }, '/mo')
+                  ),
+                  agentRate > 0 && h('div', { style: { fontSize: 10, color: 'var(--success, #15803d)', marginTop: 4 } }, 'Custom rate')
+                );
+              })
+            )
           ),
 
           // Stats summary
