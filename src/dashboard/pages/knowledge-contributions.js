@@ -2,9 +2,11 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buil
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function KnowledgeContributionsPage() {
   var { toast } = useApp();
+  var orgCtx = useOrgContext();
   var [tab, setTab] = useState('bases');
   var [bases, setBases] = useState([]);
   var [roles, setRoles] = useState([]);
@@ -39,14 +41,17 @@ export function KnowledgeContributionsPage() {
   var [searchDays, setSearchDays] = useState(7);
   var [searchAgentFilter, setSearchAgentFilter] = useState('');
 
+  // Effective org ID: uses client org if selected, else default
+  var effectiveOrgId = orgCtx.selectedOrgId || effectiveOrgId;
+
   var loadBases = useCallback(function() {
     Promise.all([
-      engineCall('/knowledge-contribution/bases?orgId=' + getOrgId()).catch(function() { return { bases: [] }; }),
+      engineCall('/knowledge-contribution/bases?orgId=' + effectiveOrgId).catch(function() { return { bases: [] }; }),
       engineCall('/knowledge-bases').catch(function() { return { knowledgeBases: [] }; })
     ]).then(function(results) {
       var contribBases = results[0].bases || [];
       var mainBases = (results[1].knowledgeBases || []).map(function(kb) {
-        return { id: kb.id, orgId: getOrgId(), name: kb.name, description: kb.description, role: 'general', categories: [], contributorCount: 0, entryCount: kb.stats ? kb.stats.documentCount || 0 : 0, createdAt: kb.createdAt, updatedAt: kb.updatedAt, _source: 'main' };
+        return { id: kb.id, orgId: effectiveOrgId, name: kb.name, description: kb.description, role: 'general', categories: [], contributorCount: 0, entryCount: kb.stats ? kb.stats.documentCount || 0 : 0, createdAt: kb.createdAt, updatedAt: kb.updatedAt, _source: 'main' };
       });
       // Merge: contribution bases first, then main bases not already in contribution
       var ids = {};
@@ -63,19 +68,19 @@ export function KnowledgeContributionsPage() {
   }, []);
 
   var loadStats = useCallback(function() {
-    engineCall('/knowledge-contribution/stats?orgId=' + getOrgId())
+    engineCall('/knowledge-contribution/stats?orgId=' + effectiveOrgId)
       .then(function(d) { setStats(d || {}); })
       .catch(function() {});
   }, []);
 
   var loadContributions = useCallback(function() {
-    engineCall('/knowledge-contribution/contributions?orgId=' + getOrgId())
+    engineCall('/knowledge-contribution/contributions?orgId=' + effectiveOrgId)
       .then(function(d) { setContributions(d.contributions || d.cycles || []); })
       .catch(function() {});
   }, []);
 
   var loadSchedules = useCallback(function() {
-    engineCall('/knowledge-contribution/schedules?orgId=' + getOrgId())
+    engineCall('/knowledge-contribution/schedules?orgId=' + effectiveOrgId)
       .then(function(d) { setSchedules(d.schedules || []); })
       .catch(function() {});
   }, []);
@@ -86,10 +91,10 @@ export function KnowledgeContributionsPage() {
     loadStats();
     loadContributions();
     loadSchedules();
-    engineCall('/agents?orgId=' + getOrgId()).then(function(d) { setAgents(d.agents || []); }).catch(function() {});
+    engineCall('/agents?orgId=' + effectiveOrgId).then(function(d) { setAgents(d.agents || []); }).catch(function() {});
   }, [loadBases, loadRoles, loadStats, loadContributions, loadSchedules]);
 
-  useEffect(function() { load(); }, [load]);
+  useEffect(function() { load(); }, [load, effectiveOrgId]);
 
   var loadBaseEntries = useCallback(function(baseId) {
     var params = new URLSearchParams();
@@ -110,7 +115,7 @@ export function KnowledgeContributionsPage() {
     try {
       await engineCall('/knowledge-contribution/bases', {
         method: 'POST',
-        body: JSON.stringify({ name: baseForm.name, description: baseForm.description, role: baseForm.role, orgId: getOrgId() })
+        body: JSON.stringify({ name: baseForm.name, description: baseForm.description, role: baseForm.role, orgId: effectiveOrgId })
       });
       toast('Knowledge base created', 'success');
       setShowCreateBase(false);
@@ -161,7 +166,7 @@ export function KnowledgeContributionsPage() {
     try {
       await engineCall('/knowledge-contribution/contribute/' + triggerAgent, {
         method: 'POST',
-        body: JSON.stringify({ targetBaseId: triggerBase || undefined, orgId: getOrgId() })
+        body: JSON.stringify({ targetBaseId: triggerBase || undefined, orgId: effectiveOrgId })
       });
       toast('Contribution triggered', 'success');
       setShowTrigger(false);
@@ -182,7 +187,7 @@ export function KnowledgeContributionsPage() {
           frequency: scheduleForm.frequency,
           dayOfWeek: scheduleForm.dayOfWeek,
           minConfidence: parseFloat(scheduleForm.minConfidence) || 0.7,
-          orgId: getOrgId()
+          orgId: effectiveOrgId
         })
       });
       toast('Schedule created', 'success');
@@ -1375,6 +1380,9 @@ export function KnowledgeContributionsPage() {
   };
 
   return h(Fragment, null,
+    // Org context switcher
+    h(orgCtx.Switcher),
+
     // Header
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,

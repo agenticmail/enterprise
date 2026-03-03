@@ -3,6 +3,7 @@ import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { CULTURES, LANGUAGES, PersonaForm } from '../components/persona-fields.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 // ════════════════════════════════════════════════════════════
 // DEPLOY MODAL
@@ -1127,6 +1128,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
 export function AgentsPage({ onSelectAgent }) {
   const app = useApp();
   const toast = app.toast;
+  var orgCtx = useOrgContext();
   const [agents, setAgents] = useState([]);
   const [creating, setCreating] = useState(false);
 
@@ -1138,9 +1140,13 @@ export function AgentsPage({ onSelectAgent }) {
     if (allowedAgents !== '*' && Array.isArray(allowedAgents)) {
       all = all.filter(a => allowedAgents.indexOf(a.id) >= 0);
     }
+    // Filter by selected org context
+    if (orgCtx.selectedOrgId) {
+      all = all.filter(a => a.client_org_id === orgCtx.selectedOrgId);
+    }
     setAgents(all);
   }).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [orgCtx.selectedOrgId]);
 
   // Delete moved to agent detail overview tab with triple confirmation
 
@@ -1149,6 +1155,7 @@ export function AgentsPage({ onSelectAgent }) {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h(Fragment, null,
+    h(orgCtx.Switcher),
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Agents', h(HelpButton, { label: 'Agents' },
         h('p', null, 'Your AI workforce. Each agent has its own email identity, personality, skills, permissions, and deployment target.'),

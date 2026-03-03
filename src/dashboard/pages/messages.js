@@ -1,8 +1,11 @@
 import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function MessagesPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   const { toast } = useApp();
   const [messages, setMessages] = useState([]);
   const [agents, setAgents] = useState([]);
@@ -10,19 +13,19 @@ export function MessagesPage() {
   const [mainTab, setMainTab] = useState('messages');
   const [subTab, setSubTab] = useState('all');
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ orgId: getOrgId(), fromAgentId: '', toAgentId: '', subject: '', content: '', priority: 'normal' });
+  const [form, setForm] = useState({ orgId: effectiveOrgId, fromAgentId: '', toAgentId: '', subject: '', content: '', priority: 'normal' });
   const [selectedNode, setSelectedNode] = useState(null);
   const [nodePositions, setNodePositions] = useState([]);
   const svgRef = useRef(null);
 
   const loadMessages = () => {
-    engineCall('/messages?orgId=' + getOrgId() + '&limit=100').then(d => setMessages(d.messages || [])).catch(() => {});
+    engineCall('/messages?orgId=' + effectiveOrgId + '&limit=100').then(d => setMessages(d.messages || [])).catch(() => {});
   };
   const loadAgents = () => {
-    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   const loadTopology = () => {
-    engineCall('/messages/topology?orgId=' + getOrgId()).then(d => setTopology(d.topology || null)).catch(() => {});
+    engineCall('/messages/topology?orgId=' + effectiveOrgId).then(d => setTopology(d.topology || null)).catch(() => {});
   };
   useEffect(() => { loadMessages(); loadAgents(); loadTopology(); }, []);
 
@@ -200,6 +203,7 @@ export function MessagesPage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h('div', { className: 'page-inner' },
+    h(orgCtx.Switcher),
     // Page header
     h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Agent Messages', h(HelpButton, { label: 'Agent Messages' },
       h('p', null, 'All inter-agent and external communications in one place. See how your agents talk to each other and to the outside world.'),

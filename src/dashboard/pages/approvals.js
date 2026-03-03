@@ -1,8 +1,11 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall, showConfirm, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function ApprovalsPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   const { toast } = useApp();
   const [pending, setPending] = useState([]);
   const [history, setHistory] = useState([]);
@@ -13,7 +16,7 @@ export function ApprovalsPage() {
   const load = () => {
     engineCall('/approvals/pending').then(d => setPending(d.requests || [])).catch(() => {});
     engineCall('/approvals/history?limit=50').then(d => setHistory(d.requests || [])).catch(() => {});
-    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(() => { load(); }, []);
 
@@ -33,6 +36,7 @@ export function ApprovalsPage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h(Fragment, null,
+    h(orgCtx.Switcher),
     h('div', { style: { marginBottom: 20 } },
       h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Approvals', h(HelpButton, { label: 'Approvals' },
         h('p', null, 'The human-in-the-loop checkpoint. When agents attempt sensitive actions (based on your permission settings), they pause and wait for your approval here.'),

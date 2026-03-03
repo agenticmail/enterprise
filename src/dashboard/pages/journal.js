@@ -1,8 +1,11 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function JournalPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   const { toast } = useApp();
   const [entries, setEntries] = useState([]);
   const [total, setTotal] = useState(0);
@@ -11,9 +14,9 @@ export function JournalPage() {
   const [agents, setAgents] = useState([]);
 
   const load = () => {
-    engineCall('/journal?orgId=' + getOrgId() + '&limit=50').then(d => { setEntries(d.entries || []); setTotal(d.total || 0); }).catch(() => {});
+    engineCall('/journal?orgId=' + effectiveOrgId + '&limit=50').then(d => { setEntries(d.entries || []); setTotal(d.total || 0); }).catch(() => {});
     engineCall('/journal/stats/default').then(d => setStats(d)).catch(() => {});
-    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(load, []);
 
@@ -29,6 +32,7 @@ export function JournalPage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h('div', { className: 'page-inner' },
+    h(orgCtx.Switcher),
     h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Action Journal', h(HelpButton, { label: 'Action Journal' },
       h('p', null, 'A tamper-proof log of every action agents have taken. Think of it as an audit trail — every tool call, every side effect, recorded with full context.'),
       h('h4', { style: _h4 }, 'Why it matters'),

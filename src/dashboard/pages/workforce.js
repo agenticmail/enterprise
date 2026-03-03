@@ -2,8 +2,11 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buil
 import { I } from '../components/icons.js';
 import { TimezoneSelect } from '../components/timezones.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function WorkforcePage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   const { toast } = useApp();
   const [tab, setTab] = useState('overview');
   const [status, setStatus] = useState(null);
@@ -44,7 +47,7 @@ export function WorkforcePage() {
       setSchedules(schedulesRes.schedules || []);
       setBudgetData(budgetRes);
       setClockRecords(recordsRes.records || []);
-      engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
+      engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
     } catch (err) { toast('Failed to load workforce data', 'error'); }
     setLoading(false);
   };
@@ -251,6 +254,7 @@ export function WorkforcePage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h('div', { className: 'page-inner' },
+    h(orgCtx.Switcher),
     h('div', { className: 'page-header' },
       h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Workforce Management', h(HelpButton, { label: 'Workforce Management' },
         h('p', null, 'Manage your agents like employees — set work schedules, assign tasks, track budgets, and monitor clock-in/out history.'),

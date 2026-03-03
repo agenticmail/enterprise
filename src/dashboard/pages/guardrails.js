@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 // ─── Constants ──────────────────────────────────────────
 
@@ -93,6 +94,8 @@ function EmptyState(props) {
 // ─── Main Page ──────────────────────────────────────────
 
 export function GuardrailsPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var app = useApp();
   var toast = app.toast;
   var tab = useState('overview');
@@ -101,7 +104,7 @@ export function GuardrailsPage() {
   var _ag = useState([]);
   var agents = _ag[0]; var setAgents = _ag[1];
   useEffect(function() {
-    engineCall('/agents?orgId=' + getOrgId()).then(function(d) { setAgents(d.agents || []); }).catch(function() {});
+    engineCall('/agents?orgId=' + effectiveOrgId).then(function(d) { setAgents(d.agents || []); }).catch(function() {});
   }, []);
 
   var TABS = [
@@ -164,8 +167,8 @@ function OverviewTab(props) {
   var load = function() {
     setLoading(true);
     Promise.all([
-      engineCall('/guardrails/interventions?orgId=' + getOrgId() + '&limit=10').catch(function() { return { interventions: [] }; }),
-      engineCall('/policies?orgId=' + getOrgId()).catch(function() { return { policies: [] }; }),
+      engineCall('/guardrails/interventions?orgId=' + effectiveOrgId + '&limit=10').catch(function() { return { interventions: [] }; }),
+      engineCall('/policies?orgId=' + effectiveOrgId).catch(function() { return { policies: [] }; }),
       engineCall('/onboarding/org/default').catch(function() { return { progress: [] }; }),
     ]).then(function(res) {
       setInterventions(res[0].interventions || []);
@@ -203,6 +206,7 @@ function OverviewTab(props) {
   var typeColor = function(t) { return t === 'kill' ? '#ef4444' : t === 'pause' ? '#f59e0b' : t === 'resume' ? '#15803d' : '#0ea5e9'; };
 
   return h(Fragment, null,
+    h(orgCtx.Switcher),
     // Quick action bar
     h('div', { className: 'card', style: { marginBottom: 16 } },
       h('div', { className: 'card-body', style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
@@ -282,17 +286,17 @@ function PoliciesTab() {
   var editPolicy = _edit[0]; var setEditPolicy = _edit[1];
   var _exp = useState(null);
   var expanded = _exp[0]; var setExpanded = _exp[1];
-  var _form = useState({ orgId: getOrgId(), name: '', category: 'code_of_conduct', description: '', content: '', priority: 0, enforcement: 'mandatory', appliesTo: ['*'], tags: [], enabled: true });
+  var _form = useState({ orgId: effectiveOrgId, name: '', category: 'code_of_conduct', description: '', content: '', priority: 0, enforcement: 'mandatory', appliesTo: ['*'], tags: [], enabled: true });
   var form = _form[0]; var setForm = _form[1];
 
   var load = function() {
-    engineCall('/policies?orgId=' + getOrgId()).then(function(d) { setPolicies(d.policies || []); }).catch(function() {});
+    engineCall('/policies?orgId=' + effectiveOrgId).then(function(d) { setPolicies(d.policies || []); }).catch(function() {});
   };
   useEffect(load, []);
 
   var openCreate = function() {
     setEditPolicy(null);
-    setForm({ orgId: getOrgId(), name: '', category: 'code_of_conduct', description: '', content: '', priority: 0, enforcement: 'mandatory', appliesTo: ['*'], tags: [], enabled: true });
+    setForm({ orgId: effectiveOrgId, name: '', category: 'code_of_conduct', description: '', content: '', priority: 0, enforcement: 'mandatory', appliesTo: ['*'], tags: [], enabled: true });
     setShowModal(true);
   };
   var openEdit = function(p) {
@@ -314,7 +318,7 @@ function PoliciesTab() {
       .catch(function(e) { toast(e.message, 'error'); });
   };
   var applyDefaults = function() {
-    engineCall('/policies/templates/apply', { method: 'POST', body: JSON.stringify({ orgId: getOrgId(), createdBy: 'admin' }) })
+    engineCall('/policies/templates/apply', { method: 'POST', body: JSON.stringify({ orgId: effectiveOrgId, createdBy: 'admin' }) })
       .then(function(d) { toast('Applied ' + (d.policies ? d.policies.length : 0) + ' default templates', 'success'); load(); })
       .catch(function(e) { toast(e.message, 'error'); });
   };
@@ -451,7 +455,7 @@ function OnboardingTab(props) {
 
   var initiate = function() {
     if (!initAgentId) { toast('Enter an agent ID', 'error'); return; }
-    engineCall('/onboarding/initiate/' + initAgentId, { method: 'POST', body: JSON.stringify({ orgId: getOrgId() }) })
+    engineCall('/onboarding/initiate/' + initAgentId, { method: 'POST', body: JSON.stringify({ orgId: effectiveOrgId }) })
       .then(function() { toast('Onboarding initiated', 'success'); setInitAgentId(''); load(); })
       .catch(function(e) { toast(e.message, 'error'); });
   };
@@ -461,7 +465,7 @@ function OnboardingTab(props) {
       .catch(function(e) { toast(e.message, 'error'); });
   };
   var checkChanges = function() {
-    engineCall('/onboarding/check-changes', { method: 'POST', body: JSON.stringify({ orgId: getOrgId() }) })
+    engineCall('/onboarding/check-changes', { method: 'POST', body: JSON.stringify({ orgId: effectiveOrgId }) })
       .then(function(d) {
         var stale = d.staleAgents || [];
         if (stale.length === 0) { toast('All agents up to date', 'success'); }
@@ -555,7 +559,7 @@ function MemoryTab(props) {
   var showCreate = _show[0]; var setShowCreate = _show[1];
   var _exp = useState(null);
   var expanded = _exp[0]; var setExpanded = _exp[1];
-  var _form = useState({ agentId: '', orgId: getOrgId(), category: 'org_knowledge', title: '', content: '', source: 'admin', importance: 'normal', tags: [] });
+  var _form = useState({ agentId: '', orgId: effectiveOrgId, category: 'org_knowledge', title: '', content: '', source: 'admin', importance: 'normal', tags: [] });
   var form = _form[0]; var setForm = _form[1];
 
   var loadMemories = function(aid) {
@@ -762,13 +766,13 @@ function RulesTab(props) {
   var _showAnomaly = useState(false);
   var showAnomalyModal = _showAnomaly[0]; var setShowAnomalyModal = _showAnomaly[1];
   var _form = useState({
-    orgId: getOrgId(), name: '', description: '', category: 'anomaly', ruleType: 'threshold',
+    orgId: effectiveOrgId, name: '', description: '', category: 'anomaly', ruleType: 'threshold',
     conditions: { threshold: 10, windowMinutes: 60 },
     action: 'alert', severity: 'medium', cooldownMinutes: 15, enabled: true
   });
   var form = _form[0]; var setForm = _form[1];
   var _anomalyForm = useState({
-    orgId: getOrgId(), name: '', ruleType: 'error_rate',
+    orgId: effectiveOrgId, name: '', ruleType: 'error_rate',
     config: { maxErrorsPerHour: 50, windowMinutes: 60 }, action: 'pause', enabled: true
   });
   var anomalyForm = _anomalyForm[0]; var setAnomalyForm = _anomalyForm[1];
@@ -777,9 +781,9 @@ function RulesTab(props) {
 
   var load = function() {
     Promise.all([
-      engineCall('/guardrails/rules?orgId=' + getOrgId()).catch(function() { return { rules: [] }; }),
-      engineCall('/anomaly-rules?orgId=' + getOrgId()).catch(function() { return { rules: [] }; }),
-      engineCall('/guardrails/interventions?orgId=' + getOrgId() + '&limit=50').catch(function() { return { interventions: [] }; }),
+      engineCall('/guardrails/rules?orgId=' + effectiveOrgId).catch(function() { return { rules: [] }; }),
+      engineCall('/anomaly-rules?orgId=' + effectiveOrgId).catch(function() { return { rules: [] }; }),
+      engineCall('/guardrails/interventions?orgId=' + effectiveOrgId + '&limit=50').catch(function() { return { interventions: [] }; }),
     ]).then(function(res) {
       setRules(res[0].rules || []);
       setAnomalyRules(res[1].rules || []);
@@ -791,7 +795,7 @@ function RulesTab(props) {
   // Guardrail rules CRUD
   var openCreateRule = function() {
     setEditRule(null);
-    setForm({ orgId: getOrgId(), name: '', description: '', category: 'anomaly', ruleType: 'threshold', conditions: { threshold: 10, windowMinutes: 60 }, action: 'alert', severity: 'medium', cooldownMinutes: 15, enabled: true });
+    setForm({ orgId: effectiveOrgId, name: '', description: '', category: 'anomaly', ruleType: 'threshold', conditions: { threshold: 10, windowMinutes: 60 }, action: 'alert', severity: 'medium', cooldownMinutes: 15, enabled: true });
     setShowModal(true);
   };
   var openEditRule = function(r) {

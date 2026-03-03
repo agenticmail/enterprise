@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 // ─── Constants ───────────────────────────────────────────
 var NODE_W = 200;
@@ -438,6 +439,8 @@ export function TaskPipelinePage() {
   injectCSS();
   var app = useApp();
   var toast = app.toast;
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || effectiveOrgId;
   var _tasks = useState([]);
   var tasks = _tasks[0]; var setTasks = _tasks[1];
   var _stats = useState({ created: 0, assigned: 0, inProgress: 0, completed: 0, failed: 0, cancelled: 0, total: 0, todayCompleted: 0, todayFailed: 0, todayCreated: 0, avgDurationMs: 0, totalCost: 0, totalTokens: 0, topAgents: [] });
@@ -474,7 +477,7 @@ export function TaskPipelinePage() {
     Promise.all([
       engineCall('/task-pipeline?limit=200'),
       engineCall('/task-pipeline/stats'),
-      engineCall('/agents?orgId=' + getOrgId()).catch(function() { return { agents: [] }; }),
+      engineCall('/agents?orgId=' + effectiveOrgId).catch(function() { return { agents: [] }; }),
     ]).then(function(res) {
       setTasks(res[0]?.tasks || []);
       setStats(res[1] || stats);
@@ -486,7 +489,7 @@ export function TaskPipelinePage() {
       setAgentMap(map);
     }).catch(function(err) { console.error('[TaskPipeline]', err); })
       .finally(function() { setLoading(false); });
-  }, []);
+  }, [effectiveOrgId]);
 
   // SSE
   useEffect(function() {
@@ -1074,6 +1077,7 @@ export function AgentTaskPipeline(props) {
   }
 
   return h(Fragment, null,
+    h(orgCtx.Switcher),
     active.length > 0 && h('div', { style: { marginBottom: 12 } },
       h('div', { style: { fontSize: 11, fontWeight: 600, color: STATUS_COLORS.in_progress, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 } },
         h('div', { style: { width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.in_progress, animation: 'flowPulse 2s infinite' } }),

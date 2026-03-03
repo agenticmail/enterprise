@@ -2,6 +2,7 @@ import { h, useState, useEffect, Fragment, buildAgentEmailMap, buildAgentDataMap
 import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function SetupChecklist({ onNavigate }) {
   const [status, setStatus] = useState(null);
@@ -46,6 +47,8 @@ export function SetupChecklist({ onNavigate }) {
 }
 
 export function DashboardPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || effectiveOrgId;
   const [stats, setStats] = useState(null);
   const [agents, setAgents] = useState([]);
   const [events, setEvents] = useState([]);
@@ -58,9 +61,9 @@ export function DashboardPage() {
   useEffect(() => {
     apiCall('/stats').then(setStats).catch(() => {});
     apiCall('/agents').then(d => setAgents(d.agents || d || [])).catch(() => {});
-    engineCall('/agents?orgId=' + getOrgId()).then(d => setEngineAgents(d.agents || [])).catch(() => {});
+    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setEngineAgents(d.agents || [])).catch(() => {});
     engineCall('/activity/events?limit=10').then(d => setEvents(d.events || [])).catch(() => {});
-  }, []);
+  }, [effectiveOrgId]);
 
   // Merge admin + engine agents; engine agents (appended last) win in the data map
   var mergedForMap = [].concat(agents, engineAgents);
@@ -73,6 +76,7 @@ export function DashboardPage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h(Fragment, null,
+    h(orgCtx.Switcher),
     h(SetupChecklist, { onNavigate: function(pg) { if (navTo) navTo(pg); } }),
     h('div', { className: 'stat-grid' },
       h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Total Agents', h(HelpButton, { label: 'Total Agents' },

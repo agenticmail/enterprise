@@ -1,14 +1,17 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, apiCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { KnowledgeImportWizard, ImportJobsList } from './knowledge-import.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function KnowledgeBasePage() {
   const { toast } = useApp();
   const [kbs, setKbs] = useState([]);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '' });
+  const [form, setForm] = useState({ name: '', description: '', orgId: '' });
+  const [clientOrgs, setClientOrgs] = useState([]);
+  const orgCtx = useOrgContext();
   const [selected, setSelected] = useState(null); // full KB detail
   const [docs, setDocs] = useState([]);
   const [chunks, setChunks] = useState([]);
@@ -25,14 +28,20 @@ export function KnowledgeBasePage() {
 
   const load = useCallback(() => {
     engineCall('/knowledge-bases').then(d => setKbs(d.knowledgeBases || [])).catch(() => {});
+    apiCall('/organizations').then(d => setClientOrgs(d.organizations || [])).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // Filter KBs by selected org context
+  const filteredKbs = orgCtx.selectedOrgId
+    ? kbs.filter(kb => kb.orgId === orgCtx.selectedOrgId || kb.clientOrgId === orgCtx.selectedOrgId)
+    : kbs;
+
   const create = async () => {
     try {
-      await engineCall('/knowledge-bases', { method: 'POST', body: JSON.stringify({ name: form.name, description: form.description, orgId: getOrgId() }) });
+      await engineCall('/knowledge-bases', { method: 'POST', body: JSON.stringify({ name: form.name, description: form.description, orgId: getOrgId(), clientOrgId: form.orgId || null }) });
       toast('Knowledge base created', 'success');
-      setCreating(false); setForm({ name: '', description: '' }); load();
+      setCreating(false); setForm({ name: '', description: '', orgId: '' }); load();
     } catch (e) { toast(e.message, 'error'); }
   };
 
@@ -315,16 +324,29 @@ export function KnowledgeBasePage() {
       h('button', { className: 'btn btn-primary', onClick: () => setCreating(true) }, I.plus(), ' New Knowledge Base')
     ),
 
+    // Org context switcher
+    h(orgCtx.Switcher),
+
     creating && h(Modal, { title: 'Create Knowledge Base', onClose: () => setCreating(false), footer: h(Fragment, null, h('button', { className: 'btn btn-secondary', onClick: () => setCreating(false) }, 'Cancel'), h('button', { className: 'btn btn-primary', onClick: create, disabled: !form.name }, 'Create')) },
       h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Name'), h('input', { className: 'input', value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })) })),
-      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Description'), h('textarea', { className: 'input', value: form.description, onChange: e => setForm(f => ({ ...f, description: e.target.value })) }))
+      h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Description'), h('textarea', { className: 'input', value: form.description, onChange: e => setForm(f => ({ ...f, description: e.target.value })) })),
+      clientOrgs.length > 0 && h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Organization'),
+        h('select', { className: 'input', value: form.orgId, onChange: e => setForm(f => ({ ...f, orgId: e.target.value })) },
+          h('option', { value: '' }, 'My Organization (internal)'),
+          clientOrgs.filter(o => o.is_active !== false).map(o =>
+            h('option', { key: o.id, value: o.id }, o.name)
+          )
+        ),
+        h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Assign this knowledge base to a client organization for data isolation')
+      )
     ),
 
     loading && h('div', { style: { textAlign: 'center', padding: 40 } }, 'Loading...'),
 
-    !loading && kbs.length === 0
-      ? h('div', { className: 'card' }, h('div', { className: 'card-body' }, h('div', { className: 'empty-state' }, I.knowledge(), h('h3', null, 'No knowledge bases'), h('p', null, 'Create a knowledge base to give agents access to your documents, policies, and data.'))))
-      : !loading && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 } }, kbs.map(kb =>
+    !loading && filteredKbs.length === 0
+      ? h('div', { className: 'card' }, h('div', { className: 'card-body' }, h('div', { className: 'empty-state' }, I.knowledge(), h('h3', null, orgCtx.selectedOrgId ? 'No knowledge bases for this organization' : 'No knowledge bases'), h('p', null, orgCtx.selectedOrgId ? 'Create a knowledge base assigned to this organization to get started.' : 'Create a knowledge base to give agents access to your documents, policies, and data.'))))
+      : !loading && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 } }, filteredKbs.map(kb =>
           h('div', { key: kb.id, className: 'card', style: { cursor: 'pointer', transition: 'border-color 0.15s' }, onClick: () => selectKb(kb) },
             h('div', { className: 'card-body' },
               h('h3', { style: { fontSize: 15, fontWeight: 600, marginBottom: 4 } }, kb.name),
@@ -332,7 +354,8 @@ export function KnowledgeBasePage() {
               h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
                 h('span', { className: 'badge badge-info' }, (kb.stats?.documentCount || kb.stats?.documents || kb.stats?.totalDocuments || kb.documents?.length || 0) + ' docs'),
                 h('span', { className: 'badge badge-neutral' }, (kb.stats?.chunkCount || kb.stats?.chunks || kb.stats?.totalChunks || 0) + ' chunks'),
-                kb.agentIds && kb.agentIds.length > 0 && h('span', { className: 'badge badge-success' }, kb.agentIds.length + ' agent(s)')
+                kb.agentIds && kb.agentIds.length > 0 && h('span', { className: 'badge badge-success' }, kb.agentIds.length + ' agent(s)'),
+                (function() { var org = kb.clientOrgId && clientOrgs.find(function(o) { return o.id === kb.clientOrgId; }); return org ? h('span', { className: 'badge', style: { background: 'var(--bg-secondary)', fontSize: 10 } }, I.building(), ' ', org.name) : null; })()
               ),
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 } },
                 h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Click to view details \u2192'),

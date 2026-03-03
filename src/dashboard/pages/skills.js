@@ -2,8 +2,11 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getO
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function SkillsPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var app = useApp();
   var toast = app.toast;
   var setPage = app.setPage;
@@ -66,7 +69,7 @@ export function SkillsPage() {
   // Load installed skills + statuses
   var loadInstalled = useCallback(function() {
     setInstalledLoading(true);
-    engineCall('/community/installed?orgId=' + getOrgId())
+    engineCall('/community/installed?orgId=' + effectiveOrgId)
       .then(function(d) {
         var items = d.installed || [];
         setInstalled(items);
@@ -162,7 +165,7 @@ export function SkillsPage() {
       var payload = isMultiField
         ? { credentials: tokenModal.fields.reduce(function(o, f) { o[f] = credFields[f].trim(); return o; }, {}) }
         : { token: tokenValue };
-      await engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId(), {
+      await engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + effectiveOrgId, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
@@ -183,7 +186,7 @@ export function SkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/' + (enable ? 'enable' : 'disable'), {
         method: 'PUT',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('Skill ' + (enable ? 'enabled' : 'disabled'), 'success');
       loadInstalled();
@@ -201,7 +204,7 @@ export function SkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/uninstall', {
         method: 'DELETE',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('Skill uninstalled', 'success');
       loadInstalled();
@@ -240,7 +243,7 @@ export function SkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/install', {
         method: 'POST',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('Skill installed', 'success');
       loadInstalled();
@@ -269,7 +272,7 @@ export function SkillsPage() {
 
   var loadIntegrations = useCallback(function() {
     setIntLoading(true);
-    engineCall('/integrations/catalog?orgId=' + getOrgId())
+    engineCall('/integrations/catalog?orgId=' + effectiveOrgId)
       .then(function(d) {
         setIntegrations(d.catalog || []);
         setIntCategories(d.categories || []);
@@ -302,7 +305,7 @@ export function SkillsPage() {
     setOauthSaving(false);
     // For OAuth2, check if app is already configured
     if (int.authType === 'oauth2' && int.oauthProvider) {
-      engineCall('/oauth/app-config/' + int.oauthProvider + '?orgId=' + getOrgId())
+      engineCall('/oauth/app-config/' + int.oauthProvider + '?orgId=' + effectiveOrgId)
         .then(function(d) { if (d.configured) setOauthAppConfigured(true); })
         .catch(function() {});
     }
@@ -312,14 +315,14 @@ export function SkillsPage() {
     if (!tokenModal || !tokenModal.oauthProvider) return;
     if (!oauthClientId.trim() || !oauthClientSecret.trim()) return;
     setOauthSaving(true);
-    engineCall('/oauth/app-config/' + tokenModal.oauthProvider + '?orgId=' + getOrgId(), {
+    engineCall('/oauth/app-config/' + tokenModal.oauthProvider + '?orgId=' + effectiveOrgId, {
       method: 'POST',
       body: JSON.stringify({ clientId: oauthClientId.trim(), clientSecret: oauthClientSecret.trim() })
     })
       .then(function() {
         setOauthAppConfigured(true);
         toast('OAuth app configured for ' + tokenModal.skill.name, 'success');
-        return engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId());
+        return engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + effectiveOrgId);
       })
       .then(function(d) {
         if (d && (d.authUrl || d.authorizationUrl)) {
@@ -336,7 +339,7 @@ export function SkillsPage() {
 
   var launchOauthFlow = function() {
     if (!tokenModal) return;
-    engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + getOrgId())
+    engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + effectiveOrgId)
       .then(function(d) {
         if (d && (d.authUrl || d.authorizationUrl)) {
           var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
@@ -353,7 +356,7 @@ export function SkillsPage() {
 
   var disconnectIntegration = function(int) {
     if (!confirm('Disconnect ' + int.name + '? Agents will lose access to its tools.')) return;
-    engineCall('/oauth/disconnect/' + int.skillId + '?orgId=' + getOrgId(), { method: 'DELETE' })
+    engineCall('/oauth/disconnect/' + int.skillId + '?orgId=' + effectiveOrgId, { method: 'DELETE' })
       .then(function() { toast(int.name + ' disconnected', 'success'); loadIntegrations(); })
       .catch(function(e) { toast('Failed: ' + e.message, 'error'); });
   };
@@ -380,6 +383,7 @@ export function SkillsPage() {
   // ── Builtin Tab ──
   var renderBuiltin = function() {
     return h(Fragment, null,
+    h(orgCtx.Switcher),
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
         h('div', { style: { position: 'relative', flex: 1, maxWidth: 320 } },
           h('input', {

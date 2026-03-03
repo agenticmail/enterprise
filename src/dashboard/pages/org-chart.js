@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 // ─── Inject theme CSS once ───────────────────────────────
 var _injected = false;
@@ -133,6 +134,8 @@ function OrgSummary(props) {
 
 // ─── Main Component ─────────────────────────────────────
 export function OrgChartPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   injectCSS();
   var app = useApp();
   var toast = app.toast;
@@ -151,7 +154,7 @@ export function OrgChartPage() {
     setLoading(true); setError(null);
     Promise.all([
       engineCall('/hierarchy/org-chart').catch(function() { return null; }),
-      engineCall('/agents?orgId=' + getOrgId()).catch(function() { return { agents: [] }; }),
+      engineCall('/agents?orgId=' + effectiveOrgId).catch(function() { return { agents: [] }; }),
     ]).then(function(res) {
       var hierRes = res[0]; var agentRes = res[1];
       var avatarMap = {};
@@ -211,6 +214,7 @@ export function OrgChartPage() {
   );
 
   return h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--oc-bg)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' } },
+    h(orgCtx.Switcher, { style: { margin: '8px 12px 0', borderRadius: 6 } }),
     // Toolbar
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--oc-border)', background: 'var(--oc-toolbar)', flexShrink: 0, flexWrap: 'wrap' } },
       h('div', { style: { fontWeight: 700, fontSize: 14, color: 'var(--oc-text)', display: 'flex', alignItems: 'center', gap: 6 } },
