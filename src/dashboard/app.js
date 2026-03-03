@@ -313,17 +313,19 @@ function App() {
   }, []);
 
   const stopImpersonation = useCallback(() => {
-    if (impersonating && impersonating.originalToken) {
-      localStorage.setItem('em_token', impersonating.originalToken);
-    }
-    setImpersonating(null);
+    setImpersonating(prev => {
+      if (prev && prev.originalToken) {
+        localStorage.setItem('em_token', prev.originalToken);
+      }
+      return null;
+    });
     localStorage.removeItem('em_client_org_id');
     // Reload real user
     authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {});
     apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
     toast('Stopped impersonation', 'success');
     setPage('users');
-  }, [impersonating]);
+  }, []);
 
   return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions, impersonating, startImpersonation, stopImpersonation } },
     h('div', { className: 'app-layout' },

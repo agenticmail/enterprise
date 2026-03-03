@@ -28,13 +28,8 @@ export function OrgContextSwitcher(props) {
       var list = d.organizations || [];
       setOrgs(list);
       setLoaded(true);
-      // Auto-select user's org on first load if org-bound
-      if (userOrgId && !selectedOrgId) {
-        var org = list.find(function(o) { return o.id === userOrgId; });
-        if (org) onOrgChange(userOrgId, org);
-      }
     }).catch(function() { setLoaded(true); });
-  }, [userOrgId]);
+  }, []);
 
   // Don't render if no client orgs and user isn't org-bound
   if (loaded && orgs.length === 0 && !userOrgId) return null;
