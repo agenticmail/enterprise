@@ -129,14 +129,16 @@ export async function runSetupWizard(): Promise<void> {
   const deployTarget = deploymentResult.target;
 
   // ─── Step 4: Custom Domain ───────────────────────
-  // Skip if Cloudflare Tunnel — domain was already configured during tunnel setup
+  // Skip if Cloudflare Tunnel or Cloud — domain was already configured
   const domain = deploymentResult.tunnel
     ? { customDomain: deploymentResult.tunnel.domain }
+    : deploymentResult.cloud
+    ? { customDomain: deploymentResult.cloud.fqdn }
     : await promptDomain(inquirer, chalk, deployTarget);
 
   // ─── Step 5: Domain Registration ─────────────────
-  // Skip for tunnel — DNS is already configured by cloudflared
-  const registration = deploymentResult.tunnel
+  // Skip for tunnel or cloud — DNS is already configured
+  const registration = (deploymentResult.tunnel || deploymentResult.cloud)
     ? { registered: true, verificationStatus: 'verified' as const } as any
     : await promptRegistration(
         inquirer, chalk, ora,
@@ -154,7 +156,7 @@ export async function runSetupWizard(): Promise<void> {
   console.log('');
 
   const result = await provision(
-    { company, database, deployTarget, domain, registration, tunnel: deploymentResult.tunnel },
+    { company, database, deployTarget, domain, registration, tunnel: deploymentResult.tunnel, cloud: deploymentResult.cloud },
     ora,
     chalk,
   );

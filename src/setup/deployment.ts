@@ -16,6 +16,9 @@ const execP = promisify(execCb);
 
 export type DeployTarget = 'cloud' | 'cloudflare-tunnel' | 'fly' | 'railway' | 'docker' | 'local';
 
+const SUBDOMAIN_REGISTRY_URL = process.env.AGENTICMAIL_SUBDOMAIN_REGISTRY_URL
+  || 'https://subdomain-registry.agenticmail.io';
+
 export interface DeploymentSelection {
   target: DeployTarget;
   /** Populated when target is 'cloudflare-tunnel' */
@@ -24,6 +27,14 @@ export interface DeploymentSelection {
     domain: string;
     port: number;
     tunnelName: string;
+  };
+  /** Populated when target is 'cloud' (agenticmail.io subdomain) */
+  cloud?: {
+    subdomain: string;
+    fqdn: string;
+    tunnelId: string;
+    tunnelToken: string;
+    port: number;
   };
 }
 
@@ -67,12 +78,217 @@ export async function promptDeployment(
     ],
   }]);
 
+  if (deployTarget === 'cloud') {
+    const cloud = await runCloudSetup(inquirer, chalk);
+    return { target: deployTarget, cloud };
+  }
+
   if (deployTarget === 'cloudflare-tunnel') {
     const tunnel = await runTunnelSetup(inquirer, chalk);
     return { target: deployTarget, tunnel };
   }
 
   return { target: deployTarget };
+}
+
+// ─── AgenticMail Cloud (Subdomain) Setup ────────────
+
+async function runCloudSetup(
+  inquirer: any,
+  chalk: any,
+): Promise<DeploymentSelection['cloud']> {
+  console.log('');
+  console.log(chalk.bold('  AgenticMail Cloud Setup'));
+  console.log(chalk.dim('  Get a free subdomain on agenticmail.io — no Cloudflare account needed.'));
+  console.log(chalk.dim('  Your instance will be live at https://yourname.agenticmail.io\n'));
+
+  // ── Step 1: Choose subdomain ─────────
+
+  let subdomain = '';
+  let claimResult: any = null;
+
+  while (!subdomain) {
+    const { name } = await inquirer.prompt([{
+      type: 'input',
+      name: 'name',
+      message: 'Choose your subdomain:',
+      suffix: chalk.dim('.agenticmail.io'),
+      validate: (input: string) => {
+        const cleaned = input.toLowerCase().trim();
+        if (cleaned.length < 3) return 'Must be at least 3 characters';
+        if (cleaned.length > 32) return 'Must be 32 characters or fewer';
+        if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(cleaned)) return 'Only lowercase letters, numbers, and hyphens allowed';
+        return true;
+      },
+    }]);
+
+    const cleaned = name.toLowerCase().trim();
+
+    // Check availability
+    process.stdout.write(chalk.dim(`  Checking ${cleaned}.agenticmail.io... `));
+    try {
+      const checkResp = await fetch(`${SUBDOMAIN_REGISTRY_URL}/check?name=${encodeURIComponent(cleaned)}`);
+      const checkData = await checkResp.json() as any;
+
+      if (!checkData.available) {
+        console.log(chalk.red('✗ ' + (checkData.reason || 'Not available')));
+        continue;
+      }
+      console.log(chalk.green('✓ Available!'));
+    } catch (err: any) {
+      console.log(chalk.yellow('⚠ Could not check availability: ' + err.message));
+      console.log(chalk.dim('  Proceeding anyway — the claim step will verify.\n'));
+    }
+
+    // Confirm
+    const { confirmed } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'confirmed',
+      message: `Claim ${chalk.bold(cleaned + '.agenticmail.io')}?`,
+      default: true,
+    }]);
+
+    if (!confirmed) continue;
+
+    // ── Step 2: Claim subdomain ─────────
+
+    // Get or generate vault key hash for recovery
+    const { createHash, randomUUID } = await import('crypto');
+    let vaultKey = process.env.AGENTICMAIL_VAULT_KEY;
+    if (!vaultKey) {
+      vaultKey = randomUUID() + randomUUID();
+      process.env.AGENTICMAIL_VAULT_KEY = vaultKey;
+    }
+    const vaultKeyHash = createHash('sha256').update(vaultKey).digest('hex');
+
+    process.stdout.write(chalk.dim('  Provisioning subdomain... '));
+    try {
+      const claimResp = await fetch(`${SUBDOMAIN_REGISTRY_URL}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: cleaned, vaultKeyHash }),
+      });
+      claimResult = await claimResp.json() as any;
+
+      if (claimResult.error) {
+        console.log(chalk.red('✗ ' + claimResult.error));
+
+        // If they already have a subdomain, offer recovery
+        if (claimResult.error.includes('already has subdomain')) {
+          const { wantsRecover } = await inquirer.prompt([{
+            type: 'confirm',
+            name: 'wantsRecover',
+            message: 'Recover your existing subdomain instead?',
+            default: true,
+          }]);
+          if (wantsRecover) {
+            const recoverResp = await fetch(`${SUBDOMAIN_REGISTRY_URL}/recover`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ vaultKeyHash }),
+            });
+            claimResult = await recoverResp.json() as any;
+            if (claimResult.success) {
+              subdomain = claimResult.subdomain;
+              console.log(chalk.green(`✓ Recovered: ${claimResult.fqdn}`));
+            } else {
+              console.log(chalk.red('✗ Recovery failed: ' + (claimResult.error || 'Unknown error')));
+            }
+          }
+        }
+        continue;
+      }
+
+      if (claimResult.success) {
+        subdomain = claimResult.subdomain || cleaned;
+        if (claimResult.recovered) {
+          console.log(chalk.green('✓ Recovered existing subdomain'));
+        } else {
+          console.log(chalk.green('✓ Subdomain claimed!'));
+        }
+      }
+    } catch (err: any) {
+      console.log(chalk.red('✗ Failed: ' + err.message));
+      console.log(chalk.dim('  Check your internet connection and try again.\n'));
+    }
+  }
+
+  // ── Step 3: Install cloudflared ─────────
+
+  console.log('');
+  console.log(chalk.bold('  Installing cloudflared connector...'));
+
+  let cloudflaredPath = '';
+  try {
+    cloudflaredPath = execSync('which cloudflared', { encoding: 'utf8' }).trim();
+    console.log(chalk.green(`  ✓ cloudflared found at ${cloudflaredPath}`));
+  } catch {
+    console.log(chalk.dim('  cloudflared not found — installing...'));
+    try {
+      const os = platform();
+      if (os === 'darwin') {
+        execSync('brew install cloudflared', { stdio: 'pipe' });
+      } else if (os === 'linux') {
+        const archStr = arch() === 'arm64' ? 'arm64' : 'amd64';
+        execSync(`curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${archStr} -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared`, { stdio: 'pipe' });
+      } else {
+        console.log(chalk.yellow('  Please install cloudflared manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/'));
+      }
+      cloudflaredPath = execSync('which cloudflared', { encoding: 'utf8' }).trim();
+      console.log(chalk.green(`  ✓ cloudflared installed at ${cloudflaredPath}`));
+    } catch (e: any) {
+      console.log(chalk.yellow('  ⚠ Could not auto-install cloudflared.'));
+      console.log(chalk.dim('    Install manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/'));
+    }
+  }
+
+  // ── Step 4: Configure PM2 ─────────
+
+  const port = 3100;
+  const fqdn = claimResult?.fqdn || `${subdomain}.agenticmail.io`;
+  const tunnelToken = claimResult?.tunnelToken;
+  const tunnelId = claimResult?.tunnelId;
+
+  console.log('');
+  console.log(chalk.bold.green('  ✓ Setup Complete!'));
+  console.log('');
+  console.log(`  Your dashboard: ${chalk.bold.cyan('https://' + fqdn)}`);
+  console.log('');
+  console.log(chalk.dim('  To start your instance, run these two processes:'));
+  console.log('');
+  console.log(`    ${chalk.cyan('cloudflared tunnel --no-autoupdate run --token ' + (tunnelToken || '<your-tunnel-token>'))}`);
+  console.log(`    ${chalk.cyan('npx @agenticmail/enterprise start')}`);
+  console.log('');
+  console.log(chalk.dim('  Or let the setup wizard start them with PM2 (next step).\n'));
+
+  // Save tunnel token to .env
+  const envPath = join(homedir(), '.agenticmail', '.env');
+  try {
+    let envContent = '';
+    if (existsSync(envPath)) {
+      envContent = readFileSync(envPath, 'utf8');
+    }
+    if (tunnelToken && !envContent.includes('CLOUDFLARED_TOKEN=')) {
+      envContent += `\nCLOUDFLARED_TOKEN=${tunnelToken}\n`;
+    }
+    if (!envContent.includes('AGENTICMAIL_SUBDOMAIN=')) {
+      envContent += `AGENTICMAIL_SUBDOMAIN=${subdomain}\n`;
+    }
+    if (!envContent.includes('AGENTICMAIL_DOMAIN=')) {
+      envContent += `AGENTICMAIL_DOMAIN=${fqdn}\n`;
+    }
+    const { mkdirSync } = await import('fs');
+    mkdirSync(join(homedir(), '.agenticmail'), { recursive: true });
+    writeFileSync(envPath, envContent, { mode: 0o600 });
+  } catch {}
+
+  return {
+    subdomain,
+    fqdn,
+    tunnelId: tunnelId || '',
+    tunnelToken: tunnelToken || '',
+    port,
+  };
 }
 
 // ─── Cloudflare Tunnel Interactive Setup ────────────

@@ -35,6 +35,13 @@ export interface ProvisionConfig {
     port: number;
     tunnelName: string;
   };
+  cloud?: {
+    subdomain: string;
+    fqdn: string;
+    tunnelId: string;
+    tunnelToken: string;
+    port: number;
+  };
 }
 
 export interface ProvisionResult {
@@ -222,7 +229,7 @@ async function deploy(
   spinner: any,
   chalk: any,
 ): Promise<DeployResult> {
-  const { deployTarget, company, database, domain, tunnel } = config;
+  const { deployTarget, company, database, domain, tunnel, cloud } = config;
 
   // ── Cloudflare Tunnel ─────────────────────────────
   if (deployTarget === 'cloudflare-tunnel' && tunnel) {
@@ -247,21 +254,60 @@ async function deploy(
     return { url: 'https://' + tunnel.domain, close: handle.close };
   }
 
-  // ── Cloud ─────────────────────────────────────────
-  if (deployTarget === 'cloud') {
-    spinner.start('Deploying to AgenticMail Cloud...');
-    const { deployToCloud } = await import('../deploy/managed.js');
-    const result = await deployToCloud({
-      subdomain: company.subdomain,
-      plan: 'free',
-      dbType: database.type,
-      dbConnectionString: database.connectionString || '',
-      jwtSecret,
-    });
-    spinner.succeed(`Deployed to ${result.url}`);
+  // ── Cloud (agenticmail.io subdomain) ───────────────
+  if (deployTarget === 'cloud' && cloud) {
+    spinner.start('Configuring agenticmail.io deployment...');
 
-    printCloudSuccess(chalk, result.url, company.adminEmail, domain.customDomain, company.subdomain);
-    return { url: result.url };
+    // Start cloudflared with the tunnel token via PM2
+    try {
+      const pm2 = await import('pm2' as string);
+      await new Promise<void>((resolve, reject) => {
+        pm2.connect((err: any) => {
+          if (err) { reject(err); return; }
+
+          // Start cloudflared tunnel
+          pm2.start({
+            name: 'cloudflared',
+            script: 'cloudflared',
+            args: `tunnel --no-autoupdate run --token ${cloud.tunnelToken}`,
+            interpreter: 'none',
+            autorestart: true,
+          }, (e: any) => {
+            if (e) console.warn(`PM2 cloudflared start: ${e.message}`);
+
+            // Start enterprise server
+            pm2.start({
+              name: 'enterprise',
+              script: 'npx',
+              args: '@agenticmail/enterprise start',
+              env: {
+                PORT: String(cloud.port || 3100),
+                DATABASE_URL: database.connectionString || '',
+                JWT_SECRET: jwtSecret,
+                AGENTICMAIL_VAULT_KEY: vaultKey,
+                AGENTICMAIL_DOMAIN: cloud.fqdn,
+              },
+              autorestart: true,
+            }, (e2: any) => {
+              pm2.disconnect();
+              if (e2) reject(e2); else resolve();
+            });
+          });
+        });
+      });
+      spinner.succeed(`Live at https://${cloud.fqdn}`);
+    } catch (e: any) {
+      spinner.warn(`PM2 setup failed: ${e.message}`);
+      console.log(`  Start manually:`);
+      console.log(`    cloudflared tunnel --no-autoupdate run --token ${cloud.tunnelToken}`);
+      console.log(`    npx @agenticmail/enterprise start`);
+    }
+
+    console.log('');
+    console.log(`  Dashboard: https://${cloud.fqdn}`);
+    console.log(`  To recover on a new machine, keep your AGENTICMAIL_VAULT_KEY safe.`);
+    console.log('');
+    return { url: `https://${cloud.fqdn}` };
   }
 
   // ── Docker ────────────────────────────────────────
