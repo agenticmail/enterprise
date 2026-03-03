@@ -295,6 +295,11 @@ engine.route('/knowledge-import', createKnowledgeImportRoutes(knowledgeImport));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
 engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
 
+// Database Access system
+import { DatabaseConnectionManager, createDatabaseAccessRoutes } from '../database-access/index.js';
+const databaseManager = new DatabaseConnectionManager({ vault });
+engine.route('/database', createDatabaseAccessRoutes(databaseManager));
+
 // ─── Hierarchy / Management API ─────────────────────────
 engine.get('/hierarchy/org-chart', async (c) => {
   if (!hierarchyManager) return c.json({ error: 'Hierarchy not initialized' }, 503);
@@ -752,6 +757,7 @@ export async function setEngineDb(
     storageManager.setDb(db),
     policyImporter.setDb(db),
     (async () => { (taskQueue as any).db = (db as any)?.db || db; await taskQueue.init(); })(),
+    databaseManager.setDb((db as any)?.db || db),
   ]);
   // Initialize hierarchy manager + start background task monitor
   hierarchyManager = new AgentHierarchyManager(db);
@@ -1026,4 +1032,4 @@ export function setRuntime(runtime: any): void {
 }
 
 export { engine as engineRoutes };
-export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus, hierarchyManager };
+export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus, hierarchyManager, databaseManager };
