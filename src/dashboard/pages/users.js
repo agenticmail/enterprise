@@ -494,6 +494,21 @@ export function UsersPage() {
     setResetting(false);
   };
 
+  var openEditUser = function(u) {
+    setEditUser(u);
+    setEditForm({ name: u.name || '', role: u.role || 'viewer', clientOrgId: u.clientOrgId || '' });
+  };
+
+  var doEditUser = async function() {
+    if (!editUser) return;
+    try {
+      await apiCall('/users/' + editUser.id, { method: 'PATCH', body: JSON.stringify({ name: editForm.name, role: editForm.role, clientOrgId: editForm.clientOrgId || null }) });
+      toast('User updated', 'success');
+      setEditUser(null);
+      load();
+    } catch (e) { toast(e.message || 'Update failed', 'error'); }
+  };
+
   var toggleActive = async function(user) {
     var action = user.isActive === false ? 'reactivate' : 'deactivate';
     var ok = await showConfirm({
@@ -515,6 +530,8 @@ export function UsersPage() {
   var [deleteStep, setDeleteStep] = useState(0);
   var [deleteTarget, setDeleteTarget] = useState(null);
   var [deleteTyped, setDeleteTyped] = useState('');
+  var [editUser, setEditUser] = useState(null);
+  var [editForm, setEditForm] = useState({ name: '', role: '', clientOrgId: '' });
 
   var startDelete = function(user) { setDeleteTarget(user); setDeleteStep(1); setDeleteTyped(''); };
   var cancelDelete = function() { setDeleteTarget(null); setDeleteStep(0); setDeleteTyped(''); };
@@ -655,6 +672,52 @@ export function UsersPage() {
     ),
 
     // Permission editor modal
+    // Edit User modal
+    editUser && h(Modal, {
+      title: 'Edit User — ' + (editUser.name || editUser.email),
+      onClose: function() { setEditUser(null); },
+      width: 420,
+      footer: h(Fragment, null,
+        h('button', { className: 'btn btn-secondary', onClick: function() { setEditUser(null); } }, 'Cancel'),
+        h('button', { className: 'btn btn-primary', onClick: doEditUser }, 'Save Changes')
+      )
+    },
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Name'),
+        h('input', { className: 'input', value: editForm.name, onChange: function(e) { setEditForm(function(f) { return Object.assign({}, f, { name: e.target.value }); }); } })
+      ),
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Role'),
+        h('select', { className: 'input', value: editForm.role, onChange: function(e) { setEditForm(function(f) { return Object.assign({}, f, { role: e.target.value }); }); } },
+          h('option', { value: 'viewer' }, 'Viewer'),
+          h('option', { value: 'member' }, 'Member'),
+          h('option', { value: 'admin' }, 'Admin'),
+          h('option', { value: 'owner' }, 'Owner')
+        ),
+        h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
+          editForm.role === 'owner' ? 'Full access to everything. Cannot be restricted.' :
+          editForm.role === 'admin' ? 'Full access by default. Can be restricted via permissions.' :
+          editForm.role === 'member' ? 'Access controlled by permissions. Can view and act on assigned pages.' :
+          'Read-only access. Can view but not modify.'
+        )
+      ),
+      clientOrgs.length > 0 && h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Client Organization'),
+        h('select', { className: 'input', value: editForm.clientOrgId, onChange: function(e) { setEditForm(function(f) { return Object.assign({}, f, { clientOrgId: e.target.value }); }); } },
+          h('option', { value: '' }, 'None (Internal User)'),
+          clientOrgs.filter(function(o) { return o.is_active !== false; }).map(function(o) {
+            return h('option', { key: o.id, value: o.id }, o.name);
+          })
+        ),
+        editForm.clientOrgId && h('div', { style: { fontSize: 11, color: 'var(--warning, #f59e0b)', marginTop: 4 } },
+          'This user will only see agents and data from this organization.'
+        )
+      ),
+      h('div', { style: { fontSize: 12, color: 'var(--text-muted)', padding: '8px 0', borderTop: '1px solid var(--border)', marginTop: 8 } },
+        'Email: ', h('code', null, editUser.email), ' (cannot be changed)'
+      )
+    ),
+
     permTarget && pageRegistry && h(PermissionEditor, {
       userId: permTarget.id,
       userName: permTarget.name || permTarget.email,
@@ -768,6 +831,7 @@ export function UsersPage() {
                 h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'),
                 h('td', null,
                   h('div', { style: { display: 'flex', gap: 4 } },
+                    h('button', { className: 'btn btn-ghost btn-sm', title: 'Edit User', onClick: function() { openEditUser(u); } }, I.edit()),
                     h('button', {
                       className: 'btn btn-ghost btn-sm',
                       title: isRestricted ? 'Edit Permissions' : 'Permissions (Owner/Admin have full access)',

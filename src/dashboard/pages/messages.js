@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } , apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
@@ -22,7 +22,7 @@ export function MessagesPage() {
     engineCall('/messages?orgId=' + effectiveOrgId + '&limit=100').then(d => setMessages(d.messages || [])).catch(() => {});
   };
   const loadAgents = () => {
-    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
+    apiCall('/agents' + (orgCtx.selectedOrgId ? '?clientOrgId=' + orgCtx.selectedOrgId : '')).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   const loadTopology = () => {
     engineCall('/messages/topology?orgId=' + effectiveOrgId).then(d => setTopology(d.topology || null)).catch(() => {});

@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } , apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { TimezoneSelect } from '../components/timezones.js';
 import { HelpButton } from '../components/help-button.js';
@@ -47,7 +47,7 @@ export function WorkforcePage() {
       setSchedules(schedulesRes.schedules || []);
       setBudgetData(budgetRes);
       setClockRecords(recordsRes.records || []);
-      engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
+      apiCall('/agents' + (orgCtx.selectedOrgId ? '?clientOrgId=' + orgCtx.selectedOrgId : '')).then(d => setAgents(d.agents || [])).catch(() => {});
     } catch (err) { toast('Failed to load workforce data', 'error'); }
     setLoading(false);
   };

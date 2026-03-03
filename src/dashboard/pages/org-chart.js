@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, getOrgId } , apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
@@ -154,7 +154,7 @@ export function OrgChartPage() {
     setLoading(true); setError(null);
     Promise.all([
       engineCall('/hierarchy/org-chart').catch(function() { return null; }),
-      engineCall('/agents?orgId=' + effectiveOrgId).catch(function() { return { agents: [] }; }),
+      apiCall('/agents' + (orgCtx.selectedOrgId ? '?clientOrgId=' + orgCtx.selectedOrgId : '')).catch(function() { return { agents: [] }; }),
     ]).then(function(res) {
       var hierRes = res[0]; var agentRes = res[1];
       var avatarMap = {};

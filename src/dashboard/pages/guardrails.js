@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId } , apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
@@ -104,7 +104,7 @@ export function GuardrailsPage() {
   var _ag = useState([]);
   var agents = _ag[0]; var setAgents = _ag[1];
   useEffect(function() {
-    engineCall('/agents?orgId=' + effectiveOrgId).then(function(d) { setAgents(d.agents || []); }).catch(function() {});
+    apiCall('/agents' + (orgCtx.selectedOrgId ? '?clientOrgId=' + orgCtx.selectedOrgId : '')).then(function(d) { setAgents(d.agents || []); }).catch(function() {});
   }, []);
 
   var TABS = [

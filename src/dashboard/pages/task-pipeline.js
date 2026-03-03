@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, getOrgId } , apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
@@ -440,7 +440,7 @@ export function TaskPipelinePage() {
   var app = useApp();
   var toast = app.toast;
   var orgCtx = useOrgContext();
-  var effectiveOrgId = orgCtx.selectedOrgId || effectiveOrgId;
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var _tasks = useState([]);
   var tasks = _tasks[0]; var setTasks = _tasks[1];
   var _stats = useState({ created: 0, assigned: 0, inProgress: 0, completed: 0, failed: 0, cancelled: 0, total: 0, todayCompleted: 0, todayFailed: 0, todayCreated: 0, avgDurationMs: 0, totalCost: 0, totalTokens: 0, topAgents: [] });
@@ -477,16 +477,26 @@ export function TaskPipelinePage() {
     Promise.all([
       engineCall('/task-pipeline?limit=200'),
       engineCall('/task-pipeline/stats'),
-      engineCall('/agents?orgId=' + effectiveOrgId).catch(function() { return { agents: [] }; }),
+      apiCall('/agents' + (orgCtx.selectedOrgId ? '?clientOrgId=' + orgCtx.selectedOrgId : '')).catch(function() { return { agents: [] }; }),
     ]).then(function(res) {
-      setTasks(res[0]?.tasks || []);
-      setStats(res[1] || stats);
+      var allTasks = res[0]?.tasks || [];
+      var orgAgents = res[2]?.agents || [];
       // Build agent avatar/name map
       var map = {};
-      (res[2]?.agents || []).forEach(function(a) {
-        map[a.id] = { name: a.config?.name || a.id, avatar: a.config?.identity?.avatar || a.config?.avatar || a.config?.persona?.avatar || null };
+      orgAgents.forEach(function(a) {
+        map[a.id] = { name: a.config?.name || a.name || a.id, avatar: a.config?.identity?.avatar || a.config?.avatar || a.config?.persona?.avatar || null };
       });
       setAgentMap(map);
+      // Filter tasks by org's agents when org is selected
+      if (orgCtx.selectedOrgId && orgAgents.length > 0) {
+        var agentIds = {};
+        orgAgents.forEach(function(a) { agentIds[a.id] = true; });
+        allTasks = allTasks.filter(function(t) { return agentIds[t.assignedAgent] || agentIds[t.createdBy]; });
+      } else if (orgCtx.selectedOrgId && orgAgents.length === 0) {
+        allTasks = []; // No agents in this org = no tasks
+      }
+      setTasks(allTasks);
+      setStats(res[1] || stats);
     }).catch(function(err) { console.error('[TaskPipeline]', err); })
       .finally(function() { setLoading(false); });
   }, [effectiveOrgId]);

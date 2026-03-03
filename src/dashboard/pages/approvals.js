@@ -1,4 +1,4 @@
-import { h, useState, useEffect, Fragment, useApp, engineCall, showConfirm, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, Fragment, useApp, engineCall, showConfirm, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } , apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
@@ -16,7 +16,7 @@ export function ApprovalsPage() {
   const load = () => {
     engineCall('/approvals/pending').then(d => setPending(d.requests || [])).catch(() => {});
     engineCall('/approvals/history?limit=50').then(d => setHistory(d.requests || [])).catch(() => {});
-    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
+    apiCall('/agents' + (orgCtx.selectedOrgId ? '?clientOrgId=' + orgCtx.selectedOrgId : '')).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(() => { load(); }, []);
 

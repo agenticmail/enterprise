@@ -42,7 +42,7 @@ export function KnowledgeContributionsPage() {
   var [searchAgentFilter, setSearchAgentFilter] = useState('');
 
   // Effective org ID: uses client org if selected, else default
-  var effectiveOrgId = orgCtx.selectedOrgId || effectiveOrgId;
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
 
   var loadBases = useCallback(function() {
     Promise.all([

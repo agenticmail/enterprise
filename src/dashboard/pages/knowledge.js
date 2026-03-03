@@ -17,7 +17,7 @@ export function KnowledgeBasePage() {
   const [chunks, setChunks] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', description: '' });
+  const [editForm, setEditForm] = useState({ name: '', description: '', clientOrgId: '' });
   const [loading, setLoading] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importKb, setImportKb] = useState(null);
@@ -54,7 +54,7 @@ export function KnowledgeBasePage() {
       setDocs(kbData.documents || []);
       setChunks([]);
       setSelectedDoc(null);
-      setEditForm({ name: kbData.name || '', description: kbData.description || '' });
+      setEditForm({ name: kbData.name || '', description: kbData.description || '', clientOrgId: kbData.clientOrgId || '' });
     } catch (e) {
       toast('Failed to load knowledge base: ' + e.message, 'error');
     }
@@ -122,9 +122,9 @@ export function KnowledgeBasePage() {
   const saveEdit = async () => {
     if (!selected) return;
     try {
-      await engineCall('/knowledge-bases/' + selected.id, { method: 'PUT', body: JSON.stringify({ name: editForm.name, description: editForm.description }) });
+      await engineCall('/knowledge-bases/' + selected.id, { method: 'PUT', body: JSON.stringify({ name: editForm.name, description: editForm.description, clientOrgId: editForm.clientOrgId || null }) });
       toast('Knowledge base updated', 'success');
-      setSelected(s => ({ ...s, name: editForm.name, description: editForm.description }));
+      setSelected(s => ({ ...s, name: editForm.name, description: editForm.description, clientOrgId: editForm.clientOrgId }));
       setEditing(false);
       load();
     } catch (e) { toast(e.message, 'error'); }
@@ -171,7 +171,16 @@ export function KnowledgeBasePage() {
       h('div', { className: 'card', style: { marginBottom: 16 } },
         h('div', { className: 'card-body' },
           editing
-            ? h('textarea', { className: 'input', rows: 3, value: editForm.description, onChange: e => setEditForm(f => ({ ...f, description: e.target.value })), placeholder: 'Knowledge base description...' })
+            ? h(Fragment, null,
+                h('textarea', { className: 'input', rows: 3, value: editForm.description, onChange: e => setEditForm(f => ({ ...f, description: e.target.value })), placeholder: 'Knowledge base description...', style: { marginBottom: 8 } }),
+                clientOrgs.length > 0 && h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                  h('label', { style: { fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' } }, 'Organization:'),
+                  h('select', { className: 'input', value: editForm.clientOrgId, onChange: e => setEditForm(f => ({ ...f, clientOrgId: e.target.value })), style: { fontSize: 12, maxWidth: 250 } },
+                    h('option', { value: '' }, 'My Organization (internal)'),
+                    clientOrgs.filter(o => o.is_active !== false).map(o => h('option', { key: o.id, value: o.id }, o.name))
+                  )
+                )
+              )
             : h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, margin: 0 } }, selected.description || 'No description'),
           h('div', { style: { display: 'flex', gap: 12, marginTop: 12, fontSize: 12, color: 'var(--text-muted)' } },
             h('span', null, 'ID: ', h('code', null, selected.id)),

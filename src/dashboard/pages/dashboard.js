@@ -48,7 +48,7 @@ export function SetupChecklist({ onNavigate }) {
 
 export function DashboardPage() {
   var orgCtx = useOrgContext();
-  var effectiveOrgId = orgCtx.selectedOrgId || effectiveOrgId;
+  var clientOrgFilter = orgCtx.selectedOrgId || '';
   const [stats, setStats] = useState(null);
   const [agents, setAgents] = useState([]);
   const [events, setEvents] = useState([]);
@@ -59,11 +59,12 @@ export function DashboardPage() {
   var selectedEvent = _selectedEvent[0]; var setSelectedEvent = _selectedEvent[1];
 
   useEffect(() => {
+    var agentUrl = clientOrgFilter ? '/agents?clientOrgId=' + clientOrgFilter : '/agents';
     apiCall('/stats').then(setStats).catch(() => {});
-    apiCall('/agents').then(d => setAgents(d.agents || d || [])).catch(() => {});
-    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setEngineAgents(d.agents || [])).catch(() => {});
+    apiCall(agentUrl).then(d => setAgents(d.agents || d || [])).catch(() => {});
+    engineCall('/agents?orgId=' + getOrgId()).then(d => setEngineAgents(d.agents || [])).catch(() => {});
     engineCall('/activity/events?limit=10').then(d => setEvents(d.events || [])).catch(() => {});
-  }, [effectiveOrgId]);
+  }, [clientOrgFilter]);
 
   // Merge admin + engine agents; engine agents (appended last) win in the data map
   var mergedForMap = [].concat(agents, engineAgents);
@@ -81,7 +82,7 @@ export function DashboardPage() {
     h('div', { className: 'stat-grid' },
       h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Total Agents', h(HelpButton, { label: 'Total Agents' },
         h('p', null, 'The total number of agents created in your organization, including active, paused, and archived agents.')
-      )), h('div', { className: 'stat-value' }, stats?.totalAgents ?? agents.length ?? '-')),
+      )), h('div', { className: 'stat-value' }, clientOrgFilter ? agents.length : (stats?.totalAgents ?? agents.length ?? '-'))),
       h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Active Agents', h(HelpButton, { label: 'Active Agents' },
         h('p', null, 'Agents currently running and available to process tasks. If this is lower than Total Agents, some agents may be paused or archived.')
       )), h('div', { className: 'stat-value', style: { color: 'var(--success)' } }, (stats?.activeAgents ?? agents.filter(function(a) { return a.status === 'active'; }).length) || '-')),

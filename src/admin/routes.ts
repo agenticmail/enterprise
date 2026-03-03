@@ -216,10 +216,16 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
   api.get('/agents', async (c) => {
     const status = c.req.query('status') as any;
+    const clientOrgId = c.req.query('clientOrgId') || '';
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200);
     const offset = Math.max(parseInt(c.req.query('offset') || '0'), 0);
-    const agents = await db.listAgents({ status, limit, offset });
-    const total = await db.countAgents(status);
+    let agents = await db.listAgents({ status, limit, offset });
+    let total = await db.countAgents(status);
+    // Filter by client org if requested
+    if (clientOrgId) {
+      agents = agents.filter((a: any) => a.client_org_id === clientOrgId);
+      total = agents.length;
+    }
     return c.json({ agents, total, limit, offset });
   });
 
