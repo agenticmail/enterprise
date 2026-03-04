@@ -325,6 +325,8 @@ export function transportEncryptionMiddleware() {
 
       try {
         const response = c.res;
+        // Skip if already encrypted (prevent double encryption)
+        if (response.headers.get('x-transport-encrypted') === '1') return;
         const resContentType = response.headers.get('content-type') || '';
 
         // Only encrypt JSON responses (skip SSE, streams, etc.)

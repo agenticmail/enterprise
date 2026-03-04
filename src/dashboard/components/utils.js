@@ -88,13 +88,17 @@ export function apiCall(path, opts = {}) {
     const d = await r.json().catch(() => ({}));
 
     // Decrypt response if it contains encrypted payload
-    if (d && d._enc && typeof d._enc === 'string' && te && te.isReady()) {
-      try {
-        const decrypted = await te.decryptPayload(d._enc);
-        if (!r.ok) throw new Error(decrypted?.error || r.statusText);
-        if (decrypted) return decrypted;
-      } catch (e) {
-        if (e.message) throw e;
+    if (d && d._enc && typeof d._enc === 'string') {
+      const _te = window.__transportEncryption;
+      if (_te) {
+        if (!_te.isReady()) await _te.waitForReady();
+        try {
+          const decrypted = await _te.decryptPayload(d._enc);
+          if (!r.ok) throw new Error(decrypted?.error || r.statusText);
+          if (decrypted) return decrypted;
+        } catch (e) {
+          if (e.message) throw e;
+        }
       }
     }
 
