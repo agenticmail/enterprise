@@ -75,13 +75,16 @@ const ENDPOINT_GROUPS: Record<string, string[]> = {
 /** Build effective endpoint patterns from config */
 // Endpoints that must NEVER be encrypted (streams, high-frequency, health)
 const NEVER_ENCRYPT: string[] = [
-  '/api/engine/agents/*/status',   // SSE stream
-  '/api/engine/agents/*/logs',     // SSE stream
-  '/api/engine/events',            // SSE stream
+  // SSE streams (EventSource can't add custom headers)
+  '/api/engine/agent-status-stream',
+  '/api/engine/agents/*/status',
+  '/api/engine/agents/*/logs',
+  '/api/engine/activity/stream',
+  '/api/engine/events',
+  '/api/engine/task-pipeline/stream',
+  // Health/ping
   '/api/health',
   '/api/ping',
-  '/api/providers/*/models',       // high-frequency, non-sensitive
-  '/api/engine/approvals/pending', // polled frequently
 ];
 
 function isNeverEncrypt(path: string): boolean {
@@ -98,9 +101,9 @@ function buildActivePatterns(config: TransportEncryptionConfig): string[] {
   // Legacy: if sensitiveEndpoints is set directly, use those
   if (config.sensitiveEndpoints?.length) return config.sensitiveEndpoints;
 
-  // encryptAll: enable ALL groups (not a raw wildcard — too dangerous for streams)
+  // encryptAll: wildcard — encrypt all API/auth calls (NEVER_ENCRYPT list handles exclusions)
   if (config.encryptAll) {
-    const all: string[] = Object.values(ENDPOINT_GROUPS).flat();
+    const all: string[] = ['/api/*', '/auth/*'];
     if (config.customEndpoints?.length) all.push(...config.customEndpoints);
     return all;
   }

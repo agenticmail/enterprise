@@ -167,11 +167,8 @@ var ENDPOINT_GROUPS = {
 
 function buildPatterns(config) {
   if (config.encryptAll) {
-    // Encrypt all defined groups (not raw wildcard — would break SSE/streams)
-    var all = [];
-    Object.keys(ENDPOINT_GROUPS).forEach(function(k) {
-      all = all.concat(ENDPOINT_GROUPS[k]);
-    });
+    // Encrypt all API/auth calls (server NEVER_ENCRYPT list handles exclusions)
+    var all = ['/api/*', '/auth/*'];
     if (config.customEndpoints) all = all.concat(config.customEndpoints);
     return all;
   }
