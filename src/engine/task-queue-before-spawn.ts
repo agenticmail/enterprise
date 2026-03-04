@@ -27,6 +27,7 @@ export interface BeforeSpawnContext {
   priority?: TaskPriority;
   estimatedDurationMs?: number;
   source?: string;           // 'telegram' | 'whatsapp' | 'email' | 'google_chat' | 'internal' | 'api'
+  deliveryContext?: { channel: string; chatId: string; replyToMessageId?: string; [key: string]: any } | null;
 }
 
 /**
@@ -102,6 +103,7 @@ export async function beforeSpawn(
     fallbackModel: ctx.fallbackModel,
     estimatedDurationMs: ctx.estimatedDurationMs,
     source: ctx.source,
+    deliveryContext: ctx.deliveryContext || undefined,
   });
 
   // Immediately mark as assigned

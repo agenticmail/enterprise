@@ -3,6 +3,7 @@ import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function SetupChecklist({ onNavigate }) {
   const [status, setStatus] = useState(null);
@@ -79,6 +80,10 @@ export function DashboardPage() {
   return h(Fragment, null,
     h(orgCtx.Switcher),
     h(SetupChecklist, { onNavigate: function(pg) { if (navTo) navTo(pg); } }),
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 } },
+      h('h1', { style: { fontSize: 20, fontWeight: 700, margin: 0 } }, 'Dashboard'),
+      h(KnowledgeLink, { page: 'dashboard' })
+    ),
     h('div', { className: 'stat-grid' },
       h('div', { className: 'stat-card' }, h('div', { className: 'stat-label', style: { display: 'flex', alignItems: 'center' } }, 'Total Agents', h(HelpButton, { label: 'Total Agents' },
         h('p', null, 'The total number of agents created in your organization, including active, paused, and archived agents.')

@@ -6,10 +6,10 @@ import { resolveManager } from './manager.js?v=4';
 import { HelpButton } from '../../components/help-button.js';
 
 var CATEGORY_COLORS = {
-  code_of_conduct: '#6366f1', communication: '#0ea5e9', data_handling: '#f59e0b',
+  code_of_conduct: '#6366f1', communication: '#0ea5e9', data_handling: '#991b1b',
   brand_voice: '#9d174d', security: '#ef4444', escalation: '#8b5cf6', custom: '#64748b'
 };
-var ENFORCEMENT_COLORS = { mandatory: '#ef4444', recommended: '#f59e0b', informational: '#0ea5e9' };
+var ENFORCEMENT_COLORS = { mandatory: '#ef4444', recommended: '#991b1b', informational: '#0ea5e9' };
 
 // ════════════════════════════════════════════════════════════
 // OVERVIEW SECTION
@@ -364,7 +364,7 @@ export function OverviewSection(props) {
     ),
 
     // ─── Organization & Knowledge Access ──────────────────
-    h(OrgAndKnowledgeCards, { agentId: agentId, agent: agent, engineAgent: engineAgent, toast: toast }),
+    h(OrgAndKnowledgeCards, { agentId: agentId, agent: agent, engineAgent: engineAgent, toast: toast, reload: reload }),
 
     // ─── Real-Time Status Card ────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
@@ -656,6 +656,7 @@ function _timeAgo(ts) {
 function OrgAndKnowledgeCards(props) {
   var agentId = props.agentId;
   var toast = props.toast;
+  var reload = props.reload;
 
   var _orgs = useState([]);
   var orgs = _orgs[0]; var setOrgs = _orgs[1];
@@ -682,24 +683,98 @@ function OrgAndKnowledgeCards(props) {
     }).catch(function() {});
     // Load knowledge access
     apiCall('/agents/' + agentId + '/knowledge-access').then(function(d) { setKaGrants(d.grants || []); }).catch(function() {});
-    // Load knowledge bases
-    engineCall('/knowledge').then(function(d) { setKbs(d.knowledgeBases || d || []); }).catch(function() {});
+    // Load knowledge bases for this agent (chain after agent load to get org)
+    apiCall('/agents/' + agentId).then(function(a2) {
+      var clientOrg = a2 && (a2.client_org_id || a2.clientOrgId) || '';
+      var kbUrl = '/knowledge-bases?agentId=' + agentId + (clientOrg ? '&clientOrgId=' + clientOrg : '');
+      return engineCall(kbUrl);
+    }).then(function(d) { setKbs(d.knowledgeBases || d || []); }).catch(function() {});
   }, [agentId]);
 
-  var assignOrg = function(orgId) {
-    if (!orgId) {
+  var assignOrg = async function(newOrgId) {
+    var currentOrgId = selOrg || (currentOrg && currentOrg.id) || '';
+    var isReassignment = !!currentOrgId && newOrgId !== currentOrgId;
+    var isUnassign = !newOrgId;
+
+    // Skip if no actual change
+    if (newOrgId === currentOrgId) return;
+    if (isUnassign && !currentOrgId) return;
+
+    // Immediately update dropdown so it doesn't visually revert
+    setSelOrg(newOrgId);
+
+    var targetOrgName = isUnassign ? null : (orgs.find(function(o) { return o.id === newOrgId; }) || {}).name || newOrgId;
+    var currentOrgName = currentOrg ? currentOrg.name : currentOrgId;
+    var agentName = (props.agent && (props.agent.name || props.agent.id)) || agentId;
+
+    // Show confirmation modal for ANY org change
+    var isNewAssignment = !currentOrgId && !!newOrgId;
+    var needsConfirm = isReassignment || (isUnassign && currentOrgId) || isNewAssignment;
+    if (needsConfirm) {
+      var title = isUnassign ? 'Unassign from Organization'
+        : isReassignment ? 'Reassign to Different Organization'
+        : 'Assign to Organization';
+      var message = isUnassign
+        ? 'This will remove "' + agentName + '" from "' + currentOrgName + '".\n\nThe following will be cleared:\n\n' +
+          '\u2022 Email configuration (IMAP/SMTP/OAuth) inherited from the organization\n' +
+          '\u2022 Per-agent skill credentials scoped to the previous organization\n' +
+          '\u2022 Organization-level integration access\n\n' +
+          'Knowledge base assignments may also need to be updated manually.'
+        : isReassignment
+          ? 'This will move "' + agentName + '" from "' + currentOrgName + '" to "' + targetOrgName + '".\n\nThe following will be cleared:\n\n' +
+            '\u2022 Email configuration (IMAP/SMTP/OAuth) from the previous organization\n' +
+            '\u2022 Per-agent skill credentials scoped to "' + currentOrgName + '"\n' +
+            '\u2022 Previous organization-level integration access\n\n' +
+            'The agent will inherit integrations and credentials from "' + targetOrgName + '" instead.'
+          : 'This will assign "' + agentName + '" to "' + targetOrgName + '".\n\nThe following will happen:\n\n' +
+            '\u2022 Any existing email configuration will be cleared\n' +
+            '\u2022 The agent will inherit email and integration credentials from "' + targetOrgName + '"\n' +
+            '\u2022 Knowledge bases for "' + targetOrgName + '" will be auto-assigned\n\n' +
+            'Make sure "' + targetOrgName + '" has its integrations configured in the Organizations page.';
+
+      var ok = false;
+      if (window.__showConfirm) {
+        try {
+          ok = await window.__showConfirm({
+            title: title,
+            message: message,
+            danger: true,
+            confirmText: isUnassign ? 'Unassign & Clear Credentials' : isReassignment ? 'Reassign & Clear Credentials' : 'Assign to Organization'
+          });
+        } catch (e) {
+          console.error('[assignOrg] __showConfirm threw:', e);
+          ok = false;
+        }
+      } else {
+        ok = confirm(title + '\n\n' + message);
+      }
+      if (!ok) {
+        // User cancelled — revert the dropdown
+        setSelOrg(currentOrgId);
+        return;
+      }
+    }
+
+    if (isUnassign) {
       setActing('unassign');
-      apiCall('/agents/' + agentId + '/unassign-org', { method: 'POST' }).then(function() {
-        setCurrentOrg(null); setSelOrg(''); toast('Organization unassigned', 'success');
+      apiCall('/agents/' + agentId + '/unassign-org', { method: 'POST' }).then(function(d) {
+        setCurrentOrg(null); setSelOrg('');
+        var msg = 'Organization unassigned';
+        if (d.credentialsCleared > 0) msg += ' (' + d.credentialsCleared + ' credential(s) cleared)';
+        toast(msg, 'success');
+        if (reload) reload();
       }).catch(function(e) { toast(e.message, 'error'); }).finally(function() { setActing(''); });
       return;
     }
     setActing('assign');
-    apiCall('/agents/' + agentId + '/assign-org', { method: 'POST', body: JSON.stringify({ orgId: orgId }) }).then(function() {
-      setSelOrg(orgId);
-      var org = orgs.find(function(o) { return o.id === orgId; });
+    apiCall('/agents/' + agentId + '/assign-org', { method: 'POST', body: JSON.stringify({ orgId: newOrgId }) }).then(function(d) {
+      setSelOrg(newOrgId);
+      var org = orgs.find(function(o) { return o.id === newOrgId; });
       setCurrentOrg(org || null);
-      toast('Organization assigned', 'success');
+      var msg = 'Organization assigned';
+      if (d.reassigned && d.credentialsCleared > 0) msg = 'Reassigned (' + d.credentialsCleared + ' old credential(s) cleared)';
+      toast(msg, 'success');
+      if (reload) reload();
     }).catch(function(e) { toast(e.message, 'error'); }).finally(function() { setActing(''); });
   };
 

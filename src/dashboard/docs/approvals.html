@@ -1,0 +1,200 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Approvals — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Approvals</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Human-in-the-loop checkpoint for sensitive agent actions</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#pending-tab">Pending Approvals</a></li>
+    <li><a href="#history-tab">Approval History</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> The Approvals page is your safety net. When an agent tries to do something sensitive — like sending an email, making a financial transaction, or deleting data — it pauses and asks for your permission here. You see what the agent wants to do, why, and how risky it is. Then you approve or reject. The agent only proceeds if you say yes.
+</div>
+
+<p>The Approvals page (<code>ApprovalsPage</code>) implements the human-in-the-loop approval workflow for AgenticMail Enterprise. When agents attempt actions that match configured approval policies (based on risk level or side effect type), the action is paused, a request is created, and it appears in the pending queue for human review. The page has two tabs: Pending (requests awaiting decision) and History (past decisions).</p>
+
+<p>The page is organization-aware — when an org is selected via the context switcher, only agents from that org show approval requests.</p>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Agent triggers a sensitive action</strong> — For example, sending an email, executing code, or making a financial API call.</li>
+  <li><strong>System checks approval policy</strong> — Based on the agent's permission configuration (risk level thresholds and side effect types).</li>
+  <li><strong>Request is created</strong> — If approval is required, the action is paused and a request appears in the Pending tab with full context.</li>
+  <li><strong>Admin reviews and decides</strong> — Click Approve or Reject. A rejection prompts a confirmation dialog.</li>
+  <li><strong>Agent resumes or aborts</strong> — Approved actions are executed; rejected actions are cancelled. The agent receives the decision and adapts accordingly.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Risk Levels</h3>
+<table>
+  <thead><tr><th>Level</th><th>Badge</th><th>Examples</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Low</strong></td><td><span class="badge badge-easy">low</span></td><td>Reading data, searching, internal queries</td></tr>
+    <tr><td><strong>Medium</strong></td><td><span class="badge badge-medium">medium</span></td><td>Sending messages, modifying files, updating records</td></tr>
+    <tr><td><strong>High</strong></td><td><span class="badge badge-advanced">high</span></td><td>Sending external emails, executing code, API calls to third parties</td></tr>
+    <tr><td><strong>Critical</strong></td><td><span class="badge badge-advanced">critical</span></td><td>Financial transactions, data deletion, device control</td></tr>
+  </tbody>
+</table>
+
+<h3>Approval Request Fields</h3>
+<table>
+  <thead><tr><th>Field</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>type</code></td><td>The action type (e.g., "send-email", "execute-code", "delete-record")</td></tr>
+    <tr><td><code>description</code></td><td>Human-readable explanation of what the agent wants to do</td></tr>
+    <tr><td><code>context</code></td><td>Additional context data (JSON) about the action parameters</td></tr>
+    <tr><td><code>agentId</code></td><td>Which agent initiated the request</td></tr>
+    <tr><td><code>riskLevel</code></td><td>Assessed risk level of the action</td></tr>
+  </tbody>
+</table>
+
+<h2 id="pending-tab">Pending Approvals</h2>
+
+<p>The Pending tab shows all requests awaiting a decision. Each request is rendered as a card with:</p>
+<ul>
+  <li><strong>Action type</strong> — Bold header showing what the agent wants to do</li>
+  <li><strong>Description</strong> — Detailed explanation or JSON context of the action</li>
+  <li><strong>Agent badge</strong> — Shows which agent made the request (with avatar and name)</li>
+  <li><strong>Risk level badge</strong> — Color-coded risk assessment</li>
+  <li><strong>Approve button</strong> — Green, immediately approves and resumes the agent</li>
+  <li><strong>Reject button</strong> — Red, shows a confirmation dialog before rejecting</li>
+</ul>
+
+<p>When no pending requests exist, an empty state is displayed: "No pending approvals — When agents need approval for sensitive actions, they'll appear here."</p>
+
+<div class="warning">
+  <strong>Pending count badge:</strong> The Pending tab label includes a red badge showing the number of waiting requests. This is visible in the tab bar so you can quickly see if attention is needed.
+</div>
+
+<h2 id="history-tab">Approval History</h2>
+
+<p>The History tab shows the last 50 resolved requests in a table format:</p>
+
+<table>
+  <thead><tr><th>Column</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Type</td><td>The action type that was requested</td></tr>
+    <tr><td>Agent</td><td>Agent badge with name/avatar</td></tr>
+    <tr><td>Decision</td><td>Green "approved" or red "rejected" badge</td></tr>
+    <tr><td>By</td><td>Who made the decision (e.g., "admin")</td></tr>
+    <tr><td>Date</td><td>When the decision was made</td></tr>
+  </tbody>
+</table>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>Approval policies are configured per-agent during creation (Step 4: Permissions in the Create Agent Wizard) or in the agent detail view. Key settings:</p>
+
+<pre><code>// Agent permission configuration
+{
+  "requireApproval": {
+    "enabled": true,
+    "forRiskLevels": ["high", "critical"],
+    "forSideEffects": ["sends-email", "sends-message", "financial"],
+    "approvers": [],
+    "timeoutMinutes": 60
+  }
+}</code></pre>
+
+<table>
+  <thead><tr><th>Setting</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>enabled</code></td><td>Master toggle for approval requirements</td></tr>
+    <tr><td><code>forRiskLevels</code></td><td>Which risk levels require approval (array of: low, medium, high, critical)</td></tr>
+    <tr><td><code>forSideEffects</code></td><td>Which side effect types require approval (sends-email, sends-message, sends-sms, posts-social, runs-code, financial)</td></tr>
+    <tr><td><code>timeoutMinutes</code></td><td>How long the agent waits for approval before timing out (default: 60)</td></tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>Approval timeout:</strong> If an approval request isn't acted upon within the timeout period, the action is automatically rejected and the agent is notified. This prevents agents from hanging indefinitely on unapproved actions.
+</div>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/engine/approvals/pending</code></td><td>GET</td><td>List all pending approval requests</td></tr>
+    <tr><td><code>/api/engine/approvals/history</code></td><td>GET</td><td>List resolved requests (supports <code>?limit=</code>)</td></tr>
+    <tr><td><code>/api/engine/approvals/{id}/decide</code></td><td>POST</td><td>Approve or reject a request</td></tr>
+  </tbody>
+</table>
+
+<h3>Decision Payload</h3>
+<pre><code>POST /api/engine/approvals/{requestId}/decide
+Content-Type: application/json
+
+{
+  "decision": "approved",     // or "rejected"
+  "decidedBy": "admin",
+  "reason": "Optional explanation for the decision"
+}</code></pre>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Start strict, loosen gradually</strong> — Begin with approvals required for all medium+ risk levels. As you build trust with specific agents, lower the threshold.</li>
+  <li><strong>Check the pending queue regularly</strong> — Agents are blocked while waiting for approval. Long waits degrade the agent's responsiveness.</li>
+  <li><strong>Use per-agent policies</strong> — A well-tested support agent may need fewer approvals than a newly created agent.</li>
+  <li><strong>Review history periodically</strong> — Patterns in approvals/rejections reveal whether permission settings need adjustment.</li>
+  <li><strong>Set appropriate timeouts</strong> — 60 minutes is the default. For time-sensitive actions, consider shorter timeouts with fallback behavior.</li>
+  <li><strong>Use the org context switcher</strong> — If managing multiple clients, filter by organization to focus on one client's requests at a time.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h4>Agent is "stuck" waiting for approval</h4>
+  <p>Check the Pending tab — there may be an unresolved request. If the request has timed out, the agent should have received a rejection notification. Restart the agent if it remains stuck.</p>
+</div>
+
+<div class="card">
+  <h4>Actions happen without approval</h4>
+  <p>Check the agent's permission configuration: (1) Is <code>requireApproval.enabled</code> set to <code>true</code>? (2) Does the action's risk level or side effect type match the configured thresholds? Actions below the configured levels won't trigger approval requests.</p>
+</div>
+
+<div class="card">
+  <h4>Too many approval requests flooding the queue</h4>
+  <p>Lower the approval sensitivity. Change <code>forRiskLevels</code> from <code>["medium", "high", "critical"]</code> to <code>["high", "critical"]</code> to reduce volume while maintaining safety for high-risk actions.</p>
+</div>
+
+<div class="card">
+  <h4>Reject confirmation dialog doesn't appear</h4>
+  <p>The reject action uses the system's <code>showConfirm</code> utility. Ensure popup blockers or browser extensions aren't interfering with modal dialogs.</p>
+</div>
+
+<div class="nav">
+  <h3 id="related">Related Pages</h3>
+  <ul>
+    <li><a href="/docs/agents.html">Agents</a> — Configure per-agent approval policies in the Permissions step</li>
+    <li><a href="/docs/journal.html">Action Journal</a> — Audit trail of all executed actions (including approved ones)</li>
+    <li><a href="/docs/organizations.html">Organizations</a> — Filter approvals by organization</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

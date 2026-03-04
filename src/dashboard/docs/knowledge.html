@@ -1,0 +1,268 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Bases — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Knowledge Bases</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Document ingestion, chunking, and RAG retrieval for your AI agents</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#creating-knowledge-bases">Creating Knowledge Bases</a></li>
+    <li><a href="#detail-view">Detail View</a></li>
+    <li><a href="#documents">Documents</a></li>
+    <li><a href="#chunks">Chunks</a></li>
+    <li><a href="#import-wizard">Import Wizard</a></li>
+    <li><a href="#agent-access">Agent Access</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> Knowledge bases are like filing cabinets for your AI agents. You put documents in them — policies, product docs, FAQs, anything — and agents can search through them to find answers. Instead of making things up, agents pull real information from your documents. This is called RAG (Retrieval-Augmented Generation).
+</div>
+
+<p>The Knowledge Bases page (<code>KnowledgeBasePage</code>) manages document collections that power RAG retrieval for your agents. It provides a card-based list view of all knowledge bases, a two-panel detail view showing documents and their chunks, inline editing capabilities for both documents and chunks, and integration with the Knowledge Import Wizard for ingesting content from multiple sources.</p>
+
+<p>Knowledge bases are organization-aware — they can be scoped to a specific client organization for data isolation, or kept internal to your organization.</p>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Create a knowledge base</strong> — Give it a name, description, and optionally assign it to a client organization.</li>
+  <li><strong>Import documents</strong> — Use the import wizard to add content from GitHub, Google Drive, SharePoint, websites, or direct file uploads.</li>
+  <li><strong>Automatic chunking</strong> — Documents are automatically split into smaller text segments (chunks) optimized for retrieval.</li>
+  <li><strong>Assign to agents</strong> — Link knowledge bases to agents so they can search them when answering questions.</li>
+  <li><strong>Agents query at runtime</strong> — When an agent needs information, it searches the knowledge base and the most relevant chunks are included in its prompt context.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>RAG (Retrieval-Augmented Generation)</h3>
+<p>RAG is the technique of retrieving relevant documents before generating a response. Instead of relying solely on the LLM's training data, the agent searches your knowledge base for specific, up-to-date information and uses it to form accurate answers.</p>
+
+<h3>Documents vs. Chunks</h3>
+<p>A <strong>document</strong> is a source file you import (PDF, markdown, web page, etc.). A <strong>chunk</strong> is a smaller segment of that document — typically a few paragraphs — that the retrieval system can match against queries. Smaller chunks allow more precise retrieval but use less context per match.</p>
+
+<h3>Organization Scoping</h3>
+<p>Knowledge bases can be assigned to a client organization via <code>clientOrgId</code>. This ensures data isolation — agents in Org A cannot access Org B's knowledge bases. When the org context switcher is active, only relevant KBs are shown.</p>
+
+<h2 id="creating-knowledge-bases">Creating Knowledge Bases</h2>
+
+<table>
+  <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Name</td><td>Yes</td><td>Descriptive name (e.g., "Product Documentation Q1 2026")</td></tr>
+    <tr><td>Description</td><td>No</td><td>What this knowledge base contains and its purpose</td></tr>
+    <tr><td>Organization</td><td>No</td><td>Assign to a client org for data isolation, or leave as internal</td></tr>
+  </tbody>
+</table>
+
+<pre><code>POST /api/engine/knowledge-bases
+Content-Type: application/json
+
+{
+  "name": "Customer Support Playbook",
+  "description": "Standard responses, escalation procedures, refund policies",
+  "orgId": "default-org-id",
+  "clientOrgId": "client-abc123"
+}</code></pre>
+
+<h2 id="detail-view">Detail View</h2>
+
+<p>Clicking a knowledge base card opens the detail view with:</p>
+
+<ul>
+  <li><strong>Header bar</strong> — Back button, KB name (inline editable), Import Docs button, Edit button, Delete button</li>
+  <li><strong>Description card</strong> — Editable description, org assignment dropdown, metadata (ID, creation date, document count, agent count)</li>
+  <li><strong>Stats cards</strong> — Documents, Chunks, Total Tokens, Queries — each with contextual help tooltips</li>
+  <li><strong>Two-panel layout</strong> — Documents list (left) and chunk preview (right)</li>
+  <li><strong>Import history</strong> — Previous import jobs with status tracking</li>
+</ul>
+
+<h2 id="documents">Documents</h2>
+
+<p>Documents are the source files imported into a knowledge base. Each document shows:</p>
+
+<table>
+  <thead><tr><th>Property</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Name</td><td>Document filename or title (editable inline)</td></tr>
+    <tr><td>Source Type</td><td>Where the document came from (upload, github, url, etc.)</td></tr>
+    <tr><td>MIME Type</td><td>File format (text/markdown, application/pdf, etc.)</td></tr>
+    <tr><td>Size</td><td>File size in bytes or KB</td></tr>
+    <tr><td>Chunk Count</td><td>Number of chunks generated from this document</td></tr>
+    <tr><td>Status</td><td>Processing status (pending, processed, error)</td></tr>
+  </tbody>
+</table>
+
+<p>Documents can be renamed via inline editing and deleted individually. Deleting a document removes all its chunks.</p>
+
+<div class="danger">
+  <strong>Deleting a document is permanent.</strong> All associated chunks will be removed and cannot be recovered. Re-import the document if needed.
+</div>
+
+<h2 id="chunks">Chunks</h2>
+
+<p>Select a document to view its chunks in the right panel. Each chunk displays:</p>
+<ul>
+  <li><strong>Position</strong> — Sequential number within the document</li>
+  <li><strong>Token count</strong> — Number of tokens in this chunk (affects context usage)</li>
+  <li><strong>Content</strong> — The actual text content, displayed in a monospace preview</li>
+  <li><strong>Edit button</strong> — Opens an inline textarea for manual chunk editing</li>
+  <li><strong>Delete button</strong> — Removes individual chunks</li>
+</ul>
+
+<div class="tip">
+  <strong>When to edit chunks:</strong> If an agent gives incorrect answers, check the source chunks. You might find OCR errors from PDF extraction, formatting artifacts, or ambiguous text that needs clarification. Editing chunks directly improves retrieval quality without re-importing the entire document.
+</div>
+
+<pre><code>// Update a chunk's content
+PUT /api/engine/knowledge-bases/{kbId}/chunks/{chunkId}
+Content-Type: application/json
+
+{ "content": "Updated chunk text with corrected information..." }
+
+// Delete a chunk
+DELETE /api/engine/knowledge-bases/{kbId}/chunks/{chunkId}</code></pre>
+
+<h2 id="import-wizard">Import Wizard</h2>
+
+<p>The Import Wizard (<code>KnowledgeImportWizard</code>) is accessible from both the list view and detail view. It supports importing content from:</p>
+
+<ul>
+  <li><strong>File Upload</strong> — Direct file uploads (PDF, Markdown, TXT, DOCX, etc.)</li>
+  <li><strong>GitHub</strong> — Import from GitHub repositories</li>
+  <li><strong>Google Drive</strong> — Connect and import from Google Drive</li>
+  <li><strong>SharePoint</strong> — Import from Microsoft SharePoint</li>
+  <li><strong>Web URLs</strong> — Crawl and import web pages</li>
+  <li><strong>Direct Text</strong> — Paste text content directly</li>
+</ul>
+
+<p>Import jobs are tracked asynchronously — you can view their progress in the Import Jobs section of the detail view.</p>
+
+<h2 id="agent-access">Agent Access</h2>
+<p>The <strong>Agent Access</strong> card in the KB detail view controls which agents can search and retrieve information from this knowledge base.</p>
+
+<div class="tip">
+  <strong>For non-technical users:</strong> Think of agent access like sharing a folder — you pick which agents are allowed to look inside this knowledge base. An agent without access simply can't see or search the documents in it.
+</div>
+
+<h3>How to Assign Agents</h3>
+<ol>
+  <li>Open a knowledge base by clicking on it from the list.</li>
+  <li>Scroll to the <strong>Agent Access</strong> card (below the stats).</li>
+  <li>Click on agent names to toggle their access — selected agents are highlighted with a checkmark.</li>
+  <li>Click <strong>Save Agent Access</strong> to apply changes. Click <strong>Reset</strong> to undo unsaved changes.</li>
+</ol>
+
+<div class="card">
+  <h3>How It Works Technically</h3>
+  <p>Each knowledge base has an <code>agentIds</code> array stored in the database. When an agent performs a RAG search via <code>GET /knowledge-bases/search?agentId=xxx</code>, only knowledge bases where the agent's ID is in the <code>agentIds</code> array are searched.</p>
+  <p>Updating agent access calls <code>PUT /knowledge-bases/:id</code> with the new <code>agentIds</code> array. Changes take effect immediately — the agent will have access on its very next query. <strong>No agent restart is required.</strong></p>
+  <pre><code>PUT /knowledge-bases/:id
+{
+  "agentIds": ["agent-uuid-1", "agent-uuid-2"]
+}</code></pre>
+</div>
+
+<div class="warning">
+  <strong>Important:</strong> If an agent is not assigned to any knowledge base, it cannot use RAG retrieval and will rely solely on its training data and conversation context. Always assign relevant KBs to agents that need them.
+</div>
+
+<h3>Automatic Assignment (Onboarding)</h3>
+<p>When a new agent is created, knowledge bases are <strong>automatically assigned</strong> based on org context:</p>
+<table>
+  <thead><tr><th>Agent Type</th><th>Gets Access To</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Client org agent</strong></td><td>All KBs belonging to their client organization</td></tr>
+    <tr><td><strong>Internal agent</strong></td><td>All KBs NOT belonging to any client organization (shared/internal KBs)</td></tr>
+  </tbody>
+</table>
+<p>If you add new knowledge bases after agents are already running, use the <strong>"Sync Knowledge"</strong> button on the agent's Deployment tab to trigger auto-assignment for that agent.</p>
+
+<div class="card">
+  <h3>Auto-Assign API</h3>
+  <pre><code>POST /knowledge-bases/auto-assign/:agentId
+Body: { "clientOrgId": "org-uuid" }  // optional
+Response: { "assigned": ["kb-id-1", "kb-id-2"], "count": 2 }</code></pre>
+  <p>Only adds new assignments — does not remove existing ones.</p>
+</div>
+
+<h3>Organization Scoping</h3>
+<p>Agent access respects organization boundaries. If a knowledge base belongs to a client organization, only agents assigned to that organization can be given access. This ensures data isolation in multi-tenant deployments.</p>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/engine/knowledge-bases</code></td><td>GET</td><td>List all knowledge bases</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases</code></td><td>POST</td><td>Create a new knowledge base</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}</code></td><td>GET</td><td>Get KB detail with documents and stats</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}</code></td><td>PUT</td><td>Update KB name, description, org assignment</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}</code></td><td>DELETE</td><td>Delete KB and all documents/chunks</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}/documents/{docId}</code></td><td>PUT</td><td>Rename a document</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}/documents/{docId}</code></td><td>DELETE</td><td>Delete a document and its chunks</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}/documents/{docId}/chunks</code></td><td>GET</td><td>List chunks for a document</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}/chunks/{chunkId}</code></td><td>PUT</td><td>Update chunk content</td></tr>
+    <tr><td><code>/api/engine/knowledge-bases/{id}/chunks/{chunkId}</code></td><td>DELETE</td><td>Delete a single chunk</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Keep KBs focused</strong> — Create topic-specific knowledge bases (e.g., "Refund Policy", "Product Specs") rather than one massive collection. Focused KBs produce more precise retrieval results.</li>
+  <li><strong>Review chunks after import</strong> — Always spot-check chunks after importing, especially from PDFs. OCR and layout extraction can introduce errors.</li>
+  <li><strong>Use org scoping for clients</strong> — Assign knowledge bases to client organizations to prevent cross-tenant data leakage.</li>
+  <li><strong>Monitor query counts</strong> — High query counts indicate a valuable KB. Zero queries may mean it's not assigned to any agents or the content isn't relevant.</li>
+  <li><strong>Edit chunks, don't re-import</strong> — For minor corrections, edit individual chunks directly rather than re-importing the entire document.</li>
+  <li><strong>Track token counts</strong> — Large token counts per KB affect how much context is consumed during retrieval. Balance comprehensiveness with context efficiency.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h4>No chunks appear after importing</h4>
+  <p>The document may still be processing. Check the import jobs section for status. If the status is "error", the file format may not be supported or the content couldn't be extracted.</p>
+</div>
+
+<div class="card">
+  <h4>Agent can't find information that's in the KB</h4>
+  <p>Check: (1) Is the KB assigned to the agent? (2) Are the relevant chunks well-formed? (3) Is the query phrasing similar to the chunk content? Try editing chunks for clarity.</p>
+</div>
+
+<div class="card">
+  <h4>Knowledge base doesn't appear in the list</h4>
+  <p>Check the org context switcher — you may be viewing a different organization's KBs. Clear the org filter to see all knowledge bases.</p>
+</div>
+
+<div class="danger">
+  <strong>Deleting a knowledge base removes all documents and chunks permanently.</strong> This action cannot be undone. Consider exporting important content before deletion.
+</div>
+
+<div class="nav">
+  <h3 id="related">Related Pages</h3>
+  <ul>
+    <li><a href="/docs/knowledge-contributions.html">Knowledge Contributions</a> — Agent-contributed knowledge and analytics</li>
+    <li><a href="/docs/agents.html">Agents</a> — Assign knowledge bases to agents</li>
+    <li><a href="/docs/organizations.html">Organizations</a> — Org-scoped knowledge base management</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

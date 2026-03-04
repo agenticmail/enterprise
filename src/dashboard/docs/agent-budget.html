@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Budget — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Budget</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Monitor token usage, set spending caps, and manage budget alerts for this agent.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#usage-stats">Usage Statistics</a></li>
+        <li><a href="#budget-limits">Budget Limits</a></li>
+        <li><a href="#progress-bars">Progress Bars</a></li>
+        <li><a href="#budget-alerts">Budget Alerts</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>AI agents cost money — every message, every tool call, every API request uses tokens that translate to real dollars. The Budget tab is your financial dashboard. It shows how much the agent has spent today and this month, lets you set spending caps so the agent can't run up a surprise bill, and alerts you when spending approaches your limits.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>Three endpoints power this section:</p>
+  <ul>
+    <li><code>GET /agents/:id/usage</code> — Current usage metrics (tokens, cost, sessions, errors for today and month).</li>
+    <li><code>GET /agents/:id/budget</code> — Budget configuration (returns <code>{ budgetConfig: { limits: { dailyTokens, dailyCost, monthlyTokens, monthlyCost } } }</code>).</li>
+    <li><code>GET /budget/alerts?agentId=…</code> — Active budget alerts.</li>
+  </ul>
+  <p>Saving: <code>PUT /agents/:id/budget</code> with <code>{ dailyTokens, dailyCost, monthlyTokens, monthlyCost }</code>. Acknowledging alerts: <code>POST /budget/alerts/:id/acknowledge</code>.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Load</strong> — Usage, budget config, and alerts are fetched in parallel on mount.</li>
+  <li><strong>Monitor</strong> — The stats grid shows six key metrics. Progress bars visualize usage against limits.</li>
+  <li><strong>Configure</strong> — Click "Edit Budget" to set daily and monthly limits for both tokens and cost.</li>
+  <li><strong>Alert</strong> — When usage approaches or exceeds limits, alerts appear in the alerts table. Acknowledge them to clear the notification.</li>
+  <li><strong>Enforce</strong> — When a limit is reached, the agent is automatically paused to prevent overspending.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="usage-stats">Usage Statistics</h3>
+<p>Six stat cards provide real-time usage data:</p>
+
+<table>
+  <thead><tr><th>Metric</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tokens Today</strong></td><td>Total tokens consumed today (input + output). Resets at midnight UTC.</td></tr>
+    <tr><td><strong>Tokens This Month</strong></td><td>Total tokens consumed this calendar month.</td></tr>
+    <tr><td><strong>Cost Today</strong></td><td>Dollar cost of today's token usage.</td></tr>
+    <tr><td><strong>Cost This Month</strong></td><td>Dollar cost of this month's token usage.</td></tr>
+    <tr><td><strong>Sessions Today</strong></td><td>Number of agent sessions started today.</td></tr>
+    <tr><td><strong>Errors Today</strong></td><td>Number of errors today. Shown in red if > 0.</td></tr>
+  </tbody>
+</table>
+
+<h3 id="budget-limits">Budget Limits</h3>
+<p>Four configurable spending caps:</p>
+<ul>
+  <li><strong>Daily Token Limit</strong> — Maximum tokens per day. Set to 0 for unlimited.</li>
+  <li><strong>Daily Cost Limit ($)</strong> — Maximum dollar spend per day. Supports decimal values (e.g., $5.00).</li>
+  <li><strong>Monthly Token Limit</strong> — Maximum tokens per calendar month.</li>
+  <li><strong>Monthly Cost Limit ($)</strong> — Maximum dollar spend per month.</li>
+</ul>
+<p>When any limit is reached, the agent is automatically paused. It requires a manual resume or limit increase to continue.</p>
+
+<h3 id="progress-bars">Progress Bars</h3>
+<p>When budget limits are configured, progress bars visualize current usage against each limit. The bars show:</p>
+<ul>
+  <li>The limit label (e.g., "Daily Tokens")</li>
+  <li>Current value vs. total limit</li>
+  <li>A visual bar that fills and changes color as usage increases</li>
+</ul>
+<p>Only configured limits (non-zero) are displayed.</p>
+
+<h3 id="budget-alerts">Budget Alerts</h3>
+<p>The system generates alerts at different thresholds:</p>
+
+<table>
+  <thead><tr><th>Alert Type</th><th>Trigger</th><th>Impact</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-medium">Warning</span></td><td>Usage reaches ~80% of limit</td><td>Notification only. Agent continues.</td></tr>
+    <tr><td><span class="badge badge-advanced">Critical</span></td><td>Usage reaches ~95% of limit</td><td>Notification. Consider pausing non-essential work.</td></tr>
+    <tr><td><span class="badge badge-advanced">Exceeded</span></td><td>Limit reached</td><td>Agent automatically paused. Requires intervention.</td></tr>
+  </tbody>
+</table>
+
+<p>Each alert shows:</p>
+<ul>
+  <li><strong>Time</strong> — When the alert was triggered.</li>
+  <li><strong>Type</strong> — Warning, Critical, or Exceeded.</li>
+  <li><strong>Budget Type</strong> — Tokens or Cost.</li>
+  <li><strong>Current / Limit</strong> — Actual usage vs. the configured limit.</li>
+  <li><strong>Status</strong> — Pending or Acknowledged.</li>
+  <li><strong>Ack Button</strong> — Click to acknowledge and dismiss the alert.</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Start with conservative daily limits</strong> — Monitor usage for a week, then adjust. It's easier to raise limits than to deal with a surprise bill.</li>
+    <li><strong>Always set a monthly cost limit</strong> — This is your safety net. Even if daily limits are generous, the monthly cap prevents runaway spending.</li>
+    <li><strong>Monitor the errors metric</strong> — High error counts often mean wasted tokens on failed operations. Fix the errors to reduce costs.</li>
+    <li><strong>Acknowledge alerts promptly</strong> — Unacknowledged alerts clutter the view. Acknowledge them after reviewing and taking appropriate action.</li>
+    <li><strong>Use cost limits, not just token limits</strong> — Different models have different per-token costs. A cost limit is a more accurate spending control.</li>
+    <li><strong>Review sessions count</strong> — High session counts relative to useful output may indicate the agent is being triggered too frequently or spinning up unnecessary sessions.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Agent paused due to budget but usage seems low</h3>
+  <p>Check which specific limit was hit — it may be the daily limit that's too low, not the monthly. Also verify the budget type (tokens vs. cost). Some models use many tokens but are cheap per-token.</p>
+</div>
+
+<div class="card">
+  <h3>Budget not saving</h3>
+  <p>Ensure all values are valid numbers. The API expects numeric values for all four fields. Zero means no limit. Check the console for error messages from the PUT request.</p>
+</div>
+
+<div class="card">
+  <h3>Alerts not appearing</h3>
+  <p>Alerts are generated server-side when usage crosses thresholds. If no limits are configured, no alerts will be generated. Also check that the budget alerting system is enabled at the organization level.</p>
+</div>
+
+<div class="card">
+  <h3>Usage numbers seem wrong</h3>
+  <p>Usage is aggregated server-side and may have a slight delay. Token counts include both input and output tokens. Cost calculations depend on the model's pricing. Refresh the page for the latest data.</p>
+</div>
+
+<!-- Organization Context -->
+<h2 id="organization-context">Organization Context</h2>
+<p>When an agent belongs to a client organization, budget management integrates with org-level allocations:</p>
+<ul>
+  <li><strong>Org Budget Allocation</strong> — An info banner shows "Budget limits follow [Org Name] allocation" along with the organization's budget cap if configured.</li>
+  <li><strong>Budget Caps</strong> — Organizations can set overall budget caps that apply as an upper bound to all agents within the org. Individual agent limits cannot exceed the org cap.</li>
+  <li><strong>Usage Tracking</strong> — Token and cost usage is tracked both at the agent level and aggregated at the organization level for billing and reporting.</li>
+</ul>
+<div class="card">
+  <h3>What happens if the org budget cap is lower than the agent's limit?</h3>
+  <p>The organization budget cap takes precedence. Even if an agent's individual limit is higher, the agent will be paused when the org-wide cap is reached.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-activity.html">Agent Activity Log</a>
+  <a href="agent-workforce.html">Agent Workforce</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+  <a href="agent-deployment.html">Agent Deployment</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

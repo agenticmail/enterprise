@@ -85,8 +85,10 @@ export class DatabaseConnectionManager {
   private engineDb?: { run?(sql: string, params?: any[]): Promise<any>; execute?(sql: string, params?: any[]): Promise<any>; all?(sql: string, params?: any[]): Promise<any[]>; get?(sql: string, params?: any[]): Promise<any> };
   private vault?: {
     storeSecret(orgId: string, name: string, category: string, plaintext: string, metadata?: Record<string, any>): Promise<any>;
-    getSecret(orgId: string, name: string, category: string): Promise<{ plaintext: string } | null>;
+    getSecret(id: string): Promise<{ entry: any; decrypted: string } | null>;
+    getSecretByName(orgId: string, name: string, category?: string): Promise<{ plaintext: string } | null>;
     deleteSecret(id: string): Promise<void>;
+    findByName(name: string): any;
   };
 
   constructor(deps?: { engineDb?: any; vault?: any }) {
@@ -113,9 +115,13 @@ export class DatabaseConnectionManager {
   private async dbAll(sql: string, params?: any[]): Promise<any[]> {
     if (!this.engineDb) return [];
     if (this.engineDb.all) return this.engineDb.all(sql, params) as Promise<any[]>;
+    if (this.engineDb.query) {
+      const result = await this.engineDb.query(sql, params);
+      return Array.isArray(result) ? result : (result?.rows || []);
+    }
     // Fallback: execute returns rows for some adapters
     const result = await this.dbRun(sql, params);
-    return Array.isArray(result) ? result : [];
+    return Array.isArray(result) ? result : (result?.rows || []);
   }
 
   private async dbGet(sql: string, params?: any[]): Promise<any> {
@@ -126,10 +132,14 @@ export class DatabaseConnectionManager {
   }
 
   async init(): Promise<void> {
-    await this.ensureTable();
-    await this.loadConnections();
-    await this.loadAgentAccess();
-    console.log(`[db-access] Initialized: ${this.configs.size} connections, ${this.agentAccess.size} agent mappings`);
+    try {
+      await this.ensureTable();
+      await this.loadConnections();
+      await this.loadAgentAccess();
+      console.log(`[db-access] Initialized: ${this.configs.size} connections, ${this.agentAccess.size} agent mappings`);
+    } catch (err: any) {
+      console.error(`[db-access] Init failed: ${err.message}`);
+    }
   }
 
   private async ensureTable(): Promise<void> {
@@ -206,9 +216,10 @@ export class DatabaseConnectionManager {
   }
 
   private async loadConnections(): Promise<void> {
-    if (!this.engineDb) return;
+    if (!this.engineDb) { console.warn('[db-access] No engineDb, skipping loadConnections'); return; }
     try {
       const rows = await this.dbAll('SELECT * FROM database_connections');
+      // Loaded connections from DB
       for (const row of (rows || [])) {
         const config = this.rowToConfig(row);
         this.configs.set(config.id, config);
@@ -267,11 +278,17 @@ export class DatabaseConnectionManager {
 
     const updated = { ...existing, ...updates, id, updatedAt: new Date().toISOString() };
     
-    if (credentials?.password && this.vault) {
-      await this.vault.storeSecret(existing.orgId, `db:${id}:password`, 'database_credential', credentials.password);
-    }
-    if (credentials?.connectionString && this.vault) {
-      await this.vault.storeSecret(existing.orgId, `db:${id}:connection_string`, 'database_credential', credentials.connectionString);
+    if (this.vault) {
+      if (credentials?.password) {
+        const old = this.vault.findByName(`db:${id}:password`);
+        if (old) try { await this.vault.deleteSecret(old.id); } catch {}
+        await this.vault.storeSecret(existing.orgId, `db:${id}:password`, 'database_credential', credentials.password);
+      }
+      if (credentials?.connectionString) {
+        const old = this.vault.findByName(`db:${id}:connection_string`);
+        if (old) try { await this.vault.deleteSecret(old.id); } catch {}
+        await this.vault.storeSecret(existing.orgId, `db:${id}:connection_string`, 'database_credential', credentials.connectionString);
+      }
     }
 
     if (this.engineDb) {
@@ -298,10 +315,10 @@ export class DatabaseConnectionManager {
     // Remove vault secrets
     if (this.vault) {
       try {
-        const pwSecret = await this.vault.getSecret(config.orgId, `db:${id}:password`, 'database_credential');
-        if (pwSecret) await this.vault.deleteSecret((pwSecret as any).id);
-        const csSecret = await this.vault.getSecret(config.orgId, `db:${id}:connection_string`, 'database_credential');
-        if (csSecret) await this.vault.deleteSecret((csSecret as any).id);
+        for (const suffix of ['password', 'connection_string', 'ssh_key']) {
+          const entry = this.vault.findByName(`db:${id}:${suffix}`);
+          if (entry) await this.vault.deleteSecret(entry.id);
+        }
       } catch { /* non-fatal */ }
     }
 
@@ -523,14 +540,26 @@ export class DatabaseConnectionManager {
         lastError: alive ? undefined : 'Ping failed',
       });
 
-      return { success: alive, latencyMs };
+      return { success: alive, latencyMs, error: alive ? undefined : 'Ping failed — connection may have been closed or timed out. Try reconnecting.' };
     } catch (err: any) {
+      // On connection failure, close stale pool and retry once with fresh connection
+      try {
+        await this.closePool(connectionId);
+        const conn = await this.getPooledConnection(connectionId);
+        const alive = await conn.ping();
+        const latencyMs = Date.now() - startMs;
+        await this.updateConnection(connectionId, { status: alive ? 'active' : 'error', lastTestedAt: new Date().toISOString(), lastError: alive ? undefined : 'Ping failed on retry' });
+        return { success: alive, latencyMs, error: alive ? undefined : 'Ping failed on retry' };
+      } catch (retryErr: any) {
+        // Both attempts failed
+      }
+      const msg = (err instanceof AggregateError ? (err.errors?.map?.((x: any) => x.message).join('; ') || 'Multiple connection failures') : (err.message || String(err))) || 'Unknown connection error';
       await this.updateConnection(connectionId, {
         status: 'error',
         lastTestedAt: new Date().toISOString(),
-        lastError: err.message,
+        lastError: msg,
       });
-      return { success: false, latencyMs: Date.now() - startMs, error: err.message };
+      return { success: false, latencyMs: Date.now() - startMs, error: msg };
     }
   }
 
@@ -554,9 +583,9 @@ export class DatabaseConnectionManager {
       );
       const alive = await connection.ping();
       const latencyMs = Date.now() - startMs;
-      return { success: alive, latencyMs };
+      return { success: alive, latencyMs, error: alive ? undefined : 'Ping failed — database responded but health check did not pass' };
     } catch (err: any) {
-      return { success: false, latencyMs: Date.now() - startMs, error: err.message };
+      return { success: false, latencyMs: Date.now() - startMs, error: err.message || String(err) || 'Connection failed' };
     } finally {
       try { if (connection?.close) await connection.close(); } catch {}
     }
@@ -627,16 +656,16 @@ export class DatabaseConnectionManager {
     const creds: ConnectionCredentials = {};
     if (this.vault) {
       try {
-        const pw = await this.vault.getSecret(config.orgId, `db:${config.id}:password`, 'database_credential');
+        const pw = await this.vault.getSecretByName(config.orgId, `db:${config.id}:password`, 'database_credential');
         if (pw) creds.password = pw.plaintext;
       } catch { /* no password stored */ }
       try {
-        const cs = await this.vault.getSecret(config.orgId, `db:${config.id}:connection_string`, 'database_credential');
+        const cs = await this.vault.getSecretByName(config.orgId, `db:${config.id}:connection_string`, 'database_credential');
         if (cs) creds.connectionString = cs.plaintext;
       } catch { /* no connection string stored */ }
       if (config.sshTunnel?.enabled) {
         try {
-          const ssh = await this.vault.getSecret(config.orgId, `db:${config.id}:ssh_key`, 'database_credential');
+          const ssh = await this.vault.getSecretByName(config.orgId, `db:${config.id}:ssh_key`, 'database_credential');
           if (ssh) creds.sshPrivateKey = ssh.plaintext;
         } catch { /* no SSH key stored */ }
       }
@@ -730,31 +759,74 @@ export class DatabaseConnectionManager {
    * Auto-install a npm package if not already installed.
    * Caches install attempts to avoid repeated installs in the same process.
    */
+  /**
+   * Load a package using createRequire (works in bundled builds where dynamic import() fails).
+   * Falls back through multiple strategies: createRequire at cwd, createRequire at node_modules, direct import.
+   */
+  private _requirePkg(pkg: string): any {
+    // Strategy 1: createRequire from cwd (works for npm-installed packages in bundled code)
+    try {
+      const { createRequire } = require('node:module');
+      const req = createRequire(require('node:path').join(process.cwd(), 'node_modules', '.package.json'));
+      return req(pkg);
+    } catch {}
+    // Strategy 2: createRequire from process.cwd package.json
+    try {
+      const { createRequire } = require('node:module');
+      const req = createRequire(require('node:path').join(process.cwd(), 'package.json'));
+      return req(pkg);
+    } catch {}
+    // Strategy 3: resolve absolute path manually
+    try {
+      const absPath = require('node:path').join(process.cwd(), 'node_modules', pkg);
+      return require(absPath);
+    } catch {}
+    // Strategy 4: plain require (may work in non-bundled contexts)
+    try {
+      return require(pkg);
+    } catch {}
+    return null;
+  }
+
   private async ensurePackage(pkg: string): Promise<any> {
+    // Try loading first (multiple strategies for bundled builds)
+    const existing = this._requirePkg(pkg);
+    if (existing) return existing;
+
+    // Also try dynamic import as last resort for ESM packages
     try {
       return await import(pkg);
-    } catch {
-      // Package not installed — auto-install it
-      if (this._installCache.has(pkg)) {
-        throw new Error(`Package "${pkg}" could not be loaded after auto-install. Please install manually: npm install ${pkg}`);
-      }
-      this._installCache.add(pkg);
-      console.log(`[database-access] Auto-installing "${pkg}"...`);
-      const { execSync } = await import('child_process');
-      try {
-        execSync(`npm install --no-save ${pkg}`, {
-          stdio: 'pipe',
-          timeout: 120_000,
-          cwd: process.cwd(),
-        });
-        console.log(`[database-access] Successfully installed "${pkg}"`);
-        // Clear Node's module cache to pick up the new package
-        return await import(pkg);
-      } catch (installErr: any) {
-        const msg = installErr.stderr?.toString?.().slice(0, 200) || installErr.message;
-        throw new Error(`Failed to auto-install "${pkg}": ${msg}. Please install manually: npm install ${pkg}`);
-      }
+    } catch {}
+
+    // Package not installed — auto-install it
+    if (this._installCache.has(pkg)) {
+      throw new Error(`Package "${pkg}" could not be loaded after auto-install. Please install manually: npm install ${pkg}`);
     }
+    this._installCache.add(pkg);
+    console.log(`[database-access] Auto-installing "${pkg}"...`);
+    const { execSync } = await import('child_process');
+    try {
+      execSync(`npm install --no-save ${pkg}`, {
+        stdio: 'pipe',
+        timeout: 120_000,
+        cwd: process.cwd(),
+      });
+      console.log(`[database-access] Successfully installed "${pkg}"`);
+    } catch (installErr: any) {
+      const msg = installErr.stderr?.toString?.().slice(0, 200) || installErr.message;
+      throw new Error(`Failed to auto-install "${pkg}": ${msg}. Please install manually: npm install ${pkg}`);
+    }
+
+    // Try all loading strategies again after install
+    const loaded = this._requirePkg(pkg);
+    if (loaded) return loaded;
+
+    // Final attempt with dynamic import
+    try {
+      return await import(pkg);
+    } catch {}
+
+    throw new Error(`Package "${pkg}" installed but could not be loaded. Try restarting the server, or install manually: npm install ${pkg}`);
   }
 
   /**
@@ -850,7 +922,13 @@ export class DatabaseConnectionManager {
             };
           },
           async close() { try { await sql.end({ timeout: 5 }); } catch {} },
-          async ping() { try { await sql`SELECT 1`; return true; } catch { return false; } },
+          async ping() {
+            try { await sql`SELECT 1`; return true; }
+            catch (e: any) {
+              const msg = e instanceof AggregateError ? (e.errors?.map?.((x: any) => x.message).join('; ') || 'Multiple connection failures') : (e.message || String(e));
+              throw new Error('PostgreSQL ping failed: ' + msg);
+            }
+          },
         };
       },
     };
@@ -873,7 +951,7 @@ export class DatabaseConnectionManager {
             host: config.host || parsed.host || 'localhost',
             port: config.port || parsed.port || 3306,
             user: config.username || parsed.username,
-            password: credentials.password,
+            password: credentials.password || (credentials.connectionString ? (() => { try { const u = new URL(credentials.connectionString.replace(/^mysql/, 'http')); return decodeURIComponent(u.password); } catch { return undefined; } })() : undefined),
             database: config.database || parsed.database,
             connectionLimit: config.pool?.max ?? 10,
             connectTimeout: 10_000,
@@ -896,7 +974,7 @@ export class DatabaseConnectionManager {
             };
           },
           async close() { try { await pool.end(); } catch {} },
-          async ping() { try { await pool.execute('SELECT 1'); return true; } catch { return false; } },
+          async ping() { try { await pool.execute('SELECT 1'); return true; } catch (e: any) { throw new Error('MySQL ping failed: ' + (e.message || e)); } },
         };
       },
     };
@@ -927,7 +1005,7 @@ export class DatabaseConnectionManager {
             }
           },
           async close() { try { db.close(); } catch {} },
-          async ping() { try { db.prepare('SELECT 1').get(); return true; } catch { return false; } },
+          async ping() { try { db.prepare('SELECT 1').get(); return true; } catch (e: any) { throw new Error('SQLite ping failed: ' + (e.message || e)); } },
         };
       },
     });
@@ -954,7 +1032,7 @@ export class DatabaseConnectionManager {
             };
           },
           async close() { try { client.close(); } catch {} },
-          async ping() { try { await client.execute('SELECT 1'); return true; } catch { return false; } },
+          async ping() { try { await client.execute('SELECT 1'); return true; } catch (e: any) { throw new Error('Turso ping failed: ' + (e.message || e)); } },
         };
       },
     });
@@ -1039,7 +1117,7 @@ export class DatabaseConnectionManager {
             }
           },
           async close() { try { await client.close(); } catch {} },
-          async ping() { try { await db.command({ ping: 1 }); return true; } catch { return false; } },
+          async ping() { try { await db.command({ ping: 1 }); return true; } catch (e: any) { throw new Error('MongoDB ping failed: ' + (e.message || e)); } },
         };
       },
     });
@@ -1115,7 +1193,7 @@ export class DatabaseConnectionManager {
             return { rows: [{ result: result.trim() }] };
           },
           async close() { try { socket.destroy(); } catch {} },
-          async ping() { try { const r = await sendRedisCommand(socket, 'PING'); return r.includes('PONG'); } catch { return false; } },
+          async ping() { try { const r = await sendRedisCommand(socket, 'PING'); if (!r.includes('PONG')) throw new Error('No PONG response'); return true; } catch (e: any) { throw new Error('Redis ping failed: ' + (e.message || e)); } },
         };
       },
     });
@@ -1194,7 +1272,7 @@ export class DatabaseConnectionManager {
             return { rows: [{ result: typeof val === 'string' ? val : JSON.stringify(val) }] };
           },
           async close() { /* stateless REST — nothing to close */ },
-          async ping() { try { const r = await upstashRequest(['PING']); return r.result === 'PONG'; } catch { return false; } },
+          async ping() { try { const r = await upstashRequest(['PING']); if (r.result !== 'PONG') throw new Error('No PONG response'); return true; } catch (e: any) { throw new Error('Upstash ping failed: ' + (e.message || e)); } },
         };
       },
     });

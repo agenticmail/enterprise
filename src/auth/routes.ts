@@ -10,6 +10,7 @@ import { Hono } from 'hono';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { createVerify } from 'node:crypto';
 import type { DatabaseAdapter, SsoConfig } from '../db/adapter.js';
+import { transportEncryptionMiddleware } from '../middleware/index.js';
 
 const COOKIE_NAME = 'em_session';
 const REFRESH_COOKIE = 'em_refresh';
@@ -64,6 +65,9 @@ export function createAuthRoutes(
   },
 ) {
   const auth = new Hono();
+
+  // Transport encryption middleware — decrypts incoming, encrypts outgoing
+  auth.use('*', transportEncryptionMiddleware());
 
   const isSecure = () => {
     return process.env.NODE_ENV === 'production' || process.env.SECURE_COOKIES === '1';
@@ -908,11 +912,85 @@ export function createAuthRoutes(
         }
       })();
 
+      // Generate security keys, set in process.env, and try to persist to .env
+      let generatedKeys: Record<string, string> = {};
+      let envPersisted = false;
+      try {
+        const { randomBytes } = await import('node:crypto');
+
+        const keysToGenerate = [
+          'TRANSPORT_ENCRYPTION_KEY',
+          'ENCRYPTION_KEY',
+        ];
+        // Also check JWT_SECRET — if it's a weak default, regenerate
+        if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+          keysToGenerate.push('JWT_SECRET');
+        }
+
+        for (const envVar of keysToGenerate) {
+          if (!process.env[envVar]) {
+            const val = randomBytes(32).toString('hex');
+            generatedKeys[envVar] = val;
+            process.env[envVar] = val;
+          } else {
+            generatedKeys[envVar] = process.env[envVar]!;
+          }
+        }
+        // Always include JWT_SECRET in backup even if pre-existing
+        if (!generatedKeys.JWT_SECRET && process.env.JWT_SECRET) {
+          generatedKeys.JWT_SECRET = process.env.JWT_SECRET;
+        }
+
+        // Try to persist to .env file (will fail silently on ephemeral platforms)
+        try {
+          const { readFileSync, writeFileSync, existsSync, accessSync, constants } = await import('node:fs');
+          const { resolve } = await import('node:path');
+          const envPath = resolve(process.cwd(), '.env');
+
+          // Check if filesystem is writable
+          let envContent = '';
+          if (existsSync(envPath)) {
+            envContent = readFileSync(envPath, 'utf-8');
+          }
+
+          // Only append keys that aren't already in the file
+          let appended = false;
+          for (const [envVar, val] of Object.entries(generatedKeys)) {
+            const pattern = new RegExp(`^${envVar}=`, 'm');
+            if (!pattern.test(envContent)) {
+              if (envContent && !envContent.endsWith('\n')) envContent += '\n';
+              envContent += `${envVar}=${val}\n`;
+              appended = true;
+            }
+          }
+
+          if (appended) {
+            writeFileSync(envPath, envContent, 'utf-8');
+            envPersisted = true;
+            console.log('[bootstrap] Security keys saved to .env');
+          } else {
+            envPersisted = true; // Keys already in file
+          }
+        } catch (fsErr: any) {
+          console.warn('[bootstrap] Could not write .env (ephemeral filesystem?) — keys returned to user for manual setup:', fsErr.message);
+        }
+
+        // Also store keys in database as encrypted backup (recoverable even if .env is lost)
+        try {
+          const keysBackup = { ...generatedKeys, _createdAt: new Date().toISOString(), _envPersisted: envPersisted };
+          await db.updateSettings({ _securityKeysBackup: keysBackup } as any);
+        } catch { /* non-fatal */ }
+      } catch (e: any) {
+        console.warn('[bootstrap] Failed to generate encryption keys:', e.message);
+      }
+
       return c.json({
         token,
         refreshToken,
         csrf,
         user: { id: user.id, email: user.email, name: user.name, role: user.role },
+        generatedKeys, // Returned ONCE during bootstrap for user to backup
+        envPersisted,  // Whether keys were saved to .env file (false on ephemeral platforms)
       });
     } catch (err: any) {
       return c.json({ error: err.message || 'Bootstrap failed' }, 500);

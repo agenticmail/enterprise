@@ -66,25 +66,75 @@ export function createCatalogRoutes(opts: {
 
   // ─── Soul Library (Pre-built Role Templates) ────────────
 
-  router.get('/souls', (c) => {
+  // Helper: load custom roles from DB
+  const getCustomRoles = async (orgId?: string) => {
+    try {
+      const db = (lifecycle as any)?.engineDb;
+      if (!db) return [];
+      const sql = orgId
+        ? 'SELECT * FROM custom_roles WHERE (org_id = ? OR org_id IS NULL) ORDER BY category, name'
+        : 'SELECT * FROM custom_roles ORDER BY category, name';
+      const params = orgId ? [orgId] : [];
+      const rows = (await db.query(sql, params).catch(() => [])).filter((r: any) => r.is_active !== false && r.is_active !== 0);
+      return (rows || []).map((r: any) => {
+        const parse = (v: any) => { try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return v; } };
+        return {
+          id: r.id, name: r.name, category: r.category || 'operations',
+          description: r.description, personality: r.personality || '',
+          identity: parse(r.identity) || {}, suggestedSkills: parse(r.suggested_skills) || [],
+          suggestedPreset: r.suggested_preset || null, tags: parse(r.tags) || [],
+          isCustom: true,
+        };
+      });
+    } catch { return []; }
+  };
+
+  router.get('/souls', async (c) => {
     const templates = soulLib.getSoulTemplates();
-    return c.json({ templates, categories: soulLib.SOUL_CATEGORIES, total: templates.length });
+    const custom = await getCustomRoles(c.req.query('orgId') || undefined);
+    const all = templates.concat(custom);
+    return c.json({ templates: all, categories: soulLib.SOUL_CATEGORIES, total: all.length });
   });
 
-  router.get('/souls/by-category', (c) => {
-    return c.json({ categories: soulLib.getSoulTemplatesByCategory(), categoryMeta: soulLib.SOUL_CATEGORIES });
+  router.get('/souls/by-category', async (c) => {
+    const categories = soulLib.getSoulTemplatesByCategory();
+    const custom = await getCustomRoles(c.req.query('orgId') || undefined);
+    // Merge custom roles into categories
+    for (const role of custom) {
+      const cat = role.category || 'operations';
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(role);
+    }
+    return c.json({ categories, categoryMeta: soulLib.SOUL_CATEGORIES });
   });
 
-  router.get('/souls/search', (c) => {
+  router.get('/souls/search', async (c) => {
     const q = c.req.query('q') || '';
     const results = soulLib.searchSoulTemplates(q);
-    return c.json({ templates: results, total: results.length });
+    const custom = await getCustomRoles();
+    const filtered = custom.filter((r: any) => {
+      const ql = q.toLowerCase();
+      return (r.name || '').toLowerCase().includes(ql) || (r.description || '').toLowerCase().includes(ql) || (r.tags || []).some((t: string) => t.includes(ql));
+    });
+    return c.json({ templates: results.concat(filtered), total: results.length + filtered.length });
   });
 
-  router.get('/souls/:id', (c) => {
+  router.get('/souls/:id', async (c) => {
     const template = soulLib.getSoulTemplate(c.req.param('id'));
-    if (!template) return c.json({ error: 'Soul template not found' }, 404);
-    return c.json({ template });
+    if (template) return c.json({ template });
+    // Check custom roles
+    try {
+      const db = (lifecycle as any)?.engineDb;
+      if (db) {
+        const rows = await db.query('SELECT * FROM custom_roles WHERE id = ?', [c.req.param('id')]);
+        const row = rows[0];
+        if (row) {
+          const parse = (v: any) => { try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return v; } };
+          return c.json({ template: { id: row.id, name: row.name, category: row.category, description: row.description, personality: row.personality, identity: parse(row.identity), suggestedSkills: parse(row.suggested_skills), suggestedPreset: row.suggested_preset, tags: parse(row.tags), isCustom: true } });
+        }
+      }
+    } catch {}
+    return c.json({ error: 'Soul template not found' }, 404);
   });
 
   // ─── Permission Profiles ────────────────────────────────

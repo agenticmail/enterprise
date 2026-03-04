@@ -1,0 +1,286 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Contributions — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Knowledge Contributions</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Collaborative knowledge building from agent memories, experiences, and research</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#tabs">Tabs Overview</a></li>
+    <li><a href="#knowledge-bases-tab">Knowledge Bases Tab</a></li>
+    <li><a href="#contributions-tab">Contributions Tab</a></li>
+    <li><a href="#schedules-tab">Schedules Tab</a></li>
+    <li><a href="#stats-tab">Stats &amp; Charts Tab</a></li>
+    <li><a href="#search-metrics-tab">Search Metrics Tab</a></li>
+    <li><a href="#entry-management">Entry Management</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> This page is where your AI agents build shared knowledge for the organization. As agents work — answering emails, handling support tickets, doing research — they learn things. This page lets those agents contribute what they've learned into shared knowledge bases that all agents can search. Think of it as agents writing internal documentation based on their experience, with quality scoring and human review.
+</div>
+
+<p>The Knowledge Contributions page (<code>KnowledgeContributionsPage</code>) is the most feature-rich page in the dashboard at 1,629 lines. It combines knowledge base management, agent contribution tracking, automated scheduling, rich analytics with interactive SVG charts, and search metrics into a five-tab interface. It represents the collaborative knowledge loop: agents learn → contribute → other agents search → better answers → more learning.</p>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Create contribution bases</strong> — Specialized knowledge bases for agent contributions, optionally with role tags (support, sales, engineering, HR, ops).</li>
+  <li><strong>Agents contribute</strong> — Manually trigger contributions, or set up automated schedules. Agents scan their recent memories and contribute qualifying entries above a confidence threshold.</li>
+  <li><strong>Review entries</strong> — Each entry has a quality score, confidence level, category, and status. Admins can approve, reject, archive, or vote on entries.</li>
+  <li><strong>Monitor with analytics</strong> — Charts show contribution volume over time, confidence trends, per-agent breakdowns, category distribution, and daily heatmaps.</li>
+  <li><strong>Track search usage</strong> — See how agents are searching knowledge bases — hit rates, query patterns, and which bases are most useful.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Confidence Score</h3>
+<p>A 0–100% score indicating how certain the contributing agent is about the accuracy of the knowledge. Contributions below your minimum threshold (set per schedule) are flagged for review. High confidence (80%+) indicates well-verified knowledge; below 50% may be speculative.</p>
+
+<h3>Quality Score</h3>
+<p>An independent quality assessment of each entry, displayed as a colored progress bar. Green (80%+) = high quality, yellow (50–80%) = moderate, red (&lt;50%) = needs improvement. Quality is determined by content completeness, clarity, and relevance.</p>
+
+<h3>Entry Lifecycle</h3>
+<table>
+  <thead><tr><th>Status</th><th>Color</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>pending</code></td><td>Yellow</td><td>Awaiting human review</td></tr>
+    <tr><td><code>approved</code></td><td>Green</td><td>Verified and available for search</td></tr>
+    <tr><td><code>rejected</code></td><td>Red</td><td>Deemed inaccurate or irrelevant</td></tr>
+    <tr><td><code>archived</code></td><td>Gray</td><td>No longer active but preserved for reference</td></tr>
+  </tbody>
+</table>
+
+<h3>Roles</h3>
+<p>Knowledge bases can be tagged with roles (support, sales, engineering, HR, ops, general) to help organize and filter by department. Each role gets a distinct color badge.</p>
+
+<h2 id="tabs">Tabs Overview</h2>
+
+<table>
+  <thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Knowledge Bases</strong></td><td>Create and browse contribution bases. Click into detail view to manage entries.</td></tr>
+    <tr><td><strong>Contributions</strong></td><td>Browse all agent contributions in a searchable, filterable table with detail modals.</td></tr>
+    <tr><td><strong>Schedules</strong></td><td>Configure automated contribution schedules (hourly/daily/weekly/monthly).</td></tr>
+    <tr><td><strong>Stats</strong></td><td>Interactive charts: contribution timeline, confidence trends, per-agent bars, category donut, quality comparison, daily heatmap.</td></tr>
+    <tr><td><strong>Search Metrics</strong></td><td>Track agent search behavior: total searches, hit rates, per-agent efficiency, recent queries.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="knowledge-bases-tab">Knowledge Bases Tab</h2>
+
+<p>Displays knowledge bases as cards with name, role badge, description, entry count, contributor count, and last contribution date. Merges data from the contribution system's bases and the main knowledge bases (deduplicating by ID).</p>
+
+<h3>Base Detail View</h3>
+<p>Clicking a base opens an inline detail view with:</p>
+<ul>
+  <li><strong>Filter bar</strong> — Filter entries by category, status (pending/approved/rejected/archived), and minimum quality score (40%/60%/80%)</li>
+  <li><strong>Entry cards</strong> — Each entry shows title, category badge, status badge, quality bar, confidence percentage, tags, vote buttons (▲/▼ with counts), and action buttons</li>
+  <li><strong>Actions per entry</strong> — Approve, Reject, Archive (context-sensitive — only shows valid transitions)</li>
+</ul>
+
+<h3>Creating a Base</h3>
+<pre><code>POST /api/engine/knowledge-contribution/bases
+Content-Type: application/json
+
+{
+  "name": "Customer Support Knowledge",
+  "description": "Solutions, troubleshooting, and best practices from support agents",
+  "role": "support",
+  "orgId": "org-abc123"
+}</code></pre>
+
+<h2 id="contributions-tab">Contributions Tab</h2>
+
+<p>A paginated, searchable table of all contributions across all bases. Features:</p>
+<ul>
+  <li><strong>Search</strong> — Full-text search across title, agent name, content, and category</li>
+  <li><strong>Agent filter</strong> — Dropdown to filter by contributing agent</li>
+  <li><strong>Trigger button</strong> — Manually trigger a contribution cycle for any agent</li>
+  <li><strong>Detail modal</strong> — Click any row to see full content, metadata, tags, confidence, source, and category</li>
+  <li><strong>Pagination</strong> — 20 items per page with prev/next navigation</li>
+</ul>
+
+<h3>Triggering a Contribution</h3>
+<pre><code>POST /api/engine/knowledge-contribution/contribute/{agentId}
+Content-Type: application/json
+
+{
+  "targetBaseId": "base-xyz",   // optional — contributes to all eligible if omitted
+  "orgId": "org-abc123"
+}</code></pre>
+
+<div class="tip">
+  <strong>What happens when you trigger:</strong> The system scans the agent's recent memories and conversation history, identifies knowledge worth preserving, scores it for confidence, and creates entries in the target knowledge base. Low-confidence entries are marked as pending for human review.
+</div>
+
+<h2 id="schedules-tab">Schedules Tab</h2>
+
+<p>Automate knowledge contributions on a recurring basis. Each schedule connects an agent to a target knowledge base with a frequency and confidence threshold.</p>
+
+<table>
+  <thead><tr><th>Field</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Agent ID</td><td>The agent whose memories will be scanned</td></tr>
+    <tr><td>Target Base</td><td>Knowledge base to receive contributions</td></tr>
+    <tr><td>Frequency</td><td>Hourly, daily, weekly, or monthly</td></tr>
+    <tr><td>Day of Week</td><td>For weekly schedules (Monday–Sunday)</td></tr>
+    <tr><td>Min Confidence</td><td>Slider (0–100%) — only contribute entries above this threshold</td></tr>
+    <tr><td>Enabled</td><td>Toggle ON/OFF without deleting the schedule</td></tr>
+  </tbody>
+</table>
+
+<pre><code>POST /api/engine/knowledge-contribution/schedules
+Content-Type: application/json
+
+{
+  "agentId": "agent-xyz",
+  "targetBaseId": "base-abc",
+  "frequency": "weekly",
+  "dayOfWeek": "monday",
+  "minConfidence": 0.7,
+  "orgId": "org-abc123"
+}</code></pre>
+
+<div class="warning">
+  <strong>Hourly schedules can be noisy.</strong> They generate frequent contributions that may overwhelm your review queue. Start with weekly schedules at 60%+ confidence, then adjust based on quality.
+</div>
+
+<h2 id="stats-tab">Stats &amp; Charts Tab</h2>
+
+<p>The Stats tab renders six interactive SVG-based visualizations with hover tooltips:</p>
+
+<h3>1. Contributions Over Time (Line Chart)</h3>
+<p>Smooth catmull-rom curve showing daily contribution counts. Includes gradient area fill and interactive hover dots with date and count tooltips.</p>
+
+<h3>2. Confidence Level Over Time (Band Chart)</h3>
+<p>Weekly average confidence with min/max hover details. Color: purple (#8b5cf6). Y-axis: 0–100%.</p>
+
+<h3>3. Contributions by Agent (Horizontal Bar Chart)</h3>
+<p>Each agent gets a colored bar proportional to their contribution count. Hover shows count and average confidence.</p>
+
+<h3>4. Category Distribution (Donut Chart)</h3>
+<p>Breakdown by importance category (high/medium/low/normal). Interactive slices with count and percentage tooltips. Legend displayed alongside.</p>
+
+<h3>5. Agent Quality Comparison</h3>
+<p>Dual horizontal bars per agent: contribution count (agent color) and confidence score (green/yellow/red). Enables quick quality-vs-quantity comparison.</p>
+
+<h3>6. Daily Activity Heatmap</h3>
+<p>Grid table with agents as rows, days as columns. Cell intensity scales with contribution count. Each agent has a unique color from the CHART_COLORS palette.</p>
+
+<p>All charts support time range filtering (7/14/30/60/90 days) and per-agent filtering.</p>
+
+<h2 id="search-metrics-tab">Search Metrics Tab</h2>
+
+<p>Tracks how agents use knowledge search, loaded from <code>/knowledge-contribution/search-metrics</code>:</p>
+
+<ul>
+  <li><strong>Summary cards</strong> — Total searches, KB searches, Hub searches, Hit rate</li>
+  <li><strong>Search efficiency by agent</strong> — Table with total, helpful, and hit rate per agent</li>
+  <li><strong>Search activity timeline</strong> — Daily bar chart colored by helpfulness</li>
+  <li><strong>Recent searches</strong> — Table with agent, type (KB/Hub), query, result count, top score, helpfulness, and timestamp</li>
+</ul>
+
+<div class="tip">
+  <strong>What "hit rate" means:</strong> The percentage of searches that returned useful results. A low hit rate (below 25%) means agents are searching for things not in your knowledge bases — a signal to import more relevant content.
+</div>
+
+<h2 id="entry-management">Entry Management</h2>
+
+<h3>Voting</h3>
+<p>Entries support upvote/downvote via <code>POST /knowledge-contribution/entries/{id}/vote</code> with <code>{ "direction": "up" }</code> or <code>"down"</code>. Vote counts are displayed next to the arrow buttons.</p>
+
+<h3>Status Transitions</h3>
+<pre><code>// Approve an entry
+PUT /api/engine/knowledge-contribution/entries/{id}/approve
+
+// Reject an entry
+PUT /api/engine/knowledge-contribution/entries/{id}/reject
+
+// Archive an entry
+PUT /api/engine/knowledge-contribution/entries/{id}/archive</code></pre>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/knowledge-contribution/bases</code></td><td>GET</td><td>List contribution bases (supports <code>?orgId=</code>)</td></tr>
+    <tr><td><code>/knowledge-contribution/bases</code></td><td>POST</td><td>Create a contribution base</td></tr>
+    <tr><td><code>/knowledge-contribution/bases/{id}/entries</code></td><td>GET</td><td>List entries (supports <code>?category=</code>, <code>?status=</code>, <code>?minQuality=</code>)</td></tr>
+    <tr><td><code>/knowledge-contribution/entries/{id}/approve</code></td><td>PUT</td><td>Approve entry</td></tr>
+    <tr><td><code>/knowledge-contribution/entries/{id}/reject</code></td><td>PUT</td><td>Reject entry</td></tr>
+    <tr><td><code>/knowledge-contribution/entries/{id}/archive</code></td><td>PUT</td><td>Archive entry</td></tr>
+    <tr><td><code>/knowledge-contribution/entries/{id}/vote</code></td><td>POST</td><td>Vote up/down on entry</td></tr>
+    <tr><td><code>/knowledge-contribution/roles</code></td><td>GET</td><td>List available roles</td></tr>
+    <tr><td><code>/knowledge-contribution/stats</code></td><td>GET</td><td>Aggregate stats (supports <code>?orgId=</code>)</td></tr>
+    <tr><td><code>/knowledge-contribution/stats/timeline</code></td><td>GET</td><td>Chart data (supports <code>?days=</code>, <code>?agentId=</code>)</td></tr>
+    <tr><td><code>/knowledge-contribution/contributions</code></td><td>GET</td><td>List contributions/cycles</td></tr>
+    <tr><td><code>/knowledge-contribution/contribute/{agentId}</code></td><td>POST</td><td>Trigger manual contribution</td></tr>
+    <tr><td><code>/knowledge-contribution/schedules</code></td><td>GET/POST</td><td>List or create schedules</td></tr>
+    <tr><td><code>/knowledge-contribution/schedules/{id}</code></td><td>PUT/DELETE</td><td>Update or delete a schedule</td></tr>
+    <tr><td><code>/knowledge-contribution/search-metrics</code></td><td>GET</td><td>Search usage metrics (supports <code>?days=</code>, <code>?agentId=</code>)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Start with weekly schedules at 70% confidence</strong> — This balances volume with quality. Adjust down for more coverage, up for higher accuracy.</li>
+  <li><strong>Review pending entries regularly</strong> — Low-confidence contributions need human validation before they can mislead other agents.</li>
+  <li><strong>Use the quality comparison chart</strong> — An agent with few but high-confidence contributions may be more valuable than one producing many low-quality entries.</li>
+  <li><strong>Monitor hit rates</strong> — Low search hit rates indicate gaps in your knowledge bases. Use "no result" queries to identify what content to import.</li>
+  <li><strong>Create role-specific bases</strong> — Separate support knowledge from engineering knowledge for cleaner retrieval.</li>
+  <li><strong>Use voting for community curation</strong> — Upvote high-value entries and downvote inaccurate ones to surface the best knowledge.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h4>Trigger button does nothing</h4>
+  <p>Ensure the agent ID is valid and the agent has recent memories to scan. Agents with no conversation history have nothing to contribute.</p>
+</div>
+
+<div class="card">
+  <h4>Charts show "No data yet"</h4>
+  <p>Charts require contribution data over time. If you just started, wait for contributions to accumulate. Also check the time range filter — try extending to 30 or 60 days.</p>
+</div>
+
+<div class="card">
+  <h4>Schedule isn't running</h4>
+  <p>Check: (1) Is the schedule enabled (toggle ON)? (2) Does the agent exist and is it active? (3) Is the target base still available?</p>
+</div>
+
+<div class="card">
+  <h4>Search metrics show 0% hit rate</h4>
+  <p>Agents are searching but finding nothing useful. Review the "Recent Searches" table to see what queries are failing, then import relevant content into your knowledge bases.</p>
+</div>
+
+<div class="nav">
+  <h3 id="related">Related Pages</h3>
+  <ul>
+    <li><a href="/docs/knowledge.html">Knowledge Bases</a> — Document import and RAG retrieval</li>
+    <li><a href="/docs/agents.html">Agents</a> — Configure agent knowledge base assignments</li>
+    <li><a href="/docs/organizations.html">Organizations</a> — Org-scoped knowledge isolation</li>
+    <li><a href="/docs/journal.html">Action Journal</a> — Track agent actions that generate knowledge</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

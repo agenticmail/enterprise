@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skills & Integrations — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-easy { background: rgba(21,128,61,0.2); color: var(--success); }
+  .badge-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge-advanced { background: rgba(239,68,68,0.2); color: var(--danger); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/skills">&#8592; Back to Dashboard</a>
+
+<h1>Skills &amp; Integrations</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Connect your agents to external services — Slack, GitHub, Jira, Salesforce, and 60+ more.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#tabs">Dashboard Tabs</a></li>
+    <li><a href="#integrations">Connecting Integrations</a></li>
+    <li><a href="#auth-types">Authentication Types</a></li>
+    <li><a href="#builtin">Builtin Skills</a></li>
+    <li><a href="#installed">Installed Community Skills</a></li>
+    <li><a href="#config">Skill Configuration</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>Skills give your agents the ability to interact with external services. When you connect Slack, your agents can send messages. When you connect GitHub, they can create issues and review PRs. When you connect Salesforce, they can look up contacts and update deals.</p>
+<p>There are three types of skills:</p>
+<div class="card">
+  <table>
+    <tr><th>Type</th><th>Description</th><th>Examples</th></tr>
+    <tr><td><strong>Integrations</strong></td><td>Pre-built connectors in the catalog. Connect via OAuth, API key, or credentials.</td><td>Slack, GitHub, Jira, HubSpot, Stripe</td></tr>
+    <tr><td><strong>Builtin Skills</strong></td><td>Core capabilities bundled with the platform. Always available.</td><td>Gmail, Calendar, Drive, Web Search</td></tr>
+    <tr><td><strong>Community Skills</strong></td><td>Skills from the marketplace or imported from GitHub.</td><td>Custom CRM connectors, niche APIs</td></tr>
+  </table>
+</div>
+
+<h2 id="tabs">Dashboard Tabs</h2>
+<table>
+  <tr><th>Tab</th><th>Purpose</th></tr>
+  <tr><td><strong>Integrations</strong></td><td>Browse the full catalog of 60+ connectors. Connect and disconnect services.</td></tr>
+  <tr><td><strong>Builtin Skills</strong></td><td>View pre-packaged capabilities that come with the platform.</td></tr>
+  <tr><td><strong>Installed</strong></td><td>Manage community skills you've installed — configure, enable/disable, uninstall.</td></tr>
+</table>
+<div class="tip"><strong>Start with the Integrations tab</strong> — connect the services your agents need, and they'll automatically get access to the relevant tools.</div>
+
+<h2 id="integrations">Connecting Integrations</h2>
+<p>Each integration in the catalog shows its name, category, tool count, and connection status. To connect:</p>
+<ol>
+  <li>Find the service in the Integrations tab (use search or filter by category)</li>
+  <li>Click <strong>Connect</strong></li>
+  <li>Enter the required credentials (varies by auth type — see below)</li>
+  <li>Click <strong>Save &amp; Connect</strong></li>
+</ol>
+<p>Once connected, all agents in your organization gain access to that service's tools. You can control per-agent access from each agent's Skills tab.</p>
+
+<h3>Integration Categories</h3>
+<table>
+  <tr><th>Category</th><th>Examples</th></tr>
+  <tr><td>Communication</td><td>Slack, Discord, Microsoft Teams, Twilio</td></tr>
+  <tr><td>CRM &amp; Sales</td><td>Salesforce, HubSpot, Pipedrive</td></tr>
+  <tr><td>Productivity</td><td>Notion, Linear, Asana, Monday</td></tr>
+  <tr><td>DevOps &amp; CI/CD</td><td>GitHub, GitLab, CircleCI, Jenkins</td></tr>
+  <tr><td>Cloud &amp; Infrastructure</td><td>AWS, Azure, GCP, DigitalOcean</td></tr>
+  <tr><td>Database &amp; AI/ML</td><td>PostgreSQL, MongoDB, OpenAI, Pinecone</td></tr>
+  <tr><td>Analytics &amp; Monitoring</td><td>Datadog, Sentry, Amplitude, Mixpanel</td></tr>
+  <tr><td>Security &amp; Identity</td><td>Okta, Auth0, Cloudflare</td></tr>
+  <tr><td>Finance &amp; Payments</td><td>Stripe, QuickBooks, Xero</td></tr>
+</table>
+
+<h2 id="auth-types">Authentication Types</h2>
+<div class="card">
+  <h3 style="margin-top: 0;">OAuth 2.0</h3>
+  <p>The most secure option. Two approaches:</p>
+  <ul>
+    <li><strong>OAuth App (Recommended):</strong> Create an OAuth app in the service's developer portal, enter the Client ID and Secret, then authorize. Supports token refresh and granular scopes.</li>
+    <li><strong>Access Token:</strong> Paste a Personal Access Token from the developer console. Simpler but may have limited scopes and no auto-refresh.</li>
+  </ul>
+  <p>When using OAuth App mode, set the <strong>Redirect URI</strong> in the service's developer portal to:</p>
+  <pre><code>https://your-domain.com/api/engine/oauth/callback</code></pre>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">API Key / Token</h3>
+  <p>Simple key-based authentication. Find the API key in the service's settings or developer portal, paste it in, and you're connected.</p>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Multi-Field Credentials</h3>
+  <p>Some services (like AWS or Twilio) require multiple fields — Access Key ID + Secret, Account SID + Auth Token, etc. Each field is encrypted separately with AES-256-GCM.</p>
+</div>
+
+<h2 id="builtin">Builtin Skills</h2>
+<p>Builtin skills are core capabilities that come pre-packaged with AgenticMail. They're always available and don't require installation — just authentication where needed (e.g., Google OAuth for Gmail/Calendar/Drive).</p>
+<p>Browse them in the <strong>Builtin Skills</strong> tab. Each skill shows its name, description, category, and the number of tools it provides.</p>
+
+<h2 id="installed">Installed Community Skills</h2>
+<p>Community skills are installed from the <a href="/docs/community-skills">Community Marketplace</a>. Once installed, they appear in the <strong>Installed</strong> tab where you can:</p>
+<ul>
+  <li><strong>Connect:</strong> Set up credentials for the skill</li>
+  <li><strong>Configure:</strong> Adjust skill-specific settings</li>
+  <li><strong>Enable/Disable:</strong> Toggle the skill without removing it</li>
+  <li><strong>Uninstall:</strong> Completely remove the skill and its connections</li>
+</ul>
+<p>Each installed skill shows its connection status, version, author, and install date.</p>
+
+<h2 id="config">Skill Configuration</h2>
+<p>Some skills have additional settings beyond credentials. Click the <strong>Configure</strong> button on any installed skill to view and edit its options. Changes take effect immediately.</p>
+<p>Configuration options are skill-specific — they might include things like default channels, notification preferences, or API rate limits.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+  <ul>
+    <li><strong>Use OAuth App over Access Tokens</strong> when available — OAuth tokens auto-refresh and support granular permissions</li>
+    <li><strong>Rotate API keys periodically</strong> — set a reminder to refresh credentials every 90 days</li>
+    <li><strong>Disconnect unused integrations</strong> — fewer active connections = smaller attack surface</li>
+    <li><strong>Check connection status regularly</strong> — expired tokens or revoked keys silently break integrations</li>
+    <li><strong>Use per-agent credentials</strong> when you need different permission levels (e.g., one agent reads GitHub, another writes)</li>
+    <li><strong>Test after connecting</strong> — have an agent use the integration's tools to verify it works</li>
+  </ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>"Not Connected" after saving</td><td>Double-check credentials. For OAuth, ensure the redirect URI matches exactly. For API keys, check for trailing whitespace.</td></tr>
+  <tr><td>Agent can't use a connected skill</td><td>Check the agent's Skills tab — the skill may be disabled for that specific agent. Also verify the skill is enabled (not just connected).</td></tr>
+  <tr><td>OAuth popup doesn't appear</td><td>Check your browser's popup blocker. The OAuth flow opens a new window that some browsers block by default.</td></tr>
+  <tr><td>Token expired</td><td>For OAuth App connections, tokens auto-refresh. For Access Tokens, you'll need to generate a new one and re-save.</td></tr>
+  <tr><td>"Skill installed but no tools"</td><td>The skill may need credentials before tools become available. Click Connect to set up authentication.</td></tr>
+</table>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/community-skills">Community Skills Marketplace</a> — Browse, install, and update skills</li>
+    <li><a href="/docs/settings">Settings</a> — Tool security, API keys, and platform configuration</li>
+    <li><a href="/docs/guardrails">Guardrails</a> — Control what agents can do with their tools</li>
+  </ul>
+</div>
+
+<p style="margin-top: 32px; color: var(--text-muted); font-size: 12px; text-align: center;">
+  AgenticMail Enterprise — Skills &amp; Integrations Documentation
+</p>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Autonomy — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Autonomy</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Configure what the agent does automatically — daily routines, catch-ups, goal checks, knowledge contributions, and escalation behavior.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#master-switch">Master Switch</a></li>
+        <li><a href="#auto-clock">Auto Clock-In/Out</a></li>
+        <li><a href="#daily-catchup">Daily Manager Catch-Up</a></li>
+        <li><a href="#weekly-catchup">Weekly Manager Catch-Up</a></li>
+        <li><a href="#goal-check">Goal Progress Checks</a></li>
+        <li><a href="#knowledge-contrib">Weekly Knowledge Contribution</a></li>
+        <li><a href="#escalation">Smart Answer Escalation</a></li>
+        <li><a href="#guardrail-enforcement">Runtime Guardrail Enforcement</a></li>
+        <li><a href="#drive-access">Drive Access Requests</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Autonomy settings are the agent's daily routine. Just like a good employee doesn't need to be told to check their email every morning, an autonomous agent can clock in on schedule, review unread messages, check on goals, and escalate issues to its manager — all without being asked. This tab lets you configure exactly which automatic behaviors are enabled and when they happen.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>Autonomy settings are stored in <code>engineAgent.config.autonomy</code>. The save mechanism is context-aware:</p>
+  <ul>
+    <li><strong>Running agent</strong> — Uses <code>POST /agents/:id/hot-update</code> for live config updates. The agent reloads within 10 minutes.</li>
+    <li><strong>Stopped agent</strong> — Uses <code>PATCH /agents/:id/config</code> for static config updates. Takes effect on next start.</li>
+  </ul>
+  <p>The form tracks dirty state and only enables the Save button when changes exist. All times are interpreted in the agent's configured timezone (from the Workforce tab schedule).</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Load</strong> — Existing autonomy config is read from <code>engineAgent.config.autonomy</code> and merged with defaults.</li>
+  <li><strong>Configure</strong> — Toggle individual behaviors on/off and configure their schedules using the card-based UI.</li>
+  <li><strong>Save</strong> — Click "Save" to persist changes. The save method is chosen automatically based on agent state (hot-update for running, config patch for stopped).</li>
+  <li><strong>Execute</strong> — The agent's runtime evaluates these settings and triggers automated behaviors at the configured times.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="master-switch">Master Switch</h3>
+<p>The "Enable Autonomy System" toggle is the master switch for all automated behaviors. When disabled, no autonomous actions will be taken regardless of individual toggle settings. All other cards show reduced opacity when the master switch is off.</p>
+<div class="warning">
+  <strong>Warning:</strong> Disabling the master switch immediately stops all automated behaviors. The agent will only respond when explicitly triggered.
+</div>
+
+<h3 id="auto-clock">Auto Clock-In/Out</h3>
+<p>Automatically clocks the agent in and out based on the work schedule defined in the Workforce tab. No additional configuration needed here — it uses the schedule times directly.</p>
+
+<h3 id="daily-catchup">Daily Manager Catch-Up</h3>
+<p>At a set time each workday, the agent reviews unread emails, messages, and pending tasks, then sends a summary to its manager. The time is configured in the Manager &amp; Catch-Up tab.</p>
+
+<h3 id="weekly-catchup">Weekly Manager Catch-Up</h3>
+<p>A deeper weekly review that includes summaries, reports, and planning. Configure which day of the week to send it using the day-of-week selector. Uses the same time as the daily catch-up.</p>
+
+<h3 id="goal-check">Goal Progress Checks</h3>
+<p>The agent reviews Google Tasks at configured hours. Enter check times as comma-separated 24-hour values (e.g., "14, 17" for 2 PM and 5 PM). The last check of the day serves as an end-of-day review.</p>
+
+<h3 id="knowledge-contrib">Weekly Knowledge Contribution</h3>
+<p>The agent reviews its learnings from the week and contributes to the organization's role-based knowledge base. Configure the day and time for this contribution.</p>
+
+<h3 id="escalation">Smart Answer Escalation</h3>
+<p>When the agent can't answer a question, it follows a three-step process:</p>
+<ol>
+  <li>Search its own memory for the answer.</li>
+  <li>Search shared Drive/knowledge base.</li>
+  <li>If still unsure, escalate to its manager.</li>
+</ol>
+<p>This prevents the agent from giving wrong answers when it doesn't know something.</p>
+
+<h3 id="guardrail-enforcement">Runtime Guardrail Enforcement</h3>
+<p>When enabled, the agent self-monitors by evaluating guardrail rules on inbound emails and tool calls at runtime. This is a proactive safety measure — the agent checks itself before acting.</p>
+
+<h3 id="drive-access">Drive Access Requests</h3>
+<p>When the agent can't access a needed file (permissions error), it requests access from its manager instead of failing silently. This ensures the agent gets the resources it needs while maintaining access controls.</p>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Start conservative</strong> — Enable daily catch-up first. Add more behaviors as the agent proves reliable.</li>
+    <li><strong>The master switch is your safety valve</strong> — If an agent is misbehaving autonomously, disable the master switch first, then investigate.</li>
+    <li><strong>Align catch-up times with manager availability</strong> — Set the daily catch-up for when the manager typically starts their day, so the summary is fresh and actionable.</li>
+    <li><strong>Use goal checks strategically</strong> — Two checks (afternoon + end of day) is a good default. More frequent checks increase token usage.</li>
+    <li><strong>Enable escalation for customer-facing agents</strong> — Wrong answers are worse than delayed answers. Smart escalation prevents misinformation.</li>
+    <li><strong>Keep guardrail enforcement enabled</strong> — There's minimal overhead and it catches issues before they become problems.</li>
+    <li><strong>Enable Drive access requests</strong> — Silent failures are the worst kind. It's always better for the agent to ask than to silently skip important files.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Changes show "agent will reload within 10 min"</h3>
+  <p>This is normal for running agents. Hot updates are queued and applied at the next configuration check cycle (up to 10 minutes). If you need immediate effect, restart the agent.</p>
+</div>
+
+<div class="card">
+  <h3>Daily catch-up not sending</h3>
+  <p>Check: (1) The master switch is enabled, (2) Daily catch-up is toggled on, (3) The agent is clocked in at the catch-up time, (4) The agent has a manager configured. Also check the Activity tab for any errors.</p>
+</div>
+
+<div class="card">
+  <h3>Goal checks not running</h3>
+  <p>Verify the goal check hours are valid 24-hour values (0-23) separated by commas. The agent must be online and clocked in at the check time. Google Tasks integration must be configured.</p>
+</div>
+
+<div class="card">
+  <h3>"Unsaved changes" won't go away</h3>
+  <p>You have modified settings that haven't been saved. Click "Save" to persist them or reload the page to discard. The dirty state tracker compares current form values against the loaded config.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-workforce.html">Agent Workforce</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+  <a href="agent-communication.html">Agent Communication</a>
+  <a href="agent-memory.html">Agent Memory</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

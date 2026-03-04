@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Deployment — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Deployment</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Configure where and how this agent runs — cloud providers, Docker, VPS, local process management, knowledge bases, and lifecycle controls.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#deployment-targets">Deployment Targets</a></li>
+        <li><a href="#fly">Fly.io</a></li>
+        <li><a href="#aws">AWS EC2</a></li>
+        <li><a href="#gcp">Google Cloud GCE</a></li>
+        <li><a href="#azure">Microsoft Azure</a></li>
+        <li><a href="#railway">Railway</a></li>
+        <li><a href="#docker">Docker</a></li>
+        <li><a href="#vps">VPS / Bare Metal</a></li>
+        <li><a href="#local">Local (In-Process)</a></li>
+        <li><a href="#status">Deployment Status</a></li>
+        <li><a href="#lifecycle">Lifecycle Controls</a></li>
+        <li><a href="#knowledge-bases">Knowledge Bases</a></li>
+        <li><a href="#delete">Agent Deletion</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>The Deployment tab is mission control for your agent's infrastructure. It answers three questions: Where does the agent run? Is it healthy? How do I control it? You can deploy agents to cloud platforms (Fly.io, AWS, GCP, Azure, Railway), run them in Docker containers, on your own servers, or locally on this machine. Once deployed, you can start, stop, restart, and monitor the agent from here.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>Deployment configuration is stored in <code>engineAgent.config.deployment</code>. The save mechanism is state-aware:</p>
+  <ul>
+    <li><strong>Running agent</strong> — <code>POST /agents/:id/hot-update</code> for live updates.</li>
+    <li><strong>Stopped agent</strong> — <code>PATCH /agents/:id/config</code> for static config.</li>
+  </ul>
+  <p>Lifecycle actions:</p>
+  <ul>
+    <li><code>POST /agents/:id/deploy</code> — Initiate deployment.</li>
+    <li><code>POST /agents/:id/stop</code> — Stop the agent.</li>
+    <li><code>POST /agents/:id/restart</code> — Restart the agent.</li>
+    <li><code>DELETE /bridge/agents/:id</code> (via <code>apiCall</code>) — Permanent deletion with 5-step confirmation.</li>
+  </ul>
+  <p>Knowledge bases: <code>GET /knowledge-bases?agentId=…</code>. Process manager detection: <code>GET /system/process-managers</code>. PM2 installation: <code>POST /system/install-pm2</code>.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Configure</strong> — Click "Edit" on the Deployment Status card. Select a target platform and fill in the required credentials and settings.</li>
+  <li><strong>Save</strong> — Save the deployment configuration. This doesn't deploy — it just stores the config.</li>
+  <li><strong>Deploy</strong> — Click "Deploy" to initiate the deployment process. The agent starts on the configured target.</li>
+  <li><strong>Monitor</strong> — The status card shows state (running, stopped, error), health, uptime, endpoint URL, and deployment details.</li>
+  <li><strong>Control</strong> — Use Stop, Restart, or Deploy buttons to manage the agent's lifecycle.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="deployment-targets">Deployment Targets</h3>
+<p>Eight deployment targets are supported, each with platform-specific configuration:</p>
+
+<table>
+  <thead><tr><th>Target</th><th>Best For</th><th>Difficulty</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Fly.io</strong></td><td>Quick cloud deployment, auto-scaling</td><td><span class="badge badge-easy">Easy</span></td></tr>
+    <tr><td><strong>Railway</strong></td><td>Simple PaaS deployment</td><td><span class="badge badge-easy">Easy</span></td></tr>
+    <tr><td><strong>Docker</strong></td><td>Containerized environments</td><td><span class="badge badge-medium">Medium</span></td></tr>
+    <tr><td><strong>Local</strong></td><td>Development and testing</td><td><span class="badge badge-easy">Easy</span></td></tr>
+    <tr><td><strong>AWS EC2</strong></td><td>Enterprise cloud, full control</td><td><span class="badge badge-advanced">Advanced</span></td></tr>
+    <tr><td><strong>Google Cloud</strong></td><td>GCP ecosystem integration</td><td><span class="badge badge-advanced">Advanced</span></td></tr>
+    <tr><td><strong>Azure</strong></td><td>Microsoft ecosystem integration</td><td><span class="badge badge-advanced">Advanced</span></td></tr>
+    <tr><td><strong>VPS</strong></td><td>Custom servers, bare metal</td><td><span class="badge badge-medium">Medium</span></td></tr>
+  </tbody>
+</table>
+
+<h3 id="fly">Fly.io</h3>
+<p>Recommended for quick deployments. Configure:</p>
+<ul>
+  <li><strong>API Token</strong> — From <code>fly.io/user/personal_access_tokens</code>.</li>
+  <li><strong>App Name</strong> — Auto-generated if empty.</li>
+  <li><strong>Organization</strong> — Fly.io org (default: "personal").</li>
+  <li><strong>VM Size</strong> — From Shared 1x ($1.94/mo) to Performance 8x ($232.36/mo).</li>
+  <li><strong>Region</strong> — 18 global regions with city names and codes.</li>
+</ul>
+
+<h3 id="aws">AWS EC2</h3>
+<p>Full cloud deployment on Amazon Web Services:</p>
+<ul>
+  <li><strong>Credentials</strong> — Access Key ID and Secret Access Key.</li>
+  <li><strong>Region</strong> — 12 AWS regions from US East to South Africa.</li>
+  <li><strong>Instance Type</strong> — From t3.micro ($7.59/mo) to c5.xlarge ($122.40/mo).</li>
+  <li><strong>Optional</strong> — AMI ID, Subnet ID, Security Group, Key Pair Name.</li>
+</ul>
+
+<h3 id="gcp">Google Cloud GCE</h3>
+<ul>
+  <li><strong>Project ID</strong> and <strong>Service Account Key</strong> (JSON).</li>
+  <li><strong>Region/Zone</strong> — 11 regions from US Central to South America.</li>
+  <li><strong>Machine Type</strong> — From e2-micro ($6.11/mo) to c2-standard-4 ($124.49/mo).</li>
+</ul>
+
+<h3 id="azure">Microsoft Azure</h3>
+<ul>
+  <li><strong>Subscription ID</strong> and <strong>Resource Group</strong>.</li>
+  <li><strong>Region</strong> — 15 regions globally.</li>
+  <li><strong>VM Size</strong> — From Standard_B1s ($7.59/mo) to Standard_E2s_v5 ($91.98/mo).</li>
+  <li><strong>Optional</strong> — Tenant ID, Client ID, Client Secret for service principal auth.</li>
+</ul>
+
+<h3 id="railway">Railway</h3>
+<ul>
+  <li><strong>API Token</strong> — From <code>railway.app/account/tokens</code>.</li>
+  <li><strong>Project ID</strong> — Auto-created if empty.</li>
+  <li><strong>Service Name</strong> — Name for the Railway service.</li>
+</ul>
+
+<h3 id="docker">Docker</h3>
+<ul>
+  <li><strong>Image</strong> — Docker image name (default: <code>agenticmail/agent</code>).</li>
+  <li><strong>Tag</strong> — Image tag (default: <code>latest</code>).</li>
+  <li><strong>Ports</strong> — Comma-separated port mappings.</li>
+  <li><strong>Memory / CPU</strong> — Resource limits (e.g., 512m, 0.5 CPU).</li>
+  <li><strong>Network</strong> — Docker network name.</li>
+  <li><strong>Restart Policy</strong> — Unless Stopped, Always, On Failure, or Never.</li>
+</ul>
+
+<h3 id="vps">VPS / Bare Metal</h3>
+<ul>
+  <li><strong>Host</strong> — IP address or hostname.</li>
+  <li><strong>SSH Port</strong> — Default 22.</li>
+  <li><strong>User</strong> — SSH user (default: root).</li>
+  <li><strong>SSH Key Path</strong> — Path to private key.</li>
+  <li><strong>Work Directory</strong> — Where the agent runs on the server.</li>
+</ul>
+
+<h3 id="local">Local (In-Process)</h3>
+<p>For development and single-server deployments:</p>
+<ul>
+  <li><strong>Port</strong> — HTTP port the agent listens on.</li>
+  <li><strong>Host</strong> — Hostname or IP (default: localhost).</li>
+  <li><strong>Process Manager</strong> — PM2 (with install detection), systemd, Manual, or In-Process (embedded).</li>
+  <li><strong>Process Name</strong> — PM2/systemd service name for lifecycle management.</li>
+  <li><strong>Working Directory</strong> — Auto-detected or manually specified.</li>
+</ul>
+<div class="tip">
+  <strong>Tip:</strong> PM2 availability is auto-detected. If PM2 isn't installed, the dashboard offers a one-click "Install PM2" button.
+</div>
+
+<h3 id="status">Deployment Status</h3>
+<p>The status card shows:</p>
+<ul>
+  <li><strong>State</strong> — Running, Active, Deploying, Starting, Degraded, Error, Stopped, Draft, Ready. Color-coded.</li>
+  <li><strong>Health</strong> — Healthy, Degraded, or Unhealthy.</li>
+  <li><strong>Uptime</strong> — Time since last deployment.</li>
+  <li><strong>Endpoint</strong> — The agent's URL (clickable link).</li>
+  <li><strong>Target, Model, Region, Port</strong> — Current deployment configuration.</li>
+</ul>
+
+<h3 id="lifecycle">Lifecycle Controls</h3>
+<ul>
+  <li><strong>Deploy</strong> — Available when stopped. Initiates the deployment process.</li>
+  <li><strong>Stop</strong> — Available when running. Gracefully stops the agent.</li>
+  <li><strong>Restart</strong> — Available when running or stopped. Stops and starts the agent.</li>
+</ul>
+
+<h3 id="knowledge-bases">Knowledge Bases</h3>
+<p>The Knowledge Bases card shows shared knowledge sources assigned to this agent. These provide the agent with organizational context and reference materials via RAG (Retrieval-Augmented Generation).</p>
+
+<h4>Auto-Assignment on Creation</h4>
+<p>When a new agent is created, knowledge bases are automatically assigned based on the agent's organization:</p>
+<ul>
+  <li><strong>Client org agents</strong> — Automatically get all knowledge bases belonging to their client organization.</li>
+  <li><strong>Internal agents</strong> — Automatically get all knowledge bases that are NOT assigned to any client organization (i.e., internal/shared KBs).</li>
+</ul>
+
+<h4>Sync Knowledge Button</h4>
+<p>If new knowledge bases are added after the agent was created, click the <strong>"Sync Knowledge"</strong> button in the card header to pick them up. This triggers the same auto-assignment logic:</p>
+<ul>
+  <li>Scans all knowledge bases matching the agent's org context.</li>
+  <li>Assigns any KBs the agent doesn't already have access to.</li>
+  <li>Does NOT remove existing assignments — only adds new ones.</li>
+</ul>
+
+<div class="card">
+  <h3>API Reference</h3>
+  <pre><code>POST /knowledge-bases/auto-assign/:agentId
+Body: { "clientOrgId": "org-uuid" }  // optional, auto-detected from agent
+Response: { "agentId": "...", "assigned": ["kb-1", "kb-2"], "count": 2 }</code></pre>
+</div>
+
+<div class="tip">
+  <strong>For non-technical users:</strong> When you create a new knowledge base and want existing agents to access it, just go to the agent's Deployment tab and click "Sync Knowledge." The agent will immediately be able to search the new documents — no restart needed.
+</div>
+
+<h3 id="delete">Agent Deletion</h3>
+<p>A 5-step confirmation flow prevents accidental deletion:</p>
+<ol>
+  <li>Click "Delete Agent"</li>
+  <li>Three confirmation steps with increasingly clear warnings</li>
+  <li>Type the agent's name to confirm</li>
+  <li>Final deletion via <code>DELETE /bridge/agents/:id</code></li>
+</ol>
+<div class="danger">
+  <strong>Danger:</strong> Agent deletion is permanent. All configuration, history, and data associated with the agent will be lost. This cannot be undone.
+</div>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Start with Local for development</strong> — Use local deployment while configuring and testing. Move to cloud for production.</li>
+    <li><strong>Use the smallest resource allocation that works</strong> — Start small and scale up based on actual usage. Most agents run fine on minimal resources.</li>
+    <li><strong>Choose a region close to your users</strong> — Lower latency means faster agent responses.</li>
+    <li><strong>Use PM2 for local production deployments</strong> — PM2 provides auto-restart, log management, and process monitoring.</li>
+    <li><strong>Never hard-code credentials in agent code</strong> — Use the deployment configuration for API keys and secrets. They're stored securely and injected at runtime.</li>
+    <li><strong>Test deployment config changes on a stopped agent first</strong> — Hot updates work but can cause brief disruptions. For major config changes, stop first.</li>
+    <li><strong>Monitor health status regularly</strong> — A "Degraded" status often precedes a full failure. Investigate early.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Deploy fails with authentication error</h3>
+  <p>Verify your API token/credentials for the target platform. Tokens may have expired or been revoked. For AWS, ensure the IAM user has EC2 permissions.</p>
+</div>
+
+<div class="card">
+  <h3>Agent shows "Deploying" indefinitely</h3>
+  <p>The deployment process may have stalled. Check the target platform's dashboard (Fly.io, AWS Console, etc.) for deployment logs. Try stopping and redeploying.</p>
+</div>
+
+<div class="card">
+  <h3>Local deployment can't find PM2</h3>
+  <p>PM2 may not be installed or not in PATH. Use the "Install PM2" button in the deployment editor. If installation fails, install manually: <code>npm install -g pm2</code>.</p>
+</div>
+
+<div class="card">
+  <h3>Health status shows "Unhealthy"</h3>
+  <p>The agent process may have crashed. Check logs on the deployment platform. Common causes: missing environment variables, incorrect model configuration, or insufficient memory.</p>
+</div>
+
+<div class="card">
+  <h3>Delete confirmation name doesn't match</h3>
+  <p>The typed name must match exactly (case-insensitive) with the agent's display name. Check the agent name shown in the header.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-budget.html">Agent Budget</a>
+  <a href="agent-security.html">Agent Security</a>
+  <a href="agent-tool-security.html">Tool Security</a>
+  <a href="agent-workforce.html">Agent Workforce</a>
+  <a href="agent-activity.html">Agent Activity Log</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

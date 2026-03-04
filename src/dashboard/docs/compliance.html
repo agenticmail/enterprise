@@ -1,0 +1,221 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance Reporting — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Compliance Reporting</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Generate and manage compliance reports for SOC2, GDPR, and audit requirements.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#report-types">Report Types</a></li>
+<li><a href="#generating">Generating Reports</a></li>
+<li><a href="#report-history">Report History</a></li>
+<li><a href="#configuration">Configuration &amp; Setup</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p><strong>For everyone:</strong> The Compliance page helps you stay audit-ready by generating official reports about how your AI agents handle data. Whether you need to prove your security controls for SOC2, export personal data for GDPR, or review administrative actions, this page generates the documents you need — in formats auditors and regulators can work with.</p>
+<p><strong>For technical users:</strong> The compliance module generates structured reports by querying the engine's audit trail, agent activity logs, DLP violations, and access patterns. Reports are generated asynchronously via <code>POST /compliance/reports/:type</code> and downloadable in JSON or CSV format. Agent-scoped and date-range-scoped queries are supported.</p>
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+<ol>
+<li><strong>Select report type</strong> — choose SOC2 Summary, GDPR Export, or Audit Summary.</li>
+<li><strong>Configure scope</strong> — set date range, select specific agents (optional).</li>
+<li><strong>Generate</strong> — the report is created asynchronously on the server.</li>
+<li><strong>Download</strong> — once completed, download in JSON (programmatic) or CSV (spreadsheet) format.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Report Scoping</h3>
+<p>Reports can be scoped by:</p>
+<ul>
+<li><strong>Date range</strong> — for SOC2 and Audit reports, specify a start and end date.</li>
+<li><strong>Agent</strong> — for GDPR exports, select a specific agent (required). For Audit reports, optionally filter to one agent.</li>
+<li><strong>Organization</strong> — all reports are automatically scoped to the current organization.</li>
+</ul>
+
+<h3>Report Lifecycle</h3>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-easy">completed</span></td><td>Report is ready for download</td></tr>
+<tr><td><span class="badge badge-medium">pending</span></td><td>Report is being generated</td></tr>
+<tr><td><span class="badge badge-advanced">failed</span></td><td>Report generation encountered an error</td></tr>
+</tbody>
+</table>
+
+<h2 id="report-types">Report Types</h2>
+
+<h3>SOC2 Summary</h3>
+<div class="card">
+<p>Documents security controls, access patterns, and policy enforcement for SOC2 auditors. Includes:</p>
+<ul>
+<li>User access and authentication activity</li>
+<li>Agent permission boundaries and enforcement</li>
+<li>DLP rule configurations and violation counts</li>
+<li>Vault access patterns</li>
+<li>Administrative action summary</li>
+</ul>
+<p><strong>Scope:</strong> Date range + optional agent filter</p>
+</div>
+
+<h3>GDPR Export</h3>
+<div class="card">
+<p>Generates a data subject access report for a specific agent, showing all personal data processed. Useful for responding to data subject access requests (DSARs). Includes:</p>
+<ul>
+<li>All emails sent and received by the agent</li>
+<li>Personal data detected in agent communications</li>
+<li>Data processing activities and legal basis</li>
+<li>Third-party data sharing records</li>
+</ul>
+<p><strong>Scope:</strong> Specific agent (required)</p>
+</div>
+
+<div class="tip">
+<strong>Tip:</strong> GDPR exports require selecting a specific agent because the report is about data processed by that agent. You cannot generate a GDPR export for "all agents" — create one per agent as needed.
+</div>
+
+<h3>Audit Summary</h3>
+<div class="card">
+<p>Aggregated view of all administrative actions over a date range. Useful for internal reviews and general audit readiness. Includes:</p>
+<ul>
+<li>User creation, deletion, and permission changes</li>
+<li>Agent configuration modifications</li>
+<li>Secret access and rotation events</li>
+<li>DLP rule changes</li>
+<li>System configuration changes</li>
+</ul>
+<p><strong>Scope:</strong> Date range + optional agent filter</p>
+</div>
+
+<h2 id="generating">Generating Reports</h2>
+<ol>
+<li>Navigate to the <strong>Generate</strong> tab.</li>
+<li>Select the <strong>Report Type</strong> from the dropdown.</li>
+<li>For SOC2/Audit: set the <strong>From</strong> and <strong>To</strong> dates (defaults to last 30 days).</li>
+<li>For GDPR: select the target <strong>Agent</strong> (required).</li>
+<li>For Audit: optionally select a specific <strong>Agent</strong> to filter.</li>
+<li>Click <strong>Generate Report</strong>.</li>
+<li>Switch to the <strong>Reports</strong> tab to monitor status and download when complete.</li>
+</ol>
+
+<div class="tip">
+<strong>Tip:</strong> For SOC2 audits, generate monthly reports to maintain a continuous compliance record. This makes annual audits much smoother.
+</div>
+
+<h2 id="report-history">Report History</h2>
+<p>The <strong>Reports</strong> tab shows all previously generated reports with:</p>
+<table>
+<thead><tr><th>Column</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Title</strong></td><td>Auto-generated descriptive title</td></tr>
+<tr><td><strong>Type</strong></td><td>SOC2, GDPR, or AUDIT badge</td></tr>
+<tr><td><strong>Status</strong></td><td>Completed, pending, or failed</td></tr>
+<tr><td><strong>Generated</strong></td><td>Timestamp of report creation</td></tr>
+<tr><td><strong>By</strong></td><td>User who generated the report</td></tr>
+<tr><td><strong>Actions</strong></td><td>Download as JSON or CSV (completed reports only)</td></tr>
+</tbody>
+</table>
+
+<h3>Download Formats</h3>
+<ul>
+<li><strong>JSON</strong> — structured data for programmatic processing, integrations, or archival.</li>
+<li><strong>CSV</strong> — tabular format for spreadsheet review, sharing with auditors, or importing into GRC tools.</li>
+</ul>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>API Endpoints</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/compliance/reports?orgId=</code></td><td>List all reports</td></tr>
+<tr><td>POST</td><td><code>/compliance/reports/soc2</code></td><td>Generate SOC2 summary</td></tr>
+<tr><td>POST</td><td><code>/compliance/reports/gdpr</code></td><td>Generate GDPR export</td></tr>
+<tr><td>POST</td><td><code>/compliance/reports/audit</code></td><td>Generate audit summary</td></tr>
+<tr><td>GET</td><td><code>/compliance/reports/:id/download?format=</code></td><td>Download report (json or csv)</td></tr>
+</tbody>
+</table>
+
+<h3>Request Body Examples</h3>
+<pre><code>// SOC2 Summary
+POST /compliance/reports/soc2
+{
+  "orgId": "org-123",
+  "dateRange": { "from": "2026-01-01", "to": "2026-01-31" },
+  "agentIds": ["agent-1", "agent-2"]  // optional
+}
+
+// GDPR Export
+POST /compliance/reports/gdpr
+{
+  "orgId": "org-123",
+  "agentId": "agent-1"  // required
+}
+
+// Audit Summary
+POST /compliance/reports/audit
+{
+  "orgId": "org-123",
+  "dateRange": { "from": "2026-01-01", "to": "2026-03-01" },
+  "agentIds": ["agent-1"]  // optional
+}</code></pre>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Generate monthly SOC2 reports</strong> — maintain a continuous compliance trail rather than scrambling before audits.</li>
+<li><strong>Process GDPR requests promptly</strong> — regulations typically require response within 30 days of a DSAR.</li>
+<li><strong>Archive reports externally</strong> — download and store completed reports in your document management system. Reports on the dashboard are not guaranteed to persist indefinitely.</li>
+<li><strong>Use agent scoping wisely</strong> — generate agent-specific reports when investigating incidents; use org-wide reports for periodic reviews.</li>
+<li><strong>Review Audit Summaries before releasing access changes</strong> — after modifying user permissions or agent configurations, generate an audit summary to verify the changes are recorded correctly.</li>
+<li><strong>Keep date ranges manageable</strong> — very large date ranges (years) may take longer to generate. Quarterly or monthly is ideal.</li>
+<li><strong>Download both formats</strong> — JSON for your systems, CSV for auditors and compliance teams.</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+<h3>Report stuck in "pending" status</h3>
+<p>Large reports with wide date ranges may take several minutes. Wait and refresh the Reports tab. If it stays pending for more than 10 minutes, there may be a backend issue — check server logs.</p>
+
+<h3>Report shows "failed" status</h3>
+<p>Common causes: invalid date range (from > to), agent ID not found, or database timeout for very large datasets. Fix the parameters and regenerate.</p>
+
+<h3>GDPR export has no data</h3>
+<p>Verify the selected agent has actually processed data during the reporting period. Newly created agents with no activity will produce empty reports.</p>
+
+<h3>Download not starting</h3>
+<p>The download opens in a new tab via <code>/api/engine/compliance/reports/:id/download</code>. Ensure your browser isn't blocking popups. Try right-clicking the download button and selecting "Open in new tab."</p>
+
+<h3>Cannot generate reports</h3>
+<p>Report generation requires admin-level access. Check your user role and permissions on the Users page.</p>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+<a href="/docs/dlp.html">DLP</a> — DLP violations feed into compliance reports.
+<a href="/docs/vault.html">Vault</a> — Vault audit logs are included in SOC2 and Audit summaries.
+<a href="/docs/users.html">Users</a> — User activity is tracked in Audit Summary reports.
+<a href="/docs/database-access.html">Database Access</a> — Database query audit logs can inform compliance reviews.
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

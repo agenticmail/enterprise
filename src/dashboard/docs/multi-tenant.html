@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Tenant Guide — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-easy { background: rgba(21,128,61,0.2); color: var(--success); }
+  .badge-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge-advanced { background: rgba(239,68,68,0.2); color: var(--danger); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/organizations">&#8592; Back to Dashboard</a>
+
+<h1>Multi-Tenant Guide</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Comprehensive guide to managing client organizations, data isolation, billing, and org-scoped agent deployments.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#organizations">Managing Organizations</a></li>
+    <li><a href="#agents">Agent Assignment</a></li>
+    <li><a href="#users">User → Org Binding</a></li>
+    <li><a href="#org-switcher">Org Context Switching</a></li>
+    <li><a href="#data-isolation">Data Isolation</a></li>
+    <li><a href="#billing">Billing &amp; Cost Tracking</a></li>
+    <li><a href="#knowledge">Knowledge Partitioning</a></li>
+    <li><a href="#guardrails">Org-Scoped Guardrails</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>AgenticMail Enterprise supports multi-tenancy — the ability to serve multiple client organizations from a single installation. Each organization gets its own agents, policies, knowledge base, and billing, while you maintain centralized control as the platform operator.</p>
+<p>This is ideal for agencies, MSPs, and enterprises that deploy AI agents for multiple clients or departments.</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Key Concepts</h3>
+  <table>
+    <tr><th>Concept</th><th>Description</th></tr>
+    <tr><td><strong>Organization</strong></td><td>A client tenant — has its own slug, agents, billing rate, and contact info</td></tr>
+    <tr><td><strong>Agent Assignment</strong></td><td>Agents are linked to organizations. An agent serves one org at a time.</td></tr>
+    <tr><td><strong>User Binding</strong></td><td>Dashboard users can be bound to an org, restricting their view to that org's data</td></tr>
+    <tr><td><strong>Org Context Switcher</strong></td><td>Admins/owners can switch between org views without logging out</td></tr>
+    <tr><td><strong>Per-Agent Billing</strong></td><td>Each org has a default rate per agent/month, with optional per-agent overrides</td></tr>
+  </table>
+</div>
+
+<h2 id="architecture">Architecture</h2>
+<p>The multi-tenant system works through organization-scoped data access. Here's how the layers interact:</p>
+
+<pre><code>┌─────────────────────────────────────────────┐
+│              Platform Owner                  │
+│  (sees all orgs, full admin access)          │
+├─────────────────────────────────────────────┤
+│  Org: AgenticMail        │  Org: TechStart Inc   │
+│  ├── Agent: Sales Bot  │  ├── Agent: Support│
+│  ├── Agent: HR Helper  │  ├── Agent: Ops    │
+│  ├── Policies (scoped) │  ├── Policies      │
+│  ├── Knowledge Base    │  ├── Knowledge Base│
+│  └── Billing: $50/agent│  └── Billing: $75  │
+├─────────────────────────────────────────────┤
+│  User: alice@acme.com  │  User: bob@globex  │
+│  (locked to Acme)      │  (locked to Globex)│
+└─────────────────────────────────────────────┘</code></pre>
+
+<h2 id="organizations">Managing Organizations</h2>
+
+<h3>Creating an Organization</h3>
+<ol>
+  <li>Go to <strong>Organizations</strong> in the dashboard</li>
+  <li>Click <strong>New Organization</strong></li>
+  <li>Fill in the details:
+    <ul>
+      <li><strong>Name:</strong> Display name (e.g., "AgenticMailoration")</li>
+      <li><strong>Slug:</strong> URL-safe identifier, auto-generated from name (e.g., "acme-corporation")</li>
+      <li><strong>Contact Name &amp; Email:</strong> Primary contact for this client</li>
+      <li><strong>Description:</strong> Internal notes about this organization</li>
+      <li><strong>Billing Rate:</strong> Monthly cost per agent (e.g., $50/agent/month)</li>
+      <li><strong>Currency:</strong> USD, EUR, GBP, NGN, CAD, or AUD</li>
+    </ul>
+  </li>
+  <li>Click <strong>Create</strong></li>
+</ol>
+
+<h3>Organization Lifecycle</h3>
+<table>
+  <tr><th>Action</th><th>Effect</th></tr>
+  <tr><td><strong>Activate/Deactivate</strong></td><td>Toggle an org active or inactive. Inactive orgs' agents stop operating.</td></tr>
+  <tr><td><strong>Edit</strong></td><td>Update name, contact info, description, billing rate.</td></tr>
+  <tr><td><strong>Delete</strong></td><td>Permanently remove. Only allowed when no agents are assigned.</td></tr>
+</table>
+<div class="warning"><strong>Slugs are permanent.</strong> Once created, an organization's slug cannot be changed. Choose carefully.</div>
+
+<h2 id="agents">Agent Assignment</h2>
+<p>Agents are assigned to organizations from the organization detail view:</p>
+<ol>
+  <li>Click an organization card to open its detail modal</li>
+  <li>In the <strong>Agents</strong> tab, use the dropdown to select an agent</li>
+  <li>Click <strong>Assign</strong></li>
+</ol>
+<p>Assigned agents are listed with their name, email, status, and an <strong>Unassign</strong> button.</p>
+
+<h3>How Assignment Works</h3>
+<ul>
+  <li>An agent can belong to <strong>one organization at a time</strong></li>
+  <li>Assigning an agent that's already in another org will <strong>move</strong> it to the new org</li>
+  <li>Unassigned agents belong to the default (platform owner's) organization</li>
+  <li>The agent dropdown shows which agents are available and which are already assigned elsewhere</li>
+</ul>
+<div class="tip"><strong>Bulk assignment:</strong> To assign multiple agents, repeat the select → assign flow. Each assignment is immediate.</div>
+
+<h2 id="users">User → Org Binding</h2>
+<p>Dashboard users can be bound to a specific organization via the <strong>Users</strong> page permission editor:</p>
+<ul>
+  <li><strong>Bound users</strong> can only see their organization's data — agents, knowledge, billing, guardrails</li>
+  <li><strong>Unbound users</strong> (owners and admins) can see all organizations and switch between them</li>
+</ul>
+
+<h3>Setting Up a Client User</h3>
+<ol>
+  <li>Go to <strong>Users</strong> in the dashboard</li>
+  <li>Create or edit a user</li>
+  <li>In the <strong>Permission Editor</strong>, set their <strong>Client Organization</strong> to the appropriate org</li>
+  <li>Configure which pages they can access (e.g., give them access to Agents and Knowledge, but not Settings)</li>
+  <li>Save permissions</li>
+</ol>
+<p>When this user logs in, the org switcher will be <strong>locked</strong> to their organization — they see a "Locked" badge and cannot switch to other orgs.</p>
+
+<h3>Permission Levels</h3>
+<table>
+  <tr><th>Role</th><th>Org Switcher</th><th>Data Access</th></tr>
+  <tr><td><strong>Owner</strong></td><td>Free switching</td><td>All organizations</td></tr>
+  <tr><td><strong>Admin</strong></td><td>Free switching</td><td>All organizations</td></tr>
+  <tr><td><strong>User (unbound)</strong></td><td>Free switching</td><td>Based on page permissions</td></tr>
+  <tr><td><strong>User (org-bound)</strong></td><td>Locked to their org</td><td>Their org's data only</td></tr>
+</table>
+
+<h2 id="org-switcher">Org Context Switching</h2>
+<p>The <strong>Org Context Switcher</strong> appears at the top of multi-tenant-aware pages (Guardrails, Knowledge, Agents, etc.). It lets admins and owners view data as if they were in a specific organization.</p>
+
+<h3>How It Works</h3>
+<ul>
+  <li>Select an organization from the dropdown to view its data</li>
+  <li>Select "My Organization" to return to the platform owner's view</li>
+  <li>The switcher shows the org's contact info when selected</li>
+  <li>When impersonating a user, an "Impersonating" badge appears</li>
+</ul>
+<p>The org context is passed to all API calls on that page — agents, policies, knowledge entries, and interventions are all filtered to the selected org.</p>
+
+<h2 id="data-isolation">Data Isolation</h2>
+<p>Each organization's data is logically isolated:</p>
+<div class="card">
+  <table>
+    <tr><th>Data Type</th><th>Isolation Method</th></tr>
+    <tr><td><strong>Agents</strong></td><td>Assigned to specific org via <code>client_org_id</code></td></tr>
+    <tr><td><strong>Policies</strong></td><td>Scoped by <code>orgId</code> — each org has its own policy set</td></tr>
+    <tr><td><strong>Knowledge Base</strong></td><td>Partitioned by org — agents only access their org's knowledge</td></tr>
+    <tr><td><strong>Agent Memory</strong></td><td>Per-agent, inherits org scope from the agent's assignment</td></tr>
+    <tr><td><strong>Interventions</strong></td><td>Logged per org for audit trails</td></tr>
+    <tr><td><strong>Billing Records</strong></td><td>Per org, per agent, per month</td></tr>
+    <tr><td><strong>Skills/Integrations</strong></td><td>Credentials can be org-scoped or agent-scoped</td></tr>
+  </table>
+</div>
+<div class="danger"><strong>Data isolation is logical, not physical.</strong> All orgs share the same database. Access control is enforced at the application layer through org ID filtering on every query.</div>
+
+<h2 id="billing">Billing &amp; Cost Tracking</h2>
+<p>The billing system tracks revenue (what you charge clients) against cost (token usage). Access billing from the organization detail modal's <strong>Billing &amp; Costs</strong> tab.</p>
+
+<h3>Setting Rates</h3>
+<ul>
+  <li><strong>Default Org Rate:</strong> Set when creating the org (e.g., $50/agent/month). Applied to all agents unless overridden.</li>
+  <li><strong>Per-Agent Rate:</strong> Override the default for specific agents. Useful when some agents use more resources than others.</li>
+</ul>
+
+<h3>Billing Dashboard</h3>
+<p>The billing tab shows:</p>
+<div class="card">
+  <ul>
+    <li><strong>Revenue vs. Cost chart:</strong> Monthly bar chart showing revenue (green) vs. token cost (red) with net profit/loss</li>
+    <li><strong>Summary stats:</strong> Total revenue, total token cost, margin percentage, total tokens used</li>
+    <li><strong>Per-agent rates:</strong> Cards showing each agent's billing rate with inline editing</li>
+    <li><strong>Billing records table:</strong> Detailed monthly breakdown by agent — revenue, token cost, profit, token count</li>
+  </ul>
+</div>
+
+<h3>How Costs Are Calculated</h3>
+<p>Token costs are calculated using the model pricing configured in <a href="/docs/settings">Settings → Models</a>. Each agent's token usage (input + output) is multiplied by the per-million-token price for the model they used.</p>
+
+<pre><code>Monthly Revenue  = agent_count × billing_rate_per_agent
+Monthly Cost     = Σ (input_tokens × input_price + output_tokens × output_price) / 1,000,000
+Margin           = (Revenue - Cost) / Revenue × 100%</code></pre>
+
+<h2 id="knowledge">Knowledge Partitioning</h2>
+<p>Each organization has its own knowledge base. When you use the Org Context Switcher on the Knowledge page, you see only that org's documents and data.</p>
+<ul>
+  <li>Agents only access knowledge from their assigned organization</li>
+  <li>Uploading documents while viewing an org scopes them to that org</li>
+  <li>RAG (Retrieval-Augmented Generation) queries are automatically filtered by org</li>
+</ul>
+<div class="tip"><strong>Shared knowledge:</strong> If you need some knowledge available to all orgs, create it under the default (owner) org and ensure cross-org agents can access it. Most deployments keep knowledge strictly partitioned.</div>
+
+<h2 id="guardrails">Org-Scoped Guardrails</h2>
+<p>The <a href="/docs/guardrails">Guardrails</a> system is fully org-aware:</p>
+<ul>
+  <li><strong>Policies</strong> are created per org — each client can have different behavioral rules</li>
+  <li><strong>Onboarding</strong> tracks per-org progress — agents acknowledge their org's specific policies</li>
+  <li><strong>Interventions</strong> are logged per org — intervention history is isolated</li>
+  <li><strong>Rules</strong> can be org-specific — different anomaly thresholds per client</li>
+</ul>
+<p>Use the Org Context Switcher on the Guardrails page to manage each org's policies independently.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+  <ul>
+    <li><strong>Create orgs before agents</strong> — have the org structure in place, then assign agents to it</li>
+    <li><strong>Use meaningful slugs</strong> — they're permanent and used in API calls. Keep them short and recognizable</li>
+    <li><strong>Set billing rates at creation</strong> — it's easier than updating them later across many agents</li>
+    <li><strong>Bind client users to their org</strong> — prevents accidental data leakage between tenants</li>
+    <li><strong>Review billing monthly</strong> — check margins and adjust rates if token costs exceed revenue</li>
+    <li><strong>Keep per-agent rate overrides documented</strong> — note why specific agents have custom rates</li>
+    <li><strong>Deactivate before deleting</strong> — deactivate an org first, monitor for issues, then unassign agents and delete</li>
+    <li><strong>Use org-scoped policies</strong> — don't create one-size-fits-all policies; tailor them per client</li>
+    <li><strong>Test as the client</strong> — use the org switcher (or impersonation) to verify the client experience</li>
+  </ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>User can't see org switcher</td><td>Org switcher only appears when client orgs exist. Create at least one organization.</td></tr>
+  <tr><td>User sees wrong org's data</td><td>Check the org switcher selection. If the user is org-bound, verify their <code>clientOrgId</code> in User permissions.</td></tr>
+  <tr><td>Can't delete organization</td><td>Unassign all agents first. Orgs with assigned agents cannot be deleted.</td></tr>
+  <tr><td>Agent not appearing in org</td><td>Verify the agent was assigned via the org detail modal. Check the agent isn't assigned to a different org.</td></tr>
+  <tr><td>Billing shows $0 revenue</td><td>Check that the org has a billing rate set and agents are assigned. Revenue = rate × agents.</td></tr>
+  <tr><td>Client user sees all orgs</td><td>The user's role is owner or admin, which overrides org binding. Set their role to "user" for org-locked access.</td></tr>
+  <tr><td>Org switcher shows "Locked"</td><td>This is correct — the user is bound to a specific org. Only owners/admins can switch freely.</td></tr>
+  <tr><td>Token costs not matching</td><td>Verify model pricing in Settings → Models. Costs are calculated using configured per-million-token prices.</td></tr>
+</table>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/guardrails">Guardrails &amp; Policies</a> — Org-scoped policies and agent onboarding</li>
+    <li><a href="/docs/settings">Settings</a> — Model pricing for billing calculations</li>
+    <li><a href="/docs/audit">Audit Log</a> — Track org-related changes</li>
+    <li><a href="/docs/skills">Skills &amp; Integrations</a> — Org-scoped credentials</li>
+  </ul>
+</div>
+
+<p style="margin-top: 32px; color: var(--text-muted); font-size: 12px; text-align: center;">
+  AgenticMail Enterprise — Multi-Tenant Guide
+</p>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

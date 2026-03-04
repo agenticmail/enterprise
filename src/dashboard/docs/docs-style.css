@@ -1,0 +1,26 @@
+/* AgenticMail Enterprise Documentation — Shared Styles */
+:root{--bg-primary:#0f1117;--bg-secondary:#161822;--bg-tertiary:#1c1f2e;--bg-card:#181b28;--text-primary:#e8eaf0;--text-secondary:#9ca3b8;--text-muted:#6b7394;--accent:#6366f1;--accent-soft:rgba(99,102,241,.12);--border:#2a2f45;--border-light:#353a52;--radius:10px;--success:#15803d;--warning:#991b1b;--danger:#ef4444;--info-soft:rgba(99,102,241,.06)}
+[data-theme="light"]{--bg-primary:#d0c5a0;--bg-secondary:#ddd3b2;--bg-tertiary:#c8bc94;--bg-card:#e5dcc0;--text-primary:#2c2410;--text-secondary:#3d3520;--text-muted:#6b5e42;--accent:#2563eb;--accent-soft:rgba(37,99,235,.1);--border:#b8ad8a;--border-light:#a89e7a;--info-soft:rgba(37,99,235,.06)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.7;padding:32px;max-width:900px;margin:0 auto}
+h1{font-size:28px;margin-bottom:8px}h2{font-size:20px;margin:32px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}h3{font-size:16px;margin:20px 0 8px;color:var(--accent)}
+p{margin-bottom:12px;color:var(--text-secondary)}
+code{background:var(--bg-primary);border:1px solid var(--border);padding:2px 6px;border-radius:4px;font-size:13px;color:var(--accent)}
+pre{background:var(--bg-primary);border:1px solid var(--border);padding:16px;border-radius:var(--radius);overflow-x:auto;margin:12px 0;font-size:13px;line-height:1.5;color:var(--text-secondary)}
+pre code{background:none;border:none;padding:0}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin:16px 0}
+.tip{background:var(--info-soft);border:1px solid rgba(59,130,246,.3);padding:12px 16px;border-radius:var(--radius);margin:12px 0;font-size:13px;color:var(--text-secondary)}
+.warning{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);padding:12px 16px;border-radius:var(--radius);margin:12px 0;font-size:13px;color:var(--text-secondary)}
+.danger{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);padding:12px 16px;border-radius:var(--radius);margin:12px 0;font-size:13px;color:var(--text-secondary)}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th,td{text-align:left;padding:8px 12px;border:1px solid var(--border);color:var(--text-secondary)}
+th{background:var(--bg-secondary);font-weight:600;color:var(--text-primary)}
+ul,ol{padding-left:24px;margin-bottom:12px;color:var(--text-secondary)}li{margin-bottom:6px}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.badge-easy{background:rgba(21,128,61,.2);color:var(--success)}.badge-medium{background:rgba(153,27,27,.2);color:var(--warning)}.badge-advanced{background:rgba(239,68,68,.2);color:var(--danger)}
+a{color:var(--accent)}.back{display:inline-block;margin-bottom:20px;font-size:13px;color:var(--text-muted);text-decoration:none}.back:hover{color:var(--text-primary)}
+strong{color:var(--text-primary)}
+.nav{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius)}
+.nav a{font-size:12px;padding:4px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;text-decoration:none}
+.toc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin:16px 0}
+.toc h3{margin:0 0 8px;font-size:14px}.toc ul{list-style:none;padding:0}.toc li{margin:4px 0}.toc a{font-size:13px;text-decoration:none}

@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall } from '
 import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 var PAGE_SIZE = 50;
 
@@ -86,7 +87,7 @@ export function AuditPage() {
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Audit Log', h(HelpButton, { label: 'Audit Log' },
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Audit Log', h(KnowledgeLink, { page: 'audit' }), h(HelpButton, { label: 'Audit Log' },
           h('p', null, 'A tamper-evident record of every administrative action performed in your organization. Essential for security investigations, compliance audits, and change tracking.'),
           h('h4', { style: _h4 }, 'What gets logged'),
           h('ul', { style: _ul },

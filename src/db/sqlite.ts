@@ -428,6 +428,7 @@ export class SqliteAdapter extends DatabaseAdapter {
       id: r.id, name: r.name, email: r.email, role: r.role, status: r.status,
       metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at), createdBy: r.created_by,
+      client_org_id: r.client_org_id || null,
     };
   }
 

@@ -3,6 +3,7 @@ import { h, useState, useEffect, useCallback, useRef, Fragment, AppContext, useA
 import { I } from './components/icons.js?v=2';
 import { ErrorBoundary } from './components/error-boundary.js';
 import { Modal } from './components/modal.js';
+import { setConfig as setTransportEncConfig, installFetchInterceptor } from './components/transport-encryption.js';
 import { LoginPage, OnboardingWizard } from './pages/login.js';
 import { DashboardPage, SetupChecklist } from './pages/dashboard.js';
 import { AgentsPage, AgentDetailPage, CreateAgentWizard, DeployModal } from './pages/agents.js?v=5';
@@ -28,6 +29,8 @@ import { OrgChartPage } from './pages/org-chart.js';
 import { TaskPipelinePage } from './pages/task-pipeline.js';
 import { DatabaseAccessPage } from './pages/database-access.js';
 import { OrganizationsPage } from './pages/organizations.js';
+import { RolesPage } from './pages/roles.js';
+import { MemoryTransferPage } from './pages/memory-transfer.js';
 
 // ─── Toast System ────────────────────────────────────────
 let toastId = 0;
@@ -82,11 +85,45 @@ function App() {
   const [page, _setPage] = useState(initial.page);
   const [selectedAgentId, _setSelectedAgentId] = useState(initial.agentId);
 
-  function setPage(p) { _setPage(p); _setSelectedAgentId(null); history.pushState(null, '', '/dashboard/' + (p === 'dashboard' ? '' : p)); }
-  function setSelectedAgentId(id) { _setSelectedAgentId(id); if (id) history.pushState(null, '', '/dashboard/agents/' + id); }
+  // ─── Scroll Position Restoration ────────────────────
+  const _scrollPositions = useRef({});
+  const _saveScroll = () => {
+    const el = document.querySelector('.main-content');
+    if (el) _scrollPositions.current[page + (selectedAgentId ? '/' + selectedAgentId : '')] = el.scrollTop;
+  };
+  const _restoreScroll = (key) => {
+    const pos = _scrollPositions.current[key];
+    if (pos != null) {
+      requestAnimationFrame(() => {
+        const el = document.querySelector('.main-content');
+        if (el) el.scrollTop = pos;
+      });
+    }
+  };
+
+  function setPage(p) {
+    _saveScroll();
+    _setPage(p); _setSelectedAgentId(null);
+    history.pushState(null, '', '/dashboard/' + (p === 'dashboard' ? '' : p));
+    // Scroll to top for new pages, restored for revisited ones
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.main-content');
+      if (el) el.scrollTop = _scrollPositions.current[p] || 0;
+    });
+  }
+  function setSelectedAgentId(id) {
+    _saveScroll();
+    _setSelectedAgentId(id);
+    if (id) history.pushState(null, '', '/dashboard/agents/' + id);
+  }
 
   useEffect(() => {
-    const onPop = () => { const r = parseRoute(); _setPage(r.page); _setSelectedAgentId(r.agentId); };
+    const onPop = () => {
+      _saveScroll();
+      const r = parseRoute();
+      _setPage(r.page); _setSelectedAgentId(r.agentId);
+      _restoreScroll(r.page + (r.agentId ? '/' + r.agentId : ''));
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
@@ -126,6 +163,18 @@ function App() {
     }
   }, []);
 
+  // Init transport encryption from security settings
+  useEffect(() => {
+    if (!authed) return;
+    apiCall('/settings/security').then(d => {
+      var te = d?.securityConfig?.transportEncryption;
+      if (te && te.enabled) {
+        setTransportEncConfig(te);
+        installFetchInterceptor();
+      }
+    }).catch(() => {});
+  }, [authed]);
+
   const toast = useCallback((message, type = 'info') => {
     const id = ++toastId;
     setToasts(t => [...t, { id, message, type }]);
@@ -164,6 +213,41 @@ function App() {
   // Register global logout so apiCall can trigger it on 401
   useEffect(() => { window.__emLogout = logout; return () => { window.__emLogout = null; }; }, [logout]);
 
+  // Impersonation functions (must be before early returns to keep hook order stable)
+  const startImpersonation = useCallback(async (userId) => {
+    try {
+      const d = await authCall('/impersonate/' + userId, { method: 'POST' });
+      if (d.token && d.user) {
+        setImpersonating({ user: d.user, impersonatedBy: d.impersonatedBy, originalToken: localStorage.getItem('em_token') });
+        localStorage.setItem('em_token', d.token);
+        setUser(d.user);
+        if (d.user.permissions) setPermissions(d.user.permissions);
+        if (d.user.clientOrgId) {
+          localStorage.setItem('em_client_org_id', d.user.clientOrgId);
+          apiCall('/organizations/' + d.user.clientOrgId).then(function(o) {
+            if (o && o.name) setImpersonating(function(prev) { return prev ? Object.assign({}, prev, { user: Object.assign({}, prev.user, { clientOrgName: o.name }) }) : prev; });
+          }).catch(function() {});
+        } else localStorage.removeItem('em_client_org_id');
+        toast('Now viewing as ' + d.user.name, 'info');
+        setPage('dashboard');
+      }
+    } catch (e) { toast(e.message || 'Impersonation failed', 'error'); }
+  }, []);
+
+  const stopImpersonation = useCallback(() => {
+    setImpersonating(prev => {
+      if (prev && prev.originalToken) {
+        localStorage.setItem('em_token', prev.originalToken);
+      }
+      return null;
+    });
+    localStorage.removeItem('em_client_org_id');
+    authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {});
+    apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
+    toast('Stopped impersonation', 'success');
+    setPage('users');
+  }, []);
+
   if (!authChecked) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Loading...');
   if (needsSetup === true && !authed) return h(OnboardingWizard, { onComplete: () => { setNeedsSetup(false); setAuthed(true); authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {}); } });
   if (!authed) return h(LoginPage, { onLogin: (d) => {
@@ -189,8 +273,8 @@ function App() {
     return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 20 } },
       h('div', { style: { maxWidth: 420, width: '100%', background: 'var(--bg-secondary)', borderRadius: 12, padding: 32, border: '1px solid var(--border)' } },
         h('div', { style: { textAlign: 'center', marginBottom: 24 } },
-          h('div', { style: { width: 48, height: 48, borderRadius: '50%', background: 'var(--warning-soft, rgba(245,158,11,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' } },
-            h('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--warning, #f59e0b)', strokeWidth: 2, strokeLinecap: 'round' },
+          h('div', { style: { width: 48, height: 48, borderRadius: '50%', background: 'var(--warning-soft, rgba(153,27,27,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' } },
+            h('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--warning, #991b1b)', strokeWidth: 2, strokeLinecap: 'round' },
               h('path', { d: 'M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' })
             )
           ),
@@ -219,6 +303,7 @@ function App() {
     { section: 'Overview', items: [{ id: 'dashboard', icon: I.dashboard, label: 'Dashboard' }] },
     { section: 'Management', items: [
       { id: 'agents', icon: I.agents, label: 'Agents' },
+      { id: 'roles', icon: I.agents, label: 'Roles' },
       { id: 'organizations', icon: I.building, label: 'Organizations' },
       { id: 'skills', icon: I.skills, label: 'Skills' },
       { id: 'community-skills', icon: I.marketplace, label: 'Community Skills' },
@@ -226,9 +311,10 @@ function App() {
       { id: 'database-access', icon: I.database, label: 'Database Access' },
       { id: 'knowledge', icon: I.knowledge, label: 'Knowledge Bases' },
       { id: 'knowledge-contributions', icon: I.knowledge, label: 'Knowledge Hub' },
+      { id: 'memory-transfer', icon: I.brain, label: 'Memory Transfer' },
       { id: 'approvals', icon: I.approvals, label: 'Approvals', badge: pendingCount || null },
     ]},
-    { section: 'Management', items: [
+    { section: 'Operations', items: [
       { id: 'org-chart', icon: I.orgChart, label: 'Org Chart' },
       { id: 'task-pipeline', icon: I.workflow, label: 'Task Pipeline' },
       { id: 'workforce', icon: I.clock, label: 'Workforce' },
@@ -272,6 +358,8 @@ function App() {
     'task-pipeline': TaskPipelinePage,
     'database-access': DatabaseAccessPage,
     organizations: OrganizationsPage,
+    roles: RolesPage,
+    'memory-transfer': MemoryTransferPage,
   };
 
   const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };
@@ -287,45 +375,6 @@ function App() {
   const canAccessPage = hasAccess(page);
   const PageComponent = canAccessPage ? (pages[page] || DashboardPage) : null;
   const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '') + (mobileMenuOpen ? ' mobile-open' : '');
-
-  // Impersonation functions
-  const startImpersonation = useCallback(async (userId) => {
-    try {
-      const d = await authCall('/impersonate/' + userId, { method: 'POST' });
-      if (d.token && d.user) {
-        // Store real user info
-        setImpersonating({ user: d.user, impersonatedBy: d.impersonatedBy, originalToken: localStorage.getItem('em_token') });
-        // Set impersonated user's token
-        localStorage.setItem('em_token', d.token);
-        setUser(d.user);
-        if (d.user.permissions) setPermissions(d.user.permissions);
-        if (d.user.clientOrgId) {
-          localStorage.setItem('em_client_org_id', d.user.clientOrgId);
-          // Fetch org name for display
-          apiCall('/organizations/' + d.user.clientOrgId).then(function(o) {
-            if (o && o.name) setImpersonating(function(prev) { return prev ? Object.assign({}, prev, { user: Object.assign({}, prev.user, { clientOrgName: o.name }) }) : prev; });
-          }).catch(function() {});
-        } else localStorage.removeItem('em_client_org_id');
-        toast('Now viewing as ' + d.user.name, 'info');
-        setPage('dashboard');
-      }
-    } catch (e) { toast(e.message || 'Impersonation failed', 'error'); }
-  }, []);
-
-  const stopImpersonation = useCallback(() => {
-    setImpersonating(prev => {
-      if (prev && prev.originalToken) {
-        localStorage.setItem('em_token', prev.originalToken);
-      }
-      return null;
-    });
-    localStorage.removeItem('em_client_org_id');
-    // Reload real user
-    authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {});
-    apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
-    toast('Stopped impersonation', 'success');
-    setPage('users');
-  }, []);
 
   return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions, impersonating, startImpersonation, stopImpersonation } },
     h('div', { className: 'app-layout' },
@@ -378,8 +427,8 @@ function App() {
             h('span', { className: 'topbar-title' }, (nav.flatMap(s => s.items).find(i => i.id === page)?.label || 'Dashboard'))
           ),
           h('div', { className: 'topbar-right' },
-            h('button', { className: 'btn btn-ghost btn-icon', onClick: () => setTheme(theme === 'dark' ? 'light' : 'dark'), title: 'Toggle theme' }, theme === 'dark' ? I.sun() : I.moon()),
-            h('button', { className: 'btn btn-ghost btn-icon', onClick: logout, title: 'Sign out' }, I.logout())
+            h('button', { className: 'btn btn-ghost btn-icon', onClick: () => setTheme(theme === 'dark' ? 'light' : 'dark'), title: 'Toggle theme', style: { width: 36, height: 36 } }, theme === 'dark' ? I.sun({ size: 22 }) : I.moon({ size: 22 })),
+            h('button', { className: 'btn btn-ghost btn-icon', onClick: logout, title: 'Sign out', style: { width: 36, height: 36 } }, I.logout({ size: 22 }))
           )
         ),
         h('div', { className: 'page-content' },
@@ -396,7 +445,7 @@ function App() {
             h('button', { className: 'btn btn-primary btn-sm', onClick: stopImpersonation }, 'Stop Impersonating')
           ),
           // 2FA recommendation banner
-          show2faReminder && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', margin: '0 0 16px', background: 'var(--warning-soft, rgba(245,158,11,0.1))', border: '1px solid var(--warning, #f59e0b)', borderRadius: 8, fontSize: 13 } },
+          show2faReminder && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', margin: '0 0 16px', background: 'var(--warning-soft, rgba(153,27,27,0.1))', border: '1px solid var(--warning, #991b1b)', borderRadius: 8, fontSize: 13 } },
             I.shield(),
             h('div', { style: { flex: 1 } },
               h('strong', null, 'Enable Two-Factor Authentication'),
@@ -425,11 +474,7 @@ function App() {
                     filteredNav[0]?.items[0] && h('button', {
                       className: 'btn btn-primary',
                       onClick: () => { setPage(filteredNav[0].items[0].id); history.pushState(null, '', '/dashboard/' + filteredNav[0].items[0].id); }
-                    }, 'Go to ' + filteredNav[0].items[0].label),
-                    h('button', {
-                      className: 'btn btn-secondary',
-                      onClick: () => { window.location.href = 'mailto:?subject=Access%20Request&body=I%20need%20access%20to%20the%20' + encodeURIComponent(page) + '%20page%20in%20the%20dashboard.'; }
-                    }, 'Request Access')
+                    }, 'Go to ' + filteredNav[0].items[0].label)
                   )
                 )
         )

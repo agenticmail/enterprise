@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Configuration — AgenticMail Enterprise</title>
+  <link rel="stylesheet" href="/docs/docs-style.css">
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+  <a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+  <h1>Email Configuration</h1>
+  <p style="color:var(--text-muted);margin-bottom:24px">Connect this agent to an email account so it can send and receive emails autonomously.</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#connection-methods">Connection Methods</a></li>
+      <li><a href="#imap-smtp">IMAP/SMTP Setup</a></li>
+      <li><a href="#microsoft-oauth">Microsoft OAuth</a></li>
+      <li><a href="#google-oauth">Google OAuth</a></li>
+      <li><a href="#org-config">Organization Email Config</a></li>
+      <li><a href="#client-org-email">Client Organization Email</a></li>
+      <li><a href="#testing">Testing the Connection</a></li>
+      <li><a href="#key-concepts">Key Concepts</a></li>
+      <li><a href="#best-practices">Best Practices</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#related">Related Pages</a></li>
+    </ul>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">Overview</h2>
+
+  <div class="card">
+    <h3>For Everyone</h3>
+    <p>The Email tab connects your agent to a real email account. Once connected, the agent can read incoming emails, compose replies, and send messages autonomously. You can use any email provider — Gmail, Microsoft 365, Yahoo, Zoho, Fastmail, or any custom IMAP/SMTP server.</p>
+  </div>
+
+  <div class="card">
+    <h3>For Developers</h3>
+    <p>Email configuration is managed through <code>/bridge/agents/:id/email-config</code> endpoints. The system supports three providers: <code>imap</code> (generic IMAP/SMTP with presets), <code>microsoft</code> (Azure AD OAuth), and <code>google</code> (Google OAuth). OAuth flows open a popup window; completion is detected via <code>postMessage</code>. Connection testing hits <code>/email-config/test</code>. Re-authorization for scope changes is available for Google OAuth.</p>
+  </div>
+
+  <!-- How It Works -->
+  <h2 id="how-it-works">How It Works</h2>
+  <ol>
+    <li>Choose a <strong>connection method</strong> — Email + Password (IMAP/SMTP), Microsoft OAuth, or Google OAuth.</li>
+    <li>Enter the required credentials or configure OAuth.</li>
+    <li>Click <strong>Save Configuration</strong>.</li>
+    <li>For OAuth methods, click <strong>Authorize</strong> to open the sign-in popup.</li>
+    <li>Click <strong>Test Connection</strong> to verify everything works.</li>
+  </ol>
+  <p>The status badge in the header shows the current state: Not Connected, Configured, Awaiting Authorization, Connected, or Error.</p>
+
+  <!-- Connection Methods -->
+  <h2 id="connection-methods">Connection Methods</h2>
+  <p>Three connection methods are presented as selectable cards:</p>
+  <table>
+    <thead><tr><th>Method</th><th>Best For</th><th>Requirements</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Email + Password</strong> <span class="badge badge-easy">Easy</span></td><td>Any email provider</td><td>Email address + app password</td></tr>
+      <tr><td><strong>Microsoft OAuth</strong> <span class="badge badge-medium">Medium</span></td><td>Microsoft 365 / Outlook orgs</td><td>Azure AD app registration</td></tr>
+      <tr><td><strong>Google OAuth</strong> <span class="badge badge-medium">Medium</span></td><td>Google Workspace orgs</td><td>Google Cloud project with Gmail API</td></tr>
+    </tbody>
+  </table>
+
+  <!-- IMAP/SMTP -->
+  <h2 id="imap-smtp">IMAP/SMTP Setup</h2>
+  <p>The simplest method. Select your email provider from the preset dropdown to auto-fill server settings:</p>
+  <ul>
+    <li><strong>Microsoft 365 / Outlook</strong> — imap: outlook.office365.com:993, smtp: smtp.office365.com:587</li>
+    <li><strong>Google Workspace / Gmail</strong> — imap: imap.gmail.com:993, smtp: smtp.gmail.com:587</li>
+    <li><strong>Yahoo Mail</strong> — imap: imap.mail.yahoo.com:993, smtp: smtp.mail.yahoo.com:465</li>
+    <li><strong>Zoho Mail</strong> — imap: imap.zoho.com:993, smtp: smtp.zoho.com:587</li>
+    <li><strong>Fastmail</strong> — imap: imap.fastmail.com:993, smtp: smtp.fastmail.com:587</li>
+    <li><strong>Custom</strong> — Enter your own IMAP/SMTP hosts and ports</li>
+  </ul>
+  <div class="warning">
+    <strong>Important:</strong> Use <strong>app passwords</strong>, not regular passwords. With 2FA enabled (which it should be), regular passwords won't work. Create app passwords from your provider's security settings.
+  </div>
+
+  <!-- Microsoft OAuth -->
+  <h2 id="microsoft-oauth">Microsoft OAuth</h2>
+  <p>For Microsoft 365 organizations:</p>
+  <ol>
+    <li>Go to <strong>Azure Portal → App Registrations</strong></li>
+    <li>Create a new registration with redirect URI: <code>{your-domain}/api/engine/oauth/callback</code></li>
+    <li>Under Certificates & Secrets, create a Client Secret</li>
+    <li>Under API Permissions, add: <code>Mail.ReadWrite</code>, <code>Mail.Send</code>, <code>offline_access</code></li>
+    <li>Enter the Application (Client) ID, Client Secret, and Tenant ID</li>
+    <li>Save, then click Authorize to sign in with the agent's Microsoft account</li>
+  </ol>
+
+  <!-- Google OAuth -->
+  <h2 id="google-oauth">Google OAuth</h2>
+  <p>For Google Workspace organizations:</p>
+  <ol>
+    <li>Go to <strong>Google Cloud Console → Credentials</strong></li>
+    <li>Create an OAuth 2.0 Client ID (Web application) with redirect URI: <code>{your-domain}/api/engine/oauth/callback</code></li>
+    <li>Enable the <strong>Gmail API</strong> in your project</li>
+    <li>Enter the Client ID and Client Secret</li>
+    <li>Save, then click Authorize to sign in with the agent's Google account</li>
+  </ol>
+  <p>A "Re-authorize (Update Scopes)" button appears for connected Google accounts when you need to add new API permissions.</p>
+
+  <!-- Org Config -->
+  <h2 id="org-config">Organization Email Config</h2>
+  <p>If your organization has configured a shared OAuth application (Microsoft or Google), a green banner appears at the top. In this case, the Client ID and Secret are inherited automatically — you just need to authorize each agent's individual account.</p>
+
+  <!-- Client Org Email -->
+  <h2 id="client-org-email">Client Organization Email</h2>
+  <p>When an agent belongs to a <strong>client organization</strong> (has a <code>client_org_id</code>), an info banner appears showing the organization name and context. This indicates:</p>
+  <ul>
+    <li>The agent's email configuration follows <strong>organization-level policies</strong>.</li>
+    <li>If the organization has a configured email domain, it is displayed so you know which domain the agent sends from.</li>
+    <li>Any <strong>email restrictions</strong> set at the organization level (e.g., allowed recipients, sending limits) are shown as warnings.</li>
+    <li>The organization's shared OAuth configuration (if any) is inherited automatically — see <a href="#org-config">Organization Email Config</a> above.</li>
+  </ul>
+  <div class="tip">
+    <strong>Tip:</strong> If you manage multiple organizations, check the org banner to confirm you're configuring the right agent's email for the right organization.
+  </div>
+
+  <!-- Testing -->
+  <h2 id="testing">Testing the Connection</h2>
+  <p>After saving, click <strong>Test Connection</strong>. A successful test shows:</p>
+  <ul>
+    <li>Total inbox messages and unread count</li>
+    <li>The confirmed email address</li>
+  </ul>
+  <p>A failed test shows the specific error message. Common issues: wrong password, firewall blocking IMAP, app password not created.</p>
+
+  <!-- Key Concepts -->
+  <h2 id="key-concepts">Key Concepts</h2>
+  <ul>
+    <li><strong>App Password</strong> — A separate password generated by your email provider for third-party access. Required when 2FA is enabled.</li>
+    <li><strong>OAuth Flow</strong> — Opens a popup for the user to sign in with the agent's email account and grant permissions. The token is stored server-side.</li>
+    <li><strong>Presets</strong> — Pre-configured server settings for common email providers. Saves you from looking up IMAP/SMTP hosts and ports.</li>
+    <li><strong>Org Email Config</strong> — An organization-level OAuth app registration shared across all agents. Simplifies setup in enterprise environments.</li>
+    <li><strong>Re-authorization</strong> — For Google OAuth, when new API scopes are added, existing agents can re-authorize to gain the new permissions.</li>
+  </ul>
+
+  <!-- Best Practices -->
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li><strong>Create a dedicated email for each agent</strong> — e.g., support-agent@company.com. Don't share your personal email.</li>
+    <li><strong>Use OAuth over IMAP/SMTP when possible</strong> — It's more secure (no stored passwords) and supports token refresh.</li>
+    <li><strong>Set up the org-level OAuth app</strong> — If you have multiple agents, configure the OAuth app once at the org level.</li>
+    <li><strong>Always test the connection after setup</strong> — Catch config issues before the agent tries to send real emails.</li>
+    <li><strong>Rotate app passwords periodically</strong> — Treat them like API keys.</li>
+  </ul>
+
+  <!-- Troubleshooting -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+    <tbody>
+      <tr><td>Connection test fails with "Authentication failed"</td><td>Regenerate the app password. Ensure you're using an app password, not the account password.</td></tr>
+      <tr><td>"Awaiting Authorization" badge won't clear</td><td>Click the Authorize button to open the OAuth popup. Make sure popups aren't blocked.</td></tr>
+      <tr><td>OAuth popup shows an error</td><td>Verify the redirect URI matches exactly. Check that API permissions are granted in Azure/Google.</td></tr>
+      <tr><td>Agent can receive but not send</td><td>For IMAP/SMTP: check the SMTP host and port. For M365: ensure Mail.Send permission is granted.</td></tr>
+      <tr><td>"Last Error" banner appears</td><td>The error message gives the specific issue. Common: token expired (re-authorize), password changed, account locked.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Related Pages -->
+  <h2 id="related">Related Pages</h2>
+  <div class="nav">
+    <a href="/docs/agent-channels.html">Channels</a> — WhatsApp and Telegram messaging setup.
+    <a href="/docs/agent-whatsapp.html">WhatsApp Business</a> — Customer-facing WhatsApp configuration.
+    <a href="/docs/agent-tools.html">Tools</a> — Enable email-related tools (Gmail, Calendar, etc.).
+    <a href="/docs/agent-overview.html">Overview</a> — Agent status and quick actions.
+  </div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

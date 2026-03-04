@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manager Messaging Channels — AgenticMail Enterprise</title>
+  <link rel="stylesheet" href="/docs/docs-style.css">
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+  <a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+  <h1>Manager Messaging Channels</h1>
+  <p style="color:var(--text-muted);margin-bottom:24px">Connect personal messaging platforms so you can chat with your AI agent directly from WhatsApp or Telegram.</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#manager-identity">Manager Identity</a></li>
+      <li><a href="#whatsapp">WhatsApp</a></li>
+      <li><a href="#telegram">Telegram</a></li>
+      <li><a href="#trusted-contacts">Trusted Contacts</a></li>
+      <li><a href="#access-modes">Access Modes</a></li>
+      <li><a href="#client-org-channels">Client Organization Context</a></li>
+      <li><a href="#key-concepts">Key Concepts</a></li>
+      <li><a href="#best-practices">Best Practices</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#related">Related Pages</a></li>
+    </ul>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">Overview</h2>
+
+  <div class="card">
+    <h3>For Everyone</h3>
+    <p>The Channels tab sets up your <strong>private</strong> messaging connections to the agent. This is how <em>you</em> (the manager) talk to your AI from WhatsApp or Telegram. Unlike the WhatsApp Business tab (which is for customers), Channels is for personal, trusted communication. Only people you add as trusted contacts can reach the agent through these channels.</p>
+  </div>
+
+  <div class="card">
+    <h3>For Developers</h3>
+    <p>Channel configuration is stored in <code>config.messagingChannels</code> with sub-objects for <code>whatsapp</code>, <code>telegram</code>, and <code>managerIdentity</code>. WhatsApp uses Baileys for QR-based linking. Telegram uses the Bot API — token validation hits <code>/bridge/agents/:id/telegram/validate</code>, and delivery supports both webhook and long-polling modes. Platform availability is checked via <code>/platform-capabilities</code>.</p>
+  </div>
+
+  <!-- How It Works -->
+  <h2 id="how-it-works">How It Works</h2>
+  <ol>
+    <li>Set your <strong>Manager Identity</strong> — your phone number and Telegram ID so the agent recognizes you across platforms.</li>
+    <li>Connect <strong>WhatsApp</strong> by scanning a QR code from your phone.</li>
+    <li>Connect <strong>Telegram</strong> by creating a bot via @BotFather and pasting the token.</li>
+    <li>Add <strong>trusted contacts</strong> — only these people can message the agent.</li>
+    <li>Send a <strong>test message</strong> to verify the connection works.</li>
+  </ol>
+  <p>Platform availability depends on your server configuration. If WhatsApp or Telegram isn't enabled in Settings → Platform, those sections won't appear.</p>
+
+  <!-- Manager Identity -->
+  <h2 id="manager-identity">Manager Identity</h2>
+  <p>The Manager Identity card is highlighted with an accent border. It stores your phone number and Telegram user ID so the agent recognizes you as the boss across all platforms. Messages from these identities get <strong>full trust</strong> and bypass all access restrictions.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Format</th><th>How to Get It</th></tr></thead>
+    <tbody>
+      <tr><td><strong>WhatsApp</strong></td><td>+13362763915</td><td>Your phone number with country code</td></tr>
+      <tr><td><strong>Telegram</strong></td><td>123456789</td><td>Message @userinfobot on Telegram</td></tr>
+    </tbody>
+  </table>
+
+  <!-- WhatsApp -->
+  <h2 id="whatsapp">WhatsApp</h2>
+  <p>Your personal line — chat with your AI from your own phone number.</p>
+
+  <h3>Setup Guide</h3>
+  <ol>
+    <li><strong>Scan QR code</strong> — Click "Connect WhatsApp" to generate a QR. Open WhatsApp → Settings → Linked Devices → Link a Device → Scan.</li>
+    <li><strong>Add trusted contacts</strong> — Enter phone numbers (with country code) the agent should respond to. Add your own number first.</li>
+    <li><strong>Send a test message</strong> — From your phone, message yourself or another number to verify.</li>
+  </ol>
+  <p>When connected, the card shows the linked phone number, device name, and last message time. You can send test messages or disconnect.</p>
+
+  <div class="tip">
+    <strong>Note:</strong> This is your <em>personal</em> WhatsApp connection. For customer-facing messaging with a separate number, use the <a href="/docs/agent-whatsapp.html">WhatsApp Business</a> tab instead.
+  </div>
+
+  <h3>Auto-Reply for Unknown Senders</h3>
+  <p>Configure a message sent once per hour to people not on the trusted contacts list. Leave empty for the default message.</p>
+
+  <!-- Telegram -->
+  <h2 id="telegram">Telegram</h2>
+  <p>Bot API connection — webhook or long-polling.</p>
+
+  <h3>Setup Guide</h3>
+  <ol>
+    <li><strong>Create a bot</strong> — Open Telegram, search for <strong>@BotFather</strong>. Send <code>/newbot</code>. Follow prompts to choose a name and username. Copy the bot token.</li>
+    <li><strong>Add your Telegram user ID</strong> — Message <strong>@userinfobot</strong> to get your numeric user ID.</li>
+    <li><strong>Message your bot</strong> — Find your bot by username and send it a message to test.</li>
+  </ol>
+  <p>The bot token is validated automatically when saved. If valid, the bot's username is displayed.</p>
+
+  <h3>Delivery Mode</h3>
+  <table>
+    <thead><tr><th>Mode</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Auto</strong></td><td>Uses webhook if a public URL is available, otherwise falls back to polling.</td></tr>
+      <tr><td><strong>Webhook</strong></td><td>Fastest and most efficient. Requires a public URL (fly.io, VPS, etc.).</td></tr>
+      <tr><td><strong>Long-polling</strong></td><td>Works everywhere, including local machines behind NAT. Slightly slower.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Trusted Contacts -->
+  <h2 id="trusted-contacts">Trusted Contacts</h2>
+  <p>Both WhatsApp and Telegram have a trusted contacts list. Only contacts on this list receive responses. Everyone else gets an auto-reply (if configured) or silence.</p>
+  <ul>
+    <li>Add contacts by typing their phone number (WhatsApp) or user ID (Telegram) and clicking "Add"</li>
+    <li>Remove contacts by clicking the × on their tag</li>
+    <li>Your own number/ID should always be first</li>
+  </ul>
+
+  <!-- Access Modes -->
+  <h2 id="access-modes">Access Modes</h2>
+  <table>
+    <thead><tr><th>Mode</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Trusted contacts only</strong></td><td>Default. Only listed contacts get responses.</td></tr>
+      <tr><td><strong>Anyone can message</strong></td><td>The agent responds to everyone. Use with caution.</td></tr>
+      <tr><td><strong>Manager only</strong></td><td>Only the manager identity gets responses.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Client Org Channels -->
+  <h2 id="client-org-channels">Client Organization Context</h2>
+  <p>When an agent belongs to a <strong>client organization</strong>, an info banner appears on the Channels tab. This indicates:</p>
+  <ul>
+    <li>Channel configurations are <strong>scoped to the organization</strong> — trusted contacts and access settings apply within the org context.</li>
+    <li>The Manager Identity should correspond to the organization's designated manager or admin.</li>
+    <li>Messaging connections (WhatsApp QR, Telegram bot) are associated with the organization.</li>
+    <li>In multi-org environments, each organization's agents maintain independent channel configurations.</li>
+  </ul>
+
+  <!-- Key Concepts -->
+  <h2 id="key-concepts">Key Concepts</h2>
+  <ul>
+    <li><strong>Personal vs Business</strong> — Channels = your private line. WhatsApp Business = customer-facing. They're independent connections.</li>
+    <li><strong>Manager Identity</strong> — Cross-platform recognition. Set it once and the agent knows you on WhatsApp, Telegram, and any future platforms.</li>
+    <li><strong>Trusted Contacts</strong> — A whitelist. Only these identities can interact with the agent on messaging platforms.</li>
+    <li><strong>QR Linking</strong> — WhatsApp uses WhatsApp Web's linked device mechanism. The agent acts as a linked device on your phone.</li>
+    <li><strong>Bot Token</strong> — Telegram bots use a unique token from @BotFather. This is the authentication credential.</li>
+    <li><strong>Platform Capabilities</strong> — Server-level flags that control which messaging platforms are available. Managed in Settings → Platform.</li>
+  </ul>
+
+  <!-- Best Practices -->
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li><strong>Set Manager Identity first</strong> — The agent needs to know who you are before anything else.</li>
+    <li><strong>Add trusted contacts deliberately</strong> — Only add people who should have direct access to the agent.</li>
+    <li><strong>Use Telegram for technical users</strong> — Bot setup is straightforward and works without a phone number.</li>
+    <li><strong>Keep WhatsApp connected</strong> — If the linked device session expires, you'll need to re-scan the QR code.</li>
+    <li><strong>Configure auto-replies</strong> — Don't leave unknown senders in silence. A brief message explaining the agent is private is better.</li>
+  </ul>
+
+  <!-- Troubleshooting -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+    <tbody>
+      <tr><td>"No Manager Messaging Channels Enabled"</td><td>Go to Settings → Platform and enable WhatsApp and/or Telegram.</td></tr>
+      <tr><td>WhatsApp QR code expired</td><td>Click "Connect WhatsApp" again to generate a new QR code.</td></tr>
+      <tr><td>Telegram bot not responding</td><td>Verify the token with @BotFather. Ensure you've added your user ID to trusted contacts. Send <code>/start</code> to the bot first.</td></tr>
+      <tr><td>WhatsApp connection keeps dropping</td><td>Ensure the linked phone has a stable internet connection. WhatsApp Web requires the phone to be online.</td></tr>
+      <tr><td>"Invalid token" for Telegram</td><td>Copy the full token from @BotFather (format: 123456789:ABCdefGHI...). Don't include the "Bot" prefix.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Related Pages -->
+  <h2 id="related">Related Pages</h2>
+  <div class="nav">
+    <a href="/docs/agent-whatsapp.html">WhatsApp Business</a> — Customer-facing WhatsApp with pairing and security.
+    <a href="/docs/agent-email.html">Email</a> — Email account connection.
+    <a href="/docs/agent-manager.html">Manager</a> — Manager assignment and daily catch-ups.
+    <a href="/docs/agent-overview.html">Overview</a> — Agent status and quick actions.
+  </div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

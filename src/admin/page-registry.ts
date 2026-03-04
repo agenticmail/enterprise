@@ -56,16 +56,31 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     label: 'Skills',
     section: 'management',
     description: 'Manage agent skill packs',
+    tabs: {
+      installed: 'Installed',
+      builtin: 'Built-in',
+      community: 'Community',
+    },
   },
   'community-skills': {
     label: 'Community Skills',
     section: 'management',
     description: 'Browse and install community skill marketplace',
+    tabs: {
+      browse: 'Browse',
+      installed: 'Installed',
+      updates: 'Updates',
+    },
   },
   'skill-connections': {
     label: 'Integrations & MCP',
     section: 'management',
     description: 'MCP servers, built-in integrations, and community skills',
+    tabs: {
+      mcp: 'MCP Servers',
+      builtin: 'Built-in Integrations',
+      community: 'Community Skills',
+    },
   },
   'database-access': {
     label: 'Database Access',
@@ -86,11 +101,32 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     label: 'Knowledge Hub',
     section: 'management',
     description: 'Agent contributions to shared knowledge',
+    tabs: {
+      bases: 'Knowledge Bases',
+      contributions: 'Contributions',
+      schedules: 'Schedules',
+      stats: 'Stats',
+      searchMetrics: 'Search Metrics',
+    },
+  },
+  'memory-transfer': {
+    label: 'Memory Transfer',
+    section: 'management',
+    description: 'Transfer memories between agents with filtering and conflict resolution',
+    tabs: {
+      transfer: 'Transfer',
+      history: 'History',
+      schedules: 'Schedules',
+    },
   },
   approvals: {
     label: 'Approvals',
     section: 'management',
     description: 'Review and approve pending agent actions',
+    tabs: {
+      pending: 'Pending',
+      history: 'History',
+    },
   },
   organizations: {
     label: 'Organizations',
@@ -111,11 +147,22 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     label: 'Workforce',
     section: 'management',
     description: 'Agent scheduling, workload, and availability',
+    tabs: {
+      overview: 'Overview',
+      schedules: 'Schedules',
+      tasks: 'Task Queue',
+      budgets: 'Budgets',
+      history: 'Clock History',
+    },
   },
   messages: {
     label: 'Messages',
     section: 'management',
     description: 'Inter-agent and external message logs',
+    tabs: {
+      messages: 'Messages',
+      topology: 'Topology',
+    },
   },
   guardrails: {
     label: 'Guardrails',
@@ -133,11 +180,21 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     label: 'DLP',
     section: 'administration',
     description: 'Data loss prevention policies and alerts',
+    tabs: {
+      rules: 'Rules',
+      alerts: 'Alerts',
+      reports: 'Reports',
+    },
   },
   compliance: {
     label: 'Compliance',
     section: 'administration',
     description: 'Regulatory compliance settings and reports',
+    tabs: {
+      reports: 'Reports',
+      policies: 'Policies',
+      assessments: 'Assessments',
+    },
   },
   'domain-status': {
     label: 'Domain',
@@ -148,6 +205,11 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     label: 'Users',
     section: 'administration',
     description: 'Manage dashboard users, roles, and permissions',
+  },
+  roles: {
+    label: 'Roles',
+    section: 'management',
+    description: 'Create and manage agent role templates for the Create Agent wizard',
   },
   vault: {
     label: 'Vault',
@@ -163,6 +225,19 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     label: 'Settings',
     section: 'administration',
     description: 'Global platform configuration and branding',
+    tabs: {
+      general: 'General',
+      models: 'Models & API Keys',
+      'api-keys': 'API Keys',
+      authentication: 'Authentication',
+      platform: 'Platform',
+      email: 'Email & Domain',
+      deployments: 'Deployments',
+      'security-system': 'Security',
+      'tool-security': 'Tool Security',
+      network: 'Network & Firewall',
+      integrations: 'Integrations',
+    },
   },
 };
 

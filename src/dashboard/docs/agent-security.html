@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Security — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Security Settings</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Configure agent-specific security defenses — prompt injection, SQL injection, output filtering, and audit logging, with global/custom override control.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#global-vs-custom">Global vs. Custom Settings</a></li>
+        <li><a href="#prompt-injection">Prompt Injection Defense</a></li>
+        <li><a href="#sql-injection">SQL Injection Prevention</a></li>
+        <li><a href="#output-filtering">Output Filtering</a></li>
+        <li><a href="#audit-logging">Security Audit Log</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Every agent inherits your organization's security settings by default. But some agents need tighter security (e.g., customer-facing agents handling sensitive data) or looser settings (e.g., internal development agents). This tab lets you override security settings for a specific agent without changing the organization-wide defaults.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>Two endpoints are loaded on mount:</p>
+  <ul>
+    <li><code>GET /settings/security</code> — Organization-wide security config (via <code>apiCall</code>, not <code>engineCall</code>).</li>
+    <li><code>GET /agents/:id/security</code> — Agent-specific overrides.</li>
+  </ul>
+  <p>Saving: <code>PUT /agents/:id/security</code> with <code>{ securityOverrides: { … } }</code>. Only sections toggled to "Custom" are included in overrides. Sections using global settings have their key deleted from overrides.</p>
+  <p>Each section has a <code>useGlobal</code> state tracking whether it inherits from org defaults or uses a custom override. Toggling to custom pre-populates with the current global values as a starting point.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Load</strong> — Global security config and agent overrides are fetched in parallel.</li>
+  <li><strong>Inspect</strong> — Each section shows a <span class="badge badge-easy">GLOBAL</span> badge when using org defaults, or "Custom settings" when overridden.</li>
+  <li><strong>Override</strong> — Toggle the switch on a section to switch from global to custom. The global values are copied as a starting point.</li>
+  <li><strong>Configure</strong> — Modify the custom settings as needed.</li>
+  <li><strong>Save</strong> — Click "Save Changes" to persist only the overridden sections.</li>
+  <li><strong>Revert</strong> — Toggle a section back to global to remove the override.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="global-vs-custom">Global vs. Custom Settings</h3>
+<p>The core design principle: every section can either use the organization's global settings or be customized per-agent.</p>
+<ul>
+  <li><span class="badge badge-easy">GLOBAL</span> — Using organization defaults. No agent-specific configuration stored. Changes to global settings automatically apply.</li>
+  <li><strong>Custom</strong> — Agent-specific override is active. Global changes won't affect this agent for this section.</li>
+</ul>
+<div class="tip">
+  <strong>Tip:</strong> Only override settings for agents that truly need different security levels. For most agents, the global defaults are sufficient and easier to maintain.
+</div>
+
+<h3 id="prompt-injection">Prompt Injection Defense</h3>
+<p>Detects and prevents prompt injection attacks — where malicious input tries to override the agent's instructions.</p>
+<ul>
+  <li><strong>Detection Mode</strong>:
+    <ul>
+      <li><em>Monitor Only</em> — Logs detections but takes no action.</li>
+      <li><em>Sanitize Content</em> — Strips dangerous content from input.</li>
+      <li><em>Block Request</em> — Rejects the entire request.</li>
+    </ul>
+  </li>
+  <li><strong>Sensitivity Level</strong> — Low, Medium, High, or Maximum. Higher sensitivity catches more attacks but may produce false positives.</li>
+</ul>
+
+<h3 id="sql-injection">SQL Injection Prevention</h3>
+<p>Scans tool arguments and API requests for SQL injection patterns.</p>
+<ul>
+  <li><strong>Detection Mode</strong> — Monitor Only or Block Request.</li>
+  <li><strong>Scan Tool Inputs</strong> — Check arguments passed to tools.</li>
+  <li><strong>Scan API Inputs</strong> — Check data sent to external APIs.</li>
+</ul>
+
+<h3 id="output-filtering">Output Filtering</h3>
+<p>Scans agent responses for leaked secrets and personally identifiable information (PII).</p>
+<ul>
+  <li><strong>Filter Mode</strong>:
+    <ul>
+      <li><em>Monitor Only</em> — Logs detections.</li>
+      <li><em>Redact Secrets</em> — Replaces sensitive data with [REDACTED].</li>
+      <li><em>Block Output</em> — Prevents the response from being sent.</li>
+    </ul>
+  </li>
+  <li><strong>Scan for Secrets</strong> — Detects API keys, passwords, tokens.</li>
+  <li><strong>Scan for PII</strong> — Detects names, emails, phone numbers, SSNs, etc.</li>
+</ul>
+
+<h3 id="audit-logging">Security Audit Log</h3>
+<p>Controls what security events are logged for this agent.</p>
+<ul>
+  <li><strong>Log All Tool Calls</strong> — Records every tool invocation. High overhead but complete visibility.</li>
+  <li><strong>Log Prompt Injection Attempts</strong> — Records detected injection attempts for forensic analysis.</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Customer-facing agents need tighter security</strong> — Set prompt injection to "Block" with "High" sensitivity. Enable output filtering with "Redact" mode.</li>
+    <li><strong>Internal dev agents can be more permissive</strong> — "Monitor" mode captures data without blocking legitimate operations.</li>
+    <li><strong>Enable PII scanning for agents that handle personal data</strong> — This prevents accidental data leaks in agent responses.</li>
+    <li><strong>Start with "Sanitize" before "Block"</strong> — Blocking can disrupt legitimate workflows. Sanitize strips only the dangerous parts.</li>
+    <li><strong>Enable audit logging for high-risk agents</strong> — The overhead is worth it for agents with access to sensitive systems.</li>
+    <li><strong>Review override count regularly</strong> — Too many agent-specific overrides become hard to maintain. If most agents need the same custom settings, change the global defaults instead.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Agent blocking legitimate requests</h3>
+  <p>The sensitivity level may be too high or the mode too strict. Switch from "Block" to "Sanitize" or lower the sensitivity. Check the audit log for false positive detections.</p>
+</div>
+
+<div class="card">
+  <h3>Override not taking effect</h3>
+  <p>Ensure you've toggled the section from "Global" to "Custom" (the switch should be on). Then save changes. If the agent is running, it may take a few minutes to pick up the new config.</p>
+</div>
+
+<div class="card">
+  <h3>Save button disabled</h3>
+  <p>The save button only enables when changes exist (dirty state). Make a change to any section to enable it. If you've toggled sections but not modified values, the dirty state may not trigger — try changing a value.</p>
+</div>
+
+<div class="card">
+  <h3>Global settings changed but agent didn't update</h3>
+  <p>If a section is using "Custom" override, global changes don't apply to it. Toggle back to "Global" to re-inherit org-wide settings.</p>
+</div>
+
+<!-- Organization Context -->
+<h2 id="organization-context">Organization Context</h2>
+<p>When an agent belongs to a client organization, security settings integrate with org-level compliance requirements:</p>
+<ul>
+  <li><strong>Compliance Policies</strong> — An info banner shows "Security policies follow [Org Name] compliance requirements" to indicate org-level security governance is active.</li>
+  <li><strong>Org Security Overrides</strong> — Organizations can enforce minimum security levels (e.g., requiring prompt injection defense to be enabled). Agent-level overrides cannot weaken org-level requirements.</li>
+  <li><strong>Audit Trail</strong> — Security events for org-scoped agents are included in the organization's compliance audit trail.</li>
+</ul>
+<div class="card">
+  <h3>Can I disable security features that the org requires?</h3>
+  <p>No. Organization-level security policies set a minimum baseline. You can make agent-specific settings stricter but not more permissive than the org requires.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-tool-security.html">Tool Security</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+  <a href="agent-activity.html">Agent Activity Log</a>
+  <a href="agent-deployment.html">Agent Deployment</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

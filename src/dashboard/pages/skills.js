@@ -47,6 +47,14 @@ export function SkillsPage() {
   var _oauthSaving = useState(false);
   var oauthSaving = _oauthSaving[0]; var setOauthSaving = _oauthSaving[1];
 
+  // Credential scope (org-wide vs per-agent)
+  var _credScope = useState('org');
+  var credScope = _credScope[0]; var setCredScope = _credScope[1];
+  var _credAgent = useState('');
+  var credAgent = _credAgent[0]; var setCredAgent = _credAgent[1];
+  var _allAgents = useState([]);
+  var allAgents = _allAgents[0]; var setAllAgents = _allAgents[1];
+
   // Config modal
   var _configSkill = useState(null);
   var configSkill = _configSkill[0]; var setConfigSkill = _configSkill[1];
@@ -63,6 +71,13 @@ export function SkillsPage() {
   useEffect(function() {
     engineCall('/skills/by-category')
       .then(function(d) { setSkills(d.categories || {}); })
+      .catch(function() {});
+  }, []);
+
+  // Load agents for per-agent credential scope
+  useEffect(function() {
+    engineCall('/agents')
+      .then(function(d) { setAllAgents(d.agents || []); })
       .catch(function() {});
   }, []);
 
@@ -87,7 +102,7 @@ export function SkillsPage() {
       })
       .catch(function() {})
       .finally(function() { setInstalledLoading(false); });
-  }, []);
+  }, [effectiveOrgId]);
 
   useEffect(function() { loadInstalled(); }, [loadInstalled]);
 
@@ -163,20 +178,20 @@ export function SkillsPage() {
     }
     try {
       var payload = isMultiField
-        ? { credentials: tokenModal.fields.reduce(function(o, f) { o[f] = credFields[f].trim(); return o; }, {}) }
-        : { token: tokenValue };
+        ? { credentials: tokenModal.fields.reduce(function(o, f) { o[f] = credFields[f].trim(); return o; }, {}), scope: credScope, agentId: credAgent || undefined }
+        : { token: tokenValue, scope: credScope, agentId: credAgent || undefined };
       await engineCall('/oauth/authorize/' + tokenModal.skillId + '?orgId=' + effectiveOrgId, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
-      toast('Credentials saved', 'success');
+      toast('Credentials saved' + (credScope === 'agent' ? ' (per-agent)' : ' (org-wide)'), 'success');
       setStatuses(function(prev) {
         var u = Object.assign({}, prev);
         u[tokenModal.skillId] = { connected: true };
         return u;
       });
       setTokenModal(null);
-      setTokenValue(''); setCredFields({});
+      setTokenValue(''); setCredFields({}); setCredScope('org'); setCredAgent('');
       loadIntegrations();
     } catch (e) { toast(e.message || 'Save failed', 'error'); }
   };
@@ -279,7 +294,7 @@ export function SkillsPage() {
         setIntLoading(false);
       })
       .catch(function() { setIntLoading(false); });
-  }, []);
+  }, [effectiveOrgId]);
 
   useEffect(function() { loadIntegrations(); }, [loadIntegrations]);
 
@@ -300,9 +315,9 @@ export function SkillsPage() {
       fields: int.fields, fieldLabels: int.fieldLabels, oauthProvider: int.oauthProvider
     };
     setTokenModal(modal);
-    setTokenValue(''); setCredFields({}); setOauthTab('oauth');
-    setOauthClientId(''); setOauthClientSecret(''); setOauthAppConfigured(false);
-    setOauthSaving(false);
+    setTokenValue(''); setCredFields({}); setCredScope('org'); setCredAgent('');
+    setOauthTab('oauth'); setOauthClientId(''); setOauthClientSecret('');
+    setOauthAppConfigured(false); setOauthSaving(false);
     // For OAuth2, check if app is already configured
     if (int.authType === 'oauth2' && int.oauthProvider) {
       engineCall('/oauth/app-config/' + int.oauthProvider + '?orgId=' + effectiveOrgId)
@@ -383,7 +398,6 @@ export function SkillsPage() {
   // ── Builtin Tab ──
   var renderBuiltin = function() {
     return h(Fragment, null,
-    h(orgCtx.Switcher),
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
         h('div', { style: { position: 'relative', flex: 1, maxWidth: 320 } },
           h('input', {
@@ -476,6 +490,35 @@ export function SkillsPage() {
                     disabled: isConnecting,
                     onClick: function() {
                       if (st.provider === null || st.provider === undefined) {
+                        // Resolve auth metadata from skill manifest
+                        var auth = skill.auth || (skill.skill && skill.skill.auth) || (skill.manifest && skill.manifest.auth);
+                        if (auth && auth.type) {
+                          skill.authType = auth.type;
+                          skill.oauthProvider = auth.provider;
+                          if (auth.fields) { skill.fields = auth.fields; skill.fieldLabels = auth.fieldLabels || {}; }
+                        } else {
+                          var schema = skill.configSchema || (skill.skill && skill.skill.configSchema) || (skill.manifest && skill.manifest.configSchema);
+                          if (schema && Object.keys(schema).length > 0) {
+                            var secretFields = []; var labels = {};
+                            Object.entries(schema).forEach(function(entry) {
+                              secretFields.push(entry[0]);
+                              labels[entry[0]] = (entry[1] && entry[1].label) || entry[0];
+                            });
+                            if (secretFields.length === 1 && /key|token|secret/i.test(secretFields[0])) {
+                              skill.authType = 'api_key';
+                            } else if (secretFields.length > 0) {
+                              skill.authType = 'credentials';
+                              skill.fields = secretFields;
+                              skill.fieldLabels = labels;
+                            }
+                          }
+                        }
+                        if (!skill.authType) skill.authType = 'token';
+                        if (!skill.skill) skill.skill = { name: skill.name || skill.skillId };
+                        setCredScope('org'); setCredAgent('');
+                        setTokenValue(''); setCredFields({});
+                        setOauthTab('oauth'); setOauthClientId(''); setOauthClientSecret('');
+                        setOauthAppConfigured(false); setOauthSaving(false);
                         setTokenModal(skill);
                       } else {
                         connectOAuth(skill.skillId);
@@ -570,7 +613,10 @@ export function SkillsPage() {
           allSkills.length + ' builtin \u00B7 ' + integrations.length + ' integrations \u00B7 ' + intConnectedCount + ' connected'
         )
       ),
-      h('button', { className: 'btn btn-secondary', onClick: function() { loadInstalled(); loadIntegrations(); } }, I.refresh(), ' Refresh')
+      h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+        h(orgCtx.Switcher),
+        h('button', { className: 'btn btn-secondary', onClick: function() { loadInstalled(); loadIntegrations(); } }, I.refresh(), ' Refresh')
+      )
     ),
 
     // Tabs
@@ -596,25 +642,32 @@ export function SkillsPage() {
     // Connect Modal — enterprise-grade with OAuth App, multi-field credentials, and token support
     tokenModal && h(Modal, {
       title: 'Connect ' + (tokenModal.skill?.name || tokenModal.skillId),
-      onClose: function() { setTokenModal(null); setTokenValue(''); setCredFields({}); },
+      onClose: function() { setTokenModal(null); setTokenValue(''); setCredFields({}); setCredScope('org'); setCredAgent(''); },
       footer: (tokenModal.authType === 'oauth2' && oauthTab === 'oauth')
         ? h(Fragment, null,
             h('button', { className: 'btn btn-secondary', onClick: function() { setTokenModal(null); } }, 'Cancel')
           )
         : h(Fragment, null,
-            h('button', { className: 'btn btn-secondary', onClick: function() { setTokenModal(null); setTokenValue(''); setCredFields({}); } }, 'Cancel'),
+            h('button', { className: 'btn btn-secondary', onClick: function() { setTokenModal(null); setTokenValue(''); setCredFields({}); setCredScope('org'); setCredAgent(''); } }, 'Cancel'),
             h('button', {
               className: 'btn btn-primary', onClick: saveToken,
               disabled: (function() {
+                if (credScope === 'agent' && !credAgent) return true;
                 if (tokenModal.authType === 'credentials' && tokenModal.fields && tokenModal.fields.length > 0) {
                   return !tokenModal.fields.every(function(f) { return credFields[f] && credFields[f].trim(); });
                 }
                 return !tokenValue;
               })()
-            }, 'Save & Connect')
+            }, 'Save Credentials')
           )
     },
       h('div', null,
+
+        // ── Organization Context Banner ──
+        orgCtx.selectedOrgId && h('div', { style: { padding: '8px 12px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', marginBottom: 14, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 } },
+          I.building(),
+          h('span', null, 'Credentials will be saved for: ', h('strong', null, (orgCtx.selectedOrg && orgCtx.selectedOrg.name) || orgCtx.selectedOrgId))
+        ),
 
         // ── OAuth2: Tabbed (OAuth App | Access Token) ──
         tokenModal.authType === 'oauth2' && h('div', null,
@@ -705,6 +758,43 @@ export function SkillsPage() {
               className: 'input', style: { width: '100%' }, type: 'password',
               placeholder: tokenModal.authType === 'api_key' ? 'sk-..., key_..., etc.' : 'Paste token here...',
               value: tokenValue, onChange: function(e) { setTokenValue(e.target.value); }
+            })
+          )
+        ),
+
+        // ── Credential Scope Selector (non-OAuth or OAuth token tab) ──
+        (tokenModal.authType !== 'oauth2' || (tokenModal.authType === 'oauth2' && oauthTab === 'token')) &&
+        h('div', { style: { marginTop: 16 } },
+          h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 8 } }, 'Credential Scope'),
+          h('div', { style: { display: 'flex', gap: 8 } },
+            h('button', {
+              className: 'btn btn-sm ' + (credScope === 'org' ? 'btn-primary' : 'btn-ghost'),
+              onClick: function() { setCredScope('org'); }
+            }, 'Organization-wide'),
+            h('button', {
+              className: 'btn btn-sm ' + (credScope === 'agent' ? 'btn-primary' : 'btn-ghost'),
+              onClick: function() { setCredScope('agent'); }
+            }, 'Per-Agent')
+          ),
+          h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
+            credScope === 'org'
+              ? 'All agents in this organization will use these credentials.'
+              : 'Only the selected agent will use these credentials.'
+          )
+        ),
+
+        // ── Agent selector (per-agent mode) ──
+        (tokenModal.authType !== 'oauth2' || (tokenModal.authType === 'oauth2' && oauthTab === 'token')) &&
+        credScope === 'agent' && h('div', { style: { marginTop: 12 } },
+          h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Select Agent'),
+          h('select', {
+            className: 'input', value: credAgent,
+            onChange: function(e) { setCredAgent(e.target.value); }
+          },
+            h('option', { value: '' }, '-- Select an agent --'),
+            allAgents.map(function(a) {
+              var name = a.config?.identity?.name || a.config?.displayName || a.name || a.id;
+              return h('option', { key: a.id, value: a.id }, name);
             })
           )
         )

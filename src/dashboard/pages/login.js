@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment } from '../components/utils.js';
 import { apiCall, authCall, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 
 var _b = typeof window !== 'undefined' && window.__EM_BRANDING__ || {};
 var _brandLogo = _b.login_logo || _b.logo || _brandLogo;
@@ -226,7 +227,7 @@ export function LoginPage({ onLogin }) {
               h('strong', null, 'What to do:'), h('br', null),
               'Contact your organization administrator and ask them to reset your password from the Users page.'
             ),
-            h('div', { style: { marginTop: 16, padding: 10, background: 'var(--warning-soft, rgba(245,158,11,0.08))', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)' } },
+            h('div', { style: { marginTop: 16, padding: 10, background: 'var(--warning-soft, rgba(153,27,27,0.08))', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)' } },
               'Tip: Once you regain access, enable 2FA immediately so you can reset your own password in the future.'
             )
           ),
@@ -347,7 +348,7 @@ var DB_TYPES = [
 ];
 
 export function OnboardingWizard({ onComplete }) {
-  var TOTAL_STEPS = 6;
+  var TOTAL_STEPS = 7;
   var [step, setStep] = useState(0);
   var [error, setError] = useState('');
   var [loading, setLoading] = useState(false);
@@ -367,6 +368,11 @@ export function OnboardingWizard({ onComplete }) {
     // Agent
     agentName: '', agentRole: 'assistant',
   });
+
+  // Generated security keys from bootstrap (shown once for backup)
+  var [generatedKeys, setGeneratedKeys] = useState(null);
+  var [envPersisted, setEnvPersisted] = useState(false);
+  var [keysCopied, setKeysCopied] = useState(false);
 
   var [dbTesting, setDbTesting] = useState(false);
   var [dbConfigured, setDbConfigured] = useState(false);
@@ -411,7 +417,11 @@ export function OnboardingWizard({ onComplete }) {
     setError(''); setLoading(true);
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); setLoading(false); return; }
     try {
-      await authCall('/bootstrap', { method: 'POST', body: JSON.stringify({ name: form.name, email: form.email, password: form.password, companyName: form.company, subdomain: form.subdomain }) });
+      var res = await authCall('/bootstrap', { method: 'POST', body: JSON.stringify({ name: form.name, email: form.email, password: form.password, companyName: form.company, subdomain: form.subdomain }) });
+      if (res.generatedKeys && Object.keys(res.generatedKeys).length > 0) {
+        setGeneratedKeys(res.generatedKeys);
+        setEnvPersisted(res.envPersisted || false);
+      }
       setStep(3);
     } catch (err) { setError(err.message); }
     setLoading(false);
@@ -421,7 +431,7 @@ export function OnboardingWizard({ onComplete }) {
     setError(''); setLoading(true);
     try {
       await apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ smtpHost: form.smtpHost, smtpPort: form.smtpPort ? Number(form.smtpPort) : null, smtpUser: form.smtpUser, smtpPass: form.smtpPass }) });
-      setStep(4);
+      setStep(5);
     } catch (err) { setError(err.message); }
     setLoading(false);
   };
@@ -637,8 +647,133 @@ export function OnboardingWizard({ onComplete }) {
         )
       ),
 
-      // ── Step 3: Email / SMTP ─────────────────────────
+      // ── Step 3: Security Keys ──────────────────────────
       step === 3 && h(Fragment, null,
+        h('div', { className: 'step-title' }, 'Security Keys'),
+        h('div', { className: 'step-desc' }, 'Your encryption keys have been auto-generated. These keys encrypt your vault secrets, sign auth tokens, and protect API data in transit. Save them now — you\'ll need them for redeployment.'),
+
+        generatedKeys ? h(Fragment, null,
+          envPersisted
+            ? h('div', { style: { background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13 } },
+                h('strong', null, 'Keys saved to .env file. '), 'A backup copy was also stored in your database. We still recommend saving these to a password manager in case you need to deploy from a new machine.'
+              )
+            : h('div', { style: { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13 } },
+                h('strong', null, 'Ephemeral filesystem detected — .env could not be saved. '), 'Your keys are set in memory for this session and backed up in the database, but you MUST configure them as environment variables on your platform (fly.io, Railway, Docker, etc.) before your next deploy. See platform instructions below.'
+              ),
+
+          Object.keys(generatedKeys).map(function(envVar) {
+            return h('div', { key: envVar, className: 'form-group', style: { marginBottom: 12 } },
+              h('label', { className: 'form-label', style: { fontFamily: 'monospace', fontSize: 12 } }, envVar),
+              h('div', { style: { display: 'flex', gap: 6 } },
+                h('input', { className: 'input', readOnly: true, value: generatedKeys[envVar], style: { fontFamily: 'monospace', fontSize: 12 } }),
+                h('button', { className: 'btn btn-sm btn-ghost', onClick: function() { copyText(generatedKeys[envVar]); } }, 'Copy')
+              )
+            );
+          }),
+
+          h('div', { style: { display: 'flex', gap: 8, marginTop: 12, marginBottom: 16 } },
+            h('button', { className: 'btn btn-sm ' + (keysCopied ? 'btn-success' : 'btn-primary'), onClick: function() {
+              var envBlock = Object.keys(generatedKeys).map(function(k) { return k + '=' + generatedKeys[k]; }).join('\n');
+              copyText(envBlock);
+              setKeysCopied(true);
+            } }, keysCopied ? 'Copied to clipboard' : 'Copy All as .env Block'),
+            h('button', { className: 'btn btn-sm btn-secondary', onClick: function() {
+              var envBlock = '# AgenticMail Security Keys — Generated ' + new Date().toISOString() + '\n' + Object.keys(generatedKeys).map(function(k) { return k + '=' + generatedKeys[k]; }).join('\n') + '\n';
+              var blob = new Blob([envBlock], { type: 'text/plain' });
+              var url = URL.createObjectURL(blob);
+              var a = document.createElement('a');
+              a.href = url; a.download = 'agenticmail-keys.env'; a.click();
+              URL.revokeObjectURL(url);
+            } }, 'Download .env File')
+          ),
+
+          // What each key does
+          h('div', { style: { background: 'var(--bg-tertiary)', borderRadius: 8, padding: 12, fontSize: 13, marginBottom: 16 } },
+            h('strong', null, 'What each key does:'),
+            h('ul', { style: { margin: '4px 0 0', paddingLeft: 16 } },
+              h('li', null, h('code', null, 'JWT_SECRET'), ' — Signs authentication tokens (sessions, API keys)'),
+              h('li', null, h('code', null, 'ENCRYPTION_KEY'), ' — Encrypts secrets stored in the vault (API keys, database passwords, OAuth tokens)'),
+              h('li', null, h('code', null, 'TRANSPORT_ENCRYPTION_KEY'), ' — Encrypts API data in transit between dashboard and server (enable in Settings > Security)')
+            )
+          ),
+
+          // Platform-specific instructions
+          h('div', { style: { background: 'var(--bg-tertiary)', borderRadius: 8, padding: 12, fontSize: 13 } },
+            h('strong', null, 'How to set these keys on your platform:'),
+            h('div', { style: { marginTop: 8 } },
+
+              h('details', { style: { marginBottom: 6 } },
+                h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 12, padding: '4px 0' } }, 'Localhost / VPS / Bare Metal'),
+                h('div', { style: { padding: '8px 0 4px 12px', color: 'var(--text-secondary)' } },
+                  h('p', { style: { margin: '0 0 4px' } }, 'Keys are already saved to your .env file automatically. No action needed.'),
+                  h('pre', { style: { background: 'var(--bg-primary)', padding: 8, borderRadius: 4, fontSize: 11, overflow: 'auto' } }, '# Your .env file already contains these keys\ncat .env | grep -E "(JWT_SECRET|ENCRYPTION_KEY|TRANSPORT_ENCRYPTION_KEY)"')
+                )
+              ),
+
+              h('details', { style: { marginBottom: 6 } },
+                h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 12, padding: '4px 0' } }, 'fly.io'),
+                h('div', { style: { padding: '8px 0 4px 12px', color: 'var(--text-secondary)' } },
+                  h('p', { style: { margin: '0 0 4px' } }, 'Set as fly secrets (filesystem resets on each deploy):'),
+                  h('pre', { style: { background: 'var(--bg-primary)', padding: 8, borderRadius: 4, fontSize: 11, overflow: 'auto' } },
+                    Object.keys(generatedKeys).map(function(k) { return 'fly secrets set ' + k + '="' + generatedKeys[k] + '"'; }).join('\n')
+                  )
+                )
+              ),
+
+              h('details', { style: { marginBottom: 6 } },
+                h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 12, padding: '4px 0' } }, 'Railway / Render / Heroku'),
+                h('div', { style: { padding: '8px 0 4px 12px', color: 'var(--text-secondary)' } },
+                  h('p', { style: { margin: '0 0 4px' } }, 'Add as environment variables in your platform dashboard:'),
+                  h('pre', { style: { background: 'var(--bg-primary)', padding: 8, borderRadius: 4, fontSize: 11, overflow: 'auto' } },
+                    '# Railway\nrailway variables set ' + Object.keys(generatedKeys).map(function(k) { return k + '="' + generatedKeys[k] + '"'; }).join(' ') + '\n\n# Or add in your platform\'s dashboard under Environment Variables'
+                  )
+                )
+              ),
+
+              h('details', { style: { marginBottom: 6 } },
+                h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 12, padding: '4px 0' } }, 'Docker / Docker Compose'),
+                h('div', { style: { padding: '8px 0 4px 12px', color: 'var(--text-secondary)' } },
+                  h('p', { style: { margin: '0 0 4px' } }, 'Add to docker-compose.yml or pass with docker run:'),
+                  h('pre', { style: { background: 'var(--bg-primary)', padding: 8, borderRadius: 4, fontSize: 11, overflow: 'auto' } },
+                    '# docker-compose.yml\nservices:\n  agenticmail:\n    environment:\n' + Object.keys(generatedKeys).map(function(k) { return '      - ' + k + '=' + generatedKeys[k]; }).join('\n') + '\n\n# Or: docker run -e JWT_SECRET=... -e ENCRYPTION_KEY=... ...'
+                  )
+                )
+              ),
+
+              h('details', { style: { marginBottom: 6 } },
+                h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 12, padding: '4px 0' } }, 'Cloudflare Workers / Pages'),
+                h('div', { style: { padding: '8px 0 4px 12px', color: 'var(--text-secondary)' } },
+                  h('p', { style: { margin: '0 0 4px' } }, 'Set as encrypted secrets:'),
+                  h('pre', { style: { background: 'var(--bg-primary)', padding: 8, borderRadius: 4, fontSize: 11, overflow: 'auto' } },
+                    Object.keys(generatedKeys).map(function(k) { return 'wrangler secret put ' + k; }).join('\n') + '\n# Then paste each key value when prompted'
+                  )
+                )
+              ),
+
+              h('details', { style: { marginBottom: 6 } },
+                h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 12, padding: '4px 0' } }, 'AWS / GCP / Azure'),
+                h('div', { style: { padding: '8px 0 4px 12px', color: 'var(--text-secondary)' } },
+                  h('p', { style: { margin: '0 0 4px' } }, 'Use your cloud provider\'s secret manager or environment variable configuration:'),
+                  h('pre', { style: { background: 'var(--bg-primary)', padding: 8, borderRadius: 4, fontSize: 11, overflow: 'auto' } },
+                    '# AWS SSM Parameter Store\n' + Object.keys(generatedKeys).map(function(k) { return 'aws ssm put-parameter --name "/agenticmail/' + k + '" --value "' + generatedKeys[k] + '" --type SecureString'; }).join('\n') + '\n\n# Or set as environment variables in ECS/Lambda/App Runner config'
+                  )
+                )
+              )
+            )
+          )
+        ) : h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-muted)' } },
+          h('p', null, 'Security keys were already configured from a previous setup.'),
+          h('p', { style: { fontSize: 12, marginTop: 8 } }, 'If you need to view your keys, check your .env file or platform environment variables.')
+        ),
+
+        errorBox,
+        h('div', { className: 'onboarding-footer' },
+          h('button', { className: 'btn btn-primary', onClick: function() { setStep(4); } }, keysCopied || !generatedKeys ? 'Continue' : 'I\'ve Saved My Keys — Continue')
+        )
+      ),
+
+      // ── Step 4: Email / SMTP ─────────────────────────
+      step === 4 && h(Fragment, null,
         h('div', { className: 'step-title' }, 'Email Configuration'),
         h('div', { className: 'step-desc' }, 'Configure SMTP for outbound email delivery. You can skip this and set it up later.'),
         h('div', { style: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 } },
@@ -664,15 +799,15 @@ export function OnboardingWizard({ onComplete }) {
         errorBox,
         h('div', { className: 'onboarding-footer' },
           h('div', { style: { display: 'flex', gap: 12 } },
-            h('button', { className: 'btn btn-secondary', onClick: function() { setStep(2); } }, 'Back'),
-            h('button', { className: 'onboarding-skip', onClick: function() { setStep(4); } }, 'Skip for now')
+            h('button', { className: 'btn btn-secondary', onClick: function() { setStep(3); } }, 'Back'),
+            h('button', { className: 'onboarding-skip', onClick: function() { setStep(5); } }, 'Skip for now')
           ),
           h('button', { className: 'btn btn-primary', disabled: loading || !form.smtpHost, onClick: doSmtp }, loading ? 'Saving...' : 'Continue')
         )
       ),
 
-      // ── Step 4: Domain Registration ──────────────────
-      step === 4 && h(Fragment, null,
+      // ── Step 5: Domain Registration ──────────────────
+      step === 5 && h(Fragment, null,
         h('div', { className: 'step-title' }, 'Domain Registration'),
         h('div', { className: 'step-desc' }, 'Register a custom domain for your AgenticMail deployment. You can skip this and set it up later.'),
 
@@ -684,15 +819,14 @@ export function OnboardingWizard({ onComplete }) {
           errorBox,
           h('div', { className: 'onboarding-footer' },
             h('div', { style: { display: 'flex', gap: 12 } },
-              h('button', { className: 'btn btn-secondary', onClick: function() { setStep(3); } }, 'Back'),
-              h('button', { className: 'onboarding-skip', onClick: function() { setStep(5); } }, 'Skip for now')
+              h('button', { className: 'btn btn-secondary', onClick: function() { setStep(4); } }, 'Back'),
+              h('button', { className: 'onboarding-skip', onClick: function() { setStep(6); } }, 'Skip for now')
             ),
             h('button', { className: 'btn btn-primary', disabled: domainRegistering || !form.customDomain, onClick: doRegisterDomain }, domainRegistering ? 'Registering...' : 'Register Domain')
           )
         ),
 
         form.domainRegistered && !form.domainVerified && h(Fragment, null,
-          // Deployment key warning
           h('div', { style: { background: 'var(--warning-bg, #fef3c7)', border: '1px solid var(--warning-border, #fbbf24)', borderRadius: 8, padding: 16, marginBottom: 16 } },
             h('div', { style: { fontWeight: 600, marginBottom: 8, fontSize: 14 } }, 'Save Your Deployment Key'),
             h('div', { style: { fontSize: 13, marginBottom: 8, color: 'var(--text-secondary)' } }, 'This key is shown only once. You will need it to recover your domain if you lose access to this server.'),
@@ -701,7 +835,6 @@ export function OnboardingWizard({ onComplete }) {
               h('button', { className: 'btn btn-secondary', style: { fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }, onClick: function() { copyText(form.deploymentKey); } }, 'Copy')
             )
           ),
-          // DNS instructions
           h('div', { style: { background: 'var(--bg-secondary, #f8f9fa)', borderRadius: 8, padding: 16, marginBottom: 16 } },
             h('div', { style: { fontWeight: 600, marginBottom: 8, fontSize: 14 } }, 'Add DNS TXT Record'),
             h('div', { style: { fontSize: 13, marginBottom: 12 } }, 'Add the following TXT record to your DNS provider:'),
@@ -716,26 +849,26 @@ export function OnboardingWizard({ onComplete }) {
           ),
           errorBox,
           h('div', { className: 'onboarding-footer' },
-            h('button', { className: 'onboarding-skip', onClick: function() { setStep(5); } }, 'Skip verification for now'),
+            h('button', { className: 'onboarding-skip', onClick: function() { setStep(6); } }, 'Skip verification for now'),
             h('button', { className: 'btn btn-primary', disabled: dnsChecking, onClick: doVerifyDns }, dnsChecking ? 'Checking...' : 'Verify DNS')
           )
         ),
 
         form.domainRegistered && form.domainVerified && h(Fragment, null,
           h('div', { style: { textAlign: 'center', padding: '24px 0' } },
-            h('div', { style: { fontSize: 40, marginBottom: 12 } }, '\u2705'),
+            h('div', { style: { marginBottom: 12 } }, E.checkCircle(40)),
             h('div', { style: { fontSize: 16, fontWeight: 600 } }, 'Domain Verified'),
             h('div', { style: { color: 'var(--text-muted)', fontSize: 14, marginTop: 4 } }, form.customDomain + ' is now registered and verified.')
           ),
           h('div', { className: 'onboarding-footer' },
             h('div'),
-            h('button', { className: 'btn btn-primary', onClick: function() { setStep(5); } }, 'Continue')
+            h('button', { className: 'btn btn-primary', onClick: function() { setStep(6); } }, 'Continue')
           )
         )
       ),
 
-      // ── Step 5: First Agent ──────────────────────────
-      step === 5 && h(Fragment, null,
+      // ── Step 6: First Agent ──────────────────────────
+      step === 6 && h(Fragment, null,
         h('div', { className: 'step-title' }, 'Create Your First Agent'),
         h('div', { className: 'step-desc' }, 'Set up an AI agent with an email identity. You can skip this and create agents later.'),
         h('div', { className: 'form-group' },
@@ -756,7 +889,7 @@ export function OnboardingWizard({ onComplete }) {
         errorBox,
         h('div', { className: 'onboarding-footer' },
           h('div', { style: { display: 'flex', gap: 12 } },
-            h('button', { className: 'btn btn-secondary', onClick: function() { setStep(4); } }, 'Back'),
+            h('button', { className: 'btn btn-secondary', onClick: function() { setStep(5); } }, 'Back'),
             h('button', { className: 'onboarding-skip', onClick: function() { onComplete(); } }, 'Skip for now')
           ),
           h('button', { className: 'btn btn-primary', disabled: loading || !form.agentName, onClick: doCreateAgent }, loading ? 'Creating...' : 'Create & Finish')

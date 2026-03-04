@@ -1,0 +1,253 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activity Log — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Activity Log</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Real-time feed of agent events and tool calls — search, filter, and inspect every action across your organization.</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#events-tab">Events Tab</a></li>
+    <li><a href="#tool-calls-tab">Tool Calls Tab</a></li>
+    <li><a href="#filtering">Filtering &amp; Search</a></li>
+    <li><a href="#detail-modals">Detail Modals</a></li>
+    <li><a href="#pagination">Pagination</a></li>
+    <li><a href="#configuration">Configuration &amp; Setup</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> The Activity Log is like a security camera for your AI agents. It records everything they do — when they start, stop, make errors, and every tool they use. You can search and filter to find exactly what happened and when.
+</div>
+
+<p>The Activity page provides two complementary views into agent behavior:</p>
+<ul>
+  <li><strong>Events</strong> — High-level actions: agent started, stopped, deployed, errored, task created, etc.</li>
+  <li><strong>Tool Calls</strong> — Granular tool usage: which tool was called, by whom, how long it took, and whether it succeeded or failed</li>
+</ul>
+
+<p>Both views support full-text search, agent filtering, type filtering (events only), pagination, and click-to-inspect detail modals.</p>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<p>On page load:</p>
+<ol>
+  <li><code>/agents?orgId=...</code> — Loads agent list for name resolution</li>
+  <li><code>/activity/events?limit=25</code> — Fetches the first page of events</li>
+  <li><code>/activity/tool-calls?limit=25</code> — Fetches the first page of tool calls</li>
+  <li><code>/activity/events?limit=500</code> — Fetches a larger batch to populate the event type filter dropdown</li>
+</ol>
+
+<p>Data is re-fetched whenever filters, search terms, or page numbers change. Search has a 300ms debounce to avoid excessive API calls.</p>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Events vs Tool Calls</h3>
+<table>
+  <thead><tr><th>Aspect</th><th>Events</th><th>Tool Calls</th></tr></thead>
+  <tbody>
+    <tr><td>Granularity</td><td>High-level (agent lifecycle)</td><td>Individual tool invocations</td></tr>
+    <tr><td>Examples</td><td>Agent started, deployed, errored</td><td>web_search called, file read, API request</td></tr>
+    <tr><td>Fields</td><td>Time, Type, Agent, Details (JSON)</td><td>Time, Tool, Agent, Duration, Status</td></tr>
+    <tr><td>Frequency</td><td>Fewer (state changes)</td><td>Many (every tool invocation)</td></tr>
+    <tr><td>Use case</td><td>Audit, troubleshooting</td><td>Performance monitoring, debugging</td></tr>
+  </tbody>
+</table>
+
+<h2 id="events-tab">Events Tab</h2>
+
+<p>The events table shows:</p>
+<table>
+  <thead><tr><th>Column</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Time</strong></td><td>Timestamp — shows time only for today, date + time for older events</td></tr>
+    <tr><td><strong>Type</strong></td><td>Event type as a blue badge (e.g., "started", "stopped", "error", "deployed")</td></tr>
+    <tr><td><strong>Agent</strong></td><td>Agent name badge with avatar</td></tr>
+    <tr><td><strong>Details</strong></td><td>JSON data preview (truncated to 120 characters)</td></tr>
+  </tbody>
+</table>
+
+<p>Click any row to open the Event Detail modal.</p>
+
+<h2 id="tool-calls-tab">Tool Calls Tab</h2>
+
+<p>The tool calls table shows:</p>
+<table>
+  <thead><tr><th>Column</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Time</strong></td><td>When the tool was called</td></tr>
+    <tr><td><strong>Tool</strong></td><td>Tool name in monospace font (e.g., <code>web_search</code>, <code>Read</code>)</td></tr>
+    <tr><td><strong>Agent</strong></td><td>Which agent made the call</td></tr>
+    <tr><td><strong>Duration</strong></td><td>Execution time in milliseconds</td></tr>
+    <tr><td><strong>Status</strong></td><td><span class="badge badge-easy">ok</span> or <span class="badge badge-advanced">fail</span></td></tr>
+  </tbody>
+</table>
+
+<p>Click any row to open the Tool Call Detail modal.</p>
+
+<h2 id="filtering">Filtering &amp; Search</h2>
+
+<p>Both tabs share a filter bar with:</p>
+<ul>
+  <li><strong>Search box</strong> — Full-text search across event types, tool names, details, etc. Debounced at 300ms.</li>
+  <li><strong>Agent filter</strong> — Dropdown to filter by a specific agent</li>
+  <li><strong>Type filter</strong> (Events tab only) — Dropdown with all discovered event types</li>
+</ul>
+
+<p>Changing any filter resets pagination to page 1.</p>
+
+<div class="tip">
+  <strong>Tip:</strong> Use the agent filter + search together to investigate specific agent behavior. For example, filter to "secretary" agent and search "error" to find all errors from that agent.
+</div>
+
+<h2 id="detail-modals">Detail Modals</h2>
+
+<h3>Event Detail Modal</h3>
+<p>Shows all event fields in a structured view:</p>
+<ul>
+  <li>Timestamp, type badge, agent name</li>
+  <li>Session ID</li>
+  <li>All fields from the event's <code>data</code> object (expanded)</li>
+  <li>Event ID</li>
+</ul>
+
+<h3>Tool Call Detail Modal</h3>
+<p>Shows comprehensive tool call information:</p>
+<ul>
+  <li>Timestamp, tool name, agent name</li>
+  <li>Status (Success/Failed) with colored badge</li>
+  <li>Duration in milliseconds</li>
+  <li>Session ID</li>
+  <li><strong>Parameters</strong> — Full input parameters sent to the tool</li>
+  <li><strong>Result</strong> — Full output returned by the tool</li>
+  <li><strong>Error</strong> — Error message (only shown for failed calls)</li>
+  <li>Tool call ID</li>
+</ul>
+
+<div class="warning">
+  <strong>Note:</strong> Tool call parameters and results can contain large JSON objects. The detail modal shows the complete data — scroll within the modal to view everything.
+</div>
+
+<h2 id="pagination">Pagination</h2>
+
+<p>Both tabs use server-side pagination with 25 items per page. The pagination bar shows:</p>
+<ul>
+  <li>"Showing X–Y of Z" counter</li>
+  <li>First («), Previous (‹), numbered page buttons, Next (›), Last (»)</li>
+  <li>Up to 7 page buttons visible at once, centered on the current page</li>
+</ul>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<p>The Activity Log works automatically — events and tool calls are recorded by the engine as agents operate. No additional configuration is needed.</p>
+
+<h3>What Gets Logged</h3>
+<ul>
+  <li><strong>Events:</strong> Agent lifecycle changes, deployments, errors, task state changes</li>
+  <li><strong>Tool Calls:</strong> Every tool invocation by every agent, with timing, parameters, and results</li>
+</ul>
+
+<h3>Data Retention</h3>
+<p>Activity data retention depends on your deployment configuration. Check your engine settings for retention policies.</p>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Parameters</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>/activity/events</code></td>
+      <td>GET</td>
+      <td><code>limit</code>, <code>offset</code>, <code>search</code>, <code>agentId</code>, <code>type</code></td>
+      <td>Fetch events with filtering. Returns <code>{ events, total }</code></td>
+    </tr>
+    <tr>
+      <td><code>/activity/tool-calls</code></td>
+      <td>GET</td>
+      <td><code>limit</code>, <code>offset</code>, <code>search</code>, <code>agentId</code></td>
+      <td>Fetch tool calls with filtering. Returns <code>{ toolCalls, total }</code></td>
+    </tr>
+    <tr>
+      <td><code>/agents?orgId=...</code></td>
+      <td>GET</td>
+      <td><code>orgId</code></td>
+      <td>Agent list for name resolution</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Event Object</h3>
+<pre><code>{
+  "id": "evt_abc123",
+  "timestamp": "2026-03-03T14:30:00Z",
+  "type": "agent_started",
+  "agentId": "agent_xyz",
+  "sessionId": "sess_456",
+  "data": { /* event-specific fields */ }
+}</code></pre>
+
+<h3>Tool Call Object</h3>
+<pre><code>{
+  "id": "tc_abc123",
+  "timestamp": "2026-03-03T14:30:05Z",
+  "tool": "web_search",
+  "agentId": "agent_xyz",
+  "sessionId": "sess_456",
+  "durationMs": 1250,
+  "success": true,
+  "parameters": { "query": "AgenticMail docs" },
+  "result": { "results": [...] }
+}</code></pre>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Check tool call durations:</strong> Consistently slow tool calls (1000ms+) may indicate network issues or overloaded external services.</li>
+  <li><strong>Monitor failure rates:</strong> A sudden spike in failed tool calls often points to expired API keys or service outages.</li>
+  <li><strong>Use search for debugging:</strong> When an agent misbehaves, search for its name + "error" to quickly find the root cause.</li>
+  <li><strong>Review event patterns:</strong> Frequent "agent_stopped" → "agent_started" cycles may indicate instability.</li>
+  <li><strong>Filter by agent for audits:</strong> When reviewing a specific agent's behavior, use the agent filter to isolate its activity.</li>
+  <li><strong>Export data regularly:</strong> If your retention policy is limited, export important activity data via the API for long-term storage.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<table>
+  <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr><td>No events showing</td><td>Agents may not be running. Check the Overview or Org Chart page. Also verify the org ID is correct.</td></tr>
+    <tr><td>No tool calls showing</td><td>Agents may not have been assigned tasks yet. Tool calls only appear when agents actively use tools.</td></tr>
+    <tr><td>Search not finding results</td><td>Search is server-side — it searches specific fields, not all data. Try simpler search terms.</td></tr>
+    <tr><td>Event type filter is empty</td><td>The filter populates from the first 500 events. If there are very few events, fewer types appear.</td></tr>
+    <tr><td>Detail modal shows "-" for parameters</td><td>Some tool calls may not have logged parameters (depending on engine configuration).</td></tr>
+    <tr><td>Loading overlay stuck</td><td>API call may have timed out. Refresh the page.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="related">Related Pages</h2>
+
+<div class="nav">
+  <a href="/docs/task-pipeline.html">Task Pipeline</a> — Visual task flow with per-task activity logs
+  <a href="/docs/workforce.html">Workforce Management</a> — Agent scheduling and budgets
+  <a href="/docs/org-chart.html">Organization Chart</a> — Agent hierarchy and status
+  <a href="/docs/skill-connections.html">Integrations &amp; MCP Hub</a> — Tools that generate tool call activity
+  <a href="/docs/messages.html">Agent Messages</a> — Inter-agent communication log
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

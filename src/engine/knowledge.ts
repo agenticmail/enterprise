@@ -249,7 +249,7 @@ export class KnowledgeBaseEngine {
   async listForAgent(agentId: string): Promise<KnowledgeBase[]> {
     return Array.from(this.knowledgeBases.values()).filter(kb => {
       const ids = Array.isArray(kb.agentIds) ? kb.agentIds : [];
-      return ids.includes(agentId) || ids.length === 0;
+      return ids.includes(agentId);
     });
   }
 
@@ -263,7 +263,7 @@ export class KnowledgeBaseEngine {
     const kbs = Array.from(this.knowledgeBases.values()).filter(kb => {
       if (opts?.kbIds?.length) return opts.kbIds.includes(kb.id);
       const ids = Array.isArray(kb.agentIds) ? kb.agentIds : [];
-      return ids.includes(agentId) || ids.length === 0; // Empty = all agents
+      return ids.includes(agentId);
     });
 
     if (kbs.length === 0) return [];
@@ -357,7 +357,7 @@ export class KnowledgeBaseEngine {
   getKnowledgeBasesForAgent(agentId: string): KnowledgeBase[] {
     return Array.from(this.knowledgeBases.values()).filter(kb => {
       const ids = Array.isArray(kb.agentIds) ? kb.agentIds : [];
-      return ids.includes(agentId) || ids.length === 0;
+      return ids.includes(agentId);
     });
   }
 

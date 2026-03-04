@@ -1,0 +1,245 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workforce Management — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Workforce Management</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Manage your AI agents like employees — schedules, clock in/out, task assignment, and budget controls.</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#overview-tab">Overview Tab</a></li>
+    <li><a href="#schedules-tab">Schedules Tab</a></li>
+    <li><a href="#task-queue-tab">Task Queue Tab</a></li>
+    <li><a href="#budgets-tab">Budgets Tab</a></li>
+    <li><a href="#clock-history-tab">Clock History Tab</a></li>
+    <li><a href="#configuration">Configuration &amp; Setup</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> Think of this page as HR for your AI agents. You can set their working hours, clock them in and out, assign them tasks, and set spending limits — just like managing a team of employees.
+</div>
+
+<p>The Workforce Management page provides a complete human-resources-style interface for managing your agent fleet. It is organized into five tabs:</p>
+<ul>
+  <li><strong>Overview</strong> — Dashboard showing which agents are clocked in, off duty, or unscheduled</li>
+  <li><strong>Schedules</strong> — Create and manage work schedules with auto-wake and off-hours policies</li>
+  <li><strong>Task Queue</strong> — Assign, track, complete, and cancel tasks for specific agents</li>
+  <li><strong>Budgets</strong> — Set daily/weekly/monthly/annual token caps per agent</li>
+  <li><strong>Clock History</strong> — Audit trail of all clock-in/out events</li>
+</ul>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<p>On page load, four API calls fire in parallel:</p>
+<ol>
+  <li><code>/workforce/status</code> — Current clock status for all agents</li>
+  <li><code>/workforce/schedules</code> — All configured schedules</li>
+  <li><code>/workforce/budget-overview</code> — Token usage and caps per agent</li>
+  <li><code>/workforce/clock-records?limit=50</code> — Recent clock event history</li>
+</ol>
+<p>The agent list is also fetched to resolve names and avatars.</p>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Clock Status</h3>
+<p>Each agent has one of three clock states:</p>
+<table>
+  <thead><tr><th>Status</th><th>Badge Color</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Clocked In</td><td>Green</td><td>Agent is active and processing tasks</td></tr>
+    <tr><td>Clocked Out</td><td>Amber</td><td>Agent is off duty (has a schedule but not currently working)</td></tr>
+    <tr><td>No Schedule</td><td>Gray</td><td>Agent has no workforce schedule configured</td></tr>
+  </tbody>
+</table>
+
+<h3>Schedule Types</h3>
+<table>
+  <thead><tr><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Standard</strong></td><td>Fixed start/end time with specific days of the week (e.g., Mon–Fri 9:00–17:00)</td></tr>
+    <tr><td><strong>Shift</strong></td><td>Multiple named shifts with individual time windows and day selections</td></tr>
+    <tr><td><strong>Custom</strong></td><td>Flexible schedule for advanced configurations</td></tr>
+  </tbody>
+</table>
+
+<h3>Off-Hours Actions</h3>
+<p>When an agent's schedule ends, the system can:</p>
+<ul>
+  <li><strong>Pause</strong> — Suspend the agent; it resumes at next scheduled start</li>
+  <li><strong>Stop</strong> — Fully stop the agent process</li>
+  <li><strong>Queue</strong> — Let incoming tasks queue until the agent's next shift</li>
+</ul>
+
+<h2 id="overview-tab">Overview Tab</h2>
+
+<p>Displays three stat cards at the top:</p>
+<ul>
+  <li><strong>Agents Clocked In</strong> (green) — Currently active agents</li>
+  <li><strong>Agents Off Duty</strong> (amber) — Scheduled agents not currently working</li>
+  <li><strong>Unscheduled</strong> (gray) — Agents with no workforce schedule</li>
+</ul>
+
+<p>Below is a table showing every agent with columns: Agent, Status, Schedule, Next Event, and Actions (Clock In / Clock Out buttons).</p>
+
+<div class="tip">
+  <strong>Tip:</strong> You can manually clock in an agent at any time, even outside their scheduled hours. This is useful for urgent tasks.
+</div>
+
+<h2 id="schedules-tab">Schedules Tab</h2>
+
+<p>Create and manage agent work schedules. Each schedule card shows:</p>
+<ul>
+  <li>Agent name and schedule type badge</li>
+  <li>Working hours and days</li>
+  <li>Timezone</li>
+  <li>Policy badges: Enforce Clock-In, Enforce Clock-Out, Auto-Wake, Off-hours action</li>
+  <li>Edit and Delete buttons</li>
+</ul>
+
+<h3>Schedule Editor Modal</h3>
+<p>The modal includes:</p>
+<ul>
+  <li><strong>Agent selector</strong> — Choose which agent this schedule applies to</li>
+  <li><strong>Schedule type</strong> — Standard, Shift, or Custom (radio buttons)</li>
+  <li><strong>Time configuration</strong> — Start/end times for standard; named shifts with individual times for shift type</li>
+  <li><strong>Days of week</strong> — Toggle buttons for Sun–Sat</li>
+  <li><strong>Timezone</strong> — Full timezone selector</li>
+  <li><strong>Toggles:</strong> Enforce Clock-In, Enforce Clock-Out, Auto-Wake, Enabled</li>
+  <li><strong>Off-hours action</strong> — Pause, Stop, or Queue</li>
+  <li><strong>Grace period</strong> — Minutes of leeway before enforcing clock-out</li>
+</ul>
+
+<div class="warning">
+  <strong>Note:</strong> Auto-Wake means the agent will automatically start working at their scheduled time without manual intervention. Disable this if you want to manually control when agents start.
+</div>
+
+<h2 id="task-queue-tab">Task Queue Tab</h2>
+
+<p>Assign tasks directly to agents with:</p>
+<ul>
+  <li><strong>Agent</strong> — Target agent for the task</li>
+  <li><strong>Title &amp; Description</strong> — What the agent should do</li>
+  <li><strong>Priority</strong> — Low, Normal, High, Critical</li>
+  <li><strong>Type</strong> — New, Continue, Scheduled, Delegation</li>
+</ul>
+
+<p>The task table shows all queued tasks with columns: Agent, Type, Title, Priority, Status, Created, and Actions (Done / Cancel).</p>
+
+<h2 id="budgets-tab">Budgets Tab</h2>
+
+<p>Set token consumption limits per agent across four time windows:</p>
+<ul>
+  <li>Daily Token Cap</li>
+  <li>Weekly Token Cap</li>
+  <li>Monthly Token Cap</li>
+  <li>Annual Token Cap</li>
+</ul>
+
+<p>Each agent card shows progress bars with color coding:</p>
+<ul>
+  <li><strong>Green</strong> — Under 50% usage</li>
+  <li><strong>Amber</strong> — 50–80% usage</li>
+  <li><strong>Red</strong> — Over 80% usage</li>
+</ul>
+
+<div class="warning">
+  <strong>Important:</strong> When an agent hits its token cap, its behavior depends on your configuration. Set reasonable caps to prevent runaway costs while allowing agents enough room to complete their work.
+</div>
+
+<h2 id="clock-history-tab">Clock History Tab</h2>
+
+<p>An audit trail table with columns: Time, Agent, Event, Triggered By, Scheduled At, and Reason. Event types include:</p>
+<table>
+  <thead><tr><th>Event</th><th>Color</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Clocked In</td><td>Green</td><td>Agent started working</td></tr>
+    <tr><td>Clocked Out</td><td>Amber</td><td>Agent stopped working</td></tr>
+    <tr><td>Auto Wake</td><td>Blue</td><td>Agent automatically started at scheduled time</td></tr>
+    <tr><td>Auto Pause</td><td>Gray</td><td>Agent automatically paused at end of schedule</td></tr>
+  </tbody>
+</table>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<ol>
+  <li>Navigate to the <strong>Schedules</strong> tab and click "Create Schedule"</li>
+  <li>Select the agent and configure working hours</li>
+  <li>Enable Auto-Wake if you want the agent to start automatically</li>
+  <li>Set token budgets in the <strong>Budgets</strong> tab to control costs</li>
+  <li>Use the <strong>Overview</strong> tab to monitor real-time status</li>
+</ol>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/workforce/status</code></td><td>GET</td><td>All agents' clock status</td></tr>
+    <tr><td><code>/workforce/schedules</code></td><td>GET/POST</td><td>List or create schedules</td></tr>
+    <tr><td><code>/workforce/schedules/:id</code></td><td>PUT/DELETE</td><td>Update or delete a schedule</td></tr>
+    <tr><td><code>/workforce/clock-in/:agentId</code></td><td>POST</td><td>Clock in an agent</td></tr>
+    <tr><td><code>/workforce/clock-out/:agentId</code></td><td>POST</td><td>Clock out an agent</td></tr>
+    <tr><td><code>/workforce/tasks</code></td><td>GET/POST</td><td>List or create tasks</td></tr>
+    <tr><td><code>/workforce/tasks/:id/complete</code></td><td>POST</td><td>Mark task as completed</td></tr>
+    <tr><td><code>/workforce/tasks/:id/cancel</code></td><td>POST</td><td>Cancel a task</td></tr>
+    <tr><td><code>/workforce/budget-overview</code></td><td>GET</td><td>Budget data for all agents</td></tr>
+    <tr><td><code>/workforce/budgets/:agentId</code></td><td>PUT</td><td>Update token caps</td></tr>
+    <tr><td><code>/workforce/clock-records</code></td><td>GET</td><td>Clock event history</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Set schedules for all production agents:</strong> Unscheduled agents run without time boundaries, which can increase costs.</li>
+  <li><strong>Use Auto-Wake:</strong> Ensures agents reliably start at their scheduled time each day without manual intervention.</li>
+  <li><strong>Set budget caps conservatively:</strong> Start with lower caps and increase as you understand each agent's typical usage patterns.</li>
+  <li><strong>Review clock history regularly:</strong> Check for unexpected auto-pauses or errors that might indicate schedule misconfiguration.</li>
+  <li><strong>Use timezones correctly:</strong> Set each agent's timezone to match the audience it serves, not your own timezone.</li>
+  <li><strong>Grace periods:</strong> Set a 5–15 minute grace period to let agents finish current tasks before clock-out is enforced.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<table>
+  <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr><td>Agent won't clock in</td><td>Check if the agent exists and is not in an error state. Verify the agent is in the selected organization.</td></tr>
+    <tr><td>Auto-wake not working</td><td>Ensure the schedule has Auto-Wake enabled and the schedule is marked as Enabled. Check timezone settings.</td></tr>
+    <tr><td>Budget shows 0/0</td><td>No caps have been set. Click "Edit Caps" on the budget card to configure limits.</td></tr>
+    <tr><td>Tasks not appearing</td><td>Switch to the Task Queue tab and click Refresh. Tasks may also need the correct agent ID.</td></tr>
+    <tr><td>Schedule not applying</td><td>Verify the schedule is enabled (toggle in the edit modal). Also confirm the correct agent is selected.</td></tr>
+  </tbody>
+</table>
+
+<div class="danger">
+  <strong>Destructive actions:</strong> Deleting a schedule is immediate and cannot be undone. Cancelling a task stops the agent's work on it permanently.
+</div>
+
+<h2 id="related">Related Pages</h2>
+
+<div class="nav">
+  <a href="/docs/task-pipeline.html">Task Pipeline</a> — Visual flow of all agent tasks
+  <a href="/docs/activity.html">Activity Log</a> — Events and tool call history
+  <a href="/docs/org-chart.html">Organization Chart</a> — Agent hierarchy
+  <a href="/docs/messages.html">Agent Messages</a> — Inter-agent communication
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

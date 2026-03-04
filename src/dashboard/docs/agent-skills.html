@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skills &amp; Capabilities — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Skills &amp; Capabilities</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Assign and manage high-level skill packages that define what this agent can do — from individual apps to pre-built suites.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#skills-vs-tools">Skills vs. Tools</a></li>
+        <li><a href="#suites">Suites</a></li>
+        <li><a href="#individual-skills">Individual Skills</a></li>
+        <li><a href="#categories">Skill Categories</a></li>
+        <li><a href="#search">Search</a></li>
+        <li><a href="#hot-update">Hot-Update Support</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#org-context">Organization Context</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Skills are packages of capabilities you assign to an agent. Think of them like apps on a phone — each skill unlocks specific functionality. For example, a "Gmail" skill gives the agent the ability to read, send, and manage emails. A "Web Browser" skill lets it visit websites.</p>
+  <p><strong>Suites</strong> are bundles of related skills. The "Google Workspace" suite, for instance, includes Gmail, Calendar, Drive, Sheets, Docs, and Contacts all in one click. You can start with a suite and then remove individual skills you don't need.</p>
+  <p>The current skills are shown as colored badges on the agent's detail page. Click "Edit Skills" to add or remove them.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>Skills are stored as an array of string IDs in <code>config.skills</code> on the agent. The edit UI fetches two endpoints on mount:</p>
+  <ul>
+    <li><code>GET /skills/by-category</code> — Returns <code>{ categories: { "category-name": [{ id, name, icon, description }, ...] } }</code></li>
+    <li><code>GET /skills/suites</code> — Returns <code>{ suites: [{ id, name, icon, skills: string[] }, ...] }</code></li>
+  </ul>
+  <p>On save, the selected skill IDs are sent via hot-update (<code>POST /agents/:id/hot-update</code>) if the agent is running, or config patch (<code>PATCH /agents/:id/config</code>) if stopped. The payload is <code>{ updates: { skills: [...] }, updatedBy: "dashboard" }</code>.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>View current skills</strong> — The main view shows all assigned skills as colored badges. A counter shows the total (e.g., "12 skills").</li>
+  <li><strong>Click "Edit Skills"</strong> to enter edit mode.</li>
+  <li><strong>Select suites</strong> — At the top, suite cards are displayed in a grid. Click a suite to toggle all its skills on/off. A checkmark appears when all skills in a suite are selected; a partial highlight shows when some are selected.</li>
+  <li><strong>Select individual skills</strong> — Below suites, skills are listed by category. Click any skill card to toggle it. Selected skills show a checkmark.</li>
+  <li><strong>Search</strong> — Use the search box to filter skills by name or description.</li>
+  <li><strong>Review</strong> — The header shows a badge with the count of selected skills. Use "Clear all" to deselect everything.</li>
+  <li><strong>Save</strong> — Click "Save Skills" to apply. Changes take effect immediately on running agents.</li>
+</ol>
+
+<div class="tip">
+  <strong>Tip:</strong> Start with a suite that matches your agent's role, then remove individual skills you don't need. This is faster than adding skills one by one.
+</div>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="skills-vs-tools">Skills vs. Tools</h3>
+
+<p>Skills and tools are related but different:</p>
+<div class="card">
+  <table>
+    <tr><th>Aspect</th><th>Skills</th><th>Tools</th></tr>
+    <tr><td>Level</td><td>High-level packages</td><td>Individual functions</td></tr>
+    <tr><td>Granularity</td><td>One skill = many tools</td><td>One tool = one function</td></tr>
+    <tr><td>Config key</td><td><code>config.skills</code></td><td>Per-category toggles via bridge</td></tr>
+    <tr><td>UI location</td><td>Skills tab</td><td>Tools tab</td></tr>
+    <tr><td>Example</td><td>"google-calendar"</td><td><code>calendar_list_events</code>, <code>calendar_create_event</code></td></tr>
+  </table>
+</div>
+<p>Skills determine the agent's role at a macro level. Tools provide fine-grained control over individual functions. Assign skills first, then use the Tools tab for detailed adjustments.</p>
+
+<h3 id="suites">Suites</h3>
+
+<p>Suites are pre-built bundles of related skills. They appear at the top of the edit view as clickable cards with an icon, name, and skill count (e.g., "6 apps").</p>
+
+<p>Suite toggle behavior:</p>
+<ul>
+  <li><strong>Click when none selected</strong> — Adds all skills in the suite</li>
+  <li><strong>Click when all selected</strong> — Removes all skills in the suite</li>
+  <li><strong>Click when partially selected</strong> — Adds the remaining skills (fills the suite)</li>
+</ul>
+
+<p>Visual states:</p>
+<ul>
+  <li><strong>Default</strong> — No highlight, no checkmark</li>
+  <li><strong>Partial</strong> — Highlighted border (some skills selected)</li>
+  <li><strong>Complete</strong> — Full highlight with checkmark (all skills selected)</li>
+</ul>
+
+<h3 id="individual-skills">Individual Skills</h3>
+
+<p>Each skill has:</p>
+<ul>
+  <li><strong>ID</strong> — A kebab-case identifier (e.g., <code>google-gmail</code>, <code>web-browser</code>)</li>
+  <li><strong>Name</strong> — Human-readable label</li>
+  <li><strong>Icon</strong> — Emoji or symbol</li>
+  <li><strong>Description</strong> — Short explanation of what the skill enables</li>
+</ul>
+<p>In view mode, skill IDs are displayed as badges with auto-formatting: hyphens become spaces and words are capitalized (e.g., <code>google-gmail</code> → "Google Gmail").</p>
+
+<h3 id="categories">Skill Categories</h3>
+
+<p>In edit mode, skills are grouped by category (e.g., "communication," "productivity," "development"). Category headers appear as uppercase labels. Categories are fetched from <code>/skills/by-category</code> and displayed in the order returned by the server.</p>
+
+<p>When searching, categories with no matching skills are hidden entirely.</p>
+
+<h3 id="search">Search</h3>
+
+<p>The search box filters skills by matching against both the skill <strong>name</strong> and <strong>description</strong> (case-insensitive). This is useful when you know what you need but not which category it's in. The search applies only to individual skills, not suites.</p>
+
+<h3 id="hot-update">Hot-Update Support</h3>
+
+<p>Skill changes can be applied to running agents without restarting them. The dashboard checks the agent's state (<code>running</code>, <code>active</code>, or <code>degraded</code>) and uses the hot-update endpoint if active. If the agent is stopped, the standard config patch is used instead.</p>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <h3>Start with a Suite, Then Refine</h3>
+  <p>Suites are designed for common roles. Pick the one closest to your agent's purpose, save it, then go back in and remove individual skills you don't need. This is faster and ensures you don't miss related capabilities.</p>
+</div>
+
+<div class="card">
+  <h3>Keep Skills Aligned with the Agent's Role</h3>
+  <p>A customer support agent should have email and messaging skills but probably not code execution or file system access. Assign skills that match the agent's intended purpose — this improves both security and the quality of the agent's behavior.</p>
+</div>
+
+<div class="card">
+  <h3>Use Search When the List Is Long</h3>
+  <p>With dozens of available skills, scrolling through categories can be slow. Use the search box to jump directly to what you need.</p>
+</div>
+
+<div class="card">
+  <h3>Review Skills After Applying a Role Template</h3>
+  <p>Role templates (in the Permissions tab) may set skills automatically. After applying a template, visit the Skills tab to verify and adjust the assigned skills.</p>
+</div>
+
+<div class="card">
+  <h3>Coordinate with Tools Tab</h3>
+  <p>Skills and tools work together. If you add a skill but the underlying tool category is disabled in the Tools tab, the skill may not function fully. Check both tabs when debugging capability issues.</p>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>No skills appear in the edit view</h3>
+  <p>The skill catalog is fetched from <code>/skills/by-category</code>. If the engine is unreachable or returns empty data, no skills appear. Check the browser console for network errors and verify the engine is running.</p>
+</div>
+
+<div class="card">
+  <h3>Skills save but the agent doesn't use them</h3>
+  <p>Skills define availability but the agent's LLM prompt must be aware of them. If you've added skills but the agent ignores them, check that the agent's session was restarted (or hot-updated) after the change. Also verify the corresponding tool categories are enabled in the Tools tab.</p>
+</div>
+
+<div class="card">
+  <h3>Suite shows partial selection unexpectedly</h3>
+  <p>This happens when some skills in the suite were added individually or removed after applying the suite. Click the suite card to fill in the missing skills, or click again to remove all of them.</p>
+</div>
+
+<div class="card">
+  <h3>"Failed to save" after editing skills</h3>
+  <p>If hot-update fails (e.g., agent crashed mid-update), try stopping the agent, saving skills, then restarting. The config patch endpoint is more reliable for stopped agents.</p>
+</div>
+
+<div class="card">
+  <h3>Skill badges show IDs instead of names</h3>
+  <p>In view mode, skill IDs are auto-formatted (hyphens → spaces, title case). If you see raw IDs, this is expected — the view mode doesn't fetch full metadata, just formats the stored ID strings.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+
+<h2 id="org-context">Organization Context</h2>
+<p>When an agent belongs to a <strong>client organization</strong>, skill availability may be scoped to that organization:</p>
+<ul>
+  <li>An <strong>info banner</strong> appears indicating the agent's skills follow the organization's policies.</li>
+  <li>Some skills may be <strong>pre-configured or restricted</strong> by the organization — these cannot be removed at the agent level.</li>
+  <li>Available skill suites may differ per organization based on licensing or policy.</li>
+  <li>The organization badge identifies which org's policies govern this agent's skill set.</li>
+</ul>
+<div class="tip">
+  <strong>Tip:</strong> If certain skills appear locked or unavailable, the organization administrator may have restricted them. Contact your org admin for changes.
+</div>
+
+<div class="nav">
+  <a href="/docs/agent-tools.html">Tools</a> — Fine-grained control over individual tool categories and functions
+  <br>
+  <a href="/docs/agent-permissions.html">Permissions</a> — Risk levels, rate limits, and role templates that may set skills
+  <br>
+  <a href="/docs/agent-activity.html">Activity Log</a> — See which skills and tools the agent actually uses
+  <br>
+  <a href="/docs/agent-channels.html">Channels</a> — Messaging integrations that skills may depend on
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

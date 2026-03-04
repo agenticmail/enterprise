@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Details — AgenticMail Enterprise</title>
+  <link rel="stylesheet" href="/docs/docs-style.css">
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+  <a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+  <h1>Personal Details</h1>
+  <p style="color:var(--text-muted);margin-bottom:24px">Define who this agent is — its name, role, persona, cultural background, language, and personality traits.</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#core-identity">Core Identity</a></li>
+      <li><a href="#persona">Persona & Identity</a></li>
+      <li><a href="#personality-traits">Personality Traits</a></li>
+      <li><a href="#voice-selector">Voice Selector</a></li>
+      <li><a href="#key-concepts">Key Concepts</a></li>
+      <li><a href="#best-practices">Best Practices</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#related">Related Pages</a></li>
+    </ul>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">Overview</h2>
+
+  <div class="card">
+    <h3>For Everyone</h3>
+    <p>The Personal Details tab lets you craft your agent's identity. This includes its name, email, job role, avatar, gender, date of birth, cultural background, language, and personality traits. These details shape how the agent presents itself in emails, chats, and team interactions. A well-defined persona produces more consistent, on-brand communications.</p>
+  </div>
+
+  <div class="card">
+    <h3>For Developers</h3>
+    <p>Personal details are stored in the engine agent's <code>config.identity</code> object. Saving uses either <code>PATCH /agents/:id/config</code> (when stopped) or <code>POST /agents/:id/hot-update</code> (when running) so changes can apply without restart. The edit form uses the shared <code>PersonaForm</code> component which handles avatar upload, date-of-birth with age calculation, culture/language dropdowns, and personality trait sliders.</p>
+  </div>
+
+  <!-- How It Works -->
+  <h2 id="how-it-works">How It Works</h2>
+  <p>The tab has two modes:</p>
+  <ol>
+    <li><strong>View Mode</strong> — Displays the agent's avatar, name, email, role, age, identity details (gender, DOB, marital status, language, culture), description, and personality traits as read-only cards.</li>
+    <li><strong>Edit Mode</strong> — Click "Edit Details" to enter a form with all fields editable. Uses the shared <code>PersonaForm</code> component for persona fields. Click "Save Changes" to persist.</li>
+  </ol>
+  <p>If the agent is running, changes are applied via <strong>hot-update</strong> — no restart required. If stopped, changes are saved to the config and applied on next deploy.</p>
+
+  <!-- Core Identity -->
+  <h2 id="core-identity">Core Identity</h2>
+  <table>
+    <thead><tr><th>Field</th><th>Description</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Name</strong></td><td>The agent's primary name</td><td>Used in emails, chat messages, and team interactions</td></tr>
+      <tr><td><strong>Display Name</strong></td><td>Optional alternative display name</td><td>Shown in UI when different from internal name</td></tr>
+      <tr><td><strong>Email</strong></td><td>The agent's email address</td><td>Used as the From address for outgoing emails</td></tr>
+      <tr><td><strong>Role</strong></td><td>Job function — agent, assistant, manager, specialist, analyst, coordinator, advisor, support, engineer, other</td><td>Included in the system prompt; helps the agent understand its responsibilities</td></tr>
+      <tr><td><strong>Description</strong></td><td>Free-text description of what the agent does</td><td>Shown to other agents and team members; included in system prompt</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Persona -->
+  <h2 id="persona">Persona & Identity</h2>
+  <p>These fields add depth to the agent's character. They're optional but improve the quality and consistency of the agent's responses.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Avatar</strong></td><td>Profile image shown in chat, emails, and the dashboard. Upload an image or use a URL. Falls back to initial letter.</td></tr>
+      <tr><td><strong>Gender</strong></td><td>The agent's gender identity. Used for pronoun consistency in self-references.</td></tr>
+      <tr><td><strong>Date of Birth</strong></td><td>Used to calculate the agent's "age." Adds a human-like quality to the persona. Age is auto-calculated and displayed.</td></tr>
+      <tr><td><strong>Marital Status</strong></td><td>Optional background detail for the persona.</td></tr>
+      <tr><td><strong>Cultural Background</strong></td><td>Select from a predefined list of cultures (e.g., American, British, Japanese, Nigerian). Influences communication style and cultural references.</td></tr>
+      <tr><td><strong>Language</strong></td><td>Primary language with regional variant (e.g., en-us, en-gb, es-mx). Affects spelling, phrasing, and idioms.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Personality Traits -->
+  <h2 id="personality-traits">Personality Traits</h2>
+  <p>Personality traits are key-value pairs that shape the agent's tone and communication style. The system provides default trait categories, and you can customize each:</p>
+  <ul>
+    <li><strong>Formality</strong> — How formal or casual the agent's language is</li>
+    <li><strong>Empathy</strong> — How emotionally attuned the agent's responses are</li>
+    <li><strong>Humor</strong> — How much humor or wit the agent uses</li>
+    <li><strong>Assertiveness</strong> — How direct or tentative the agent is</li>
+    <li><strong>Verbosity</strong> — How concise or detailed the agent's responses are</li>
+  </ul>
+  <p>Traits are displayed as labeled badges in view mode and as sliders/selectors in edit mode.</p>
+  <div class="tip">
+    <strong>Tip:</strong> Personality traits have a real impact on output quality. Agents with clear traits produce more consistent, on-brand communications. Be specific — "professional but warm" is better than just "professional."
+  </div>
+
+  <!-- Voice Selector -->
+  <h2 id="voice-selector">Voice Selector</h2>
+  <p>The voice configuration has been moved to the <a href="/docs/agent-configuration.html">Configuration</a> tab. The Personal Details source includes a <code>VoiceSelector</code> component with 12 built-in ElevenLabs voices plus custom voice support, but it's rendered from the Configuration section.</p>
+  <p>Built-in voices include:</p>
+  <ul>
+    <li>Female: Sarah, Rachel, Charlotte, Lily, Emily (various accents and styles)</li>
+    <li>Male: Adam, Antoni, Arnold, Sam, Josh, Daniel, Callum (various accents and styles)</li>
+  </ul>
+
+  <!-- Key Concepts -->
+  <h2 id="key-concepts">Key Concepts</h2>
+  <ul>
+    <li><strong>Identity Object</strong> — The <code>config.identity</code> structure stores all persona data. It's separate from the top-level config to keep identity distinct from operational settings.</li>
+    <li><strong>Hot-Update</strong> — When the agent is running, personal detail changes are applied immediately without restarting via the hot-update endpoint.</li>
+    <li><strong>PersonaForm</strong> — A shared UI component used by both agent creation and editing. Handles avatar, DOB, gender, marital status, culture, language, and trait configuration.</li>
+    <li><strong>Age Calculation</strong> — The <code>computeAge()</code> function derives age from the DOB field. This is purely cosmetic and adds a human touch.</li>
+    <li><strong>Culture & Language Lists</strong> — Predefined lists imported from <code>persona-fields.js</code>. Culture affects communication norms; language affects spelling and grammar.</li>
+  </ul>
+
+  <!-- Best Practices -->
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li><strong>Give every agent a unique name and email</strong> — Don't share email addresses between agents.</li>
+    <li><strong>Write a clear description</strong> — "Handles customer support for billing questions" is much better than "support agent."</li>
+    <li><strong>Set personality traits deliberately</strong> — They directly influence the agent's tone in all communications.</li>
+    <li><strong>Match the cultural background to your audience</strong> — A British English agent communicating with American customers may create subtle disconnects.</li>
+    <li><strong>Use the role field accurately</strong> — It's included in the system prompt and helps the model understand what it should do.</li>
+    <li><strong>Keep the avatar professional</strong> — It appears in email signatures and chat interfaces.</li>
+  </ul>
+
+  <!-- Troubleshooting -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+    <tbody>
+      <tr><td>Changes not reflected immediately</td><td>If the agent is stopped, changes apply on next deploy. If running, hot-update should apply instantly — check for error toasts.</td></tr>
+      <tr><td>Avatar not showing</td><td>Ensure the image URL is publicly accessible, or upload a supported format (JPG, PNG, WebP).</td></tr>
+      <tr><td>Agent's tone doesn't match traits</td><td>Traits influence but don't override the system prompt. Check Configuration tab for conflicting instructions.</td></tr>
+      <tr><td>Age showing incorrectly</td><td>Verify the Date of Birth field is in the correct format (YYYY-MM-DD).</td></tr>
+      <tr><td>"Failed to save" error</td><td>Check the browser console for the specific error. Common causes: invalid email format, network timeout, engine not running.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Related Pages -->
+  <h2 id="related">Related Pages</h2>
+  <div class="nav">
+    <a href="/docs/agent-overview.html">Overview</a> — Agent status, usage stats, and quick actions.
+    <a href="/docs/agent-configuration.html">Configuration</a> — LLM model, voice, heartbeat, and model routing.
+    <a href="/docs/agent-manager.html">Manager</a> — Assign a supervisor and configure daily catch-ups.
+    <a href="/docs/agent-permissions.html">Permissions</a> — Risk levels, rate limits, and approval workflows.
+  </div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

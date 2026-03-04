@@ -8,6 +8,7 @@ import { HelpButton } from '../../components/help-button.js';
 
 export function MemorySection(props) {
   var agentId = props.agentId;
+  var engineAgent = props.engineAgent;
   var app = useApp();
   var toast = app.toast;
 
@@ -33,6 +34,16 @@ export function MemorySection(props) {
   var showCreateModal = _showCreate[0]; var setShowCreateModal = _showCreate[1];
   var _form = useState({ title: '', content: '', category: 'org_knowledge', importance: 'normal', tags: '' });
   var createForm = _form[0]; var setCreateForm = _form[1];
+
+  // Organization context
+  var _orgInfo = useState(null);
+  var orgInfo = _orgInfo[0]; var setOrgInfo = _orgInfo[1];
+
+  useEffect(function() {
+    if (engineAgent && engineAgent.client_org_id) {
+      apiCall('/client-orgs/' + engineAgent.client_org_id).then(function(d) { setOrgInfo(d.org || d); }).catch(function() {});
+    }
+  }, [engineAgent && engineAgent.client_org_id]);
 
   var PAGE_SIZE = 10;
 
@@ -154,7 +165,7 @@ export function MemorySection(props) {
   var sourcesCount = memoryStats && memoryStats.bySource ? Object.keys(memoryStats.bySource).length : 0;
 
   var catColor = function(c) {
-    var m = { preference: '#8b5cf6', interaction_pattern: '#9d174d', context: '#3b82f6', skill: '#15803d', processed_email: '#6366f1', org_knowledge: '#f59e0b', procedure: '#14b8a6', relationship: '#f43f5e', reflection: '#a855f7', domain_expertise: '#0ea5e9', error_pattern: '#ef4444' };
+    var m = { preference: '#8b5cf6', interaction_pattern: '#9d174d', context: '#3b82f6', skill: '#15803d', processed_email: '#6366f1', org_knowledge: '#991b1b', procedure: '#14b8a6', relationship: '#f43f5e', reflection: '#a855f7', domain_expertise: '#0ea5e9', error_pattern: '#ef4444' };
     return m[c] || '#64748b';
   };
   var impColor = function(i) {
@@ -193,6 +204,12 @@ export function MemorySection(props) {
         h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setShowCreateModal(true); } }, I.plus(), ' Add')
       )
     ),
+    // Organization Context Banner
+    engineAgent && engineAgent.client_org_id && h('div', { style: { padding: '10px 16px', margin: '0 16px 12px', background: 'var(--info-bg, rgba(59,130,246,0.1))', border: '1px solid var(--info-border, rgba(59,130,246,0.3))', borderRadius: 'var(--radius, 8px)', fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 } },
+      I.info && I.info(),
+      h('span', null, 'Memory entries are scoped to ', h('strong', null, orgInfo ? orgInfo.name : 'organization'), ' for data isolation.')
+    ),
+
     h('div', { className: 'card-body', style: { padding: 0 } },
 
       // Compact stats bar

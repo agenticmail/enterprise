@@ -1,6 +1,7 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function CompliancePage() {
   const { toast } = useApp();
@@ -40,7 +41,7 @@ export function CompliancePage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h('div', { className: 'page-inner' },
-    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Compliance Reporting', h(HelpButton, { label: 'Compliance Reporting' },
+    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Compliance Reporting', h(KnowledgeLink, { page: 'compliance' }), h(HelpButton, { label: 'Compliance Reporting' },
       h('p', null, 'Generate and manage compliance reports for regulatory frameworks. Supports SOC2 summaries, GDPR data exports, and audit summaries.'),
       h('h4', { style: _h4 }, 'Report types'),
       h('ul', { style: _ul },

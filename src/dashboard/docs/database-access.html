@@ -1,0 +1,322 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Database Access — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Database Access</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Connect your agents to external databases with granular permissions, query limits, and full audit logging.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#connections">Connections Tab</a></li>
+<li><a href="#supported-databases">Supported Databases</a></li>
+<li><a href="#agent-access">Agent Access Tab</a></li>
+<li><a href="#permissions">Permission Model</a></li>
+<li><a href="#query-limits">Query Limits &amp; Safety</a></li>
+<li><a href="#audit-log">Audit Log Tab</a></li>
+<li><a href="#configuration">Configuration &amp; Setup</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p><strong>For everyone:</strong> The Database Access page lets you connect your AI agents to your databases (PostgreSQL, MySQL, MongoDB, Redis, and more). Instead of giving agents raw database credentials, you create managed connections with specific permissions — like giving an agent read-only access to your products table but blocking access to the users_secrets table. Every query the agent runs is logged.</p>
+<p><strong>For technical users:</strong> This module manages database connection pooling, per-agent RBAC with operation-level granularity (read/write/delete/schema/execute), row-level query limits, table-level blocklists, optional human-in-the-loop approval for mutations, and a full SQL audit log. Credentials are encrypted in the Vault. The engine exposes <code>/database/connections</code>, <code>/database/agents/:id/connections</code>, and <code>/database/audit</code> endpoints.</p>
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+<ol>
+<li><strong>Add a connection</strong> — configure host, port, credentials, or paste a connection string. The connection is tested before saving.</li>
+<li><strong>Grant agent access</strong> — select an agent and assign permissions (read, write, delete, schema, execute) with query limits.</li>
+<li><strong>Agents query databases</strong> — agents use their granted connections with enforced permissions and limits.</li>
+<li><strong>Everything is logged</strong> — every query, its result, latency, and status appear in the audit log.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Three Tabs</h3>
+<table>
+<thead><tr><th>Tab</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><strong>Connections</strong></td><td>Manage database connections — add, test, edit, delete, and grant access.</td></tr>
+<tr><td><strong>Agent Access</strong></td><td>View which agents have access to which databases, with what permissions. Revoke access.</td></tr>
+<tr><td><strong>Audit Log</strong></td><td>Full query log with filters for agent, operation, status, and text search.</td></tr>
+</tbody>
+</table>
+
+<h3>Connection Status</h3>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-easy">active</span></td><td>Connection is healthy and available.</td></tr>
+<tr><td><span class="badge">inactive</span></td><td>Connection is configured but not yet tested/activated.</td></tr>
+<tr><td><span class="badge badge-advanced">error</span></td><td>Last connection attempt failed. Check error message.</td></tr>
+</tbody>
+</table>
+
+<h2 id="connections">Connections Tab</h2>
+<p>Displays all database connections as cards showing type, name, host/port/database, status, and last error (if any).</p>
+
+<h3>Adding a Connection</h3>
+<ol>
+<li>Click <strong>"+ Add Connection"</strong></li>
+<li><strong>Step 1: Choose database type</strong> — select from the visual picker (organized by category).</li>
+<li><strong>Step 2: Enter connection details</strong> — either paste a full connection string or fill in individual fields (host, port, database, username, password).</li>
+<li><strong>Test Connection</strong> — validates connectivity and shows latency.</li>
+<li><strong>Add Connection</strong> — saves the connection (auto-tests first if not already tested).</li>
+</ol>
+
+<div class="tip">
+<strong>Tip:</strong> You can paste a full connection string (e.g., <code>postgresql://user:pass@host:5432/db</code>) or fill in individual fields — whichever is easier. The connection string takes precedence if provided.
+</div>
+
+<h3>Connection Card Actions</h3>
+<ul>
+<li><strong>Test</strong> — verify the connection is reachable and measure latency.</li>
+<li><strong>Grant Access</strong> — open the grant modal to give an agent access.</li>
+<li><strong>Edit</strong> — modify connection name, host, port, database, or SSL settings.</li>
+<li><strong>Delete</strong> — remove the connection and all associated agent access grants.</li>
+</ul>
+
+<h2 id="supported-databases">Supported Databases</h2>
+
+<h3>Relational (SQL)</h3>
+<table>
+<thead><tr><th>Database</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>PostgreSQL</td><td><code>postgresql</code></td></tr>
+<tr><td>MySQL</td><td><code>mysql</code></td></tr>
+<tr><td>MariaDB</td><td><code>mariadb</code></td></tr>
+<tr><td>Microsoft SQL Server</td><td><code>mssql</code></td></tr>
+<tr><td>Oracle</td><td><code>oracle</code></td></tr>
+<tr><td>SQLite</td><td><code>sqlite</code></td></tr>
+</tbody>
+</table>
+
+<h3>Cloud-Native SQL</h3>
+<table>
+<thead><tr><th>Database</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Supabase</td><td><code>supabase</code></td></tr>
+<tr><td>Neon</td><td><code>neon</code></td></tr>
+<tr><td>PlanetScale</td><td><code>planetscale</code></td></tr>
+<tr><td>CockroachDB</td><td><code>cockroachdb</code></td></tr>
+<tr><td>Turso / LibSQL</td><td><code>turso</code></td></tr>
+</tbody>
+</table>
+
+<h3>NoSQL / Key-Value</h3>
+<table>
+<thead><tr><th>Database</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>MongoDB</td><td><code>mongodb</code></td></tr>
+<tr><td>Redis</td><td><code>redis</code></td></tr>
+<tr><td>Upstash Redis</td><td><code>upstash</code></td></tr>
+<tr><td>AWS DynamoDB</td><td><code>dynamodb</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="agent-access">Agent Access Tab</h2>
+<p>Shows a card for each agent that has database access. Each card lists:</p>
+<ul>
+<li>Agent name and avatar</li>
+<li>Number of databases the agent can access</li>
+<li>For each database: connection name, type icon, and permission badges</li>
+<li><strong>Revoke button</strong> — immediately removes access for that agent on that database</li>
+</ul>
+
+<h2 id="permissions">Permission Model</h2>
+<p>When granting an agent access to a database, you select which operations they can perform:</p>
+
+<table>
+<thead><tr><th>Permission</th><th>Operations</th><th>Color</th><th>Risk Level</th></tr></thead>
+<tbody>
+<tr><td><strong>Read</strong></td><td>SELECT queries</td><td>Green</td><td>Low</td></tr>
+<tr><td><strong>Write</strong></td><td>INSERT / UPDATE</td><td>Orange</td><td>Medium</td></tr>
+<tr><td><strong>Delete</strong></td><td>DELETE rows</td><td>Red</td><td>High</td></tr>
+<tr><td><strong>Schema</strong></td><td>DDL operations (CREATE TABLE, ALTER, DROP)</td><td>Blue</td><td>Very High</td></tr>
+<tr><td><strong>Execute</strong></td><td>Stored procedures and functions</td><td>Gray</td><td>Varies</td></tr>
+</tbody>
+</table>
+
+<div class="warning">
+<strong>Warning:</strong> Grant "schema" and "delete" permissions sparingly. An agent with schema access can alter or drop tables. An agent with delete access can remove data.
+</div>
+
+<h2 id="query-limits">Query Limits &amp; Safety</h2>
+<p>Each agent access grant includes configurable safety limits:</p>
+
+<table>
+<thead><tr><th>Limit</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Max Read Rows</strong></td><td>10,000</td><td>Maximum rows returned by SELECT queries</td></tr>
+<tr><td><strong>Max Write Rows</strong></td><td>1,000</td><td>Maximum rows affected by INSERT/UPDATE</td></tr>
+<tr><td><strong>Max Delete Rows</strong></td><td>100</td><td>Maximum rows affected by DELETE</td></tr>
+</tbody>
+</table>
+
+<h3>Additional Safety Options</h3>
+<ul>
+<li><strong>Blocked Tables</strong> — comma-separated list of tables the agent cannot access (e.g., <code>users_secrets, payment_tokens</code>).</li>
+<li><strong>Log ALL queries</strong> — by default, only writes/deletes are logged. Enable this to also log read queries.</li>
+<li><strong>Require human approval</strong> — write and delete operations must be approved by a human before executing.</li>
+</ul>
+
+<div class="tip">
+<strong>Tip:</strong> For production databases, always enable "Log ALL queries" and set conservative row limits. Start with read-only access and expand only as needed.
+</div>
+
+<h2 id="audit-log">Audit Log Tab</h2>
+<p>Every database query executed by an agent is logged with full details:</p>
+
+<table>
+<thead><tr><th>Column</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Time</strong></td><td>When the query was executed</td></tr>
+<tr><td><strong>Agent</strong></td><td>Which agent ran the query</td></tr>
+<tr><td><strong>Database</strong></td><td>Which connection was used</td></tr>
+<tr><td><strong>Operation</strong></td><td>read, write, delete, schema, or execute</td></tr>
+<tr><td><strong>Query</strong></td><td>The SQL query (truncated in table, full in detail view)</td></tr>
+<tr><td><strong>Rows</strong></td><td>Number of rows affected</td></tr>
+<tr><td><strong>Latency</strong></td><td>Execution time in milliseconds</td></tr>
+<tr><td><strong>Status</strong></td><td>OK or FAIL</td></tr>
+</tbody>
+</table>
+
+<h3>Filtering</h3>
+<ul>
+<li><strong>Search</strong> — full-text search across queries, agents, databases, and errors.</li>
+<li><strong>Operation filter</strong> — filter by read, write, delete, schema, or execute.</li>
+<li><strong>Status filter</strong> — show only successful or failed queries.</li>
+<li><strong>Agent filter</strong> — filter by specific agent (auto-populated from log data).</li>
+</ul>
+
+<h3>Expanded Detail</h3>
+<p>Click any row to expand and see:</p>
+<ul>
+<li>Full SQL query (formatted, scrollable)</li>
+<li>Agent ID and Connection ID</li>
+<li>Exact rows affected and execution time</li>
+<li>IP address</li>
+<li>Error message (for failed queries)</li>
+</ul>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>API Endpoints</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/database/connections</code></td><td>List all connections</td></tr>
+<tr><td>POST</td><td><code>/database/connections</code></td><td>Create a new connection</td></tr>
+<tr><td>PUT</td><td><code>/database/connections/:id</code></td><td>Update a connection</td></tr>
+<tr><td>DELETE</td><td><code>/database/connections/:id</code></td><td>Delete a connection (and all grants)</td></tr>
+<tr><td>POST</td><td><code>/database/connections/:id/test</code></td><td>Test an existing connection</td></tr>
+<tr><td>POST</td><td><code>/database/connections/test</code></td><td>Test connection params before saving</td></tr>
+<tr><td>POST</td><td><code>/database/connections/:id/agents</code></td><td>Grant agent access to a connection</td></tr>
+<tr><td>DELETE</td><td><code>/database/connections/:id/agents/:agentId</code></td><td>Revoke agent access</td></tr>
+<tr><td>GET</td><td><code>/database/agents/:id/connections</code></td><td>List connections an agent can access</td></tr>
+<tr><td>GET</td><td><code>/database/audit?limit=</code></td><td>Query audit log</td></tr>
+</tbody>
+</table>
+
+<h3>Grant Access Request</h3>
+<pre><code>POST /database/connections/:id/agents
+{
+  "agentId": "agent-123",
+  "permissions": ["read", "write"],
+  "queryLimits": {
+    "maxRowsRead": 10000,
+    "maxRowsWrite": 1000,
+    "maxRowsDelete": 100
+  },
+  "schemaAccess": {
+    "blockedTables": ["users_secrets", "payment_tokens"]
+  },
+  "logAllQueries": true,
+  "requireApproval": false
+}</code></pre>
+
+<h3>Connection Create Request</h3>
+<pre><code>// Using connection string
+POST /database/connections
+{
+  "type": "postgresql",
+  "name": "Production DB",
+  "connectionString": "postgresql://user:pass@host:5432/mydb",
+  "description": "Main production database"
+}
+
+// Using individual fields
+POST /database/connections
+{
+  "type": "mysql",
+  "name": "Analytics DB",
+  "host": "analytics.example.com",
+  "port": 3306,
+  "database": "analytics",
+  "username": "reader",
+  "password": "...",
+  "ssl": true,
+  "description": "Read-only analytics database"
+}</code></pre>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Principle of least privilege</strong> — start with read-only access and expand only when necessary.</li>
+<li><strong>Block sensitive tables</strong> — always add tables containing credentials, tokens, or PII to the blocked tables list.</li>
+<li><strong>Enable full logging for production</strong> — log all queries (including reads) on production databases.</li>
+<li><strong>Set conservative row limits</strong> — prevent agents from accidentally dumping entire tables. 10,000 read rows is a good default.</li>
+<li><strong>Use connection strings</strong> — they're less error-prone than filling in individual fields.</li>
+<li><strong>Enable SSL</strong> — always use SSL/TLS for remote database connections.</li>
+<li><strong>Test before saving</strong> — always test connections before adding them. The UI does this automatically.</li>
+<li><strong>Require approval for mutations</strong> — enable "Require human approval for write/delete" for critical production databases.</li>
+<li><strong>Review audit logs regularly</strong> — check for unexpected queries, failed attempts, and unusual access patterns.</li>
+<li><strong>Use dedicated database users</strong> — create a specific database user for AgenticMail with only the necessary privileges.</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+<h3>Connection test fails</h3>
+<p>Verify: host/port are correct, database exists, credentials are valid, firewall allows the connection, and SSL setting matches the server. Check the error message for details — common issues are "ECONNREFUSED" (wrong host/port) and "authentication failed."</p>
+
+<h3>Agent can't query the database</h3>
+<p>Check the Agent Access tab to verify the agent has been granted access with the correct permissions. Ensure the operation type (read/write/delete) matches the agent's granted permissions.</p>
+
+<h3>"Max rows exceeded" error</h3>
+<p>The agent's query returned more rows than the configured limit. Either increase the limit in the grant settings or have the agent add a LIMIT clause to their queries.</p>
+
+<h3>Blocked table error</h3>
+<p>The agent tried to access a table in the blocked list. If this is intentional, remove the table from the blockedTables list in the grant settings.</p>
+
+<h3>Audit log shows failed queries</h3>
+<p>Click the failed entry to expand details and see the error message. Common causes: permission denied (operation not granted), syntax errors, table not found, or connection timeout.</p>
+
+<h3>Connection shows "error" status</h3>
+<p>The last connection attempt failed. Click "Test" to retry and see the specific error. Common fixes: restart the database server, check network connectivity, or update credentials if they've been rotated.</p>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+<a href="/docs/vault.html">Vault</a> — Database credentials are encrypted in the Vault.
+<a href="/docs/users.html">Users</a> — Control who can manage database connections.
+<a href="/docs/dlp.html">DLP</a> — DLP rules can detect database credentials in agent outputs.
+<a href="/docs/compliance.html">Compliance</a> — Database audit logs inform compliance reports.
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organizations — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Organizations</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Multi-tenant client management with billing, agent assignment, and revenue tracking</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#creating-organizations">Creating Organizations</a></li>
+    <li><a href="#detail-view">Detail View</a></li>
+    <li><a href="#billing">Billing &amp; Revenue Tracking</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> Organizations represent your clients or departments. Each organization is a separate tenant — you assign AI agents to organizations, set billing rates, and track revenue vs. costs. Think of it like managing client accounts at an agency: each client has their own agents, their own billing, and their own data boundary.
+</div>
+
+<p>The Organizations page (<code>OrganizationsPage</code>) provides full CRUD management for client organizations in a multi-tenant AgenticMail deployment. Organizations act as logical boundaries for agent assignment, knowledge base isolation, billing, and access control. Each organization has a unique slug, contact information, billing configuration, and a set of assigned agents.</p>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Create an organization</strong> — Provide a name (auto-generates a URL-safe slug), contact details, description, and optional billing rate per agent per month.</li>
+  <li><strong>Assign agents</strong> — Open the organization detail view and assign existing agents to it. Agents can be reassigned from other orgs.</li>
+  <li><strong>Set billing rates</strong> — Configure a default per-agent monthly rate, or set custom rates per agent.</li>
+  <li><strong>Monitor revenue</strong> — The billing tab shows revenue vs. token cost charts, margin calculations, and per-agent breakdowns.</li>
+  <li><strong>Manage lifecycle</strong> — Activate, deactivate, or delete organizations as needed.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Organization Slug</h3>
+<p>A URL-safe identifier auto-generated from the organization name (e.g., "AgenticMail" → <code>agenticmail</code>). Slugs are immutable after creation and used throughout the system for routing and identification. You can manually edit the slug during creation.</p>
+
+<h3>Active vs. Inactive</h3>
+<p>Organizations can be toggled active/inactive. Deactivating an organization effectively suspends all linked agents. The toggle endpoint is <code>POST /api/organizations/{id}/toggle</code>.</p>
+
+<h3>Agent Assignment</h3>
+<p>Agents are assigned to organizations via <code>POST /api/agents/{id}/assign-org</code>. An agent can belong to only one organization at a time. Assigning an agent that's currently in another org will move it. Unassigning returns the agent to the default (internal) org.</p>
+
+<h2 id="creating-organizations">Creating Organizations</h2>
+
+<h3>Form Fields</h3>
+<table>
+  <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Name</td><td>Yes</td><td>Display name of the organization</td></tr>
+    <tr><td>Slug</td><td>Yes</td><td>URL-safe identifier, auto-generated from name</td></tr>
+    <tr><td>Contact Name</td><td>No</td><td>Primary contact person</td></tr>
+    <tr><td>Contact Email</td><td>No</td><td>Primary contact email address</td></tr>
+    <tr><td>Description</td><td>No</td><td>Brief description of the organization</td></tr>
+    <tr><td>Billing Rate</td><td>No</td><td>Monthly rate per agent (default: 0.00)</td></tr>
+    <tr><td>Currency</td><td>No</td><td>USD, EUR, GBP, NGN, CAD, or AUD (default: USD)</td></tr>
+  </tbody>
+</table>
+
+<pre><code>POST /api/organizations
+Content-Type: application/json
+
+{
+  "name": "AgenticMail",
+  "slug": "agenticmail",
+  "contact_name": "Ope Olatunji",
+  "contact_email": "ope@agenticmail.com",
+  "description": "Enterprise client — Q1 2026 onboarding",
+  "billing_rate_per_agent": 99.00,
+  "currency": "USD"
+}</code></pre>
+
+<h2 id="detail-view">Detail View</h2>
+
+<p>Clicking an organization card opens a detail modal with two tabs:</p>
+
+<h3>Agents Tab</h3>
+<ul>
+  <li><strong>Linked agents list</strong> — Shows all agents assigned to this org with name, email, status badge, and an "Unassign" button</li>
+  <li><strong>Assign agent dropdown</strong> — Lists all agents not currently in this org (including those in other orgs, labeled accordingly)</li>
+  <li><strong>Status indicators</strong> — Active (green), Running (green), Suspended (yellow), Archived (gray)</li>
+</ul>
+
+<h3>Billing Tab</h3>
+<ul>
+  <li><strong>Revenue vs Cost chart</strong> — Bar chart showing monthly revenue (green) and token cost (red) side by side</li>
+  <li><strong>Summary stats</strong> — Total revenue, token cost, margin percentage, total tokens</li>
+  <li><strong>Per-agent billing rates</strong> — Editable rate inputs for each agent (blank = uses org default)</li>
+  <li><strong>Billing records table</strong> — Detailed monthly breakdown per agent: revenue, token cost, profit, tokens used</li>
+</ul>
+
+<div class="tip">
+  <strong>How billing works:</strong> Each agent's monthly cost is calculated from LLM token usage. Revenue is the billing rate you set. The difference is your margin. Setting a billing rate of $99/agent/month with $3 in token costs gives you a 97% margin.
+</div>
+
+<h2 id="billing">Billing &amp; Revenue Tracking</h2>
+
+<p>Billing data is loaded from two endpoints:</p>
+<ul>
+  <li><code>GET /api/organizations/{id}/billing-summary</code> — Monthly aggregated revenue, cost, and token counts</li>
+  <li><code>GET /api/organizations/{id}/billing</code> — Individual billing records per agent per month</li>
+</ul>
+
+<p>Custom per-agent rates are saved via <code>PATCH /api/agents/{id}</code> with a <code>billingRate</code> field. The effective rate for an agent is: custom rate if set, otherwise the org's default rate.</p>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/organizations</code></td><td>GET</td><td>List all organizations</td></tr>
+    <tr><td><code>/api/organizations</code></td><td>POST</td><td>Create a new organization</td></tr>
+    <tr><td><code>/api/organizations/{id}</code></td><td>GET</td><td>Get organization detail with linked agents</td></tr>
+    <tr><td><code>/api/organizations/{id}</code></td><td>PATCH</td><td>Update organization fields</td></tr>
+    <tr><td><code>/api/organizations/{id}</code></td><td>DELETE</td><td>Delete organization (must have 0 agents)</td></tr>
+    <tr><td><code>/api/organizations/{id}/toggle</code></td><td>POST</td><td>Toggle active/inactive status</td></tr>
+    <tr><td><code>/api/organizations/{id}/billing-summary</code></td><td>GET</td><td>Monthly billing aggregation</td></tr>
+    <tr><td><code>/api/organizations/{id}/billing</code></td><td>GET</td><td>Per-agent billing records</td></tr>
+    <tr><td><code>/api/agents/{id}/assign-org</code></td><td>POST</td><td>Assign agent to org</td></tr>
+    <tr><td><code>/api/agents/{id}/unassign-org</code></td><td>POST</td><td>Remove agent from org</td></tr>
+    <tr><td><code>/api/agents/{id}</code></td><td>PATCH</td><td>Update agent billing rate</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>One org per client</strong> — Create a separate organization for each client to maintain data isolation and independent billing.</li>
+  <li><strong>Set billing rates early</strong> — Configure rates before agents start processing tasks to ensure accurate revenue tracking from day one.</li>
+  <li><strong>Use custom per-agent rates</strong> — Premium agents (e.g., with expensive models) should have higher billing rates to maintain margins.</li>
+  <li><strong>Deactivate before deleting</strong> — Deactivate an organization first to confirm no critical workflows depend on it. Delete only when agent count is zero.</li>
+  <li><strong>Monitor margins monthly</strong> — The billing tab's revenue vs. cost chart quickly reveals whether you're pricing correctly.</li>
+  <li><strong>Slugs are permanent</strong> — Choose meaningful slugs during creation. They cannot be changed after the fact.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h4>Cannot delete organization</h4>
+  <p>Organizations can only be deleted when they have zero assigned agents. Unassign all agents first, then delete.</p>
+</div>
+
+<div class="card">
+  <h4>Agent shows "[assigned elsewhere]" in dropdown</h4>
+  <p>The agent is currently assigned to a different organization. Assigning it to this org will remove it from the previous one.</p>
+</div>
+
+<div class="card">
+  <h4>Billing data shows $0.00 everywhere</h4>
+  <p>Billing records are created as agents process tasks and accumulate token costs. New organizations will have empty billing until agents start working.</p>
+</div>
+
+<div class="danger">
+  <strong>Deleting an organization is permanent.</strong> All billing history and configuration will be lost. Ensure you've exported any needed billing data before deletion.
+</div>
+
+<div class="nav">
+  <h3 id="related">Related Pages</h3>
+  <ul>
+    <li><a href="/docs/agents.html">Agents</a> — Create and manage agents assigned to organizations</li>
+    <li><a href="/docs/knowledge.html">Knowledge Bases</a> — Org-scoped document collections</li>
+    <li><a href="/docs/approvals.html">Approvals</a> — Approve agent actions per organization</li>
+    <li><a href="/docs/journal.html">Action Journal</a> — Org-filtered audit trail</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

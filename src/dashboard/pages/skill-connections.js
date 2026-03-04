@@ -1,7 +1,10 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, apiCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, apiCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 // ═══════════════════════════════════════════════════════════
 // Skill Connections & MCP Hub — Enterprise Integration Center
@@ -37,7 +40,7 @@ var AUTH_TYPE_LABELS = {
 
 // ── Section 1: MCP Servers ──────────────────────────────
 
-function McpServersSection() {
+function McpServersSection(props) {
   var app = useApp(); var toast = app.toast;
   var _servers = useState([]); var servers = _servers[0]; var setServers = _servers[1];
   var _loading = useState(true); var loading = _loading[0]; var setLoading = _loading[1];
@@ -534,8 +537,8 @@ function McpServersSection() {
 
           // Step 2: Agent impact
           deleteStep === 2 && h(Fragment, null,
-            h('div', { style: { padding: 16, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius)', marginBottom: 16 } },
-              h('div', { style: { fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#f59e0b' } }, 'Agent Impact'),
+            h('div', { style: { padding: 16, background: 'rgba(153,27,27,0.08)', border: '1px solid rgba(153,27,27,0.2)', borderRadius: 'var(--radius)', marginBottom: 16 } },
+              h('div', { style: { fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#991b1b' } }, 'Agent Impact'),
               h('ul', { style: { margin: 0, paddingLeft: 20, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 } },
                 h('li', null, 'Agents currently using these tools will get errors on their next call'),
                 h('li', null, 'Agents may have stored tool names in their memory from previous sessions'),
@@ -564,7 +567,7 @@ function McpServersSection() {
           // Step 3: Type name to confirm
           deleteStep === 3 && h(Fragment, null,
             h('div', { style: { padding: 16, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius)', marginBottom: 16, textAlign: 'center' } },
-              h('div', { style: { fontSize: 32, marginBottom: 8 } }, '\u26A0\uFE0F'),
+              h('div', { style: { marginBottom: 8 } }, E.warning(32)),
               h('div', { style: { fontWeight: 700, fontSize: 14, color: 'var(--danger)' } }, 'This action is irreversible'),
               h('div', { style: { fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 } },
                 'Type "' + deleteTarget.name + '" to confirm deletion'
@@ -595,8 +598,9 @@ function McpServersSection() {
 
 // ── Section 2: Built-in Integrations ─────────────────────
 
-function IntegrationsSection() {
+function IntegrationsSection(props) {
   var app = useApp(); var toast = app.toast;
+  var orgId = props.orgId || '';
   var _catalog = useState([]); var catalog = _catalog[0]; var setCatalog = _catalog[1];
   var _categories = useState({}); var categories = _categories[0]; var setCategories = _categories[1];
   var _loading = useState(true); var loading = _loading[0]; var setLoading = _loading[1];
@@ -609,11 +613,11 @@ function IntegrationsSection() {
 
   var load = useCallback(function() {
     setLoading(true);
-    engineCall('/integrations/catalog')
+    engineCall('/integrations/catalog' + (orgId ? '?orgId=' + orgId : ''))
       .then(function(d) { setCatalog(d.catalog || []); setCategories(d.categories || {}); })
       .catch(function() {})
       .finally(function() { setLoading(false); });
-  }, []);
+  }, [orgId]);
 
   useEffect(function() { load(); }, [load]);
 
@@ -635,7 +639,7 @@ function IntegrationsSection() {
   var saveCredentials = function() {
     if (!configModal) return;
     setSaving(true);
-    engineCall('/integrations/' + configModal.skillId + '/credentials', {
+    engineCall('/integrations/' + configModal.skillId + '/credentials' + (orgId ? '?orgId=' + orgId : ''), {
       method: 'PUT',
       body: JSON.stringify(configValues)
     })
@@ -648,7 +652,7 @@ function IntegrationsSection() {
   };
 
   var disconnectIntegration = function(skillId) {
-    engineCall('/integrations/' + skillId + '/credentials', { method: 'DELETE' })
+    engineCall('/integrations/' + skillId + '/credentials' + (orgId ? '?orgId=' + orgId : ''), { method: 'DELETE' })
       .then(function() { toast('Disconnected', 'success'); load(); })
       .catch(function(e) { toast(e.message, 'error'); });
   };
@@ -656,7 +660,7 @@ function IntegrationsSection() {
   var openConnect = function(item) {
     if (item.authType === 'oauth2') {
       // Start OAuth flow
-      engineCall('/oauth/authorize/' + item.skillId)
+      engineCall('/oauth/authorize/' + item.skillId + (orgId ? '?orgId=' + orgId : ''))
         .then(function(d) {
           if (d.authUrl) {
             var w = 600, ht = 700;
@@ -758,6 +762,10 @@ function IntegrationsSection() {
       )
     },
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
+        orgId && h('div', { style: { padding: '8px 12px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 } },
+          I.building(),
+          h('span', null, 'Saving credentials for organization: ', h('strong', null, orgId))
+        ),
         h('p', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
           'Enter the credentials for ', h('strong', null, configModal.name), '. All values are encrypted in the vault.'
         ),
@@ -793,8 +801,9 @@ function IntegrationsSection() {
 
 // ── Section 3: Community Skills ──────────────────────────
 
-function CommunitySkillsSection() {
+function CommunitySkillsSection(props) {
   var app = useApp(); var toast = app.toast;
+  var orgId = props.orgId || '';
   var _installed = useState([]); var installed = _installed[0]; var setInstalled = _installed[1];
   var _statuses = useState({}); var statuses = _statuses[0]; var setStatuses = _statuses[1];
   var _loading = useState(true); var loading = _loading[0]; var setLoading = _loading[1];
@@ -805,13 +814,13 @@ function CommunitySkillsSection() {
 
   var load = useCallback(function() {
     setLoading(true);
-    engineCall('/community/installed')
+    engineCall('/community/installed' + (orgId ? '?orgId=' + orgId : ''))
       .then(function(d) {
         var skills = d.installed || [];
         setInstalled(skills);
         // Load statuses
         var promises = skills.map(function(skill) {
-          return engineCall('/oauth/status/' + skill.skillId)
+          return engineCall('/oauth/status/' + skill.skillId + (orgId ? '?orgId=' + orgId : ''))
             .then(function(d) { return { skillId: skill.skillId, status: d }; })
             .catch(function() { return { skillId: skill.skillId, status: { connected: false } }; });
         });
@@ -823,7 +832,7 @@ function CommunitySkillsSection() {
       })
       .catch(function() {})
       .finally(function() { setLoading(false); });
-  }, []);
+  }, [orgId]);
 
   useEffect(function() { load(); }, [load]);
 
@@ -876,10 +885,17 @@ function CommunitySkillsSection() {
                 h('div', { style: { fontWeight: 600, fontSize: 13 } }, meta.name || skill.skillId),
                 meta.description && h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, meta.description)
               ),
-              h('div', { style: { display: 'flex', gap: 4, flexShrink: 0 } },
+              h('div', { style: { display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 } },
                 status.connected
-                  ? h('span', { className: 'badge', style: { background: 'var(--success)', color: '#fff', fontSize: 10 } }, 'Connected')
-                  : h('span', { className: 'badge badge-neutral', style: { fontSize: 10 } }, 'Not connected'),
+                  ? h(Fragment, null,
+                      h('span', { className: 'badge', style: { background: 'var(--success)', color: '#fff', fontSize: 10 } }, 'Connected'),
+                      h('button', { className: 'btn btn-ghost btn-sm', onClick: function() {
+                        engineCall('/oauth/disconnect/' + skill.skillId + (orgId ? '?orgId=' + orgId : ''), { method: 'DELETE' })
+                          .then(function() { toast('Disconnected', 'success'); load(); })
+                          .catch(function(e) { toast(e.message || 'Failed', 'error'); });
+                      } }, 'Disconnect')
+                    )
+                  : h('button', { className: 'btn btn-primary btn-sm', onClick: function() { openConfig(skill); } }, 'Connect'),
                 h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { openConfig(skill); } }, I.settings())
               )
             );
@@ -923,6 +939,7 @@ function CommunitySkillsSection() {
 // ═══════════════════════════════════════════════════════════
 
 export function SkillConnectionsPage() {
+  var orgCtx = useOrgContext();
   var _tab = useState('mcp'); var tab = _tab[0]; var setTab = _tab[1];
 
   var _h4 = { marginTop: 16, marginBottom: 8, fontSize: 14 };
@@ -933,6 +950,7 @@ export function SkillConnectionsPage() {
     h('div', { style: { marginBottom: 20 } },
       h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 } },
         'Integrations & MCP Hub',
+        h(KnowledgeLink, { page: 'skill-connections' }),
         h(HelpButton, { label: 'Integrations & MCP Hub' },
           h('p', null, 'The central hub for connecting your AI agents to external tools, services, and MCP servers. Everything your agents need to interact with the outside world is managed here.'),
           h('h4', { style: _h4 }, 'Three connection types'),
@@ -945,7 +963,8 @@ export function SkillConnectionsPage() {
         )
       ),
       h('p', { style: { color: 'var(--text-muted)', fontSize: 13, marginTop: 4 } },
-        'Connect MCP servers, built-in integrations, and community skills to extend your agents')
+        'Connect MCP servers, built-in integrations, and community skills to extend your agents'),
+      h('div', { style: { marginTop: 8 } }, h(orgCtx.Switcher))
     ),
 
     // Tab bar
@@ -956,8 +975,8 @@ export function SkillConnectionsPage() {
     ),
 
     // Tab content
-    tab === 'mcp' && h(McpServersSection),
-    tab === 'integrations' && h(IntegrationsSection),
-    tab === 'community' && h(CommunitySkillsSection)
+    tab === 'mcp' && h(McpServersSection, { orgId: orgCtx.selectedOrgId || getOrgId() }),
+    tab === 'integrations' && h(IntegrationsSection, { orgId: orgCtx.selectedOrgId || getOrgId() }),
+    tab === 'community' && h(CommunitySkillsSection, { orgId: orgCtx.selectedOrgId || getOrgId() })
   );
 }

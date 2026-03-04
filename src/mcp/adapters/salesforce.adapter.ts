@@ -170,7 +170,7 @@ const createRecord: ToolHandler = {
       },
       fields: {
         type: 'object',
-        description: 'Field values for the new record (e.g. { "Name": "Acme Corp", "Industry": "Technology" })',
+        description: 'Field values for the new record (e.g. { "Name": "AgenticMail", "Industry": "Technology" })',
       },
     },
     required: ['sobject', 'fields'],

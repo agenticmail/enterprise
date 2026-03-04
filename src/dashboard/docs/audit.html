@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Log — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-easy { background: rgba(21,128,61,0.2); color: var(--success); }
+  .badge-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge-advanced { background: rgba(239,68,68,0.2); color: var(--danger); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/audit">&#8592; Back to Dashboard</a>
+
+<h1>Audit Log</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Tamper-evident record of every administrative action — essential for compliance, security investigations, and change tracking.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#what-gets-logged">What Gets Logged</a></li>
+    <li><a href="#reading">Reading the Audit Log</a></li>
+    <li><a href="#filtering">Filtering &amp; Searching</a></li>
+    <li><a href="#detail-view">Detail View</a></li>
+    <li><a href="#color-coding">Color Coding</a></li>
+    <li><a href="#compliance">Compliance Use Cases</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>The Audit Log captures every administrative action performed in your AgenticMail Enterprise instance. It's a tamper-evident, append-only record that's critical for security investigations, compliance audits (SOC 2, GDPR, HIPAA), and understanding who changed what and when.</p>
+<p>Every entry records the action, the user who performed it, their role, the resource affected, the IP address, and a timestamp. You can click any entry to see full details including metadata.</p>
+
+<h2 id="what-gets-logged">What Gets Logged</h2>
+<div class="card">
+  <table>
+    <tr><th>Category</th><th>Example Actions</th></tr>
+    <tr><td><strong>User Management</strong></td><td>User login, user created, user deleted, role changed, password reset, 2FA enabled</td></tr>
+    <tr><td><strong>Agent Changes</strong></td><td>Agent created, configuration updated, agent deployed, agent paused/killed/resumed</td></tr>
+    <tr><td><strong>Policy Updates</strong></td><td>Policy created/edited/deleted, guardrail rule added, DLP rule changed</td></tr>
+    <tr><td><strong>Organization</strong></td><td>Org created, org toggled active/inactive, agent assigned/unassigned</td></tr>
+    <tr><td><strong>Settings</strong></td><td>Branding changed, SSO configured, API key created/revoked, security settings updated</td></tr>
+    <tr><td><strong>Skills &amp; Integrations</strong></td><td>Skill installed/uninstalled, OAuth connected/disconnected, credentials saved</td></tr>
+    <tr><td><strong>System Events</strong></td><td>Automated interventions, scheduled tasks, health checks</td></tr>
+  </table>
+</div>
+
+<h2 id="reading">Reading the Audit Log</h2>
+<p>The audit log displays as a table with these columns:</p>
+<table>
+  <tr><th>Column</th><th>Description</th></tr>
+  <tr><td><strong>Time</strong></td><td>When the action occurred (local time)</td></tr>
+  <tr><td><strong>Action</strong></td><td>What happened — color-coded badge (see below)</td></tr>
+  <tr><td><strong>User</strong></td><td>Who did it — email address or "System" for automated actions</td></tr>
+  <tr><td><strong>Role</strong></td><td>The actor's role (owner, admin, user, system)</td></tr>
+  <tr><td><strong>Resource</strong></td><td>What was affected — shown as an API path (e.g., <code>agents/abc123</code>)</td></tr>
+  <tr><td><strong>IP</strong></td><td>Source IP address</td></tr>
+</table>
+<p>Results are paginated (50 entries per page). Use the Previous/Next buttons to navigate.</p>
+
+<h2 id="filtering">Filtering &amp; Searching</h2>
+<p>Use the filter box in the top-right corner to search across all columns simultaneously. The filter matches against:</p>
+<ul>
+  <li>Action name (e.g., "create," "delete," "login")</li>
+  <li>User email or name</li>
+  <li>Resource path</li>
+  <li>Detail metadata (JSON content)</li>
+</ul>
+<div class="tip"><strong>Quick filters:</strong> Type "delete" to see all deletions. Type a user's email to see all their actions. Type "agent" to see all agent-related changes.</div>
+
+<h2 id="detail-view">Detail View</h2>
+<p>Click any row to open the detail modal, which shows the full audit entry including:</p>
+<ul>
+  <li>All table columns with full (non-truncated) values</li>
+  <li><strong>Details object:</strong> JSON metadata specific to the action — may include before/after values, affected entity IDs, configuration changes, and more</li>
+  <li><strong>Entry ID:</strong> Unique identifier for referencing this specific audit entry</li>
+</ul>
+
+<h2 id="color-coding">Color Coding</h2>
+<p>Action badges are color-coded for quick visual scanning:</p>
+<div class="card">
+  <table>
+    <tr><th>Color</th><th>Action Types</th><th>Examples</th></tr>
+    <tr><td><span class="badge badge-easy">Green</span></td><td>Create / Add</td><td>user.create, agent.add, policy.create</td></tr>
+    <tr><td><span class="badge badge-advanced">Red</span></td><td>Delete / Remove / Revoke</td><td>user.delete, key.revoke, agent.kill</td></tr>
+    <tr><td><span class="badge badge-medium">Yellow</span></td><td>Update / Edit / Patch</td><td>settings.update, agent.edit, policy.patch</td></tr>
+    <tr><td><span class="badge" style="background: rgba(59,130,246,0.2); color: #3b82f6;">Blue</span></td><td>Login / Auth</td><td>user.login, sso.auth, 2fa.verify</td></tr>
+    <tr><td><span class="badge" style="background: rgba(107,115,148,0.2); color: #6b7394;">Gray</span></td><td>Other</td><td>system.check, export.data</td></tr>
+  </table>
+</div>
+
+<p>Role badges are also color-coded:</p>
+<ul>
+  <li><strong style="color: #ef4444;">Owner</strong> — red badge</li>
+  <li><strong style="color: #eab308;">Admin</strong> — yellow badge</li>
+  <li><strong style="color: #3b82f6;">System</strong> — blue badge</li>
+  <li><strong style="color: #6b7394;">User</strong> — gray badge</li>
+</ul>
+
+<h2 id="compliance">Compliance Use Cases</h2>
+<div class="card">
+  <h3 style="margin-top: 0;">SOC 2</h3>
+  <p>The audit log provides evidence of access controls, change management, and monitoring. Filter by "login" to demonstrate authentication tracking, or by "delete" to show change management oversight.</p>
+  
+  <h3>GDPR</h3>
+  <p>Track data access and modifications. Filter by user email to generate a complete activity report for data subject access requests.</p>
+  
+  <h3>Security Investigations</h3>
+  <p>When investigating an incident, filter by IP address to trace all actions from a specific source, or by timeframe to reconstruct the sequence of events.</p>
+  
+  <h3>Change Management</h3>
+  <p>Before and after deploying changes, review the audit log to verify only expected modifications were made. The detail view shows configuration diffs.</p>
+</div>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+  <ul>
+    <li><strong>Review regularly</strong> — scan the audit log at least weekly for unexpected actions</li>
+    <li><strong>Investigate anomalies</strong> — unfamiliar IP addresses, off-hours activity, or bulk deletions warrant investigation</li>
+    <li><strong>Use role-based filtering</strong> — focus on owner and admin actions for security reviews</li>
+    <li><strong>Cross-reference with guardrails</strong> — automated interventions appear here and in the <a href="/docs/guardrails">Guardrails</a> intervention log</li>
+    <li><strong>Export for compliance</strong> — use the API to export audit data for external compliance tools</li>
+    <li><strong>Monitor system events</strong> — filter for "system" actor to review automated actions</li>
+  </ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>No entries showing</td><td>The audit log only captures events after initial setup. Perform an action (like updating settings) and refresh.</td></tr>
+  <tr><td>Filter returns no results</td><td>The filter searches across all columns. Try a broader term. Check for typos.</td></tr>
+  <tr><td>Missing expected action</td><td>Some read-only actions (viewing pages) aren't logged to reduce noise. Only state-changing actions are captured.</td></tr>
+  <tr><td>IP shows as "—"</td><td>System-initiated actions and some internal events don't have an associated IP.</td></tr>
+  <tr><td>Timestamps seem wrong</td><td>Timestamps are displayed in your browser's local timezone. The underlying data is stored in UTC.</td></tr>
+</table>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/guardrails">Guardrails &amp; Policies</a> — Intervention log and agent safety controls</li>
+    <li><a href="/docs/settings">Settings</a> — Security configuration and API keys</li>
+    <li><a href="/docs/multi-tenant">Multi-Tenant Guide</a> — Organization-scoped auditing</li>
+  </ul>
+</div>
+
+<p style="margin-top: 32px; color: var(--text-muted); font-size: 12px; text-align: center;">
+  AgenticMail Enterprise — Audit Log Documentation
+</p>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

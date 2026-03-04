@@ -6,10 +6,14 @@ import { TagInput } from '../components/tag-input.js';
 import { COUNTRIES } from '../data/countries.js?v=6';
 import { HelpButton } from '../components/help-button.js';
 import { SETTINGS_HELP } from '../components/settings-help.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 import { ProviderLogo } from '../assets/provider-logos.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 export function SettingsPage() {
   const { toast } = useApp();
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || '';
   const [tab, setTab] = useState('general');
   const [settings, setSettings] = useState({});
   const [apiKeys, setApiKeys] = useState([]);
@@ -73,6 +77,46 @@ export function SettingsPage() {
   var securityEvents = _securityEvents[0]; var setSecurityEvents = _securityEvents[1];
   var _portScanResult = useState(null);
   var portScanResult = _portScanResult[0]; var setPortScanResult = _portScanResult[1];
+
+  // Org integrations state (for org-scoped view)
+  var _orgIntegrations = useState([]);
+  var orgIntegrations = _orgIntegrations[0]; var setOrgIntegrations = _orgIntegrations[1];
+  var _orgIntLoading = useState(false);
+  var orgIntLoading = _orgIntLoading[0]; var setOrgIntLoading = _orgIntLoading[1];
+  var _showAddIntegration = useState(false);
+  var showAddIntegration = _showAddIntegration[0]; var setShowAddIntegration = _showAddIntegration[1];
+  var _orgIntForm = useState({ type: 'google', name: '' });
+  var orgIntForm = _orgIntForm[0]; var setOrgIntForm = _orgIntForm[1];
+
+  // Org-scoped tabs vs system tabs
+  var ORG_TABS = ['models', 'email', 'integrations', 'authentication'];
+  var SYSTEM_TABS = ['general', 'models', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security-system', 'tool-security', 'network'];
+  var TAB_LABELS = { general: 'General', models: 'Models & API Keys', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', 'security-system': 'Security', 'tool-security': 'Tool Security', network: 'Network & Firewall', integrations: 'Integrations' };
+  var TAB_ICONS = { general: I.settings, models: I.key, 'api-keys': I.key, authentication: I.shield, platform: I.globe, email: I.messages, deployments: I.upload, 'security-system': I.lock, 'tool-security': I.guardrails, network: I.globe, integrations: I.link };
+  var activeTabs = effectiveOrgId ? ORG_TABS : SYSTEM_TABS;
+
+  // Reset tab when switching between org/system view
+  useEffect(function() {
+    if (effectiveOrgId && activeTabs.indexOf(tab) === -1) setTab('models');
+    if (!effectiveOrgId && tab === 'integrations') setTab('general');
+  }, [effectiveOrgId]);
+
+  // Load org integrations when org changes
+  useEffect(function() {
+    if (!effectiveOrgId) { setOrgIntegrations([]); return; }
+    setOrgIntLoading(true);
+    engineCall('/org-integrations?orgId=' + effectiveOrgId)
+      .then(function(d) { setOrgIntegrations(d.integrations || []); })
+      .catch(function() { setOrgIntegrations([]); })
+      .finally(function() { setOrgIntLoading(false); });
+  }, [effectiveOrgId]);
+
+  var loadOrgIntegrations = function() {
+    if (!effectiveOrgId) return;
+    engineCall('/org-integrations?orgId=' + effectiveOrgId)
+      .then(function(d) { setOrgIntegrations(d.integrations || []); })
+      .catch(function() {});
+  };
 
   useEffect(() => {
     apiCall('/settings').then(d => { const s = d.settings || d || {}; setSettings(s); if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
@@ -219,14 +263,21 @@ export function SettingsPage() {
   };
 
   return h(Fragment, null,
-    h('div', { style: { marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 } },
+    h('div', { style: { marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
       h('h1', { style: { fontSize: 20, fontWeight: 700, margin: 0 } }, 'Settings'),
+      h(orgCtx.Switcher, { style: { marginLeft: 8 } }),
+      h(KnowledgeLink, { page: 'settings' }),
       SETTINGS_HELP[tab] && h(HelpButton, { label: SETTINGS_HELP[tab].label }, SETTINGS_HELP[tab].content())
     ),
+    effectiveOrgId && h('div', { style: { padding: '10px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 } },
+      I.building(),
+      h('span', null, 'Viewing organization-scoped settings. Only credentials, models, and integrations relevant to this client organization are shown.'),
+      h('button', { className: 'btn btn-secondary btn-sm', style: { marginLeft: 'auto' }, onClick: function() { orgCtx.onOrgChange('', null); } }, 'View System Settings')
+    ),
     h('div', { className: 'tabs' },
-      ['general', 'models', 'api-keys', 'authentication', 'platform', 'email', 'deployments', 'security-system', 'tool-security', 'network'].map(t =>
-        h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: () => setTab(t) }, { general: 'General', models: 'Models', 'api-keys': 'API Keys', authentication: 'Authentication', platform: 'Platform', email: 'Email & Domain', deployments: 'Deployments', 'security-system': 'Security', 'tool-security': 'Tool Security', network: 'Network & Firewall' }[t])
-      )
+      activeTabs.map(function(t) {
+        var tabIcon = TAB_ICONS[t]; return h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: function() { setTab(t); }, style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } }, tabIcon ? tabIcon() : null, TAB_LABELS[t] || t);
+      })
     ),
 
     tab === 'general' && h('div', null,
@@ -541,7 +592,17 @@ export function SettingsPage() {
       )
     ),
 
-    tab === 'models' && h(Fragment, null,
+    tab === 'models' && effectiveOrgId && h(Fragment, null,
+      h('div', { className: 'card', style: { marginBottom: 16 } },
+        h('div', { className: 'card-header' }, h('h3', null, 'Organization Model API Keys')),
+        h('div', { className: 'card-body' },
+          h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Configure LLM provider API keys for this client organization. Agents in this org will use these keys instead of the system-wide defaults.'),
+          h(OrgLLMKeysSection, { orgId: effectiveOrgId, toast: toast })
+        )
+      )
+    ),
+
+    tab === 'models' && !effectiveOrgId && h(Fragment, null,
       h(LLMProvidersTab, { toast: toast }),
       h('hr', { style: { border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' } }),
       h(ModelPricingTab, {
@@ -639,7 +700,7 @@ export function SettingsPage() {
 
     tab === 'authentication' && h('div', null,
       h(TwoFactorCard, { toast: toast }),
-      h('div', { className: 'card', style: { marginBottom: 16 } },
+      !effectiveOrgId && h('div', { className: 'card', style: { marginBottom: 16 } },
         h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Single Sign-On (SSO)', h(HelpButton, { label: 'Single Sign-On (SSO)' },
           h('p', null, 'Let your team sign into AgenticMail using their existing corporate identity provider (Okta, Google Workspace, Azure AD, etc.).'),
           h('p', null, h('strong', null, 'SAML 2.0'), ' — Enterprise standard, works with Okta, OneLogin, Azure AD.'),
@@ -693,7 +754,7 @@ export function SettingsPage() {
           )
         )
       ),
-      h('div', { className: 'card' },
+      !effectiveOrgId && h('div', { className: 'card' },
         h('div', { className: 'card-header' }, h('h3', null, 'Quick Setup — OAuth Providers')),
         h('div', { className: 'card-body' },
           h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Click a provider to pre-fill the OIDC Discovery URL above. You still need to create an OAuth app in the provider\'s console and enter your Client ID and Secret.'),
@@ -724,7 +785,37 @@ export function SettingsPage() {
 
     tab === 'platform' && h(PlatformCapabilitiesTab, { toast: toast }),
 
-    tab === 'email' && h('div', null,
+    tab === 'email' && effectiveOrgId && h('div', null,
+      h('div', { className: 'card' },
+        h('div', { className: 'card-header' }, h('h3', null, 'Organization Email Configuration')),
+        h('div', { className: 'card-body' },
+          h('p', { style: { color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 } }, 'Email credentials for agents in this organization. Configure via the Integrations tab, or set up a relay/SMTP integration for this org.'),
+          (function() {
+            var emailInteg = orgIntegrations.filter(function(i) { return i.type === 'google' || i.type === 'microsoft' || i.type === 'smtp'; });
+            if (emailInteg.length === 0) return h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } },
+              'No email integration configured for this organization. ',
+              h('button', { className: 'btn btn-primary btn-sm', style: { marginLeft: 8 }, onClick: function() { setTab('integrations'); } }, 'Add Integration')
+            );
+            return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+              emailInteg.map(function(integ) {
+                var typeLabel = integ.type === 'google' ? 'Google Workspace' : integ.type === 'microsoft' ? 'Microsoft 365' : 'SMTP / IMAP';
+                return h('div', { key: integ.id, style: { padding: 12, background: 'var(--bg-success, rgba(34,197,94,0.08))', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+                    h('span', { style: { color: '#15803d', fontSize: 18 } }, '\u2713'),
+                    h('strong', null, integ.name || typeLabel)
+                  ),
+                  h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
+                    'Type: ', typeLabel, ' \u2022 Status: ', integ.status || 'unknown'
+                  )
+                );
+              })
+            );
+          })()
+        )
+      )
+    ),
+
+    tab === 'email' && !effectiveOrgId && h('div', null,
       // Saved configurations summary
       (settings.smtpUser || settings.cfApiToken) && h('div', { className: 'card', style: { marginBottom: 16 } },
         h('div', { className: 'card-header' }, h('h3', null, 'Active Email Configuration')),
@@ -936,7 +1027,18 @@ export function SettingsPage() {
         .catch(function(e) { setFwTestResult({ error: e.message }); });
     } }),
 
-    // Integrations tab removed — now managed via Community Skills page
+    // ── Org-Scoped Integrations Tab ──────────────────────
+    tab === 'integrations' && effectiveOrgId && h(OrgIntegrationsTab, {
+      orgId: effectiveOrgId,
+      integrations: orgIntegrations,
+      loading: orgIntLoading,
+      showAdd: showAddIntegration,
+      setShowAdd: setShowAddIntegration,
+      form: orgIntForm,
+      setForm: setOrgIntForm,
+      onReload: loadOrgIntegrations,
+      toast: toast
+    })
   );
 }
 
@@ -1728,6 +1830,200 @@ function ComprehensiveSecurityTab(props) {
         )
       )
     ),
+
+    // Transport Encryption
+    (function() {
+      var te = securityConfig.transportEncryption || { enabled: false, mode: 'selective', maxAgeMs: 300000, debugLog: false, encryptAll: false, enabledGroups: {}, customEndpoints: [] };
+      var updateTE = function(patch) {
+        var merged = Object.assign({}, te, patch);
+        updateSection('transportEncryption', merged);
+      };
+
+      // Endpoint groups — each maps to a set of API path patterns
+      var ENDPOINT_GROUPS = [
+        { id: 'settings', label: 'Settings & Configuration', desc: 'System settings, platform config, general preferences', icon: 'settings', paths: ['/api/settings', '/api/settings/*'] },
+        { id: 'models', label: 'Models & API Keys', desc: 'LLM provider API keys (Anthropic, OpenAI, Google, etc.)', icon: 'key', sensitive: true, paths: ['/api/settings/models', '/api/llm-keys', '/api/llm-keys/*'] },
+        { id: 'auth', label: 'Authentication', desc: 'Login, sessions, tokens, 2FA, SSO configuration', icon: 'shield', sensitive: true, paths: ['/api/auth/*', '/api/login', '/api/users', '/api/users/*'] },
+        { id: 'agents', label: 'Agent Configuration', desc: 'Agent configs, identity, tools, permissions, browser settings', icon: 'agents', paths: ['/bridge/agents/*'] },
+        { id: 'email', label: 'Email & SMTP', desc: 'Email configuration, SMTP credentials, domain settings', icon: 'mail', sensitive: true, paths: ['/bridge/agents/*/email-config', '/api/settings/email', '/api/email/*'] },
+        { id: 'database', label: 'Database Connections', desc: 'Database URLs, credentials, connection strings', icon: 'database', sensitive: true, paths: ['/api/database-access', '/api/database-access/*', '/api/database/connections', '/api/database/connections/*'] },
+        { id: 'vault', label: 'Vault & Secrets', desc: 'Encrypted secret storage, vault operations', icon: 'lock', sensitive: true, paths: ['/api/vault', '/api/vault/*'] },
+        { id: 'integrations', label: 'Organization Integrations', desc: 'OAuth tokens, Google/Microsoft integrations, org credentials', icon: 'link', sensitive: true, paths: ['/api/org-integrations', '/api/org-integrations/*', '/api/organizations/*/integrations'] },
+        { id: 'skills', label: 'Skills & Credentials', desc: 'Skill API tokens, community skill credentials', icon: 'puzzle', paths: ['/api/skills/*', '/community/*'] },
+        { id: 'organizations', label: 'Organizations', desc: 'Org management, member data, org settings', icon: 'building', paths: ['/api/organizations', '/api/organizations/*'] },
+        { id: 'knowledge', label: 'Knowledge Bases', desc: 'Knowledge base content, documents, embeddings', icon: 'book', paths: ['/api/knowledge-bases', '/api/knowledge-bases/*', '/knowledge/*'] },
+        { id: 'tasks', label: 'Task Pipeline', desc: 'Task queue, task results, task delegation', icon: 'list', paths: ['/api/tasks', '/api/tasks/*', '/task-pipeline/*'] },
+        { id: 'workforce', label: 'Workforce & Schedules', desc: 'Agent schedules, clock records, budgets', icon: 'clock', paths: ['/api/workforce', '/api/workforce/*'] },
+        { id: 'messages', label: 'Messages & Channels', desc: 'WhatsApp, Telegram, messaging channel configs', icon: 'chat', paths: ['/api/messages', '/api/messages/*', '/bridge/agents/*/whatsapp', '/bridge/agents/*/telegram'] },
+        { id: 'guardrails', label: 'Guardrails & DLP', desc: 'Guardrail rules, DLP policies, intervention logs', icon: 'shield', paths: ['/guardrails/*', '/dlp/*'] },
+        { id: 'journal', label: 'Activity Journal', desc: 'Agent activity logs, event history', icon: 'journal', paths: ['/activity/*', '/api/journal/*'] },
+        { id: 'approvals', label: 'Approvals', desc: 'Approval requests, approval decisions', icon: 'check', paths: ['/approvals/*'] },
+        { id: 'compliance', label: 'Compliance & Audit', desc: 'Compliance reports, audit logs, regulatory data', icon: 'clipboard', paths: ['/api/compliance/*', '/api/audit/*', '/api/events/*'] },
+        { id: 'domain', label: 'Domain & DNS', desc: 'Domain configuration, DNS records, SSL certificates', icon: 'globe', paths: ['/api/domain/*'] },
+        { id: 'roles', label: 'Roles & Permissions', desc: 'Role templates, permission profiles', icon: 'agents', paths: ['/api/roles', '/api/roles/*', '/profiles/*'] },
+        { id: 'memory', label: 'Memory & Transfer', desc: 'Agent memories, memory transfer, memory schedules', icon: 'brain', sensitive: true, paths: ['/api/memory/*', '/api/memory-transfer/*'] },
+        { id: 'dashboard', label: 'Dashboard & Overview', desc: 'Dashboard stats, overview data, agent summaries', icon: 'layout', paths: ['/api/dashboard/*', '/api/overview/*'] },
+      ];
+
+      var enabledGroups = te.enabledGroups || {};
+      var customEndpoints = te.customEndpoints || [];
+
+      var toggleGroup = function(groupId) {
+        var updated = Object.assign({}, enabledGroups);
+        updated[groupId] = !updated[groupId];
+        updateTE({ enabledGroups: updated });
+      };
+
+      var enableAllGroups = function() {
+        var all = {};
+        ENDPOINT_GROUPS.forEach(function(g) { all[g.id] = true; });
+        updateTE({ encryptAll: true, enabledGroups: all });
+      };
+
+      var disableAllGroups = function() {
+        updateTE({ encryptAll: false, enabledGroups: {} });
+      };
+
+      var enableSensitiveOnly = function() {
+        var sens = {};
+        ENDPOINT_GROUPS.forEach(function(g) { if (g.sensitive) sens[g.id] = true; });
+        updateTE({ encryptAll: false, enabledGroups: sens });
+      };
+
+      var addCustomEndpoint = function() {
+        var input = document.getElementById('_te_custom_input');
+        var val = input && input.value.trim();
+        if (!val) return;
+        if (customEndpoints.indexOf(val) === -1) {
+          updateTE({ customEndpoints: customEndpoints.concat([val]) });
+        }
+        if (input) input.value = '';
+      };
+
+      var removeCustomEndpoint = function(ep) {
+        updateTE({ customEndpoints: customEndpoints.filter(function(e) { return e !== ep; }) });
+      };
+
+      var groupCount = Object.keys(enabledGroups).filter(function(k) { return enabledGroups[k]; }).length;
+
+      return h('div', { style: _cardStyle },
+        h('div', { style: _cardTitleStyle }, I.lock(), 'Transport Encryption'),
+        h('p', { style: _cardDescStyle }, 'Encrypt API data in transit between the dashboard and server using AES-256-CBC with HMAC verification. Protects against network sniffing, MITM attacks, and compromised TLS proxies. Choose to encrypt all API calls or select specific endpoint groups.'),
+
+        // Master toggle
+        h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 } },
+          h('span', { style: { fontWeight: 600, fontSize: 14 } }, 'Enable Transport Encryption'),
+          h(ToggleSwitch, { checked: te.enabled, onChange: function(v) { updateTE({ enabled: v }); } })
+        ),
+
+        te.enabled && h(Fragment, null,
+          // Mode selector — Encrypt All vs Selective
+          h('div', { style: { display: 'flex', gap: 8, marginBottom: 16 } },
+            h('button', {
+              className: 'btn btn-sm ' + (te.encryptAll ? 'btn-primary' : 'btn-ghost'),
+              onClick: enableAllGroups
+            }, I.shield(), ' Encrypt All API Calls'),
+            h('button', {
+              className: 'btn btn-sm ' + (!te.encryptAll && groupCount > 0 ? 'btn-primary' : 'btn-ghost'),
+              onClick: enableSensitiveOnly
+            }, I.key(), ' Sensitive Only'),
+            h('button', {
+              className: 'btn btn-sm btn-ghost',
+              onClick: disableAllGroups
+            }, 'Clear All')
+          ),
+
+          te.encryptAll && h('div', { style: { padding: '10px 12px', background: 'var(--success-bg, rgba(34,197,94,0.1))', border: '1px solid var(--success-border, rgba(34,197,94,0.3))', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--success-text, #22c55e)' } },
+            I.check(), ' All API calls between dashboard and server are encrypted. ', groupCount, ' of ', ENDPOINT_GROUPS.length, ' endpoint groups active.'
+          ),
+
+          // Endpoint group toggles
+          h('div', { style: { marginBottom: 16 } },
+            h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+              h('span', null, 'Endpoint Groups (' + groupCount + '/' + ENDPOINT_GROUPS.length + ' enabled)'),
+              h('span', { style: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 } }, 'Toggle which API endpoints to encrypt')
+            ),
+            h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 } },
+              ENDPOINT_GROUPS.map(function(g) {
+                var isOn = te.encryptAll || enabledGroups[g.id];
+                return h('div', {
+                  key: g.id,
+                  style: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: isOn ? 'var(--accent-soft)' : 'var(--bg-tertiary)', borderRadius: 6, cursor: 'pointer', border: '1px solid ' + (isOn ? 'var(--accent)' : 'var(--border)'), transition: 'all 0.15s', opacity: te.encryptAll ? 0.7 : 1 },
+                  onClick: function() { if (!te.encryptAll) toggleGroup(g.id); },
+                  title: g.desc + '\n\nPaths: ' + g.paths.join(', ')
+                },
+                  h('div', { style: { width: 16, height: 16, borderRadius: 4, border: '2px solid ' + (isOn ? 'var(--accent)' : 'var(--border)'), background: isOn ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } },
+                    isOn && h('svg', { width: 10, height: 10, viewBox: '0 0 24 24', fill: 'none', stroke: '#fff', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round' }, h('polyline', { points: '20 6 9 17 4 12' }))
+                  ),
+                  h('div', { style: { minWidth: 0 } },
+                    h('div', { style: { fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 } },
+                      g.label,
+                      g.sensitive && h('span', { style: { fontSize: 9, padding: '1px 4px', background: 'var(--danger-bg, rgba(239,68,68,0.15))', color: 'var(--danger, #ef4444)', borderRadius: 3, fontWeight: 700, letterSpacing: 0.5 } }, 'SENSITIVE')
+                    ),
+                    h('div', { style: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, g.desc)
+                  )
+                );
+              })
+            )
+          ),
+
+          // Custom endpoints
+          h('div', { style: { marginBottom: 16 } },
+            h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 8 } }, 'Custom Endpoint Patterns'),
+            h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 } }, 'Add custom API path patterns to encrypt. Use * as wildcard for path segments (e.g. /api/custom/*/data).'),
+            h('div', { style: { display: 'flex', gap: 6, marginBottom: 8 } },
+              h('input', { id: '_te_custom_input', className: 'input', style: { flex: 1 }, placeholder: '/api/my-endpoint/*', onKeyDown: function(e) { if (e.key === 'Enter') addCustomEndpoint(); } }),
+              h('button', { className: 'btn btn-sm btn-primary', onClick: addCustomEndpoint }, 'Add')
+            ),
+            customEndpoints.length > 0 && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
+              customEndpoints.map(function(ep) {
+                return h('span', { key: ep, style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: 4, fontSize: 12, fontFamily: 'monospace' } },
+                  ep,
+                  h('button', { style: { background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }, onClick: function() { removeCustomEndpoint(ep); } }, '\u00d7')
+                );
+              })
+            )
+          ),
+
+          // Advanced settings
+          h('details', { style: { marginBottom: 16 } },
+            h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 13, marginBottom: 8 } }, 'Advanced Settings'),
+            h('div', { style: { paddingLeft: 8, display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 } },
+              h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
+                h('div', null,
+                  h('div', { style: { fontWeight: 500, fontSize: 13 } }, 'Payload Max Age'),
+                  h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Reject payloads older than this (replay protection)')
+                ),
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 4 } },
+                  h('input', { className: 'input', type: 'number', style: { width: 80 }, value: Math.round((te.maxAgeMs || 300000) / 1000), onChange: function(e) { updateTE({ maxAgeMs: (parseInt(e.target.value) || 300) * 1000 }); } }),
+                  h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'seconds')
+                )
+              ),
+              h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
+                h('div', null,
+                  h('div', { style: { fontWeight: 500, fontSize: 13 } }, 'Debug Logging'),
+                  h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, 'Log encryption/decryption operations to console (never in production)')
+                ),
+                h(ToggleSwitch, { checked: te.debugLog || false, onChange: function(v) { updateTE({ debugLog: v }); } })
+              )
+            )
+          ),
+
+          // Info box
+          h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: 13 } },
+            h('strong', null, 'How it works:'),
+            h('ul', { style: { margin: '4px 0 0', paddingLeft: 16, lineHeight: 1.7 } },
+              h('li', null, 'Each request/response is encrypted with AES-256-CBC using a unique random IV'),
+              h('li', null, 'HMAC-SHA256 signature prevents tampering'),
+              h('li', null, 'SHA-256 checksum verifies data integrity'),
+              h('li', null, 'Timestamp prevents replay attacks'),
+              h('li', null, 'Keys are derived server-side and exchanged over the authenticated session')
+            ),
+            h('p', { style: { marginTop: 8, color: 'var(--text-muted)' } }, 'HTTPS already encrypts all traffic at the transport layer. This adds application-layer encryption for defense-in-depth, protecting against compromised TLS proxies, corporate SSL inspection, or man-in-the-middle attacks.')
+          )
+        )
+      );
+    })(),
 
     // Security Audit Log
     h('div', { style: _cardStyle },
@@ -2929,6 +3225,351 @@ function PlatformCapabilitiesTab({ toast }) {
           )
         )
       )
+    )
+  );
+}
+
+// ── Org-Scoped Integrations Tab ──────────────────────
+function OrgIntegrationsTab(props) {
+  var orgId = props.orgId;
+  var integrations = props.integrations;
+  var loading = props.loading;
+  var toast = props.toast;
+  var onReload = props.onReload;
+  var _showAdd = useState(false);
+  var showAdd = _showAdd[0]; var setShowAdd = _showAdd[1];
+  var _form = useState({ type: 'google', name: '', config: {} });
+  var form = _form[0]; var setForm = _form[1];
+  var _saving = useState(false);
+  var saving = _saving[0]; var setSaving = _saving[1];
+
+  var addIntegration = function() {
+    if (!form.name.trim()) { toast('Name is required', 'error'); return; }
+    setSaving(true);
+    var payload = { orgId: orgId, type: form.type, name: form.name.trim(), config: form.config || {}, credentials: {} };
+
+    // For SMTP manual type, move smtp fields to credentials
+    if (form.type === 'smtp') {
+      payload.credentials = {
+        smtpHost: form.config.smtpHost || 'smtp.gmail.com',
+        smtpPort: parseInt(form.config.smtpPort) || 587,
+        smtpUser: form.config.smtpUser || '',
+        smtpPass: form.config.smtpPass || '',
+        imapHost: form.config.imapHost || 'imap.gmail.com',
+        imapPort: parseInt(form.config.imapPort) || 993,
+        imapUser: form.config.imapUser || form.config.smtpUser || '',
+        imapPass: form.config.imapPass || form.config.smtpPass || ''
+      };
+      payload.config = { provider: 'smtp' };
+    }
+
+    engineCall('/org-integrations', { method: 'POST', body: JSON.stringify(payload) })
+      .then(function() { toast('Integration added', 'success'); setShowAdd(false); setForm({ type: 'google', name: '', config: {} }); onReload(); })
+      .catch(function(e) { toast(e.message, 'error'); })
+      .finally(function() { setSaving(false); });
+  };
+
+  var testIntegration = function(id) {
+    engineCall('/org-integrations/' + id + '/test', { method: 'POST' })
+      .then(function(d) { toast(d.status === 'ok' ? 'Connection successful' : 'Test failed: ' + (d.error || 'Unknown error'), d.status === 'ok' ? 'success' : 'error'); })
+      .catch(function(e) { toast('Test failed: ' + e.message, 'error'); });
+  };
+
+  var deleteIntegration = function(id) {
+    if (!confirm('Delete this integration? Agents using it will lose access.')) return;
+    engineCall('/org-integrations/' + id, { method: 'DELETE' })
+      .then(function() { toast('Integration deleted', 'success'); onReload(); })
+      .catch(function(e) { toast(e.message, 'error'); });
+  };
+
+  var startOAuth = function(provider) {
+    var authUrl = '/api/engine/org-integrations/oauth/authorize';
+    engineCall('/org-integrations/oauth/authorize', {
+      method: 'POST',
+      body: JSON.stringify({
+        orgId: orgId,
+        provider: provider,
+        name: form.name.trim() || (provider === 'google' ? 'Google Workspace' : 'Microsoft 365'),
+        clientId: form.config.clientId || '',
+        clientSecret: form.config.clientSecret || '',
+        tenantId: form.config.tenantId || 'common',
+        redirectUri: window.location.origin + '/api/engine/org-integrations/oauth/callback',
+        scopes: provider === 'google'
+          ? ['https://mail.google.com/', 'https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/drive']
+          : ['https://graph.microsoft.com/Mail.ReadWrite', 'https://graph.microsoft.com/Calendars.ReadWrite', 'offline_access']
+      })
+    }).then(function(d) {
+      if (d.authUrl) {
+        var popup = window.open(d.authUrl, 'oauth', 'width=600,height=700');
+        var handler = function(e) {
+          if (e.data && e.data.type === 'oauth-callback') {
+            window.removeEventListener('message', handler);
+            if (popup) popup.close();
+            toast('OAuth connected successfully', 'success');
+            setShowAdd(false);
+            setForm({ type: 'google', name: '', config: {} });
+            onReload();
+          }
+        };
+        window.addEventListener('message', handler);
+      }
+    }).catch(function(e) { toast('OAuth error: ' + e.message, 'error'); });
+  };
+
+  return h(Fragment, null,
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 } },
+      h('div', null,
+        h('div', { style: { fontSize: 14, fontWeight: 700 } }, 'Organization Integrations'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, 'Google Workspace, Microsoft 365, and SMTP/IMAP credentials shared across agents in this organization')
+      ),
+      h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setShowAdd(true); } }, I.plus(), ' Add Integration')
+    ),
+
+    loading && h('div', { style: { padding: 32, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading...'),
+
+    !loading && integrations.length === 0 && h('div', { style: { padding: 32, textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)' } },
+      h('div', { style: { marginBottom: 8 } }, E.link(32)),
+      h('div', { style: { fontWeight: 600, marginBottom: 4 } }, 'No integrations configured'),
+      h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'Add Google Workspace, Microsoft 365, or SMTP credentials for this organization.')
+    ),
+
+    !loading && integrations.length > 0 && h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+      integrations.map(function(integ) {
+        var typeLabel = integ.type === 'google' ? 'Google Workspace' : integ.type === 'microsoft' ? 'Microsoft 365' : integ.type === 'smtp' ? 'SMTP / IMAP' : integ.type;
+        var statusColor = integ.status === 'active' ? 'var(--success)' : integ.status === 'expired' ? 'var(--warning)' : 'var(--text-muted)';
+        return h('div', { key: integ.id, className: 'card', style: { marginBottom: 0 } },
+          h('div', { className: 'card-body', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } },
+            h('div', null,
+              h('div', { style: { fontWeight: 600 } }, integ.name || typeLabel),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } },
+                h('span', { className: 'badge', style: { background: statusColor + '22', color: statusColor, marginRight: 8 } }, integ.status || 'unknown'),
+                typeLabel,
+                integ.updatedAt ? ' \u2022 Updated ' + new Date(integ.updatedAt).toLocaleDateString() : ''
+              )
+            ),
+            h('div', { style: { display: 'flex', gap: 8 } },
+              h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { testIntegration(integ.id); } }, 'Test'),
+              h('button', { className: 'btn btn-danger btn-sm', onClick: function() { deleteIntegration(integ.id); } }, 'Delete')
+            )
+          )
+        );
+      })
+    ),
+
+    // Add Integration Modal
+    showAdd && h(Modal, { title: 'Add Integration', onClose: function() { setShowAdd(false); } },
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Integration Type'),
+        h('select', { className: 'input', value: form.type, onChange: function(e) { setForm({ type: e.target.value, name: form.name, config: {} }); } },
+          h('option', { value: 'google' }, 'Google Workspace (OAuth)'),
+          h('option', { value: 'microsoft' }, 'Microsoft 365 (OAuth)'),
+          h('option', { value: 'smtp' }, 'SMTP / IMAP (Manual)')
+        )
+      ),
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Name'),
+        h('input', { className: 'input', value: form.name, onChange: function(e) { setForm(Object.assign({}, form, { name: e.target.value })); }, placeholder: form.type === 'google' ? 'Google Workspace' : form.type === 'microsoft' ? 'Microsoft 365' : 'Email SMTP' })
+      ),
+
+      // OAuth types
+      (form.type === 'google' || form.type === 'microsoft') && h(Fragment, null,
+        h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 13 } },
+          form.type === 'google' ?
+            h(Fragment, null, h('strong', null, 'Setup: '), '1. Go to Google Cloud Console \u2192 APIs & Services \u2192 Credentials', h('br'),
+              '2. Create OAuth 2.0 Client ID (Web application)', h('br'),
+              '3. Add redirect URI: ', h('code', { style: { fontSize: 11 } }, window.location.origin + '/api/engine/org-integrations/oauth/callback'))
+          :
+            h(Fragment, null, h('strong', null, 'Setup: '), '1. Go to Azure Portal \u2192 App registrations', h('br'),
+              '2. Create new registration (Web, single tenant or multi-tenant)', h('br'),
+              '3. Add redirect URI: ', h('code', { style: { fontSize: 11 } }, window.location.origin + '/api/engine/org-integrations/oauth/callback'))
+        ),
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Client ID'),
+          h('input', { className: 'input', value: form.config.clientId || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { clientId: e.target.value }) })); } })
+        ),
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Client Secret'),
+          h('input', { className: 'input', type: 'password', value: form.config.clientSecret || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { clientSecret: e.target.value }) })); } })
+        ),
+        form.type === 'microsoft' && h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Tenant ID'),
+          h('input', { className: 'input', value: form.config.tenantId || 'common', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { tenantId: e.target.value }) })); }, placeholder: 'common' })
+        ),
+        h('div', { style: { textAlign: 'right' } },
+          h('button', { className: 'btn btn-primary', disabled: !form.config.clientId || !form.config.clientSecret || saving, onClick: function() { startOAuth(form.type); } }, saving ? 'Connecting...' : 'Connect with ' + (form.type === 'google' ? 'Google' : 'Microsoft'))
+        )
+      ),
+
+      // SMTP manual type
+      form.type === 'smtp' && h(Fragment, null,
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
+          h('div', null,
+            h('h4', { style: { fontSize: 13, fontWeight: 600, marginBottom: 8 } }, 'SMTP (Outgoing)'),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Host'),
+              h('input', { className: 'input', value: form.config.smtpHost || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { smtpHost: e.target.value }) })); }, placeholder: 'smtp.gmail.com' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Port'),
+              h('input', { className: 'input', type: 'number', value: form.config.smtpPort || 587, onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { smtpPort: e.target.value }) })); } })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'User'),
+              h('input', { className: 'input', value: form.config.smtpUser || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { smtpUser: e.target.value }) })); }, placeholder: 'you@gmail.com' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Password'),
+              h('input', { className: 'input', type: 'password', value: form.config.smtpPass || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { smtpPass: e.target.value }) })); } })
+            )
+          ),
+          h('div', null,
+            h('h4', { style: { fontSize: 13, fontWeight: 600, marginBottom: 8 } }, 'IMAP (Incoming)'),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Host'),
+              h('input', { className: 'input', value: form.config.imapHost || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { imapHost: e.target.value }) })); }, placeholder: 'imap.gmail.com' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Port'),
+              h('input', { className: 'input', type: 'number', value: form.config.imapPort || 993, onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { imapPort: e.target.value }) })); } })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'User (if different)'),
+              h('input', { className: 'input', value: form.config.imapUser || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { imapUser: e.target.value }) })); }, placeholder: 'Same as SMTP user' })
+            ),
+            h('div', { className: 'form-group' },
+              h('label', { className: 'form-label' }, 'Password (if different)'),
+              h('input', { className: 'input', type: 'password', value: form.config.imapPass || '', onChange: function(e) { setForm(Object.assign({}, form, { config: Object.assign({}, form.config, { imapPass: e.target.value }) })); } })
+            )
+          )
+        ),
+        h('div', { style: { textAlign: 'right', marginTop: 12 } },
+          h('button', { className: 'btn btn-primary', disabled: saving, onClick: addIntegration }, saving ? 'Saving...' : 'Save Integration')
+        )
+      )
+    )
+  );
+}
+
+// ── Org-Scoped LLM API Keys Section ──────────────────────
+function OrgLLMKeysSection(props) {
+  var orgId = props.orgId;
+  var toast = props.toast;
+  var _keys = useState([]);
+  var keys = _keys[0]; var setKeys = _keys[1];
+  var _loading = useState(true);
+  var loading = _loading[0]; var setLoading = _loading[1];
+  var _showAdd = useState(false);
+  var showAdd = _showAdd[0]; var setShowAdd = _showAdd[1];
+  var _form = useState({ provider: 'anthropic', apiKey: '', name: '' });
+  var form = _form[0]; var setForm = _form[1];
+  var _saving = useState(false);
+  var saving = _saving[0]; var setSaving = _saving[1];
+
+  var LLM_PROVIDERS = [
+    { id: 'anthropic', name: 'Anthropic', desc: 'Claude Opus, Sonnet, Haiku', placeholder: 'sk-ant-api03-...' },
+    { id: 'openai', name: 'OpenAI', desc: 'GPT-4o, o1, o3', placeholder: 'sk-proj-...' },
+    { id: 'google', name: 'Google AI', desc: 'Gemini 2.5 Pro, Flash', placeholder: 'AI...' },
+    { id: 'xai', name: 'xAI', desc: 'Grok-4, Grok-3', placeholder: 'xai-...' },
+    { id: 'deepseek', name: 'DeepSeek', desc: 'DeepSeek V3, R1', placeholder: 'sk-...' },
+    { id: 'mistral', name: 'Mistral', desc: 'Mistral Large, Codestral', placeholder: '' },
+    { id: 'openrouter', name: 'OpenRouter', desc: 'Multi-provider routing', placeholder: 'sk-or-...' },
+    { id: 'groq', name: 'Groq', desc: 'LLaMA, Mixtral (fast inference)', placeholder: 'gsk_...' }
+  ];
+
+  var load = function() {
+    setLoading(true);
+    engineCall('/org-integrations?orgId=' + orgId)
+      .then(function(d) {
+        var llmKeys = (d.integrations || []).filter(function(i) { return (i.provider || '').indexOf('llm_') === 0; });
+        setKeys(llmKeys);
+      })
+      .catch(function() { setKeys([]); })
+      .finally(function() { setLoading(false); });
+  };
+
+  useEffect(load, [orgId]);
+
+  var saveKey = function() {
+    if (!form.apiKey.trim()) { toast('API key is required', 'error'); return; }
+    setSaving(true);
+    var providerMeta = LLM_PROVIDERS.find(function(p) { return p.id === form.provider; }) || {};
+    engineCall('/org-integrations', {
+      method: 'POST',
+      body: JSON.stringify({
+        orgId: orgId,
+        provider: 'llm_' + form.provider,
+        providerType: 'api_key',
+        displayName: form.name.trim() || (providerMeta.name + ' API Key'),
+        config: { llmProvider: form.provider, providerName: providerMeta.name },
+        credentials: { apiKey: form.apiKey.trim() }
+      })
+    })
+      .then(function() { toast(providerMeta.name + ' API key saved', 'success'); setShowAdd(false); setForm({ provider: 'anthropic', apiKey: '', name: '' }); load(); })
+      .catch(function(e) { toast(e.message, 'error'); })
+      .finally(function() { setSaving(false); });
+  };
+
+  var deleteKey = function(id, name) {
+    if (!confirm('Remove ' + name + '? Agents in this org will fall back to system-wide keys.')) return;
+    engineCall('/org-integrations/' + id, { method: 'DELETE' })
+      .then(function() { toast('API key removed', 'success'); load(); })
+      .catch(function(e) { toast(e.message, 'error'); });
+  };
+
+  if (loading) return h('div', { style: { color: 'var(--text-muted)', padding: 16 } }, 'Loading...');
+
+  var configuredProviders = keys.map(function(k) { return (k.provider || '').replace('llm_', ''); });
+
+  return h(Fragment, null,
+    keys.length === 0 && !showAdd && h('div', { style: { textAlign: 'center', padding: 24, color: 'var(--text-muted)' } },
+      h('div', { style: { marginBottom: 8 } }, E.key(28)),
+      h('div', { style: { marginBottom: 8 } }, 'No org-specific LLM API keys configured.'),
+      h('div', { style: { fontSize: 12 } }, 'Agents will use system-wide API keys by default.'),
+      h('button', { className: 'btn btn-primary btn-sm', style: { marginTop: 12 }, onClick: function() { setShowAdd(true); } }, I.plus(), ' Add API Key')
+    ),
+
+    keys.length > 0 && h(Fragment, null,
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 } },
+        keys.map(function(k) {
+          var pid = (k.provider || '').replace('llm_', '');
+          var meta = LLM_PROVIDERS.find(function(p) { return p.id === pid; }) || {};
+          return h('div', { key: k.id, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' } },
+            h('div', null,
+              h('div', { style: { fontWeight: 600, fontSize: 14 } }, k.displayName || meta.name || pid),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, meta.desc || '', k.status ? ' \u2022 ' + k.status : '', k.updatedAt ? ' \u2022 Updated ' + new Date(k.updatedAt).toLocaleDateString() : '')
+            ),
+            h('div', { style: { display: 'flex', gap: 8 } },
+              h('button', { className: 'btn btn-danger btn-sm', onClick: function() { deleteKey(k.id, k.displayName || meta.name); } }, 'Remove')
+            )
+          );
+        })
+      ),
+      h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setShowAdd(true); } }, I.plus(), ' Add Another Key')
+    ),
+
+    showAdd && h('div', { style: { padding: 16, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: 12 } },
+      h('div', { style: { fontWeight: 600, marginBottom: 12 } }, 'Add LLM API Key'),
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Provider'),
+        h('select', { className: 'input', value: form.provider, onChange: function(e) { setForm(Object.assign({}, form, { provider: e.target.value })); } },
+          LLM_PROVIDERS.filter(function(p) { return configuredProviders.indexOf(p.id) === -1; }).map(function(p) {
+            return h('option', { key: p.id, value: p.id }, p.name + ' — ' + p.desc);
+          })
+        )
+      ),
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'API Key'),
+        h('input', { className: 'input', type: 'password', value: form.apiKey, onChange: function(e) { setForm(Object.assign({}, form, { apiKey: e.target.value })); }, placeholder: (LLM_PROVIDERS.find(function(p) { return p.id === form.provider; }) || {}).placeholder || 'API key' })
+      ),
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Display Name (optional)'),
+        h('input', { className: 'input', value: form.name, onChange: function(e) { setForm(Object.assign({}, form, { name: e.target.value })); }, placeholder: (LLM_PROVIDERS.find(function(p) { return p.id === form.provider; }) || {}).name + ' API Key' })
+      ),
+      h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+        h('button', { className: 'btn btn-secondary', onClick: function() { setShowAdd(false); } }, 'Cancel'),
+        h('button', { className: 'btn btn-primary', disabled: saving || !form.apiKey.trim(), onClick: saveKey }, saving ? 'Saving...' : 'Save Key')
+      ),
+      h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 8 } }, 'API keys are encrypted in the vault. Agents in this org will use these keys instead of system-wide defaults.')
     )
   );
 }

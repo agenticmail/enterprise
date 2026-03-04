@@ -81,15 +81,23 @@ var _toolIconMap = {
   '\u25BC': 'triangleDown',                                  // ▼
   '\uD83D\uDC41': 'eye', '\uD83D\uDC41\uFE0F': 'eye',     // 👁
 };
-function _mapToolIcon(emoji) {
+export function mapEmojiToIcon(emoji, size) {
+  if (!emoji) return null;
   var name = _toolIconMap[emoji];
-  if (name && E[name]) return E[name](22);
+  if (name && E[name]) return E[name](size || 22);
   return emoji; // fallback to raw string if unknown
+}
+function _mapToolIcon(emoji) {
+  return mapEmojiToIcon(emoji, 22);
 }
 
 export function ToolsSection(props) {
   var agentId = props.agentId;
+  var engineAgent = props.engineAgent || {};
+  var clientOrgId = engineAgent.client_org_id;
   var _d = useApp(); var toast = _d.toast;
+  var _orgName = useState(null); var orgName = _orgName[0]; var setOrgName = _orgName[1];
+  var _orgToolRestrictions = useState(null); var orgToolRestrictions = _orgToolRestrictions[0]; var setOrgToolRestrictions = _orgToolRestrictions[1];
   var _loading = useState(true); var loading = _loading[0]; var setLoading = _loading[1];
   var _cats = useState([]); var cats = _cats[0]; var setCats = _cats[1];
   var _stats = useState({}); var stats = _stats[0]; var setStats = _stats[1];
@@ -109,6 +117,15 @@ export function ToolsSection(props) {
   }
 
   useEffect(function() { load(); }, [agentId]);
+
+  // Fetch org info if agent belongs to a client org
+  useEffect(function() {
+    if (!clientOrgId) return;
+    apiCall('/admin/client-orgs/' + clientOrgId).then(function(org) {
+      setOrgName(org.name || org.org_name || 'Organization');
+      if (org.toolRestrictions || org.tool_restrictions) setOrgToolRestrictions(org.toolRestrictions || org.tool_restrictions);
+    }).catch(function() {});
+  }, [clientOrgId]);
 
   function toggle(catId, currentEnabled) {
     setSaving(true);
@@ -164,6 +181,18 @@ export function ToolsSection(props) {
   var googleAvailable = googleCats.some(function(c) { return c.isAvailable; });
 
   return h('div', null,
+    // Org context banner
+    clientOrgId && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--info, #0ea5e9)' } },
+      I.building(),
+      h('span', null,
+        h('strong', null, 'Organization Context: '),
+        'Tool access for this agent follows ',
+        h('strong', null, orgName || 'organization'),
+        ' policies.',
+        orgToolRestrictions ? ' This organization has tool-level restrictions in effect.' : ''
+      ),
+      h('span', { className: 'badge', style: { fontSize: 10, padding: '1px 8px', background: 'var(--info, #0ea5e9)', color: '#fff', marginLeft: 'auto', flexShrink: 0 } }, orgName || 'Org')
+    ),
     // Stats bar
     h('div', { style: { display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' } },
       h('div', { className: 'card', style: { padding: '12px 16px', flex: '1 1 auto', minWidth: 150 } },

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Configuration — AgenticMail Enterprise</title>
+  <link rel="stylesheet" href="/docs/docs-style.css">
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+  <a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+  <h1>Agent Configuration</h1>
+  <p style="color:var(--text-muted);margin-bottom:24px">Configure the agent's LLM model, model routing, fallback providers, heartbeat schedule, voice, and description.</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#default-model">Default LLM Model</a></li>
+      <li><a href="#model-routing">Model Routing</a></li>
+      <li><a href="#model-fallback">Backup Model Providers</a></li>
+      <li><a href="#heartbeat">Heartbeat</a></li>
+      <li><a href="#voice">Meeting Voice</a></li>
+      <li><a href="#description">Description</a></li>
+      <li><a href="#role-template">Role Template</a></li>
+      <li><a href="#key-concepts">Key Concepts</a></li>
+      <li><a href="#best-practices">Best Practices</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#related">Related Pages</a></li>
+    </ul>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">Overview</h2>
+
+  <div class="card">
+    <h3>For Everyone</h3>
+    <p>The Configuration tab is where you control the agent's brain. Choose which AI model it uses, how it handles different types of tasks, what happens when a model goes down, how often it checks in proactively, and what voice it uses in meetings. Each setting is organized into its own card with inline help.</p>
+  </div>
+
+  <div class="card">
+    <h3>For Developers</h3>
+    <p>Configuration is stored across several <code>config</code> keys: <code>model</code> (provider + modelId + thinkingLevel), <code>modelRouting</code> (per-context overrides), <code>modelFallback</code> (chain + retry settings), <code>heartbeat</code> (interval, active hours, custom prompt), <code>voiceConfig</code> (ElevenLabs voice ID), and <code>description</code>. Each card has independent edit/save state. Saves use hot-update when running, PATCH when stopped. Provider/model lists come from <code>/providers</code> and <code>/providers/:id/models</code> APIs.</p>
+  </div>
+
+  <!-- How It Works -->
+  <h2 id="how-it-works">How It Works</h2>
+  <p>The Configuration tab contains 6-7 independent cards, each with its own Edit/Save/Cancel flow. Click "Edit" on any card to modify that section without affecting others. Changes apply immediately if the agent is running (hot-update).</p>
+
+  <!-- Default Model -->
+  <h2 id="default-model">Default LLM Model</h2>
+  <p>The primary AI model for all conversations and tasks.</p>
+  <table>
+    <thead><tr><th>Setting</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Provider</strong></td><td>The AI provider — Anthropic, OpenAI, Google, etc. Must have an API key configured in Settings → Integrations.</td></tr>
+      <tr><td><strong>Model</strong></td><td>The specific model (e.g., claude-sonnet-4-20250514, gpt-4o). Auto-populated from the provider's model list.</td></tr>
+      <tr><td><strong>Thinking Level</strong></td><td>Extended reasoning capability. Off / Low (2K tokens) / Medium (8K) / High (16K). Higher = better for complex tasks but slower and more expensive.</td></tr>
+    </tbody>
+  </table>
+  <div class="tip">
+    <strong>Tip:</strong> Use Model Routing below to assign different models for different task types — a cheaper model for chat and a smarter one for complex work.
+  </div>
+
+  <!-- Model Routing -->
+  <h2 id="model-routing">Model Routing</h2>
+  <p>Assign different AI models to different types of tasks for cost/quality optimization:</p>
+  <table>
+    <thead><tr><th>Context</th><th>Description</th><th>Recommended</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Chat</strong></td><td>Real-time conversations (Slack, Teams, WhatsApp)</td><td>Sonnet 4 — fast replies</td></tr>
+      <tr><td><strong>Meetings (Voice)</strong></td><td>Google Meet with voice capabilities</td><td>Sonnet 4 — low latency</td></tr>
+      <tr><td><strong>Email</strong></td><td>Composing and replying to emails</td><td>Opus — professional quality</td></tr>
+      <tr><td><strong>Tasks & Projects</strong></td><td>Complex work, analysis, research</td><td>Opus — deep reasoning</td></tr>
+      <tr><td><strong>Scheduling</strong></td><td>Calendar, reminders</td><td>Haiku — quick and cheap</td></tr>
+    </tbody>
+  </table>
+  <p>Leave a route empty to use the Default LLM Model for that task type. Each route has its own provider/model selector.</p>
+
+  <!-- Model Fallback -->
+  <h2 id="model-fallback">Backup Model Providers</h2>
+  <p>Automatic failover when the primary model fails:</p>
+  <ul>
+    <li><strong>Fallback Chain</strong> — Ordered list of alternative models. Tried top-to-bottom.</li>
+    <li><strong>Max Retries</strong> — How many times to retry a single model before moving to the next (default: 2).</li>
+    <li><strong>Retry Delay</strong> — Wait time between retries in milliseconds (default: 1000ms). Uses exponential backoff.</li>
+  </ul>
+  <h3>Behavior</h3>
+  <ul>
+    <li><strong>Rate limit / overload errors</strong> — Retries the same model first, then moves to the next fallback.</li>
+    <li><strong>Auth / invalid model errors</strong> — Skips immediately to the next fallback (no retry).</li>
+  </ul>
+  <div class="tip">
+    <strong>Tip:</strong> Mix providers in your chain — e.g., Anthropic primary → OpenAI fallback → Google fallback. This protects against single-provider outages.
+  </div>
+
+  <!-- Heartbeat -->
+  <h2 id="heartbeat">Heartbeat</h2>
+  <p>Periodic check-ins where the agent wakes up and proactively handles pending work.</p>
+  <table>
+    <thead><tr><th>Setting</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Interval</strong></td><td>5 min to once daily. Default: every 30 minutes.</td></tr>
+      <tr><td><strong>Active Hours</strong></td><td>Only run heartbeats during these hours (agent's timezone). Set 12AM–12AM for 24/7.</td></tr>
+      <tr><td><strong>Custom Prompt</strong></td><td>Override what the agent checks during heartbeats. E.g., "Check emails, calendar events in next 2h."</td></tr>
+      <tr><td><strong>Tokens per Beat</strong></td><td>Estimated tokens per cycle — 1K (minimal), 3K (typical), 5K (moderate), 10K (heavy).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Cost Estimation</h3>
+  <p>The heartbeat card shows a real-time cost estimate based on your model and interval:</p>
+  <ul>
+    <li><strong>Estimated daily cost</strong> and <strong>monthly cost</strong></li>
+    <li><strong>Beats per day</strong></li>
+    <li><strong>Model used</strong> (defaults to the default LLM model)</li>
+  </ul>
+  <p>Example: 30-min interval with Haiku ≈ $0.10/day vs Opus ≈ $5/day.</p>
+  <div class="warning">
+    <strong>Cost Impact:</strong> Each heartbeat is a full LLM call. A 5-minute interval = 288 calls/day. Use a cheaper model for heartbeats via Model Routing (set the "Scheduling" context).
+  </div>
+
+  <!-- Voice -->
+  <h2 id="voice">Meeting Voice (ElevenLabs)</h2>
+  <p>Configure a text-to-speech voice for meetings and voice interactions. Features:</p>
+  <ul>
+    <li><strong>12 built-in voices</strong> — Sarah, Rachel, Charlotte, Lily, Emily (female); Adam, Antoni, Arnold, Sam, Josh, Daniel, Callum (male)</li>
+    <li><strong>Custom voices</strong> — Auto-loaded from your ElevenLabs account if connected in Settings → Integrations</li>
+    <li><strong>Manual voice ID</strong> — Enter any ElevenLabs voice ID directly</li>
+  </ul>
+  <p>Requires an ElevenLabs API key configured in Settings → Integrations. Without it, voices are shown but won't work.</p>
+
+  <!-- Description -->
+  <h2 id="description">Description</h2>
+  <p>A human-readable description of what this agent does. Shown to other agents, team members, and included in the agent's system prompt. Be specific about responsibilities.</p>
+
+  <!-- Role Template -->
+  <h2 id="role-template">Role Template</h2>
+  <p>If the agent was created from a role template (soul), the template name is shown as a badge. Templates pre-configure identity, personality, skills, and permissions for specific roles.</p>
+
+  <!-- Key Concepts -->
+  <h2 id="key-concepts">Key Concepts</h2>
+  <ul>
+    <li><strong>Provider</strong> — An AI service (Anthropic, OpenAI, Google) with a configured API key.</li>
+    <li><strong>Model Routing</strong> — Per-context model overrides. Different tasks can use different models.</li>
+    <li><strong>Fallback Chain</strong> — Ordered list of backup models for automatic failover.</li>
+    <li><strong>Heartbeat</strong> — Periodic proactive check-in. The agent wakes up, checks for work, and acts.</li>
+    <li><strong>Thinking Level</strong> — Extended reasoning. Higher levels use more tokens for step-by-step thinking before responding.</li>
+    <li><strong>Hot-Update</strong> — Apply config changes to a running agent without restart.</li>
+    <li><strong>ElevenLabs</strong> — Third-party TTS provider for agent voice capabilities.</li>
+  </ul>
+
+  <!-- Best Practices -->
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li><strong>Start with Sonnet for general use</strong> — It's the best balance of speed, quality, and cost.</li>
+    <li><strong>Use routing to save money</strong> — Haiku for scheduling, Sonnet for chat, Opus for email/tasks.</li>
+    <li><strong>Always configure fallbacks</strong> — Provider outages happen. Mix providers in your chain.</li>
+    <li><strong>Set heartbeat to 30 min</strong> — Good balance of responsiveness and cost. Adjust based on urgency.</li>
+    <li><strong>Limit active hours</strong> — No point in heartbeats at 3 AM unless the agent serves global customers.</li>
+    <li><strong>Use thinking level "medium" as default</strong> — Low for simple agents, high for complex analysis roles.</li>
+  </ul>
+
+  <!-- Troubleshooting -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+    <tbody>
+      <tr><td>"No providers configured" warning</td><td>Add API keys in Settings → Integrations for at least one provider.</td></tr>
+      <tr><td>Model dropdown is empty</td><td>Select a provider first. If still empty, the provider's API key may be invalid.</td></tr>
+      <tr><td>Heartbeat cost too high</td><td>Increase the interval, reduce active hours, or switch to a cheaper model.</td></tr>
+      <tr><td>Voice not working in meetings</td><td>Ensure ElevenLabs is connected in Settings → Integrations. Verify the voice ID is valid.</td></tr>
+      <tr><td>Fallback not triggering</td><td>Ensure fallback is enabled and models in the chain have valid API keys.</td></tr>
+      <tr><td>Config changes not applying</td><td>If the agent is running, hot-update should work instantly. Check for error messages. Try restarting the agent.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Related Pages -->
+  <h2 id="related">Related Pages</h2>
+  <div class="nav">
+    <a href="/docs/agent-overview.html">Overview</a> — Agent status, usage stats, and quick actions.
+    <a href="/docs/agent-personal.html">Personal Details</a> — Name, role, personality, and identity.
+    <a href="/docs/agent-tools.html">Tools</a> — Enable/disable tool categories.
+    <a href="/docs/agent-permissions.html">Permissions</a> — Risk levels and rate limits.
+  </div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

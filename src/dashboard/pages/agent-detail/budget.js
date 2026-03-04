@@ -9,6 +9,7 @@ import { HelpButton } from '../../components/help-button.js';
 
 export function BudgetSection(props) {
   var agentId = props.agentId;
+  var engineAgent = props.engineAgent;
 
   var app = useApp();
   var toast = app.toast;
@@ -21,6 +22,16 @@ export function BudgetSection(props) {
   var budgetAlerts = _alerts[0]; var setBudgetAlerts = _alerts[1];
   var _loading = useState(true);
   var loading = _loading[0]; var setLoading = _loading[1];
+  // Organization context
+  var _orgInfo = useState(null);
+  var orgInfo = _orgInfo[0]; var setOrgInfo = _orgInfo[1];
+
+  useEffect(function() {
+    if (engineAgent && engineAgent.client_org_id) {
+      apiCall('/client-orgs/' + engineAgent.client_org_id).then(function(d) { setOrgInfo(d.org || d); }).catch(function() {});
+    }
+  }, [engineAgent && engineAgent.client_org_id]);
+
   var _editing = useState(false);
   var editing = _editing[0]; var setEditing = _editing[1];
   var _saving = useState(false);
@@ -104,6 +115,13 @@ export function BudgetSection(props) {
   }
 
   return h(Fragment, null,
+
+    // ─── Organization Context Banner ────────────────────
+    engineAgent && engineAgent.client_org_id && h('div', { style: { padding: '10px 16px', marginBottom: 16, background: 'var(--info-bg, rgba(59,130,246,0.1))', border: '1px solid var(--info-border, rgba(59,130,246,0.3))', borderRadius: 'var(--radius, 8px)', fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 } },
+      I.info && I.info(),
+      h('span', null, 'Budget limits follow ', h('strong', null, orgInfo ? orgInfo.name : 'organization'), ' allocation.'),
+      orgInfo && orgInfo.budgetCap && h('span', { style: { marginLeft: 8, color: 'var(--text-muted)' } }, 'Org budget cap: $' + orgInfo.budgetCap)
+    ),
 
     // ─── Usage Stats Grid ───────────────────────────────
     h('div', { className: 'stat-grid', style: { marginBottom: 20 } },

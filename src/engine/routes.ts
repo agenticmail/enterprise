@@ -74,6 +74,7 @@ import { SkillAutoUpdater } from './skill-updater.js';
 import { createSkillUpdaterRoutes } from './skill-updater-routes.js';
 import { KnowledgeImportManager, createKnowledgeImportRoutes } from './knowledge-import/index.js';
 import { createMemoryRoutes } from './memory-routes.js';
+import { createMemoryTransferRoutes } from './memory-transfer-routes.js';
 import { createOnboardingRoutes } from './onboarding-routes.js';
 import { SecureVault } from './vault.js';
 import { StorageManager } from './storage-manager.js';
@@ -82,6 +83,8 @@ import { createVaultRoutes } from './vault-routes.js';
 import { createStorageRoutes } from './storage-routes.js';
 import { createPolicyImportRoutes } from './policy-import-routes.js';
 import { createOAuthConnectRoutes } from './oauth-connect-routes.js';
+import { OrgIntegrationManager } from './org-integrations.js';
+import { createOrgIntegrationRoutes } from './org-integration-routes.js';
 import { createChatWebhookRoutes } from './chat-webhook-routes.js';
 import { ChatPoller } from './chat-poller.js';
 import { EmailPoller } from './email-poller.js';
@@ -122,6 +125,8 @@ const policyEngine = new OrgPolicyEngine();
 const memoryManager = new AgentMemoryManager();
 const onboarding = new OnboardingManager({ policyEngine, memoryManager });
 const vault = new SecureVault();
+const orgIntegrations = new OrgIntegrationManager();
+orgIntegrations.setVault(vault);
 const storageManager = new StorageManager({ vault });
 const policyImporter = new PolicyImporter({ policyEngine, storageManager });
 const knowledgeContribution = new KnowledgeContributionManager({ memoryCallback: async (agentId: string) => memoryManager.queryMemories({ agentId }) });
@@ -167,6 +172,30 @@ lifecycle.setBirthdaySender(async (agent) => {
   });
 });
 lifecycle.startBirthdayScheduler();
+
+// ─── Transport Encryption ───────────────────────────────
+import { transportEncryptionMiddleware, setTransportEncryptionConfig, getConfig as getTransportEncConfig, loadConfig as loadTransportEncConfig, setSettingsDb as setTransportEncSettingsDb } from '../middleware/transport-encryption.js';
+engine.use('*', transportEncryptionMiddleware());
+
+// Client key exchange endpoint (returns derived key token for dashboard)
+engine.get('/transport-encryption/client-key', async (c) => {
+  const cfg = getTransportEncConfig();
+  if (!cfg.enabled) return c.json({ enabled: false });
+  // Generate a session-scoped key token derived from the server key
+  // The client uses this to derive the same encryption/hmac keys
+  const baseKey = process.env.TRANSPORT_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || 'agenticmail-transport-default-key';
+  const { createHash } = await import('node:crypto');
+  const suffix = 'agenticmail-transport-v1';
+  const keyToken = createHash('sha256').update(`${baseKey}:${suffix}`).digest('hex');
+  return c.json({ enabled: true, keyToken });
+});
+
+engine.get('/transport-encryption/config', (c) => c.json(getTransportEncConfig()));
+engine.put('/transport-encryption/config', async (c) => {
+  const body = await c.req.json();
+  setTransportEncryptionConfig(body);
+  return c.json({ success: true });
+});
 
 // ─── Auth Context Extraction ────────────────────────────
 // When engine routes are called via the server proxy, auth context
@@ -286,6 +315,7 @@ engine.route('/community', createCommunityRoutes(communityRegistry));
 engine.route('/workforce', createWorkforceRoutes(workforce, { lifecycle }));
 engine.route('/policies', createPolicyRoutes(policyEngine));
 engine.route('/memory', createMemoryRoutes(memoryManager));
+engine.route('/memory-transfer', createMemoryTransferRoutes(memoryManager, _engineDb));
 engine.route('/onboarding', createOnboardingRoutes(onboarding));
 engine.route('/vault', createVaultRoutes(vault, dlp));
 engine.route('/storage', createStorageRoutes(storageManager));
@@ -294,6 +324,7 @@ engine.route('/knowledge-contribution', createKnowledgeContributionRoutes(knowle
 engine.route('/knowledge-import', createKnowledgeImportRoutes(knowledgeImport));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
 engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
+engine.route('/org-integrations', createOrgIntegrationRoutes(orgIntegrations));
 
 // Database Access system
 import { DatabaseConnectionManager, createDatabaseAccessRoutes } from '../database-access/index.js';
@@ -754,6 +785,7 @@ export async function setEngineDb(
     memoryManager.setDb(db),
     onboarding.setDb(db),
     vault.setDb(db),
+    (async () => { orgIntegrations.setDb(db); orgIntegrations.setLifecycle(lifecycle); (globalThis as any).__orgIntegrations = orgIntegrations; })(),
     storageManager.setDb(db),
     policyImporter.setDb(db),
     (async () => { (taskQueue as any).db = (db as any)?.db || db; await taskQueue.init(); })(),
@@ -765,6 +797,12 @@ export async function setEngineDb(
 
   guardrails.startAnomalyDetection();
   workforce.startScheduler();
+
+  // Load transport encryption config from settings
+  if (adminDb) {
+    setTransportEncSettingsDb(adminDb);
+    loadTransportEncConfig().catch(() => {});
+  }
   knowledgeContribution.startScheduler();
 
   // Auto-create contribution schedules for all agents if none exist
@@ -1032,4 +1070,4 @@ export function setRuntime(runtime: any): void {
 }
 
 export { engine as engineRoutes };
-export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus, hierarchyManager, databaseManager };
+export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus, hierarchyManager, databaseManager, orgIntegrations };

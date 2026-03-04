@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Activity Log — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Activity Log</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">A chronological record of everything this agent has done — events, tool calls, and journal entries with rollback support.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#events-tab">Events Tab</a></li>
+        <li><a href="#tool-calls-tab">Tool Calls Tab</a></li>
+        <li><a href="#journal-tab">Journal Tab</a></li>
+        <li><a href="#filtering">Filtering &amp; Search</a></li>
+        <li><a href="#pagination">Pagination</a></li>
+        <li><a href="#detail-modal">Detail Modal</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>The Activity Log is your agent's diary. Every action the agent takes — sending a message, calling an API, completing a task, or encountering an error — is recorded here with a timestamp. Think of it as a security camera for your AI agent: you can always go back and see exactly what happened and when.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>The Activity section aggregates three data sources into a single unified view:</p>
+  <ul>
+    <li><strong>Events</strong> — fetched from <code>GET /activity/events?agentId=…&amp;limit=200</code>. General lifecycle events (messages, tasks, errors, guardrail triggers, system events).</li>
+    <li><strong>Tool Calls</strong> — fetched from <code>GET /activity/tool-calls?agentId=…&amp;limit=200</code>. Every external tool or API the agent invoked, with duration and success/failure status.</li>
+    <li><strong>Journal Entries</strong> — fetched from <code>GET /journal?agentId=…&amp;orgId=…&amp;limit=200</code>. Reversible action log with rollback capability via <code>POST /journal/:id/rollback</code>.</li>
+  </ul>
+  <p>All three are loaded in parallel on mount via <code>Promise.all</code>. Client-side filtering and pagination (25 items/page) are applied after fetch.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Data Loading</strong> — When you open the Activity tab, all three data sources (events, tool calls, journal) are fetched simultaneously from the engine API.</li>
+  <li><strong>Tab Selection</strong> — Switch between Events, Tool Calls, and Journal using the tab bar. Each tab shows its own count in parentheses.</li>
+  <li><strong>Filtering</strong> — Use the filter bar to narrow results by type (dropdown of unique types), free-text search (searches the full JSON), and date range.</li>
+  <li><strong>Pagination</strong> — Results are paginated at 25 items per page. Changing filters resets to page 1.</li>
+  <li><strong>Detail View</strong> — Click any row to open a detail modal showing the complete data for that item.</li>
+  <li><strong>Rollback</strong> — In the Journal tab, reversible entries show a "Rollback" button. Clicking it triggers a confirmation dialog, then calls the rollback API.</li>
+  <li><strong>Refresh</strong> — The refresh button reloads only the current tab's data source.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="events-tab">Events Tab</h3>
+<p>The Events tab shows general agent lifecycle events. Each event has:</p>
+<ul>
+  <li><strong>Time</strong> — When the event occurred (from <code>timestamp</code> or <code>createdAt</code>).</li>
+  <li><strong>Type</strong> — A badge showing the event type. Common types include:</li>
+</ul>
+<table>
+  <thead><tr><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge">Message</span></td><td>Chat messages sent or received by the agent.</td></tr>
+    <tr><td><span class="badge">Task</span></td><td>Tasks started, completed, or failed.</td></tr>
+    <tr><td><span class="badge">Tool Use</span></td><td>External tools or APIs the agent called.</td></tr>
+    <tr><td><span class="badge">Error</span></td><td>Failures, timeouts, or API errors.</td></tr>
+    <tr><td><span class="badge">Guardrail</span></td><td>Policy violations or safety interventions.</td></tr>
+    <tr><td><span class="badge">System</span></td><td>Deployment, restart, or configuration changes.</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><strong>Details</strong> — A truncated preview of the event data. Click the row to see full details.</li>
+</ul>
+
+<h3 id="tool-calls-tab">Tool Calls Tab</h3>
+<p>The Tool Calls tab tracks every external tool invocation with performance data:</p>
+<ul>
+  <li><strong>Tool</strong> — The name of the tool or API called (displayed in monospace).</li>
+  <li><strong>Duration</strong> — How long the call took in milliseconds.</li>
+  <li><strong>Status</strong> — Color-coded badge:
+    <ul>
+      <li><span class="badge badge-easy">OK</span> — Successful call.</li>
+      <li><span class="badge badge-advanced">Failed</span> — The call returned an error.</li>
+      <li><span class="badge">Pending</span> — Still in progress or unknown status.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="journal-tab">Journal Tab</h3>
+<p>The Journal provides an auditable, reversible action log. Each entry includes:</p>
+<ul>
+  <li><strong>Tool</strong> — Which tool performed the action.</li>
+  <li><strong>Action Type</strong> — The specific action (e.g., "create", "delete", "update").</li>
+  <li><strong>Reversible</strong> — ✅ if the action can be rolled back, ❌ if not.</li>
+  <li><strong>Status</strong> — "Active" (current) or "Rolled Back" (reversed).</li>
+  <li><strong>Rollback Button</strong> — Available for reversible entries that haven't been rolled back. Shows a confirmation dialog before executing.</li>
+</ul>
+
+<div class="tip">
+  <strong>Tip:</strong> The Journal is especially useful for debugging. If an agent accidentally deleted something, find the entry and hit "Rollback" to reverse it.
+</div>
+
+<h3 id="filtering">Filtering &amp; Search</h3>
+<p>The filter bar appears below the tabs and includes:</p>
+<ul>
+  <li><strong>Type Dropdown</strong> — Lists all unique types found in the current data source. Filters by type/eventType/tool/toolName/actionType fields.</li>
+  <li><strong>Search Box</strong> — Full-text search across the entire JSON representation of each item.</li>
+  <li><strong>Date Range</strong> — "From" and "To" date pickers. The "To" date is inclusive (extends to 23:59:59).</li>
+  <li><strong>Clear Button</strong> — Appears when any filter is active. Resets all filters at once.</li>
+</ul>
+
+<h3 id="pagination">Pagination</h3>
+<p>Results are displayed 25 per page. Navigation controls include first/previous/next/last buttons and a "Page X / Y" indicator. Changing any filter automatically resets to page 1.</p>
+
+<h3 id="detail-modal">Detail Modal</h3>
+<p>Clicking any row opens a DetailModal with:</p>
+<ul>
+  <li>A color-coded type badge (red for errors, green for deploy/start, yellow for stop, blue for others).</li>
+  <li>The complete raw data for the item, formatted for readability.</li>
+  <li>The <code>agentId</code> field is excluded from display (it's redundant since you're already on the agent's page).</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Start with errors when debugging</strong> — Use the type filter to select "Error" events first. This narrows down to the exact failure points.</li>
+    <li><strong>Use date ranges for incident investigation</strong> — If you know when an issue occurred, set the date range to narrow down to the relevant window.</li>
+    <li><strong>Check tool call durations</strong> — Slow tool calls (high ms values) may indicate API issues or rate limiting. Monitor these to optimize agent performance.</li>
+    <li><strong>Review journal entries regularly</strong> — The journal provides an audit trail of all reversible actions. Use it to verify that the agent is behaving as expected.</li>
+    <li><strong>Use rollback cautiously</strong> — Rollback reverses a specific action. Make sure you understand what will be undone before confirming.</li>
+    <li><strong>Combine search with type filter</strong> — For example, filter by "error" type and search for a specific tool name to find all failures for that tool.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>No events are showing</h3>
+  <p>The agent may not have performed any actions yet. Deploy the agent and send it a task, then check back. Events are created as the agent operates.</p>
+</div>
+
+<div class="card">
+  <h3>Filters show "No events match filters" but data exists</h3>
+  <p>Your filter combination is too restrictive. Try clearing individual filters one at a time to identify which one is excluding all results. Check that date ranges are correct (from date should be before to date).</p>
+</div>
+
+<div class="card">
+  <h3>Rollback fails</h3>
+  <p>Not all actions can be rolled back — only entries marked with ✅ in the "Reversible" column support rollback. If rollback fails on a reversible entry, the underlying resource may have been modified by a subsequent action. Check the error message for details.</p>
+</div>
+
+<div class="card">
+  <h3>Tool calls show "Pending" status</h3>
+  <p>This usually means the tool call is still in progress, or the agent didn't report a completion status. If it persists, the agent may have crashed mid-call. Check the Events tab for corresponding error events.</p>
+</div>
+
+<div class="card">
+  <h3>Data seems outdated</h3>
+  <p>Activity data is fetched on page load and doesn't auto-refresh. Click the refresh button (↻) to reload the current tab's data.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-communication.html">Agent Communication</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+  <a href="agent-budget.html">Agent Budget</a>
+  <a href="agent-tool-security.html">Tool Security</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

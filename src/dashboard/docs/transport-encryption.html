@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transport Encryption — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>var t = localStorage.getItem('em_theme') || 'dark'; document.documentElement.setAttribute('data-theme', t);</script>
+</head>
+<body>
+<a href="javascript:history.back()" class="back">&larr; Back to Dashboard</a>
+<h1>Transport Encryption</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Application-layer encryption for API data in transit between the dashboard and server — defense-in-depth against network sniffing, MITM attacks, and compromised TLS proxies.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#why">Why Transport Encryption?</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#configuration">Configuration</a></li>
+<li><a href="#endpoint-groups">Endpoint Groups</a></li>
+<li><a href="#custom-endpoints">Custom Endpoints</a></li>
+<li><a href="#advanced">Advanced Settings</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#technical-details">Technical Details</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>Transport Encryption adds an additional layer of AES-256-CBC encryption to API calls between the AgenticMail dashboard (your browser) and the server. While HTTPS already encrypts data at the transport layer, this feature provides <strong>application-layer encryption</strong> for defense-in-depth.</p>
+
+<p>This is particularly important for AgenticMail because the dashboard handles extremely sensitive data:</p>
+<ul>
+<li><strong>LLM API keys</strong> — Anthropic, OpenAI, Google, xAI, and other provider keys worth thousands of dollars</li>
+<li><strong>Database credentials</strong> — Connection strings, passwords, and URLs for PostgreSQL, MySQL, MongoDB, Redis</li>
+<li><strong>OAuth tokens</strong> — Google Workspace, Microsoft 365 access and refresh tokens</li>
+<li><strong>Email/SMTP passwords</strong> — Agent email configuration credentials</li>
+<li><strong>Vault secrets</strong> — Any encrypted secrets stored in the secure vault</li>
+<li><strong>Agent configurations</strong> — WhatsApp tokens, Telegram bot tokens, browser configs</li>
+</ul>
+
+<p>You can choose to encrypt <strong>all API calls</strong> for maximum security, or selectively encrypt only the endpoint groups that handle sensitive data.</p>
+
+<h2 id="why">Why Transport Encryption?</h2>
+<p>"But we already use HTTPS!" — Yes, and HTTPS is excellent. However, there are real-world scenarios where HTTPS alone isn't enough:</p>
+
+<div class="card">
+<h3>Threat Scenarios</h3>
+<table>
+<tr><th>Threat</th><th>HTTPS Alone</th><th>With Transport Encryption</th></tr>
+<tr><td>Standard network sniffing</td><td>Protected</td><td>Protected (double-encrypted)</td></tr>
+<tr><td>Corporate SSL/TLS inspection proxies</td><td><strong>Exposed</strong> — proxy decrypts/re-encrypts</td><td>Protected — inner encryption survives</td></tr>
+<tr><td>Compromised CDN/reverse proxy</td><td><strong>Exposed</strong> — proxy sees plaintext</td><td>Protected — data is still encrypted</td></tr>
+<tr><td>Compromised TLS certificate</td><td><strong>Exposed</strong></td><td>Protected — independent encryption layer</td></tr>
+<tr><td>Debug/logging proxy (Fiddler, Charles)</td><td><strong>Exposed</strong> — designed to expose</td><td>Protected — payload is opaque</td></tr>
+<tr><td>Malicious browser extension reading network</td><td><strong>Exposed</strong> — extension sees decrypted data</td><td>Partially protected — depends on extension capabilities</td></tr>
+<tr><td>Replay attacks</td><td>Session-based</td><td>Protected — timestamp + HMAC prevents reuse</td></tr>
+</table>
+</div>
+
+<div class="tip">
+<strong>When to enable:</strong> If your AgenticMail instance is behind a corporate proxy, CDN (Cloudflare, AWS CloudFront), or accessed over untrusted networks. Also recommended if you manage high-value API keys or sensitive client data.
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<h3>Encryption Flow</h3>
+<div class="card">
+<p><strong>Outgoing Request (Dashboard → Server):</strong></p>
+<ol>
+<li>Dashboard intercepts the fetch call for a sensitive endpoint</li>
+<li>Request body is serialized to JSON</li>
+<li>A random 16-byte IV is generated</li>
+<li>Data is encrypted with AES-256-CBC using the shared key</li>
+<li>SHA-256 checksum is computed for integrity</li>
+<li>HMAC-SHA256 signature is computed over IV + ciphertext + timestamp + checksum</li>
+<li>Payload is wrapped as <code>{ _enc: "&lt;base64-encoded-payload&gt;" }</code></li>
+<li>Server receives, verifies HMAC, verifies timestamp, decrypts, verifies checksum</li>
+<li>Handler sees the original plaintext JSON</li>
+</ol>
+</div>
+
+<div class="card">
+<p><strong>Incoming Response (Server → Dashboard):</strong></p>
+<ol>
+<li>Server handler returns normal JSON response</li>
+<li>Middleware checks if client sent <code>x-transport-encryption: 1</code> header</li>
+<li>If yes, response JSON is encrypted with the same algorithm</li>
+<li>Response is wrapped as <code>{ _enc: "&lt;base64-encoded-payload&gt;" }</code></li>
+<li>Response header <code>x-transport-encrypted: 1</code> is set</li>
+<li>Dashboard fetch interceptor detects the header, decrypts the response</li>
+<li>Application code receives the original plaintext JSON</li>
+</ol>
+</div>
+
+<h3>Key Exchange</h3>
+<p>When encryption is enabled, the dashboard requests a key token from the authenticated endpoint <code>/transport-encryption/client-key</code>. This token is used to derive the same AES and HMAC keys that the server uses. The key exchange only happens once per session and requires authentication.</p>
+
+<h3>Graceful Degradation</h3>
+<p>If the client doesn't send the <code>x-transport-encryption: 1</code> header (e.g., direct API calls, third-party integrations), responses are sent in plaintext. This ensures backward compatibility — only the dashboard UI uses encryption.</p>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<div class="card">
+<h3>Encrypt All vs Selective</h3>
+<p><strong>Encrypt All:</strong> Every API call between the dashboard and server is encrypted. Maximum security, slight overhead. Recommended for high-security environments.</p>
+<p><strong>Selective:</strong> Only the endpoint groups you choose are encrypted. Best balance of security and performance — encrypt sensitive groups (API keys, database, vault) while leaving low-risk endpoints (dashboard stats) in plaintext.</p>
+<p><strong>Sensitive Only:</strong> One-click preset that enables encryption for groups marked as "SENSITIVE" — models, auth, email, database, vault, and integrations.</p>
+</div>
+
+<div class="card">
+<h3>Endpoint Groups</h3>
+<p>Endpoints are organized into 22 logical groups. Each group maps to a set of API path patterns. When you toggle a group, all its endpoints are encrypted/decrypted. Hover over any group in the UI to see the exact path patterns.</p>
+</div>
+
+<div class="card">
+<h3>Custom Endpoints</h3>
+<p>If you have custom API endpoints (plugins, extensions, or custom routes), you can add their path patterns manually. Use <code>*</code> as a wildcard for single path segments. Example: <code>/api/my-plugin/*/config</code></p>
+</div>
+
+<h2 id="configuration">Configuration</h2>
+<p>Navigate to <strong>Settings → Security → Transport Encryption</strong>.</p>
+
+<h3>Step 1: Enable Transport Encryption</h3>
+<p>Toggle "Enable Transport Encryption" to ON. This activates the encryption middleware on the server and the fetch interceptor on the dashboard.</p>
+
+<h3>Step 2: Choose Encryption Scope</h3>
+<p>Select one of three modes:</p>
+<ul>
+<li><strong>Encrypt All API Calls</strong> — Everything is encrypted. All 22 endpoint groups are activated.</li>
+<li><strong>Sensitive Only</strong> — Pre-selected groups that handle credentials, tokens, and secrets.</li>
+<li><strong>Custom Selection</strong> — Toggle individual groups manually.</li>
+</ul>
+
+<h3>Step 3: Save</h3>
+<p>Click "Save Security Settings". The configuration takes effect immediately — no server restart required.</p>
+
+<div class="tip">
+<strong>No restart needed:</strong> Changes to transport encryption take effect immediately. The middleware reads the updated config on the next request.
+</div>
+
+<h2 id="endpoint-groups">Endpoint Groups</h2>
+<p>Each group covers a logical area of the dashboard. Groups marked <span class="badge badge-advanced">SENSITIVE</span> handle credentials or secrets.</p>
+
+<table>
+<tr><th>Group</th><th>Description</th><th>Sensitivity</th></tr>
+<tr><td>Settings & Configuration</td><td>System settings, platform config</td><td>Normal</td></tr>
+<tr><td>Models & API Keys</td><td>LLM provider API keys</td><td><span class="badge badge-advanced">SENSITIVE</span></td></tr>
+<tr><td>Authentication</td><td>Login, sessions, 2FA, SSO</td><td><span class="badge badge-advanced">SENSITIVE</span></td></tr>
+<tr><td>Agent Configuration</td><td>Agent configs, tools, permissions</td><td>Normal</td></tr>
+<tr><td>Email & SMTP</td><td>Email/SMTP credentials, domain settings</td><td><span class="badge badge-advanced">SENSITIVE</span></td></tr>
+<tr><td>Database Connections</td><td>Database URLs, credentials, connection strings</td><td><span class="badge badge-advanced">SENSITIVE</span></td></tr>
+<tr><td>Vault & Secrets</td><td>Encrypted secret storage</td><td><span class="badge badge-advanced">SENSITIVE</span></td></tr>
+<tr><td>Organization Integrations</td><td>OAuth tokens, Google/Microsoft integrations</td><td><span class="badge badge-advanced">SENSITIVE</span></td></tr>
+<tr><td>Skills & Credentials</td><td>Skill API tokens</td><td>Normal</td></tr>
+<tr><td>Organizations</td><td>Org management, member data</td><td>Normal</td></tr>
+<tr><td>Knowledge Bases</td><td>KB content, documents, embeddings</td><td>Normal</td></tr>
+<tr><td>Task Pipeline</td><td>Task queue, results, delegation</td><td>Normal</td></tr>
+<tr><td>Workforce & Schedules</td><td>Schedules, clock records, budgets</td><td>Normal</td></tr>
+<tr><td>Messages & Channels</td><td>WhatsApp, Telegram, channel configs</td><td>Normal</td></tr>
+<tr><td>Guardrails & DLP</td><td>Guardrail rules, DLP policies</td><td>Normal</td></tr>
+<tr><td>Activity Journal</td><td>Agent activity logs</td><td>Normal</td></tr>
+<tr><td>Approvals</td><td>Approval requests and decisions</td><td>Normal</td></tr>
+<tr><td>Compliance & Audit</td><td>Compliance reports, audit logs</td><td>Normal</td></tr>
+<tr><td>Domain & DNS</td><td>Domain config, DNS records, SSL</td><td>Normal</td></tr>
+<tr><td>Roles & Permissions</td><td>Role templates, permission profiles</td><td>Normal</td></tr>
+<tr><td>Memory & Transfer</td><td>Agent memories, memory transfer, schedules</td><td><span style="color:var(--danger);font-weight:600">SENSITIVE</span></td></tr>
+<tr><td>Dashboard & Overview</td><td>Dashboard stats, agent summaries</td><td>Normal</td></tr>
+</table>
+
+<h2 id="custom-endpoints">Custom Endpoints</h2>
+<p>Add custom API path patterns to encrypt endpoints not covered by the built-in groups.</p>
+
+<h3>Pattern Syntax</h3>
+<ul>
+<li><code>/api/exact/path</code> — Matches exactly</li>
+<li><code>/api/path/*</code> — Wildcard matches one path segment (e.g., <code>/api/path/123</code> but not <code>/api/path/123/sub</code>)</li>
+<li><code>/api/path/*/sub</code> — Wildcard in the middle</li>
+</ul>
+
+<h3>Examples</h3>
+<pre><code>/api/my-plugin/*/config
+/webhook/incoming
+/api/custom-integration/*</code></pre>
+
+<h2 id="advanced">Advanced Settings</h2>
+
+<h3>Payload Max Age</h3>
+<p>Default: <strong>300 seconds (5 minutes)</strong>. Encrypted payloads include a timestamp. If the server receives a payload older than this limit, it's rejected as a potential replay attack. Increase this if you have slow connections or clock drift between client and server.</p>
+
+<h3>Debug Logging</h3>
+<p>When enabled, encryption/decryption operations are logged to the server console. <strong>Never enable in production</strong> — it could expose sensitive data in log files.</p>
+
+<h3>Encryption Key</h3>
+<p>The encryption key is derived from environment variables in this priority:</p>
+<ol>
+<li><code>TRANSPORT_ENCRYPTION_KEY</code> — Dedicated key for transport encryption</li>
+<li><code>ENCRYPTION_KEY</code> — Shared encryption key</li>
+<li><code>JWT_SECRET</code> — Falls back to JWT secret</li>
+<li>Built-in default (not recommended for production)</li>
+</ol>
+
+<div class="warning">
+<strong>Production recommendation:</strong> Set <code>TRANSPORT_ENCRYPTION_KEY</code> in your environment to a strong random string (32+ characters). Using the default key provides obfuscation but not true security.
+</div>
+
+<h2 id="deployment">Deployment Platforms</h2>
+<p>Transport encryption works on every platform. The encryption key (<code>TRANSPORT_ENCRYPTION_KEY</code>) must be set as an environment variable, which every platform supports.</p>
+
+<div class="card">
+<h3>Key Generation &amp; Storage</h3>
+<p>During initial setup, the wizard auto-generates a 256-bit key and attempts to:</p>
+<ol>
+<li><strong>Write to <code>.env</code> file</strong> — Works on persistent filesystems (localhost, VPS, bare metal)</li>
+<li><strong>Store in database</strong> — Backup copy in settings table (always works)</li>
+<li><strong>Display to user</strong> — For manual platform configuration (always shown)</li>
+</ol>
+<p>On ephemeral platforms (fly.io, Railway, Docker), the <code>.env</code> write may fail silently. The wizard detects this and shows a clear warning with platform-specific instructions.</p>
+</div>
+
+<table>
+<tr><th>Platform</th><th>How to Set Keys</th><th>.env Persists?</th></tr>
+<tr><td>Localhost / VPS</td><td>Auto-saved to <code>.env</code></td><td>Yes</td></tr>
+<tr><td>fly.io</td><td><code>fly secrets set TRANSPORT_ENCRYPTION_KEY=&lt;key&gt;</code></td><td>No (ephemeral)</td></tr>
+<tr><td>Railway</td><td>Dashboard &rarr; Variables, or <code>railway variables set</code></td><td>No (ephemeral)</td></tr>
+<tr><td>Render</td><td>Dashboard &rarr; Environment &rarr; Secret Files or Env Vars</td><td>No (ephemeral)</td></tr>
+<tr><td>Docker</td><td><code>docker run -e TRANSPORT_ENCRYPTION_KEY=&lt;key&gt;</code> or docker-compose env</td><td>Only if volume-mounted</td></tr>
+<tr><td>Cloudflare Workers</td><td><code>wrangler secret put TRANSPORT_ENCRYPTION_KEY</code></td><td>No (serverless)</td></tr>
+<tr><td>AWS ECS/Lambda</td><td>Task definition env vars or SSM Parameter Store</td><td>Via SSM/Secrets Manager</td></tr>
+<tr><td>Heroku</td><td><code>heroku config:set TRANSPORT_ENCRYPTION_KEY=&lt;key&gt;</code></td><td>No (ephemeral)</td></tr>
+<tr><td>AgenticMail Cloud</td><td>Managed automatically</td><td>Yes (managed)</td></tr>
+</table>
+
+<div class="warning">
+<strong>Key must be identical across all instances.</strong> If you run multiple replicas (load-balanced), every instance must have the same <code>TRANSPORT_ENCRYPTION_KEY</code>. Otherwise, a request encrypted by one instance can't be decrypted by another.
+</div>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+<h3>For Most Deployments</h3>
+<ul>
+<li>Enable "Sensitive Only" — covers API keys, database creds, vault, auth, email, and integrations</li>
+<li>Set <code>TRANSPORT_ENCRYPTION_KEY</code> in your environment</li>
+<li>Keep payload max age at 300s unless you have specific latency issues</li>
+<li>Leave debug logging OFF</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>For High-Security Environments</h3>
+<ul>
+<li>Enable "Encrypt All API Calls"</li>
+<li>Use a dedicated <code>TRANSPORT_ENCRYPTION_KEY</code> (not shared with other services)</li>
+<li>Reduce payload max age to 60-120 seconds</li>
+<li>Combine with HTTPS, HSTS, and strict CSP headers</li>
+<li>Enable audit logging to track all security events</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>For Development</h3>
+<ul>
+<li>Can be left disabled — HTTPS may not be configured locally</li>
+<li>If testing encryption, enable debug logging temporarily</li>
+<li>The system gracefully degrades — if encryption fails, plaintext is sent</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+<h3>Dashboard shows errors after enabling encryption</h3>
+<p><strong>Cause:</strong> Key mismatch between client and server, often after changing the encryption key.</p>
+<p><strong>Fix:</strong> Hard-refresh the dashboard (Ctrl+Shift+R / Cmd+Shift+R) to re-fetch the key token. If the issue persists, disable encryption, refresh, and re-enable.</p>
+</div>
+
+<div class="card">
+<h3>"Encrypted payload expired" errors</h3>
+<p><strong>Cause:</strong> Clock drift between the client browser and server exceeds the max age setting.</p>
+<p><strong>Fix:</strong> Sync clocks (NTP) or increase the payload max age in Advanced Settings.</p>
+</div>
+
+<div class="card">
+<h3>"Invalid signature — payload tampered" errors</h3>
+<p><strong>Cause:</strong> A proxy or middleware modified the request body after encryption.</p>
+<p><strong>Fix:</strong> Check for request-modifying proxies, WAFs, or middleware that transform JSON bodies.</p>
+</div>
+
+<div class="card">
+<h3>API calls from external tools (curl, Postman) fail</h3>
+<p><strong>Cause:</strong> External tools don't send the <code>x-transport-encryption: 1</code> header, so the server doesn't encrypt responses. However, if you send an encrypted request body (<code>{ _enc: "..." }</code>), the server will try to decrypt it.</p>
+<p><strong>Fix:</strong> For external API access, either disable encryption for those endpoints or don't include the encryption header — the server only encrypts responses when the client explicitly requests it.</p>
+</div>
+
+<div class="card">
+<h3>Performance impact</h3>
+<p>AES-256-CBC encryption/decryption is very fast (hardware-accelerated on modern CPUs). The overhead is typically &lt;1ms per request. For "Encrypt All" mode, you might notice ~2-5ms total overhead across all dashboard API calls. This is negligible compared to network latency.</p>
+</div>
+
+<h2 id="technical-details">Technical Details</h2>
+
+<div class="card">
+<h3>Cryptographic Specifications</h3>
+<table>
+<tr><th>Component</th><th>Algorithm</th><th>Details</th></tr>
+<tr><td>Encryption</td><td>AES-256-CBC</td><td>256-bit key, PKCS7 padding</td></tr>
+<tr><td>Key Derivation</td><td>SHA-256</td><td>Separate keys for encryption and HMAC</td></tr>
+<tr><td>Integrity</td><td>SHA-256 checksum</td><td>First 16 hex chars of hash</td></tr>
+<tr><td>Authentication</td><td>HMAC-SHA256</td><td>Signs IV + ciphertext + timestamp + checksum</td></tr>
+<tr><td>IV Generation</td><td>CSPRNG</td><td>16 random bytes per message</td></tr>
+<tr><td>Server Implementation</td><td>Node.js <code>crypto</code></td><td>Native, hardware-accelerated</td></tr>
+<tr><td>Client Implementation</td><td>Web Crypto API</td><td>Browser-native, no dependencies</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3>Encrypted Payload Format</h3>
+<pre><code>// Base64-encoded JSON envelope:
+{
+  "v": 1,           // Protocol version
+  "iv": "...",      // Hex-encoded 16-byte IV
+  "d": "...",       // Base64-encoded AES-256-CBC ciphertext
+  "ts": 1709510400, // Unix timestamp (ms)
+  "cs": "...",      // SHA-256 checksum (first 16 hex chars)
+  "sig": "..."      // HMAC-SHA256 signature (first 32 hex chars)
+}
+
+// Wire format: { "_enc": "&lt;base64 of above JSON&gt;" }</code></pre>
+</div>
+
+<div class="card">
+<h3>Source Files</h3>
+<ul>
+<li><strong>Server middleware:</strong> <code>src/middleware/transport-encryption.ts</code></li>
+<li><strong>Dashboard client:</strong> <code>src/dashboard/components/transport-encryption.js</code></li>
+<li><strong>Settings UI:</strong> <code>src/dashboard/pages/settings.js</code> (ComprehensiveSecurityTab)</li>
+<li><strong>Route wiring:</strong> <code>src/engine/routes.ts</code></li>
+</ul>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="nav-links">
+<a href="/docs/settings">Settings</a>
+<a href="/docs/vault">Vault & Secrets</a>
+<a href="/docs/database-access">Database Access</a>
+<a href="/docs/organizations">Organizations</a>
+<a href="/docs/agent-email">Agent Email</a>
+<a href="/docs/skills">Skills</a>
+</div>
+
+<hr style="margin: 32px 0; border: none; border-top: 1px solid var(--border);">
+<p style="font-size: 12px; color: var(--text-muted);">AgenticMail Enterprise Documentation &mdash; Transport Encryption<br>Found an issue? <a href="https://github.com/agenticmail/enterprise/issues" target="_blank">Report it on GitHub</a></p>
+</body>
+</html>

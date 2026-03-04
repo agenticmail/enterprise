@@ -352,10 +352,47 @@ export class PermissionEngine {
   private skills: Map<string, SkillDefinition> = new Map();
   private profiles: Map<string, AgentPermissionProfile> = new Map();
   private engineDb?: import('./db-adapter.js').EngineDatabase;
+  private refreshTimer?: ReturnType<typeof setInterval>;
 
   constructor(skills?: SkillDefinition[]) {
     if (skills) {
       for (const s of skills) this.skills.set(s.id, s);
+    }
+  }
+
+  /**
+   * Refresh all permission profiles from DB.
+   * Called periodically so dashboard changes take effect without agent restart.
+   */
+  async refreshProfiles(): Promise<void> {
+    if (!this.engineDb) return;
+    try {
+      const profiles = await this.engineDb.getAllPermissionProfiles();
+      for (const profile of profiles) {
+        if (profile && profile.id) {
+          this.profiles.set(profile.id, profile);
+        }
+      }
+    } catch { /* table may not exist yet */ }
+  }
+
+  /**
+   * Start periodic profile refresh (default: every 30s).
+   * Call after setDb() to keep profiles in sync with dashboard changes.
+   */
+  startAutoRefresh(intervalMs = 30_000): void {
+    if (this.refreshTimer) return;
+    this.refreshTimer = setInterval(() => {
+      this.refreshProfiles().catch(() => {});
+    }, intervalMs);
+    // Don't block process exit
+    if (this.refreshTimer?.unref) this.refreshTimer.unref();
+  }
+
+  stopAutoRefresh(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = undefined;
     }
   }
 

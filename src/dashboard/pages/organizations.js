@@ -1,7 +1,10 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 import { Modal } from '../components/modal.js';
+import { invalidateOrgCache } from '../components/org-switcher.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 function slugify(text) {
   return (text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -53,6 +56,26 @@ export function OrganizationsPage() {
   var billingSummary = _billingSummary[0]; var setBillingSummary = _billingSummary[1];
   var _billingRecords = useState([]);
   var billingRecords = _billingRecords[0]; var setBillingRecords = _billingRecords[1];
+  // Integrations state
+  var _integrations = useState([]);
+  var integrations = _integrations[0]; var setIntegrations = _integrations[1];
+  var _intLoading = useState(false);
+  var intLoading = _intLoading[0]; var setIntLoading = _intLoading[1];
+  var _showAddInt = useState(false);
+  var showAddInt = _showAddInt[0]; var setShowAddInt = _showAddInt[1];
+  var _intForm = useState({ provider: 'google', clientId: '', clientSecret: '', email: '', tenantId: '', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', imapHost: '', imapPort: 993, domain: '' });
+  var intForm = _intForm[0]; var setIntForm = _intForm[1];
+  var _intActing = useState('');
+  var intActing = _intActing[0]; var setIntActing = _intActing[1];
+
+  var loadIntegrations = function(orgId) {
+    if (!orgId) return;
+    setIntLoading(true);
+    engineCall('/org-integrations?orgId=' + orgId)
+      .then(function(d) { setIntegrations(d.integrations || []); })
+      .catch(function() { setIntegrations([]); })
+      .finally(function() { setIntLoading(false); });
+  };
 
   var loadOrgs = useCallback(function() {
     setLoading(true);
@@ -92,6 +115,7 @@ export function OrganizationsPage() {
     }).catch(function(err) { toast(err.message, 'error'); });
     apiCall('/organizations/' + org.id + '/billing-summary').then(function(d) { setBillingSummary(d.summary || []); }).catch(function() {});
     apiCall('/organizations/' + org.id + '/billing').then(function(d) { setBillingRecords(d.records || []); }).catch(function() {});
+    loadIntegrations(org.id);
   };
 
   var doCreate = function() {
@@ -101,6 +125,7 @@ export function OrganizationsPage() {
       body: JSON.stringify({ name: fname, slug: fslug, contact_name: fcontact, contact_email: femail, description: fdesc, billing_rate_per_agent: fbilling ? parseFloat(fbilling) : 0, currency: fcurrency })
     }).then(function() {
       toast('Organization created', 'success');
+      invalidateOrgCache();
       setShowCreate(false);
       loadOrgs();
     }).catch(function(err) { toast(err.message, 'error'); })
@@ -139,6 +164,7 @@ export function OrganizationsPage() {
       apiCall('/organizations/' + org.id, { method: 'DELETE' })
       .then(function() {
         toast('Organization deleted', 'success');
+        invalidateOrgCache();
         loadOrgs();
         if (detailOrg && detailOrg.id === org.id) setDetailOrg(null);
       }).catch(function(err) { toast(err.message, 'error'); })
@@ -146,14 +172,33 @@ export function OrganizationsPage() {
     });
   };
 
-  var doAssignAgent = function() {
+  var doAssignAgent = async function() {
     if (!assignAgentId || !detailOrg) return;
+    // Check if agent already belongs to another org
+    var selectedAgent = allAgents.find(function(a) { return a.id === assignAgentId; });
+    var existingOrgId = selectedAgent && (selectedAgent.client_org_id || selectedAgent.clientOrgId);
+    if (existingOrgId && existingOrgId !== detailOrg.id) {
+      var existingOrgName = orgs.find(function(o) { return o.id === existingOrgId; });
+      var ok = await window.__showConfirm({
+        title: 'Reassign Agent to Different Organization',
+        message: 'This agent currently belongs to "' + (existingOrgName ? existingOrgName.name : existingOrgId) + '".\n\nReassigning to "' + detailOrg.name + '" will:\n\n' +
+          '\u2022 Clear email configuration (IMAP/SMTP/OAuth) from the previous organization\n' +
+          '\u2022 Clear per-agent skill credentials scoped to the previous organization\n' +
+          '\u2022 Remove previous organization-level integration access\n\n' +
+          'The agent will inherit integrations from "' + detailOrg.name + '" instead.',
+        danger: true,
+        confirmText: 'Reassign & Clear Credentials'
+      });
+      if (!ok) return;
+    }
     setActing('assign');
     apiCall('/agents/' + assignAgentId + '/assign-org', {
       method: 'POST',
       body: JSON.stringify({ orgId: detailOrg.id })
-    }).then(function() {
-      toast('Agent assigned', 'success');
+    }).then(function(d) {
+      var msg = 'Agent assigned';
+      if (d.reassigned && d.credentialsCleared > 0) msg = 'Reassigned (' + d.credentialsCleared + ' old credential(s) cleared)';
+      toast(msg, 'success');
       setAssignAgentId('');
       openDetail(detailOrg);
       loadOrgs();
@@ -161,11 +206,24 @@ export function OrganizationsPage() {
     .finally(function() { setActing(''); });
   };
 
-  var doUnassignAgent = function(agentId) {
+  var doUnassignAgent = async function(agentId) {
+    var agentName = (detailAgents.find(function(a) { return a.id === agentId; }) || {}).name || agentId;
+    var ok = await window.__showConfirm({
+      title: 'Unassign Agent from Organization',
+      message: 'Remove "' + agentName + '" from "' + detailOrg.name + '"?\n\nThis will clear:\n\n' +
+        '\u2022 Email configuration inherited from this organization\n' +
+        '\u2022 Per-agent skill credentials scoped to this organization\n' +
+        '\u2022 Organization-level integration access',
+      danger: true,
+      confirmText: 'Unassign & Clear Credentials'
+    });
+    if (!ok) return;
     setActing('unassign-' + agentId);
     apiCall('/agents/' + agentId + '/unassign-org', { method: 'POST' })
-    .then(function() {
-      toast('Agent unassigned', 'success');
+    .then(function(d) {
+      var msg = 'Agent unassigned';
+      if (d.credentialsCleared > 0) msg += ' (' + d.credentialsCleared + ' credential(s) cleared)';
+      toast(msg, 'success');
       openDetail(detailOrg);
       loadOrgs();
     }).catch(function(err) { toast(err.message, 'error'); })
@@ -184,6 +242,7 @@ export function OrganizationsPage() {
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
         h('h1', { style: { fontSize: 20, fontWeight: 700 } }, 'Organizations'),
+        h(KnowledgeLink, { page: 'organizations' }),
         h(HelpButton, { label: 'Organizations' },
           h('p', null, 'Manage client organizations and assign agents to them. Each organization represents a tenant or client that your agents serve.'),
           h('ul', { style: { paddingLeft: 20, margin: '8px 0' } },
@@ -358,12 +417,13 @@ export function OrganizationsPage() {
 
         // Tabs
         h('div', { style: { display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16 } },
-          ['agents', 'billing'].map(function(t) {
+          ['agents', 'integrations', 'billing'].map(function(t) {
+            var label = t === 'agents' ? 'Agents (' + detailAgents.length + ')' : t === 'integrations' ? 'Integrations' : 'Billing & Costs';
             return h('button', {
               key: t, type: 'button',
               style: { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', color: detailTab === t ? 'var(--primary)' : 'var(--text-muted)', borderBottom: detailTab === t ? '2px solid var(--primary)' : '2px solid transparent', fontFamily: 'var(--font)' },
               onClick: function() { setDetailTab(t); }
-            }, t === 'agents' ? 'Agents (' + detailAgents.length + ')' : 'Billing & Costs');
+            }, label);
           })
         ),
 
@@ -403,6 +463,235 @@ export function OrganizationsPage() {
           h('button', { className: 'btn btn-primary btn-sm', disabled: !assignAgentId || acting === 'assign', onClick: doAssignAgent }, acting === 'assign' ? 'Assigning...' : 'Assign')
         )
         ), // end agents tab
+
+        // ── Integrations Tab ──────────────────────
+        detailTab === 'integrations' && h(Fragment, null,
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
+            h('div', null,
+              h('div', { style: { fontSize: 14, fontWeight: 700 } }, 'Organization Integrations'),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Configure credentials that all agents in this organization will use')
+            ),
+            h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setShowAddInt(true); setIntForm({ provider: 'google', clientId: '', clientSecret: '', email: '', tenantId: '', smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', imapHost: '', imapPort: 993, domain: '' }); } }, '+ Add Integration')
+          ),
+
+          intLoading && h('div', { style: { padding: 24, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading...'),
+
+          !intLoading && integrations.length === 0 && h('div', { style: { padding: 32, textAlign: 'center', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)' } },
+            h('div', { style: { marginBottom: 8 } }, E.link(32)),
+            h('div', { style: { fontWeight: 600, marginBottom: 4 } }, 'No integrations configured'),
+            h('div', { style: { fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 } }, 'Add Google Workspace, Microsoft 365, or SMTP credentials so agents in this organization can access email, calendar, drive, and more.'),
+            h('button', { className: 'btn btn-primary btn-sm', onClick: function() { setShowAddInt(true); } }, 'Add First Integration')
+          ),
+
+          !intLoading && integrations.length > 0 && h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
+            integrations.map(function(integ) {
+              var providerIcon = integ.provider === 'google' ? E.google(16) : integ.provider === 'microsoft' ? E.blueDiamond(16) : integ.provider === 'smtp' ? E.email(16) : E.gear(16);
+              var providerLabel = integ.provider === 'google' ? 'Google Workspace' : integ.provider === 'microsoft' ? 'Microsoft 365' : integ.provider === 'smtp' ? 'SMTP / IMAP' : integ.provider;
+              var statusColor = integ.status === 'active' ? 'var(--success, #15803d)' : integ.status === 'error' ? 'var(--danger)' : 'var(--text-muted)';
+              return h('div', { key: integ.id, className: 'card', style: { padding: 16 } },
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                    h('span', { style: { display: 'inline-flex' } }, providerIcon),
+                    h('div', null,
+                      h('div', { style: { fontWeight: 600, fontSize: 14 } }, integ.displayName || providerLabel),
+                      h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } },
+                        integ.config.email && h('span', null, integ.config.email, ' \u2022 '),
+                        h('span', { style: { color: statusColor } }, integ.status),
+                        integ.isDefault && h('span', { className: 'badge', style: { marginLeft: 8, background: 'var(--primary)', color: '#fff', fontSize: 10 } }, 'Default'),
+                        integ.config._hasRefreshToken && h('span', { className: 'badge', style: { marginLeft: 8, background: 'var(--success, #15803d)', color: '#fff', fontSize: 10 } }, 'OAuth Connected'),
+                        integ.config._hasSmtpPass && h('span', { className: 'badge', style: { marginLeft: 8, background: 'var(--info, #0ea5e9)', color: '#fff', fontSize: 10 } }, 'SMTP Configured')
+                      )
+                    )
+                  ),
+                  h('div', { style: { display: 'flex', gap: 6 } },
+                    (integ.provider === 'google' || integ.provider === 'microsoft') && h('button', {
+                      className: 'btn btn-sm',
+                      disabled: intActing === 'test-' + integ.id,
+                      onClick: function() {
+                        setIntActing('test-' + integ.id);
+                        engineCall('/org-integrations/' + integ.id + '/test', { method: 'POST' })
+                          .then(function(r) {
+                            if (r.success) toast('Connected! Email: ' + (r.email || 'verified'), 'success');
+                            else toast('Test failed: ' + (r.error || 'Unknown'), 'error');
+                          })
+                          .catch(function(e) { toast(e.message, 'error'); })
+                          .finally(function() { setIntActing(''); });
+                      }
+                    }, intActing === 'test-' + integ.id ? 'Testing...' : 'Test'),
+                    h('button', {
+                      className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)' },
+                      disabled: intActing === 'del-' + integ.id,
+                      onClick: function() {
+                        if (!confirm('Delete this integration? Agents using it will lose access.')) return;
+                        setIntActing('del-' + integ.id);
+                        engineCall('/org-integrations/' + integ.id, { method: 'DELETE' })
+                          .then(function() { toast('Integration deleted', 'success'); loadIntegrations(detailOrg.id); })
+                          .catch(function(e) { toast(e.message, 'error'); })
+                          .finally(function() { setIntActing(''); });
+                      }
+                    }, 'Delete')
+                  )
+                ),
+                // Show config details
+                h('div', { style: { marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', fontSize: 12, color: 'var(--text-muted)' } },
+                  integ.config.clientId && h(Fragment, null, h('span', null, 'Client ID'), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 11 } }, integ.config.clientId.slice(0, 20) + '...')),
+                  integ.domain && h(Fragment, null, h('span', null, 'Domain'), h('span', null, integ.domain)),
+                  integ.config.tenantId && h(Fragment, null, h('span', null, 'Tenant ID'), h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 11 } }, integ.config.tenantId)),
+                  integ.config.smtpHost && h(Fragment, null, h('span', null, 'SMTP'), h('span', null, integ.config.smtpHost + ':' + (integ.config.smtpPort || 587))),
+                  integ.config.imapHost && h(Fragment, null, h('span', null, 'IMAP'), h('span', null, integ.config.imapHost + ':' + (integ.config.imapPort || 993))),
+                  integ.scopes && h(Fragment, null, h('span', null, 'Scopes'), h('span', { style: { fontSize: 10, wordBreak: 'break-all' } }, integ.scopes.split(' ').length + ' scopes granted'))
+                )
+              );
+            })
+          ),
+
+          // Add Integration Modal
+          showAddInt && h(Modal, { title: 'Add Integration', onClose: function() { setShowAddInt(false); }, width: 520 },
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 14, padding: 4 } },
+              h('div', null,
+                h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Provider'),
+                h('select', { className: 'input', value: intForm.provider, onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { provider: e.target.value }); }); } },
+                  h('option', { value: 'google' }, 'Google Workspace'),
+                  h('option', { value: 'microsoft' }, 'Microsoft 365'),
+                  h('option', { value: 'smtp' }, 'SMTP / IMAP (Generic)')
+                )
+              ),
+
+              // OAuth fields (Google / Microsoft)
+              (intForm.provider === 'google' || intForm.provider === 'microsoft') && h(Fragment, null,
+                h('div', { style: { padding: 12, background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', fontSize: 12 } },
+                  intForm.provider === 'google'
+                    ? h(Fragment, null,
+                        h('strong', null, 'Google Cloud Setup:'), h('br'),
+                        '1. Go to ', h('a', { href: 'https://console.cloud.google.com/apis/credentials', target: '_blank', style: { color: 'var(--accent)' } }, 'Google Cloud Console'), h('br'),
+                        '2. Create an OAuth 2.0 Client ID (Web application)', h('br'),
+                        '3. Add redirect URI: ', h('code', { style: { fontSize: 11 } }, window.location.origin + '/api/engine/org-integrations/oauth/callback'), h('br'),
+                        '4. Enable required APIs: Gmail, Calendar, Drive, etc.'
+                      )
+                    : h(Fragment, null,
+                        h('strong', null, 'Azure AD Setup:'), h('br'),
+                        '1. Go to ', h('a', { href: 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps', target: '_blank', style: { color: 'var(--accent)' } }, 'Azure App Registrations'), h('br'),
+                        '2. Register a new application', h('br'),
+                        '3. Add redirect URI: ', h('code', { style: { fontSize: 11 } }, window.location.origin + '/api/engine/org-integrations/oauth/callback'), h('br'),
+                        '4. Create a client secret under Certificates & secrets'
+                      )
+                ),
+                h('div', null,
+                  h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Client ID'),
+                  h('input', { className: 'input', value: intForm.clientId, placeholder: 'OAuth Client ID', onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { clientId: e.target.value }); }); } })
+                ),
+                h('div', null,
+                  h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Client Secret'),
+                  h('input', { className: 'input', type: 'password', value: intForm.clientSecret, placeholder: 'OAuth Client Secret', onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { clientSecret: e.target.value }); }); } })
+                ),
+                intForm.provider === 'microsoft' && h('div', null,
+                  h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Tenant ID (optional)'),
+                  h('input', { className: 'input', value: intForm.tenantId, placeholder: 'Azure AD Tenant ID (or "common")', onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { tenantId: e.target.value }); }); } })
+                ),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', {
+                    className: 'btn btn-primary',
+                    disabled: !intForm.clientId || !intForm.clientSecret || intActing === 'oauth',
+                    onClick: function() {
+                      setIntActing('oauth');
+                      engineCall('/org-integrations/oauth/authorize', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          orgId: detailOrg.id,
+                          provider: intForm.provider,
+                          clientId: intForm.clientId,
+                          clientSecret: intForm.clientSecret,
+                          tenantId: intForm.tenantId || undefined,
+                          redirectUri: window.location.origin + '/api/engine/org-integrations/oauth/callback',
+                        })
+                      }).then(function(r) {
+                        if (r.authUrl) {
+                          // Open OAuth popup
+                          var popup = window.open(r.authUrl, 'org-oauth', 'width=600,height=700');
+                          // Listen for completion
+                          var listener = function(e) {
+                            if (e.data && e.data.type === 'org-oauth-result') {
+                              window.removeEventListener('message', listener);
+                              setIntActing('');
+                              if (e.data.status === 'success') {
+                                toast('Connected! Email: ' + (e.data.email || 'verified'), 'success');
+                                setShowAddInt(false);
+                                loadIntegrations(detailOrg.id);
+                              } else {
+                                toast('OAuth failed: ' + (e.data.message || 'Unknown'), 'error');
+                              }
+                            }
+                          };
+                          window.addEventListener('message', listener);
+                          // Timeout after 5 min
+                          setTimeout(function() { window.removeEventListener('message', listener); setIntActing(''); }, 300000);
+                        }
+                      }).catch(function(e) { toast(e.message, 'error'); setIntActing(''); });
+                    }
+                  }, intActing === 'oauth' ? 'Connecting...' : 'Connect with OAuth'),
+                  h('button', { className: 'btn btn-ghost', onClick: function() { setShowAddInt(false); } }, 'Cancel')
+                )
+              ),
+
+              // SMTP fields
+              intForm.provider === 'smtp' && h(Fragment, null,
+                h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+                  h('div', null,
+                    h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'SMTP Host'),
+                    h('input', { className: 'input', value: intForm.smtpHost, placeholder: 'smtp.example.com', onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { smtpHost: e.target.value }); }); } })
+                  ),
+                  h('div', null,
+                    h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'SMTP Port'),
+                    h('input', { className: 'input', type: 'number', value: intForm.smtpPort, onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { smtpPort: parseInt(e.target.value) || 587 }); }); } })
+                  ),
+                  h('div', null,
+                    h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'IMAP Host'),
+                    h('input', { className: 'input', value: intForm.imapHost, placeholder: 'imap.example.com', onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { imapHost: e.target.value }); }); } })
+                  ),
+                  h('div', null,
+                    h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'IMAP Port'),
+                    h('input', { className: 'input', type: 'number', value: intForm.imapPort, onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { imapPort: parseInt(e.target.value) || 993 }); }); } })
+                  )
+                ),
+                h('div', null,
+                  h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Email / Username'),
+                  h('input', { className: 'input', value: intForm.email, placeholder: 'agent@company.com', onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { email: e.target.value, smtpUser: e.target.value, imapUser: e.target.value }); }); } })
+                ),
+                h('div', null,
+                  h('label', { style: { fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Password / App Password'),
+                  h('input', { className: 'input', type: 'password', value: intForm.smtpPass, placeholder: 'App password', onChange: function(e) { setIntForm(function(f) { return Object.assign({}, f, { smtpPass: e.target.value, imapPass: e.target.value }); }); } })
+                ),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', {
+                    className: 'btn btn-primary',
+                    disabled: !intForm.smtpHost || !intForm.email || intActing === 'smtp',
+                    onClick: function() {
+                      setIntActing('smtp');
+                      engineCall('/org-integrations', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          orgId: detailOrg.id,
+                          provider: 'smtp',
+                          providerType: 'smtp',
+                          displayName: 'SMTP (' + intForm.email + ')',
+                          config: {
+                            email: intForm.email,
+                            smtpHost: intForm.smtpHost, smtpPort: intForm.smtpPort, smtpUser: intForm.smtpUser || intForm.email, smtpPass: intForm.smtpPass,
+                            imapHost: intForm.imapHost, imapPort: intForm.imapPort, imapUser: intForm.imapUser || intForm.email, imapPass: intForm.imapPass || intForm.smtpPass,
+                          },
+                          isDefault: true,
+                        })
+                      }).then(function() { toast('SMTP integration created', 'success'); setShowAddInt(false); loadIntegrations(detailOrg.id); })
+                        .catch(function(e) { toast(e.message, 'error'); })
+                        .finally(function() { setIntActing(''); });
+                    }
+                  }, intActing === 'smtp' ? 'Saving...' : 'Save SMTP Config'),
+                  h('button', { className: 'btn btn-ghost', onClick: function() { setShowAddInt(false); } }, 'Cancel')
+                )
+              )
+            )
+          )
+        ), // end integrations tab
 
         // ── Billing Tab ───────────────────────────
         detailTab === 'billing' && h(Fragment, null,

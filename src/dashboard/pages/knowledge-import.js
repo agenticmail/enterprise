@@ -272,7 +272,7 @@ export function KnowledgeImportWizard({ kbId, kbName, onClose, onDone }) {
         h('div', { style: { display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 16 } },
           stat('Discovered', prog.totalItems || 0),
           stat('Imported', prog.importedItems || 0, 'var(--success, #15803d)'),
-          prog.skippedItems > 0 && stat('Skipped', prog.skippedItems, 'var(--warning, #f59e0b)'),
+          prog.skippedItems > 0 && stat('Skipped', prog.skippedItems, 'var(--warning, #991b1b)'),
           prog.failedItems > 0 && stat('Failed', prog.failedItems, 'var(--danger, #ef4444)'),
         ),
 

@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getO
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 var PAGE_SIZE = 25;
 
@@ -80,7 +81,7 @@ var PLATFORM_PRESETS = [
 var catColor = function(cat) {
   if (cat === 'deploy') return '#6366f1';
   if (cat === 'cloud_storage') return '#0ea5e9';
-  if (cat === 'api_key') return '#f59e0b';
+  if (cat === 'api_key') return '#991b1b';
   if (cat === 'skill_credential') return '#15803d';
   return '#6b7280';
 };
@@ -89,7 +90,7 @@ var actionColor = function(action) {
   if (action === 'read' || action === 'decrypt') return '#0ea5e9';
   if (action === 'create' || action === 'encrypt') return '#15803d';
   if (action === 'delete') return '#ef4444';
-  if (action === 'rotate') return '#f59e0b';
+  if (action === 'rotate') return '#991b1b';
   if (action === 'migrate') return '#8b5cf6';
   return '#6b7280';
 };
@@ -573,7 +574,7 @@ export function VaultPage() {
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Vault', h(HelpButton, { label: 'Vault' },
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Vault', h(KnowledgeLink, { page: 'vault' }), h(HelpButton, { label: 'Vault' },
           h('p', null, 'Securely store and manage API keys, passwords, and credentials used by your agents. All secrets are encrypted at rest with AES-256-GCM.'),
           h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Key features'),
           h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },

@@ -25,6 +25,14 @@ export function EmailSection(props) {
   var saving = _saving[0]; var setSaving = _saving[1];
   var _showOauthHelp = useState(false);
   var showOauthHelp = _showOauthHelp[0]; var setShowOauthHelp = _showOauthHelp[1];
+  var _orgInfo = useState(null);
+  var orgInfo = _orgInfo[0]; var setOrgInfo = _orgInfo[1];
+  var _orgIntegrations = useState([]);
+  var orgIntegrations = _orgIntegrations[0]; var setOrgIntegrations = _orgIntegrations[1];
+  var _testingCreds = useState(false);
+  var testingCreds = _testingCreds[0]; var setTestingCreds = _testingCreds[1];
+  var _credTestResult = useState(null);
+  var credTestResult = _credTestResult[0]; var setCredTestResult = _credTestResult[1];
 
   // Form state
   var _form = useState({
@@ -39,6 +47,12 @@ export function EmailSection(props) {
     oauthClientId: '',
     oauthClientSecret: '',
     oauthTenantId: 'common',
+    // Multi-config: which integration to use for sending
+    sendingMethod: 'same', // 'same' (use selected provider) | 'smtp' (separate SMTP for sending)
+    smtpSendEmail: '',
+    smtpSendPassword: '',
+    smtpSendHost: '',
+    smtpSendPort: 587,
   });
   var form = _form[0]; var setForm = _form[1];
 
@@ -62,6 +76,11 @@ export function EmailSection(props) {
             smtpPort: d.smtpPort || 587,
             oauthClientId: d.oauthClientId || '',
             oauthTenantId: d.oauthTenantId || 'common',
+            // Load sending config override
+            sendingMethod: d.sendingConfig ? 'smtp' : 'same',
+            smtpSendEmail: d.sendingConfig ? d.sendingConfig.email || '' : '',
+            smtpSendHost: d.sendingConfig ? d.sendingConfig.smtpHost || '' : '',
+            smtpSendPort: d.sendingConfig ? d.sendingConfig.smtpPort || 587 : 587,
           }); });
         } else {
           // Pre-fill email from agent identity
@@ -77,6 +96,44 @@ export function EmailSection(props) {
   }
 
   useEffect(function() { loadConfig(); }, [agentId]);
+
+  // Fetch org info and org integrations if agent belongs to a client org
+  useEffect(function() {
+    var orgId = engineAgent.client_org_id;
+    if (orgId) {
+      apiCall('/organizations/' + orgId)
+        .then(function(org) { setOrgInfo(org); })
+        .catch(function() {});
+      // Load ALL org-level email integrations
+      engineCall('/org-integrations?orgId=' + orgId)
+        .then(function(d) {
+          var ints = (d.integrations || []).filter(function(i) {
+            return (i.provider === 'google' || i.provider === 'microsoft' || i.provider === 'smtp') && i.status === 'active';
+          });
+          setOrgIntegrations(ints);
+          if (ints.length > 0) {
+            // Set the best as default orgEmailConfig for banner
+            var best = ints.find(function(i) { return i.provider === 'google'; })
+              || ints.find(function(i) { return i.provider === 'microsoft'; })
+              || ints[0];
+            if (best) {
+              setEmailConfig(function(prev) {
+                return Object.assign({}, prev, {
+                  orgEmailConfig: {
+                    provider: best.provider,
+                    label: best.displayName || best.provider,
+                    integrationId: best.id,
+                    hasOAuth: !!(best.config && best.config._hasRefreshToken),
+                    email: best.config && best.config.email,
+                  }
+                });
+              });
+            }
+          }
+        })
+        .catch(function() {});
+    }
+  }, [engineAgent.client_org_id]);
 
   // Listen for OAuth popup completion
   useEffect(function() {
@@ -117,6 +174,16 @@ export function EmailSection(props) {
     setSaving(true);
     try {
       var body = { provider: form.provider, email: form.email };
+      // If using a separate SMTP for sending, attach that config
+      if (form.sendingMethod === 'smtp' && form.smtpSendHost) {
+        body.sendingConfig = {
+          provider: 'smtp',
+          email: form.smtpSendEmail || form.email,
+          password: form.smtpSendPassword,
+          smtpHost: form.smtpSendHost,
+          smtpPort: form.smtpSendPort || 587,
+        };
+      }
       if (form.provider === 'imap') {
         Object.assign(body, {
           password: form.password || undefined,
@@ -163,6 +230,25 @@ export function EmailSection(props) {
       toast(err.message, 'error');
     }
     setSaving(false);
+  }
+
+  // Test credentials WITHOUT saving (for SMTP before commit)
+  async function handleTestCredentials() {
+    setTestingCreds(true);
+    setCredTestResult(null);
+    var creds = form.sendingMethod === 'smtp'
+      ? { email: form.smtpSendEmail, password: form.smtpSendPassword, imapHost: '', imapPort: 0, smtpHost: form.smtpSendHost, smtpPort: form.smtpSendPort }
+      : { email: form.email, password: form.password, imapHost: form.imapHost, imapPort: form.imapPort, smtpHost: form.smtpHost, smtpPort: form.smtpPort };
+    try {
+      var result = await engineCall('/bridge/agents/' + agentId + '/email-config/test-credentials', { method: 'POST', body: JSON.stringify(creds) });
+      setCredTestResult(result);
+      if (result.success) toast('Credentials verified!', 'success');
+      else toast('Test failed — check credentials', 'error');
+    } catch (err) {
+      setCredTestResult({ success: false, error: err.message });
+      toast('Test failed: ' + err.message, 'error');
+    }
+    setTestingCreds(false);
   }
 
   // Test connection
@@ -238,9 +324,43 @@ export function EmailSection(props) {
     ),
     h('div', { className: 'card-body' },
 
-      // ─── Org Email Config Banner ──────────────────────
-      emailConfig && emailConfig.orgEmailConfig && h('div', { style: { padding: '12px 16px', background: 'var(--success-soft)', borderRadius: 'var(--radius)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 } },
-        h('span', { style: { fontSize: 18 } }, '\u2705'),
+      // ─── Client Org Context Banner ─────────────────────
+      engineAgent.client_org_id && orgInfo && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft)', borderRadius: 'var(--radius)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 } },
+        I.building(),
+        h('div', null,
+          h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'This agent belongs to ', h('strong', null, orgInfo.name || orgInfo.display_name || 'Organization'), '. Email configuration follows organization policies.'),
+          orgInfo.email_domain && h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, 'Organization email domain: ', h('code', { style: { fontSize: 11 } }, orgInfo.email_domain)),
+          orgInfo.email_restrictions && h('div', { style: { fontSize: 12, color: 'var(--warning)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 } }, I.warning(), ' Org restrictions: ', orgInfo.email_restrictions)
+        )
+      ),
+
+      // ─── Org Email Integrations ─────────────────────
+      orgIntegrations.length > 0 && h('div', { style: { padding: '14px 16px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 16 } },
+        h('div', { style: { fontWeight: 600, fontSize: 13, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 } }, I.building(), 'Organization Email Integrations'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 } }, 'Your organization has ', orgIntegrations.length, ' email integration(s) configured. Select one below, or configure a separate connection.'),
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          orgIntegrations.map(function(int) {
+            var provLabel = int.provider === 'google' ? 'Google Workspace' : int.provider === 'microsoft' ? 'Microsoft 365' : 'SMTP';
+            var isActive = form.provider === int.provider;
+            return h('button', {
+              key: int.id,
+              className: 'btn btn-sm ' + (isActive ? 'btn-primary' : 'btn-ghost'),
+              onClick: function() {
+                set('provider', int.provider);
+                if (int.config && int.config.email) set('email', int.config.email);
+              }
+            }, provLabel, int.config && int.config.email ? ' (' + int.config.email + ')' : '');
+          }),
+          h('button', {
+            className: 'btn btn-sm ' + (form.provider === 'imap' && !orgIntegrations.find(function(i) { return i.provider === 'imap'; }) ? 'btn-primary' : 'btn-ghost'),
+            onClick: function() { set('provider', 'imap'); }
+          }, 'Manual SMTP/IMAP')
+        )
+      ),
+
+      // ─── Org Email Config Banner (single integration) ──
+      !orgIntegrations.length && emailConfig && emailConfig.orgEmailConfig && h('div', { style: { padding: '12px 16px', background: 'var(--success-soft)', borderRadius: 'var(--radius)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 } },
+        E.checkCircle(18),
         h('div', null,
           h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'Your organization has configured ', emailConfig.orgEmailConfig.label || emailConfig.orgEmailConfig.provider),
           h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Select ', emailConfig.orgEmailConfig.provider === 'google' ? 'Google OAuth' : 'Microsoft OAuth', ' below — Client ID and Secret will be inherited automatically.')
@@ -327,10 +447,20 @@ export function EmailSection(props) {
 
         h('div', { style: { padding: '12px 16px', background: 'var(--info-soft)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--info)', marginBottom: 16 } },
           h('strong', null, 'How to set up:'), h('br'),
-          '1. Create an email account for this agent in your email system (e.g., Microsoft 365 Admin Center or Google Admin Console)', h('br'),
-          '2. Create an app password for that account (regular passwords may not work with 2FA enabled)', h('br'),
-          '3. Enter the email and app password above, select your provider, and hit Save', h('br'),
-          '4. Click "Test Connection" to verify everything works'
+          '1. Create an email account for this agent in your email system', h('br'),
+          '2. Create an app password (regular passwords may not work with 2FA)', h('br'),
+          '3. Enter the email and app password above, select your provider', h('br'),
+          '4. Click "Test Credentials" to verify before saving', h('br'),
+          '5. Click "Save Configuration" once credentials are verified'
+        ),
+
+        // Test credentials button (before save)
+        form.email && form.password && (form.imapHost || form.smtpHost) && h('div', { style: { marginBottom: 16 } },
+          h('button', {
+            className: 'btn btn-sm btn-secondary',
+            disabled: testingCreds,
+            onClick: handleTestCredentials
+          }, testingCreds ? 'Testing Credentials...' : 'Test Credentials (Before Save)')
         )
       ),
 
@@ -374,7 +504,7 @@ export function EmailSection(props) {
         return h(Fragment, null,
         hasOrg
           ? h('div', { style: { padding: '12px 16px', background: 'var(--success-soft)', borderRadius: 'var(--radius)', fontSize: 12, marginBottom: 16 } },
-              h('strong', null, '\u2705 Using organization Google Workspace credentials'), h('br'),
+              h('strong', { style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, I.check(), ' Using organization Google Workspace credentials'), h('br'),
               'Client ID: ', h('code', { style: { fontSize: 11 } }, emailConfig.orgEmailConfig.oauthClientId), h('br'),
               h('span', { style: { color: 'var(--text-muted)' } }, 'Just click "Save Configuration" then authorize with the agent\'s Google account.')
             )
@@ -418,6 +548,70 @@ export function EmailSection(props) {
             )
       ),
 
+      // ─── Credential Test Result ───────────────────────
+      credTestResult && h('div', { style: { padding: '12px 16px', borderRadius: 'var(--radius)', marginBottom: 16, background: credTestResult.success ? 'var(--success-soft)' : 'var(--danger-soft)' } },
+        credTestResult.success
+          ? h(Fragment, null,
+              h('div', { style: { fontWeight: 600, color: 'var(--success)', marginBottom: 4, fontSize: 13 } }, 'Credentials Verified'),
+              credTestResult.imap && credTestResult.imap.success && h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'IMAP: Connected — ', credTestResult.imap.inbox.total, ' messages (', credTestResult.imap.inbox.unread, ' unread)'),
+              credTestResult.smtp && credTestResult.smtp.success && h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'SMTP: Connection verified'),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 4 } }, 'You can now save the configuration.')
+            )
+          : h(Fragment, null,
+              h('div', { style: { fontWeight: 600, color: 'var(--danger)', marginBottom: 4, fontSize: 13 } }, 'Credential Test Failed'),
+              credTestResult.imap && !credTestResult.imap.success && h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'IMAP: ', credTestResult.imap.error),
+              credTestResult.smtp && !credTestResult.smtp.success && h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'SMTP: ', credTestResult.smtp.error),
+              credTestResult.error && h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, credTestResult.error)
+            )
+      ),
+
+      // ─── Sending Method Override ────────────────────
+      (form.provider === 'google' || form.provider === 'microsoft') && h('details', { style: { marginBottom: 16, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 16px' } },
+        h('summary', { style: { cursor: 'pointer', fontWeight: 600, fontSize: 13 } }, 'Advanced: Use Different SMTP for Sending'),
+        h('div', { style: { marginTop: 12 } },
+          h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 } }, 'If your agent\'s profile email uses ', form.provider === 'google' ? 'Google' : 'Microsoft', ' for receiving but you want to send via a separate SMTP server (e.g., a different email address, transactional email service, or custom SMTP relay):'),
+
+          h('div', { style: { display: 'flex', gap: 12, marginBottom: 12 } },
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 } },
+              h('input', { type: 'radio', name: 'sendingMethod', checked: form.sendingMethod === 'same', onChange: function() { set('sendingMethod', 'same'); } }),
+              'Send via ', form.provider === 'google' ? 'Gmail API' : 'Microsoft Graph', ' (default)'
+            ),
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 } },
+              h('input', { type: 'radio', name: 'sendingMethod', checked: form.sendingMethod === 'smtp', onChange: function() { set('sendingMethod', 'smtp'); } }),
+              'Send via separate SMTP'
+            )
+          ),
+
+          form.sendingMethod === 'smtp' && h(Fragment, null,
+            h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 } },
+              h('div', null,
+                h('label', { style: labelStyle }, 'SMTP Email Address'),
+                h('input', { className: 'input', value: form.smtpSendEmail, placeholder: 'send@company.com', onChange: function(e) { set('smtpSendEmail', e.target.value); } })
+              ),
+              h('div', null,
+                h('label', { style: labelStyle }, 'SMTP Password / App Password'),
+                h('input', { className: 'input', type: 'password', value: form.smtpSendPassword, placeholder: 'Enter password', onChange: function(e) { set('smtpSendPassword', e.target.value); } })
+              )
+            ),
+            h('div', { style: { display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 } },
+              h('div', null,
+                h('label', { style: labelStyle }, 'SMTP Host'),
+                h('input', { className: 'input', value: form.smtpSendHost, placeholder: 'smtp.gmail.com', onChange: function(e) { set('smtpSendHost', e.target.value); } })
+              ),
+              h('div', null,
+                h('label', { style: labelStyle }, 'SMTP Port'),
+                h('input', { className: 'input', type: 'number', value: form.smtpSendPort, onChange: function(e) { set('smtpSendPort', parseInt(e.target.value) || 587); } })
+              )
+            ),
+            h('button', {
+              className: 'btn btn-sm btn-secondary',
+              disabled: testingCreds || !form.smtpSendHost || !form.smtpSendEmail || !form.smtpSendPassword,
+              onClick: handleTestCredentials
+            }, testingCreds ? 'Testing...' : 'Test SMTP Credentials')
+          )
+        )
+      ),
+
       // ─── Error display ────────────────────────────────
       emailConfig && emailConfig.lastError && h('div', { style: { padding: '8px 12px', background: 'var(--danger-soft)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--danger)', marginBottom: 16 } },
         h('strong', null, 'Last Error: '), emailConfig.lastError
@@ -442,7 +636,37 @@ export function EmailSection(props) {
               .catch(function(e) { toast('Error: ' + e.message, 'error'); });
           }
         }, 'Re-authorize (Update Scopes)'),
-        emailConfig && emailConfig.configured && h('button', { className: 'btn btn-danger btn-ghost', onClick: function() { if (confirm('Disconnect email? The agent will no longer be able to send/receive.')) handleDisconnect(); } }, 'Disconnect')
+        emailConfig && emailConfig.configured && h('button', { className: 'btn btn-danger btn-ghost', onClick: function() { if (confirm('Disconnect email? The agent will no longer be able to send/receive.')) handleDisconnect(); } }, 'Disconnect'),
+        h('button', {
+          className: 'btn btn-ghost btn-sm',
+          style: { color: 'var(--danger)', marginLeft: 'auto' },
+          onClick: async function() {
+            var ok = await window.__showConfirm({
+              title: 'Clear All Email Configuration',
+              message: 'This will remove ALL email config for this agent:\n\n' +
+                '\u2022 IMAP/SMTP credentials\n' +
+                '\u2022 OAuth tokens (Google / Microsoft)\n' +
+                '\u2022 Organization-inherited email settings\n\n' +
+                'The agent will no longer be able to send or receive emails until reconfigured.',
+              danger: true,
+              confirmText: 'Clear Email Config'
+            });
+            if (!ok) return;
+            try {
+              // Clear agent-level email config
+              await engineCall('/bridge/agents/' + agentId + '/email-config', { method: 'DELETE' }).catch(function() {});
+              // Also clear from managed_agents config directly
+              await engineCall('/agents/' + agentId + '/clear-email', { method: 'POST' }).catch(function() {});
+              toast('Email configuration cleared', 'success');
+              setEmailConfig(null);
+              setTestResult(null);
+              loadConfig();
+              if (reload) reload();
+            } catch (err) {
+              toast(err.message || 'Failed to clear', 'error');
+            }
+          }
+        }, 'Clear All Config')
       )
     )
   );

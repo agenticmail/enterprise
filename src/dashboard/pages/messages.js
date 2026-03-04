@@ -1,7 +1,9 @@
 import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, buildAgentEmailMap, resolveAgentEmail, buildAgentDataMap, renderAgentBadge, getOrgId , apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function MessagesPage() {
   var orgCtx = useOrgContext();
@@ -44,8 +46,8 @@ export function MessagesPage() {
     : subTab === 'external' ? messages.filter(m => m.direction === 'external_outbound' || m.direction === 'external_inbound')
     : messages.filter(m => m.type === subTab);
 
-  const typeIcon = (t) => t === 'task' ? '\uD83D\uDCCB' : t === 'handoff' ? '\uD83E\uDD1D' : t === 'broadcast' ? '\uD83D\uDCE2' : '\uD83D\uDCAC';
-  const channelIcon = (ch) => ch === 'email' ? '\uD83D\uDCE7' : ch === 'task' ? '\uD83D\uDCCB' : '\uD83D\uDCAC';
+  const typeIcon = (t) => t === 'task' ? E.clipboard(14) : t === 'handoff' ? E.sync(14) : t === 'broadcast' ? E.bell(14) : E.chat(14);
+  const channelIcon = (ch) => ch === 'email' ? E.email(14) : ch === 'task' ? E.clipboard(14) : E.chat(14);
   const dirBadge = (dir) => {
     if (dir === 'internal') return h('span', { className: 'status-badge', style: { background: 'rgba(59,130,246,0.15)', color: '#3b82f6' } }, 'Internal');
     if (dir === 'external_outbound') return h('span', { className: 'status-badge', style: { background: 'rgba(249,115,22,0.15)', color: '#f97316' } }, 'Ext Out');
@@ -205,7 +207,7 @@ export function MessagesPage() {
   return h('div', { className: 'page-inner' },
     h(orgCtx.Switcher),
     // Page header
-    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Agent Messages', h(HelpButton, { label: 'Agent Messages' },
+    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Agent Messages', h(KnowledgeLink, { page: 'messages' }), h(HelpButton, { label: 'Agent Messages' },
       h('p', null, 'All inter-agent and external communications in one place. See how your agents talk to each other and to the outside world.'),
       h('h4', { style: _h4 }, 'Message types'),
       h('ul', { style: _ul },
@@ -235,8 +237,8 @@ export function MessagesPage() {
 
     // Main tabs: Messages | Topology
     h('div', { className: 'tabs', style: { marginBottom: 16 } },
-      h('button', { className: 'tab' + (mainTab === 'messages' ? ' active' : ''), onClick: () => setMainTab('messages') }, 'Messages'),
-      h('button', { className: 'tab' + (mainTab === 'topology' ? ' active' : ''), onClick: () => setMainTab('topology') }, 'Topology')
+      h('button', { className: 'tab' + (mainTab === 'messages' ? ' active' : ''), onClick: () => setMainTab('messages'), style: { display: 'flex', alignItems: 'center', gap: 6 } }, I.messages(), 'Messages'),
+      h('button', { className: 'tab' + (mainTab === 'topology' ? ' active' : ''), onClick: () => setMainTab('topology'), style: { display: 'flex', alignItems: 'center', gap: 6 } }, I.orgChart(), 'Topology')
     ),
 
     // Messages tab content

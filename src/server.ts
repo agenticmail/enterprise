@@ -287,6 +287,23 @@ export function createServer(config: ServerConfig): ServerInstance {
   // Audit logging on all API mutations
   api.use('*', auditLogger(config.db));
 
+  // Transport encryption middleware — encrypts/decrypts sensitive API calls
+  api.use('*', async (c, next) => {
+    try {
+      const { transportEncryptionMiddleware } = await import('./middleware/transport-encryption.js');
+      const mw = transportEncryptionMiddleware();
+      return mw(c, next);
+    } catch {
+      return next();
+    }
+  });
+
+  // Load transport encryption config from DB early
+  import('./middleware/transport-encryption.js').then(({ setSettingsDb, loadConfig }) => {
+    setSettingsDb(config.db);
+    loadConfig().catch(() => {});
+  }).catch(() => {});
+
   // Admin routes
   const adminRoutes = createAdminRoutes(config.db);
   api.route('/', adminRoutes);
@@ -342,7 +359,24 @@ export function createServer(config: ServerConfig): ServerInstance {
               if (lc) {
                 getEmailConfig = (agentId: string) => {
                   const managed = lc.getAgent(agentId);
-                  return managed?.config?.emailConfig || null;
+                  const agentEmailCfg = managed?.config?.emailConfig || null;
+                  // If agent has its own config, use it
+                  if (agentEmailCfg?.oauthAccessToken || agentEmailCfg?.smtpHost) return agentEmailCfg;
+                  // Async resolve from org integrations (cache on agent)
+                  try {
+                    const { orgIntegrations: oi } = require('./engine/routes.js');
+                    if (oi && managed) {
+                      const orgId = (managed as any).client_org_id || (managed as any).clientOrgId || null;
+                      oi.resolveEmailConfig(orgId, agentEmailCfg).then((resolved: any) => {
+                        if (resolved && (resolved.oauthAccessToken || resolved.smtpHost)) {
+                          if (!managed.config) managed.config = {} as any;
+                          (managed.config as any).emailConfig = resolved;
+                          (managed.config as any).emailConfig._fromOrgIntegration = true;
+                        }
+                      }).catch(() => {});
+                    }
+                  } catch {}
+                  return agentEmailCfg;
                 };
                 onTokenRefresh = (agentId: string, tokens: any) => {
                   const managed = lc.getAgent(agentId);
@@ -350,7 +384,9 @@ export function createServer(config: ServerConfig): ServerInstance {
                     if (tokens.accessToken) managed.config.emailConfig.oauthAccessToken = tokens.accessToken;
                     if (tokens.refreshToken) managed.config.emailConfig.oauthRefreshToken = tokens.refreshToken;
                     if (tokens.expiresAt) managed.config.emailConfig.oauthTokenExpiry = tokens.expiresAt;
-                    lc.saveAgent(agentId).catch(() => {});
+                    if (!(managed.config.emailConfig as any)?._fromOrgIntegration) {
+                      lc.saveAgent(agentId).catch(() => {});
+                    }
                   }
                 };
               }
@@ -481,20 +517,23 @@ export function createServer(config: ServerConfig): ServerInstance {
     const filePath = join(brandDir, reqPath);
     if (!filePath.startsWith(brandDir) || !existsSync(filePath)) return c.json({ error: 'Not found' }, 404);
     const content = readFileSync(filePath);
-    return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': 'public, max-age=3600' } });
+    return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': 'no-cache, no-store, must-revalidate' } });
   });
 
   app.get('/', (c) => c.redirect('/dashboard'));
   app.get('/dashboard', serveDashboard);
 
-  // Serve documentation pages (browser-providers, etc.)
-  app.get('/docs/:page', (c) => {
-    const page = c.req.param('page').replace(/[^a-z0-9-]/gi, ''); // sanitize
+  // Serve documentation pages and assets
+  app.get('/docs/:file', (c) => {
+    const file = c.req.param('file').replace(/[^a-z0-9.-]/gi, '');
     const dir = dirname(fileURLToPath(import.meta.url));
-    const filePath = join(dir, 'dashboard', 'docs', page + '.html');
+    // Try exact file first, then append .html
+    let filePath = join(dir, 'dashboard', 'docs', file);
+    if (!existsSync(filePath)) filePath = join(dir, 'dashboard', 'docs', file + '.html');
     if (existsSync(filePath)) {
       const content = readFileSync(filePath, 'utf-8');
-      return new Response(content, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      const ct = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/html; charset=utf-8';
+      return new Response(content, { status: 200, headers: { 'Content-Type': ct } });
     }
     return c.json({ error: 'Documentation page not found' }, 404);
   });
@@ -514,7 +553,7 @@ export function createServer(config: ServerConfig): ServerInstance {
       }
       if (existsSync(filePath)) {
         const content = readFileSync(filePath);
-        return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': ext === '.js' ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400' } });
+        return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': 'no-cache, no-store, must-revalidate' } });
       }
       // Static asset not found — return 404, NOT the SPA HTML
       // (returning HTML for missing .js causes browser MIME type errors)
@@ -608,7 +647,22 @@ export function createServer(config: ServerConfig): ServerInstance {
                           if (lc) {
                             getEmailConfig = (agentId: string) => {
                               const managed = lc.getAgent(agentId);
-                              return managed?.config?.emailConfig || null;
+                              const agentEmailCfg = managed?.config?.emailConfig || null;
+                              if (agentEmailCfg?.oauthAccessToken || agentEmailCfg?.smtpHost) return agentEmailCfg;
+                              try {
+                                const { orgIntegrations: oi } = require('./engine/routes.js');
+                                if (oi && managed) {
+                                  const orgId = (managed as any).client_org_id || (managed as any).clientOrgId || null;
+                                  oi.resolveEmailConfig(orgId, agentEmailCfg).then((resolved: any) => {
+                                    if (resolved && (resolved.oauthAccessToken || resolved.smtpHost)) {
+                                      if (!managed.config) managed.config = {} as any;
+                                      (managed.config as any).emailConfig = resolved;
+                                      (managed.config as any).emailConfig._fromOrgIntegration = true;
+                                    }
+                                  }).catch(() => {});
+                                }
+                              } catch {}
+                              return agentEmailCfg;
                             };
                             onTokenRefresh = (agentId: string, tokens: any) => {
                               const managed = lc.getAgent(agentId);
@@ -616,7 +670,9 @@ export function createServer(config: ServerConfig): ServerInstance {
                                 if (tokens.accessToken) managed.config.emailConfig.oauthAccessToken = tokens.accessToken;
                                 if (tokens.refreshToken) managed.config.emailConfig.oauthRefreshToken = tokens.refreshToken;
                                 if (tokens.expiresAt) managed.config.emailConfig.oauthTokenExpiry = tokens.expiresAt;
-                                lc.saveAgent(agentId).catch(() => {});
+                                if (!(managed.config.emailConfig as any)?._fromOrgIntegration) {
+                                  lc.saveAgent(agentId).catch(() => {});
+                                }
                               }
                             };
                           }

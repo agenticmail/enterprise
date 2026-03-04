@@ -748,6 +748,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
       securityOverrides: r.security_overrides ? (typeof r.security_overrides === 'string' ? JSON.parse(r.security_overrides) : r.security_overrides) : undefined,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at), createdBy: r.created_by,
+      client_org_id: r.client_org_id || null,
     };
   }
 

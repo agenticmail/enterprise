@@ -1,7 +1,9 @@
 import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCall, apiCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
+import { E } from '../assets/icons/emoji-icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 // ─── Constants ───────────────────────────────────────────
 var NODE_W = 200;
@@ -12,11 +14,17 @@ var H_GAP = 32; // horizontal gap (left→right flow)
 var V_GAP = 12; // vertical gap between lanes
 var PAD = 16;
 
-var STATUS_COLORS = { created: '#6366f1', assigned: '#f59e0b', in_progress: '#06b6d4', completed: '#15803d', failed: '#ef4444', cancelled: '#6b7394' };
-var PRIORITY_COLORS = { urgent: '#ef4444', high: '#f59e0b', normal: '#6366f1', low: '#6b7394' };
-var DELEGATION_COLORS = { delegation: '#6366f1', review: '#f59e0b', revision: '#f97316', escalation: '#ef4444', return: '#15803d' };
-var SOURCE_META = { telegram: { icon: '\u2708\uFE0F', label: 'Telegram', color: '#0088cc' }, whatsapp: { icon: '\uD83D\uDCAC', label: 'WhatsApp', color: '#25d366' }, email: { icon: '\u2709\uFE0F', label: 'Email', color: '#ea4335' }, google_chat: { icon: '\uD83D\uDDE8\uFE0F', label: 'Google Chat', color: '#1a73e8' }, internal: { icon: '\u2699\uFE0F', label: 'Internal', color: '#6b7394' }, api: { icon: '\uD83D\uDD17', label: 'API', color: '#8b5cf6' } };
-function sourceBadge(src) { var m = SOURCE_META[src] || { icon: '\uD83D\uDCE8', label: src || 'Unknown', color: '#6b7394' }; return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, padding: '1px 5px', borderRadius: 4, background: m.color + '18', color: m.color, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 } }, m.icon + ' ' + m.label); }
+var STATUS_COLORS = { created: '#6366f1', assigned: '#991b1b', in_progress: '#06b6d4', completed: '#15803d', failed: '#ef4444', cancelled: '#6b7394' };
+var PRIORITY_COLORS = { urgent: '#ef4444', high: '#991b1b', normal: '#6366f1', low: '#6b7394' };
+var DELEGATION_COLORS = { delegation: '#6366f1', review: '#991b1b', revision: '#f97316', escalation: '#ef4444', return: '#15803d' };
+function sourceBadge(src) {
+  var meta = { telegram: { color: '#0088cc' }, whatsapp: { color: '#25d366' }, email: { color: '#ea4335' }, google_chat: { color: '#1a73e8' }, internal: { color: '#6b7394' }, api: { color: '#8b5cf6' } };
+  var icons = { telegram: E.telegram, whatsapp: E.whatsapp, email: E.email, google_chat: E.google, internal: E.gear, api: E.link };
+  var m = meta[src] || { color: '#6b7394' };
+  var iconFn = icons[src] || E.email;
+  var label = src ? src.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }) : 'Unknown';
+  return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, padding: '1px 5px', borderRadius: 4, background: m.color + '18', color: m.color, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 } }, iconFn(10), ' ', label);
+}
 // Theme-aware: use CSS variables where possible, detect dark/light
 function isDark() { try { return window.matchMedia('(prefers-color-scheme: dark)').matches || document.documentElement.classList.contains('dark') || document.body.getAttribute('data-theme') === 'dark'; } catch(e) { return true; } }
 var BG = 'var(--bg-canvas, var(--bg-primary, #0a0c14))';
@@ -220,7 +228,7 @@ function CustomerBadge(props) {
 // ─── Activity Log Component ──────────────────────────────
 var ACTIVITY_PAGE_SIZE = 10;
 var ACTIVITY_TYPE_COLORS = {
-  created: '#6366f1', assigned: '#f59e0b', started: '#06b6d4', in_progress: '#06b6d4',
+  created: '#6366f1', assigned: '#991b1b', started: '#06b6d4', in_progress: '#06b6d4',
   completed: '#15803d', failed: '#ef4444', cancelled: '#6b7394', delegated: '#a855f7',
   compaction: '#8b5cf6', error: '#ef4444',
 };
@@ -411,7 +419,7 @@ function MetricsBar(props) {
     h('span', { style: { fontSize: 9, color: 'var(--tp-text-faint)', fontWeight: 600, letterSpacing: '0.06em', marginRight: 2 } }, 'TODAY'),
     chip('Done', s.todayCompleted || 0, '#15803d'),
     chip('Active', s.inProgress || 0, '#06b6d4'),
-    chip('New', s.todayCreated || 0, '#f59e0b'),
+    chip('New', s.todayCreated || 0, '#991b1b'),
     s.todayFailed > 0 && chip('Failed', s.todayFailed, '#ef4444'),
     hasActivity && h('div', { style: { width: 1, height: 14, background: 'var(--tp-border)' } }),
     hasActivity && h('span', { style: { fontSize: 9, color: 'var(--tp-text-faint)', fontWeight: 600, letterSpacing: '0.06em' } }, 'ALL'),
@@ -652,6 +660,7 @@ export function TaskPipelinePage() {
   var toolbar = h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--tp-border)', background: 'var(--tp-toolbar)', flexShrink: 0, flexWrap: 'wrap' } },
     h('div', { style: { fontWeight: 700, fontSize: 14, color: 'var(--tp-text)', display: 'flex', alignItems: 'center', gap: 6 } },
       I.workflow(), 'Task Pipeline',
+      h(KnowledgeLink, { page: 'task-pipeline' }),
       h(HelpButton, { label: 'Task Pipeline' },
         h('p', null, 'Visual flow of all agent tasks. Tasks flow left-to-right showing delegation chains, multi-agent handoffs, and circular review loops.'),
         h('h4', { style: _h4 }, 'Features'),
@@ -928,7 +937,7 @@ export function TaskPipelinePage() {
                   var sc = step.type === 'terminal'
                     ? (STATUS_COLORS[step.status] || '#15803d')
                     : step.type === 'person' || step.isHuman
-                      ? '#f59e0b'
+                      ? '#991b1b'
                       : step.status ? (STATUS_COLORS[step.status] || '#6366f1') : '#6366f1';
                   var isTerminal = step.type === 'terminal';
                   var isMe = step.taskId === expandedTaskId;
@@ -956,7 +965,7 @@ export function TaskPipelinePage() {
                       }
                       return h('div', { style: {
                         width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                        background: isTerminal ? sc + '33' : step.isHuman || step.type === 'person' ? 'linear-gradient(135deg, #f59e0b, #f97316)' : step.type === 'system' ? 'var(--tp-card)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        background: isTerminal ? sc + '33' : step.isHuman || step.type === 'person' ? 'linear-gradient(135deg, #991b1b, #f97316)' : step.type === 'system' ? 'var(--tp-card)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: isTerminal ? 10 : 8, fontWeight: 700,
                         color: isTerminal ? sc : '#fff',

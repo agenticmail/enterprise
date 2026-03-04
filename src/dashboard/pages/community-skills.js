@@ -1,11 +1,16 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
+import { mapEmojiToIcon } from './agent-detail/tools.js';
 import { BrandLogo, SKILL_BRAND_MAP } from '../assets/brand-logos.js';
 import { HelpButton } from '../components/help-button.js';
+import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function CommunitySkillsPage() {
   const { toast, user } = useApp();
+  const orgCtx = useOrgContext();
+  const effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   const [tab, setTab] = useState('browse');
   const [skills, setSkills] = useState([]);
   const [installed, setInstalled] = useState([]);
@@ -40,7 +45,7 @@ export function CommunitySkillsPage() {
     engineCall('/community/skills?' + params.toString())
       .then(d => { setSkills(d.skills || []); setTotal(d.total || 0); })
       .catch(() => {});
-    engineCall('/community/installed?orgId=' + getOrgId())
+    engineCall('/community/installed?orgId=' + effectiveOrgId)
       .then(d => setInstalled(d.installed || []))
       .catch(() => {});
     engineCall('/community/skills/featured')
@@ -52,22 +57,22 @@ export function CommunitySkillsPage() {
     engineCall('/community/skills/stats')
       .then(d => setStats(d || {}))
       .catch(() => {});
-  }, [filters]);
+  }, [filters, effectiveOrgId]);
 
   var loadUpdates = useCallback(function() {
-    engineCall('/skill-updates/config?orgId=' + getOrgId())
+    engineCall('/skill-updates/config?orgId=' + effectiveOrgId)
       .then(function(d) { setUpdateConfig(d.config || d || { autoUpdate: false, checkInterval: 'daily', maxRiskLevel: 'medium' }); })
       .catch(function() {});
-    engineCall('/skill-updates/available?orgId=' + getOrgId())
+    engineCall('/skill-updates/available?orgId=' + effectiveOrgId)
       .then(function(d) { setAvailableUpdates(d.updates || []); })
       .catch(function() {});
-    engineCall('/skill-updates/history?orgId=' + getOrgId())
+    engineCall('/skill-updates/history?orgId=' + effectiveOrgId)
       .then(function(d) { setUpdateHistory(d.history || d.updates || []); })
       .catch(function() {});
-    engineCall('/skill-updates/stats?orgId=' + getOrgId())
+    engineCall('/skill-updates/stats?orgId=' + effectiveOrgId)
       .then(function(d) { setUpdateStats(d || {}); })
       .catch(function() {});
-  }, []);
+  }, [effectiveOrgId]);
 
   useEffect(() => { load(); loadUpdates(); }, [load, loadUpdates]);
 
@@ -106,7 +111,7 @@ export function CommunitySkillsPage() {
 
   // Load credential statuses for ALL skills from the integration catalog
   useEffect(function() {
-    engineCall('/integrations/catalog?orgId=' + getOrgId())
+    engineCall('/integrations/catalog?orgId=' + effectiveOrgId)
       .then(function(d) {
         var map = {};
         (d.catalog || []).forEach(function(entry) {
@@ -119,7 +124,7 @@ export function CommunitySkillsPage() {
 
   // Load agents list for per-agent credentials
   useEffect(function() {
-    engineCall('/agents?orgId=' + getOrgId()).then(function(d) {
+    engineCall('/agents?orgId=' + effectiveOrgId).then(function(d) {
       setAllAgents(d.agents || d || []);
     }).catch(function() {});
   }, []);
@@ -138,7 +143,7 @@ export function CommunitySkillsPage() {
     var payload = isMultiField
       ? { credentials: credModal.fields.reduce(function(o, f) { o[f] = credFields[f].trim(); return o; }, {}), scope: credScope, agentId: credAgent || undefined }
       : { token: credValue.trim(), scope: credScope, agentId: credAgent || undefined };
-    engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + getOrgId(), {
+    engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + effectiveOrgId, {
       method: 'POST',
       body: JSON.stringify(payload)
     })
@@ -157,7 +162,7 @@ export function CommunitySkillsPage() {
   var _catalogData = useState({}); // { skillId: { authType, fields, fieldLabels } }
   var catalogData = _catalogData[0]; var setCatalogData = _catalogData[1];
   useEffect(function() {
-    engineCall('/integrations/catalog?orgId=' + getOrgId())
+    engineCall('/integrations/catalog?orgId=' + effectiveOrgId)
       .then(function(d) {
         var map = {};
         var cmap = {};
@@ -185,17 +190,45 @@ export function CommunitySkillsPage() {
 
   var openCredSetup = function(skill) {
     // Attach catalog metadata (fields, fieldLabels, authType, oauthProvider) to skill for modal
+    // Resolve auth metadata: 1) integration catalog, 2) skill manifest auth field, 3) configSchema secrets, 4) fallback to token
     var cd = catalogData[skill.id];
     if (cd) {
       skill.authType = cd.authType; skill.fields = cd.fields;
       skill.fieldLabels = cd.fieldLabels; skill.oauthProvider = cd.oauthProvider;
+    } else {
+      // Use the skill's own auth metadata from manifest
+      var auth = skill.auth || (skill.skill && skill.skill.auth) || (skill.manifest && skill.manifest.auth);
+      if (auth && auth.type) {
+        skill.authType = auth.type;
+        skill.oauthProvider = auth.provider;
+        if (auth.fields) { skill.fields = auth.fields; skill.fieldLabels = auth.fieldLabels || {}; }
+      } else {
+        // Derive from configSchema: fields with type "secret" or "password" → credentials mode
+        var schema = skill.configSchema || (skill.skill && skill.skill.configSchema) || (skill.manifest && skill.manifest.configSchema);
+        if (schema && Object.keys(schema).length > 0) {
+          var secretFields = []; var labels = {};
+          Object.entries(schema).forEach(function(entry) {
+            secretFields.push(entry[0]);
+            labels[entry[0]] = (entry[1] && entry[1].label) || entry[0];
+          });
+          if (secretFields.length === 1 && /key|token|secret/i.test(secretFields[0])) {
+            skill.authType = 'api_key';
+          } else if (secretFields.length > 0) {
+            skill.authType = 'credentials';
+            skill.fields = secretFields;
+            skill.fieldLabels = labels;
+          }
+        }
+      }
+      // Final fallback
+      if (!skill.authType) skill.authType = 'token';
     }
     setCredModal(skill);
     setCredValue(''); setCredFields({}); setCredScope('org'); setCredAgent('');
     setOauthClientId(''); setOauthClientSecret(''); setOauthTab('oauth'); setOauthAppConfigured(false);
     // For oauth2 services, check if OAuth app is already configured
     if (skill.authType === 'oauth2' && skill.oauthProvider) {
-      engineCall('/oauth/app-config/' + skill.oauthProvider + '?orgId=' + getOrgId())
+      engineCall('/oauth/app-config/' + skill.oauthProvider + '?orgId=' + effectiveOrgId)
         .then(function(d) { if (d.configured) setOauthAppConfigured(true); })
         .catch(function() {});
     }
@@ -205,7 +238,7 @@ export function CommunitySkillsPage() {
     if (!credModal || !credModal.oauthProvider) return;
     if (!oauthClientId.trim() || !oauthClientSecret.trim()) return;
     setOauthSaving(true);
-    engineCall('/oauth/app-config/' + credModal.oauthProvider + '?orgId=' + getOrgId(), {
+    engineCall('/oauth/app-config/' + credModal.oauthProvider + '?orgId=' + effectiveOrgId, {
       method: 'POST',
       body: JSON.stringify({ clientId: oauthClientId.trim(), clientSecret: oauthClientSecret.trim() })
     })
@@ -213,7 +246,7 @@ export function CommunitySkillsPage() {
         setOauthAppConfigured(true);
         toast('OAuth app configured for ' + credModal.name, 'success');
         // Now launch OAuth consent flow
-        return engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + getOrgId());
+        return engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + effectiveOrgId);
       })
       .then(function(d) {
         if (d && (d.authUrl || d.authorizationUrl)) {
@@ -235,7 +268,7 @@ export function CommunitySkillsPage() {
 
   var launchOauthFlow = function() {
     if (!credModal) return;
-    engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + getOrgId())
+    engineCall('/oauth/authorize/' + credModal.id + '?orgId=' + effectiveOrgId)
       .then(function(d) {
         if (d && (d.authUrl || d.authorizationUrl)) {
           var popup = window.open(d.authUrl || d.authorizationUrl, 'oauth_connect', 'width=600,height=700,popup=yes');
@@ -259,7 +292,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/install', {
         method: 'POST',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('Skill installed', 'success');
       load();
@@ -275,7 +308,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/uninstall', {
         method: 'DELETE',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('Skill uninstalled', 'success');
       load();
@@ -286,7 +319,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/community/skills/' + skillId + '/' + (enable ? 'enable' : 'disable'), {
         method: 'PUT',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('Skill ' + (enable ? 'enabled' : 'disabled'), 'success');
       load();
@@ -343,7 +376,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/skill-updates/check', {
         method: 'POST',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('Update check complete', 'success');
       loadUpdates();
@@ -356,7 +389,7 @@ export function CommunitySkillsPage() {
       await engineCall('/skill-updates/config', {
         method: 'PUT',
         body: JSON.stringify({
-          orgId: getOrgId(),
+          orgId: effectiveOrgId,
           autoUpdate: updateConfig.autoUpdate,
           checkInterval: updateConfig.checkInterval,
           maxRiskLevel: updateConfig.maxRiskLevel
@@ -387,7 +420,7 @@ export function CommunitySkillsPage() {
     try {
       await engineCall('/skill-updates/apply-all', {
         method: 'POST',
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: effectiveOrgId })
       });
       toast('All updates applied', 'success');
       loadUpdates();
@@ -415,7 +448,7 @@ export function CommunitySkillsPage() {
   const _catIcon = (category, size) => {
     var fn = category && CATEGORY_ICONS[category];
     if (fn && typeof fn === 'function') return fn(size);
-    return E.puzzle ? E.puzzle(size) : h('span', { style: { fontSize: size } }, '\ud83e\udde9');
+    return E.puzzle ? E.puzzle(size) : E.sparkle(size);
   };
   const skillIcon = (icon, size, category, skillId) => {
     size = size || 28;
@@ -431,8 +464,12 @@ export function CommunitySkillsPage() {
         h('span', { className: '_skill_fb', style: { display: 'none' } }, _catIcon(category, size))
       );
     }
-    // 3. Emoji character
-    if (icon) return h('span', { style: { fontSize: size } }, icon);
+    // 3. Emoji character → map to SVG icon
+    if (icon) {
+      var mapped = mapEmojiToIcon(icon, size);
+      if (mapped !== icon) return h('span', { style: { display: 'inline-flex' } }, mapped);
+      return h('span', { style: { fontSize: size } }, icon);
+    }
     // 4. Category fallback
     return _catIcon(category, size);
   };
@@ -462,7 +499,7 @@ export function CommunitySkillsPage() {
 
   var handleDisconnect = function(skill) {
     if (!confirm('Disconnect ' + skill.name + '? Agents using this integration will lose access.')) return;
-    engineCall('/oauth/disconnect/' + skill.id + '?orgId=' + getOrgId(), { method: 'DELETE' })
+    engineCall('/oauth/disconnect/' + skill.id + '?orgId=' + effectiveOrgId, { method: 'DELETE' })
       .then(function() {
         toast(skill.name + ' disconnected', 'success');
         setCredStatuses(function(s) { var n = Object.assign({}, s); n[skill.id] = false; return n; });
@@ -482,8 +519,8 @@ export function CommunitySkillsPage() {
       // Status badge (top-right)
       h('span', {
         style: { position: 'absolute', top: 8, right: 8, fontSize: 10, fontWeight: 600,
-          color: connected ? 'var(--success)' : s.verified ? 'var(--brand-color)' : 'var(--text-muted)' }
-      }, connected ? '\u2713 Connected' : s.verified ? '\u2713 Verified' : ''),
+          color: connected ? 'var(--success)' : installedIds.has(s.id) ? 'var(--brand-color)' : s.verified ? 'var(--text-secondary)' : 'var(--text-muted)' }
+      }, connected ? '\u2713 Connected' : installedIds.has(s.id) ? '\u2713 Installed' : s.verified ? '\u2713 Verified' : ''),
       h('div', { style: { marginBottom: 6 } }, skillIcon(s.icon, 28, s.category, s.id)),
       h('div', { className: 'skill-name' }, s.name),
       h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } },
@@ -496,9 +533,11 @@ export function CommunitySkillsPage() {
         s.rating > 0 && h('span', { style: { fontSize: 11, color: 'gold' } }, stars(s.rating))
       ),
       h('div', { style: { marginTop: 10, display: 'flex', gap: 8 }, onClick: e => e.stopPropagation() },
-        connected
-          ? h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { handleDisconnect(s); } }, 'Disconnect')
-          : h('button', { className: 'btn btn-primary btn-sm', onClick: function() { openCredSetup(s); } }, 'Connect')
+        !installedIds.has(s.id)
+          ? h('button', { className: 'btn btn-primary btn-sm', onClick: function() { installSkill(s.id); } }, 'Install')
+          : connected
+            ? h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { handleDisconnect(s); } }, 'Disconnect')
+            : h('button', { className: 'btn btn-primary btn-sm', onClick: function() { openCredSetup(s); } }, 'Connect')
       )
     );
   };
@@ -654,6 +693,7 @@ export function CommunitySkillsPage() {
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
         h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 } }, 'Community Skills Marketplace',
+          h(KnowledgeLink, { page: 'community-skills' }),
           h(HelpButton, { label: 'How Skills Work' },
             h('div', { style: { fontSize: 13, lineHeight: 1.6 } },
               h('h4', { style: { marginBottom: 8 } }, 'How the Skill Marketplace Works'),
@@ -700,7 +740,8 @@ export function CommunitySkillsPage() {
           (stats.totalPublished || 0) + ' skills published \u00B7 ' +
           (stats.totalInstalls || 0) + ' total installs')
       ),
-      h('div', { style: { display: 'flex', gap: 8 } },
+      h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+        h(orgCtx.Switcher),
         h('button', { className: 'btn btn-secondary', onClick: () => setShowImport(true) }, I.upload(), ' Import from GitHub'),
         h('button', { className: 'btn btn-primary', onClick: () => setShowImport(true) }, I.plus(), ' Publish Skill')
       )
@@ -885,12 +926,17 @@ export function CommunitySkillsPage() {
             credStatuses[detail.id] && h('span', { style: { fontSize: 12, color: 'var(--success)', fontWeight: 600 } }, '\u2713 Connected')
           ),
           h('div', { style: { display: 'flex', gap: 8 } },
-            credStatuses[detail.id]
-              ? h(Fragment, null,
-                  h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setDetail(null); openCredSetup(detail); } }, 'Reconfigure'),
-                  h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { handleDisconnect(detail); setDetail(null); } }, 'Disconnect')
-                )
-              : h('button', { className: 'btn btn-primary', onClick: function() { setDetail(null); openCredSetup(detail); } }, 'Connect')
+            !installedIds.has(detail.id)
+              ? h('button', { className: 'btn btn-primary', onClick: function() { installSkill(detail.id); } }, 'Install')
+              : credStatuses[detail.id]
+                ? h(Fragment, null,
+                    h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setDetail(null); openCredSetup(detail); } }, 'Reconfigure'),
+                    h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { handleDisconnect(detail); setDetail(null); } }, 'Disconnect')
+                  )
+                : h(Fragment, null,
+                    h('button', { className: 'btn btn-primary', onClick: function() { setDetail(null); openCredSetup(detail); } }, 'Connect'),
+                    h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)' }, onClick: function() { uninstallSkill(detail.id); setDetail(null); } }, 'Uninstall')
+                  )
           )
         )
       )
@@ -922,6 +968,30 @@ export function CommunitySkillsPage() {
           h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setCredModal(null); } }, I.x())
         ),
         h('div', { className: 'modal-body' },
+
+          // ── Organization Context Banner ──
+          orgCtx.selectedOrgId && h('div', { style: { padding: '8px 12px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', marginBottom: 14, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 } },
+            I.building(),
+            h('span', null, 'Credentials will be saved for: ', h('strong', null, (orgCtx.selectedOrg && orgCtx.selectedOrg.name) || orgCtx.selectedOrgId))
+          ),
+
+          // ── Single token/API key (api_key, token types) — BEFORE scope selector ──
+          (credModal.authType === 'api_key' || credModal.authType === 'token') &&
+          h('div', { style: { marginBottom: 16 } },
+            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } },
+              credModal.authType === 'api_key' ? 'API Key' : 'Access Token'
+            ),
+            h('input', {
+              className: 'input', type: 'password',
+              placeholder: credModal.authType === 'api_key' ? 'Paste your API key...' : 'Paste your bot token or access token...',
+              value: credValue,
+              onChange: function(e) { setCredValue(e.target.value); },
+              style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
+            }),
+            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
+              'Encrypted with AES-256-GCM and stored in the secure vault.'
+            )
+          ),
 
           // ── OAuth2 services: Tabbed interface (OAuth App | Access Token) ──
           credModal.authType === 'oauth2' && h('div', { style: { marginBottom: 16 } },
@@ -1083,23 +1153,7 @@ export function CommunitySkillsPage() {
             )
           ),
 
-          // ── Single token/API key (api_key, token types) ──
-          (credModal.authType === 'api_key' || credModal.authType === 'token') &&
-          h('div', { style: { marginBottom: 16 } },
-            h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } },
-              credModal.authType === 'api_key' ? 'API Key' : 'Token'
-            ),
-            h('input', {
-              className: 'input', type: 'password',
-              placeholder: credModal.authType === 'api_key' ? 'Paste your API key...' : 'Paste your token...',
-              value: credValue,
-              onChange: function(e) { setCredValue(e.target.value); },
-              style: { width: '100%', fontFamily: 'var(--font-mono, monospace)' }
-            }),
-            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
-              'Encrypted with AES-256-GCM and stored in the secure vault.'
-            )
-          ),
+          // (token input moved above OAuth section)
 
           // Existing connection status
           credStatuses[credModal.id] && h('div', { style: { padding: 8, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 6, marginBottom: 12, fontSize: 12, color: 'var(--success)' } },

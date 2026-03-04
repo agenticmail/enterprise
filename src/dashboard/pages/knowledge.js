@@ -4,6 +4,7 @@ import { Modal } from '../components/modal.js';
 import { KnowledgeImportWizard, ImportJobsList } from './knowledge-import.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function KnowledgeBasePage() {
   const { toast } = useApp();
@@ -18,6 +19,9 @@ export function KnowledgeBasePage() {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '', clientOrgId: '' });
+  const [allAgents, setAllAgents] = useState([]);
+  const [assignedAgentIds, setAssignedAgentIds] = useState([]);
+  const [savingAgents, setSavingAgents] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importKb, setImportKb] = useState(null);
@@ -55,10 +59,28 @@ export function KnowledgeBasePage() {
       setChunks([]);
       setSelectedDoc(null);
       setEditForm({ name: kbData.name || '', description: kbData.description || '', clientOrgId: kbData.clientOrgId || '' });
+      setAssignedAgentIds(kbData.agentIds || []);
+      // Load all agents for assignment UI
+      apiCall('/agents').then(d => setAllAgents(d.agents || [])).catch(() => {});
     } catch (e) {
       toast('Failed to load knowledge base: ' + e.message, 'error');
     }
     setLoading(false);
+  };
+
+  const toggleAgent = (agentId) => {
+    setAssignedAgentIds(prev => prev.includes(agentId) ? prev.filter(id => id !== agentId) : [...prev, agentId]);
+  };
+
+  const saveAgentAssignment = async () => {
+    setSavingAgents(true);
+    try {
+      await engineCall('/knowledge-bases/' + selected.id, { method: 'PUT', body: JSON.stringify({ agentIds: assignedAgentIds }) });
+      toast('Agent access updated', 'success');
+      // Update local state
+      setSelected(prev => ({ ...prev, agentIds: assignedAgentIds }));
+    } catch (e) { toast(e.message, 'error'); }
+    setSavingAgents(false);
   };
 
   const loadDocChunks = async (doc) => {
@@ -204,6 +226,54 @@ export function KnowledgeBasePage() {
         ))
       ),
 
+      // Agent Assignment
+      h('div', { className: 'card', style: { marginBottom: 16 } },
+        h('div', { className: 'card-header' },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+            h('h3', { style: { margin: 0, display: 'flex', alignItems: 'center' } }, 'Agent Access',
+              h(HelpButton, { label: 'Agent Access' },
+                h('p', null, 'Control which agents can search and retrieve information from this knowledge base. Agents use RAG (Retrieval-Augmented Generation) to find relevant content during conversations.'),
+                h('div', { style: _tip }, h('strong', null, 'Note: '), 'Changes take effect immediately — agents will have access on their next query. No restart required.')
+              )
+            ),
+            assignedAgentIds.length > 0 && h('span', { className: 'badge badge-success' }, assignedAgentIds.length + ' agent(s)')
+          )
+        ),
+        h('div', { className: 'card-body' },
+          allAgents.length === 0
+            ? h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'No agents found. Create agents first to assign them access.')
+            : h(Fragment, null,
+                h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 } },
+                  allAgents.map(function(agent) {
+                    var isAssigned = assignedAgentIds.includes(agent.id);
+                    var name = agent.config?.displayName || agent.config?.name || agent.name || agent.id;
+                    return h('button', {
+                      key: agent.id,
+                      onClick: function() { toggleAgent(agent.id); },
+                      style: {
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                        border: '1.5px solid ' + (isAssigned ? 'var(--brand-color, #6366f1)' : 'var(--border)'),
+                        background: isAssigned ? 'var(--accent-soft, rgba(99,102,241,0.12))' : 'var(--bg-tertiary)',
+                        color: isAssigned ? 'var(--brand-color, #6366f1)' : 'var(--text-secondary)',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }
+                    },
+                      h('span', { style: { width: 16, height: 16, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, background: isAssigned ? 'var(--brand-color, #6366f1)' : 'transparent', color: '#fff', border: isAssigned ? 'none' : '1.5px solid var(--border)' } }, isAssigned ? '\u2713' : ''),
+                      name
+                    );
+                  })
+                ),
+                // Show save button if assignment changed
+                (JSON.stringify(assignedAgentIds.slice().sort()) !== JSON.stringify((selected.agentIds || []).slice().sort())) &&
+                  h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                    h('button', { className: 'btn btn-primary btn-sm', onClick: saveAgentAssignment, disabled: savingAgents }, savingAgents ? 'Saving...' : 'Save Agent Access'),
+                    h('button', { className: 'btn btn-secondary btn-sm', onClick: function() { setAssignedAgentIds(selected.agentIds || []); } }, 'Reset')
+                  )
+              )
+        )
+      ),
+
       // Two-panel layout: docs list + chunk preview
       h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
 
@@ -317,7 +387,7 @@ export function KnowledgeBasePage() {
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
-        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Knowledge Bases', h(HelpButton, { label: 'Knowledge Bases' },
+        h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Knowledge Bases', h(KnowledgeLink, { page: 'knowledge' }), h(HelpButton, { label: 'Knowledge Bases' },
           h('p', null, 'Knowledge bases store documents that your agents can search and reference when answering questions. This is the foundation of RAG (Retrieval-Augmented Generation).'),
           h('h4', { style: _h4 }, 'How It Works'),
           h('ul', { style: _ul },

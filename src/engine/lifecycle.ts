@@ -197,6 +197,7 @@ export class AgentLifecycleManager {
   private budgetAlerts: BudgetAlert[] = [];
   private birthdayTimer: NodeJS.Timeout | null = null;
   private lastBirthdayCheck: string = '';
+  private configRefreshTimer: NodeJS.Timeout | null = null;
   /** External callback for sending birthday messages (set via setBirthdaySender) */
   private birthdaySender: ((agent: ManagedAgent) => Promise<void>) | null = null;
   /** Vault for decrypting deploy credentials */
@@ -242,6 +243,82 @@ export class AgentLifecycleManager {
   async loadAgentFromDb(agentId: string): Promise<any | null> {
     if (!this.engineDb) return null;
     return this.engineDb.getManagedAgent(agentId);
+  }
+
+  /**
+   * Refresh all agent configs from DB — picks up dashboard changes without restart.
+   * Merges DB config into in-memory state, preserving runtime-only fields (tokens, sessions).
+   */
+  async refreshAgentConfigs(): Promise<void> {
+    if (!this.engineDb) return;
+    try {
+      const dbAgents = await this.engineDb.getAllManagedAgents();
+      for (const dbAgent of dbAgents) {
+        const mem = this.agents.get(dbAgent.id);
+        if (!mem) { this.agents.set(dbAgent.id, dbAgent); continue; }
+
+        // Merge dashboard-managed config fields from DB into memory
+        const dbCfg = (dbAgent.config || {}) as any;
+        const memCfg = (mem.config || {}) as any;
+
+        // These fields are owned by the dashboard — always take DB version
+        // This is exhaustive: every AgentConfig field that can be changed from the dashboard
+        const dashboardOwned = [
+          // Core identity & personal details
+          'identity', 'name', 'displayName', 'description',
+          // Model & runtime
+          'model', 'deployment',
+          // Communication
+          'messagingChannels', 'channels', 'email', 'emailConfig', 'managerEmail',
+          // Tools & permissions
+          'toolAccess', 'toolRestrictions', 'toolSecurity', 'permissionProfileId',
+          // Skills & services
+          'skills', 'enabledGoogleServices',
+          // Scheduling & behavior
+          'schedule', 'heartbeat', 'autonomy', 'catchUp', 'workHours', 'timezone',
+          // Voice & browser
+          'voiceConfig', 'browserConfig',
+          // Context & knowledge
+          'context', 'workspace',
+          // Budget (also in dedicated column)
+          'budget',
+        ];
+        for (const key of dashboardOwned) {
+          if (dbCfg[key] !== undefined) {
+            memCfg[key] = dbCfg[key];
+          }
+        }
+
+        // Update top-level agent fields (outside config blob)
+        mem.display_name = dbAgent.display_name || mem.display_name;
+        mem.name = dbAgent.name || mem.name;
+        if (dbAgent.budgetConfig) mem.budgetConfig = dbAgent.budgetConfig;
+        if ((dbAgent as any).client_org_id !== undefined) (mem as any).client_org_id = (dbAgent as any).client_org_id;
+        if ((dbAgent as any).org_id) mem.orgId = (dbAgent as any).org_id;
+        if ((dbAgent as any).permissionProfileId) mem.permissionProfileId = (dbAgent as any).permissionProfileId;
+      }
+    } catch (e: any) {
+      // Non-fatal — will retry on next interval
+    }
+  }
+
+  /**
+   * Start periodic config refresh from DB (default: every 30s).
+   * Ensures dashboard changes take effect on running agents without restart.
+   */
+  startConfigRefresh(intervalMs = 30_000): void {
+    if (this.configRefreshTimer) return;
+    this.configRefreshTimer = setInterval(() => {
+      this.refreshAgentConfigs().catch(() => {});
+    }, intervalMs);
+    if (this.configRefreshTimer?.unref) this.configRefreshTimer.unref();
+  }
+
+  stopConfigRefresh(): void {
+    if (this.configRefreshTimer) {
+      clearInterval(this.configRefreshTimer);
+      this.configRefreshTimer = null;
+    }
   }
 
   // ─── Agent CRUD ─────────────────────────────────────

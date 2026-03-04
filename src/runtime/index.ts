@@ -354,7 +354,9 @@ export class AgentRuntime {
     if (this.config.hierarchyManager) {
       try { hierarchyContext = await this.config.hierarchyManager.buildManagerPrompt(agentId) || ''; } catch {}
     }
-    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext, hierarchyContext);
+    var _agentCfg = this.config.getAgentConfig ? this.config.getAgentConfig(agentId) : null;
+    var _agentIdentity = _agentCfg?.identity || null;
+    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext, hierarchyContext, _agentIdentity);
 
     // Detect session context for dynamic tool loading
     var sessionContext = detectSessionContext({
@@ -397,8 +399,8 @@ export class AgentRuntime {
       tools,
     };
 
-    // Resolve API key
-    var apiKey = this.resolveApiKey(model.provider);
+    // Resolve API key (org-scoped → system-wide)
+    var apiKey = await this.resolveApiKeyAsync(model.provider, agentId);
     if (!apiKey) {
       await this.sessionManager!.updateSession(session.id, { status: 'failed' });
       throw new Error(`No API key configured for provider: ${model.provider}`);
@@ -453,7 +455,7 @@ export class AgentRuntime {
       model = _smModel;
     }
 
-    var apiKey = this.resolveApiKey(model.provider);
+    var apiKey = await this.resolveApiKeyAsync(model.provider, session.agentId);
     if (!apiKey) throw new Error(`No API key for provider: ${model.provider}`);
 
     var memoryContext = '';
@@ -464,7 +466,8 @@ export class AgentRuntime {
     if (this.config.hierarchyManager) {
       try { _hierarchyCtx = await this.config.hierarchyManager.buildManagerPrompt(session.agentId) || ''; } catch {}
     }
-    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext, _hierarchyCtx);
+    var _aCfg2 = this.config.getAgentConfig ? this.config.getAgentConfig(session.agentId) : null;
+    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext, _hierarchyCtx, _aCfg2?.identity);
 
     // Context-aware tool loading — reuses session tool state (preserves dynamically loaded sets)
     // Don't re-detect context for keep-alive sessions (meetings) — they stay in their original context
@@ -685,13 +688,9 @@ export class AgentRuntime {
     // Mark loop as running to prevent concurrent loops from sendMessage
     this.loopRunning.add(sessionId);
 
-    // Per-context model override
+    // Per-context model override (deferred to async block for org-aware key resolution)
     var _loopCtx = this.keepAliveSessions.has(sessionId) ? 'meeting' : 'chat';
     var _loopModel = this.resolveModelForContext(agentConfig.agentId, _loopCtx);
-    if (_loopModel && agentConfig.model.modelId !== _loopModel.modelId) {
-      agentConfig = { ...agentConfig, model: _loopModel };
-      apiKey = this.resolveApiKey(_loopModel.provider) || apiKey;
-    }
 
     // Create hooks
     var hooks = createRuntimeHooks({
@@ -715,12 +714,28 @@ export class AgentRuntime {
     // Fire and forget — the loop runs in the background
     (async function() {
       try {
+        // Apply deferred model override with org-aware key resolution
+        if (_loopModel && agentConfig.model.modelId !== _loopModel.modelId) {
+          agentConfig = { ...agentConfig, model: _loopModel };
+          apiKey = await self.resolveApiKeyAsync(_loopModel.provider, agentConfig.agentId) || apiKey;
+        }
+
+        // Resolve fallback models for this agent
+        var _fallbackModels: string[] = [];
+        if (self.config.getAgentConfig) {
+          var _ac = self.config.getAgentConfig(agentConfig.agentId);
+          if (_ac?.fallbackModels) _fallbackModels = _ac.fallbackModels;
+          else if (_ac?.modelFallback?.fallbacks) _fallbackModels = _ac.modelFallback.fallbacks;
+        }
+
         var result = await runAgentLoop(agentConfig, initialMessages, hooks, {
           apiKey,
           signal: abortController.signal,
           sessionId,
           retryConfig: self.config.retry,
           runtime: self,
+          fallbackModels: _fallbackModels,
+          resolveApiKey: async function(provider: string) { return self.resolveApiKeyAsync(provider, agentConfig.agentId); },
 
           // Incremental persistence — save messages after every turn
           onCheckpoint: async function(data) {
@@ -860,16 +875,33 @@ export class AgentRuntime {
           // Load full session with messages
           var session = await this.sessionManager!.getSession(sessionMeta.id);
           if (!session || session.messages.length === 0) {
-            // No messages to resume — mark as failed
-            await this.sessionManager!.updateSession(sessionMeta.id, { status: 'failed' });
+            // No messages to resume — mark as completed
+            await this.sessionManager!.updateSession(sessionMeta.id, { status: 'completed' });
             continue;
+          }
+
+          // For failed sessions: only resume if last non-system message is from user (agent never replied)
+          if (sessionMeta.status === 'failed') {
+            var lastUserIdx = -1;
+            var lastAssistantIdx = -1;
+            for (var mi = session.messages.length - 1; mi >= 0; mi--) {
+              if (session.messages[mi].role === 'user' && lastUserIdx < 0) lastUserIdx = mi;
+              if (session.messages[mi].role === 'assistant' && lastAssistantIdx < 0) lastAssistantIdx = mi;
+              if (lastUserIdx >= 0 && lastAssistantIdx >= 0) break;
+            }
+            if (lastUserIdx < lastAssistantIdx || lastUserIdx < 0) {
+              // Agent already replied or no user message — don't retry
+              await this.sessionManager!.updateSession(sessionMeta.id, { status: 'completed' });
+              continue;
+            }
+            console.log(`[runtime] Recovering failed session ${session.id} — agent never replied to user message`);
           }
 
           // Mark as resuming
           await this.sessionManager!.updateSession(session.id, { status: 'active' as any });
 
           var model = this.config.defaultModel || DEFAULT_MODEL;
-          var apiKey = this.resolveApiKey(model.provider);
+          var apiKey = await this.resolveApiKeyAsync(model.provider, session.agentId);
           if (!apiKey) {
             console.warn(`[runtime] Cannot resume session ${session.id}: no API key for ${model.provider}`);
             await this.sessionManager!.updateSession(session.id, { status: 'failed' });
@@ -884,7 +916,8 @@ export class AgentRuntime {
           if (this.config.hierarchyManager) {
             try { _hc = await this.config.hierarchyManager.buildManagerPrompt(session.agentId) || ''; } catch {}
           }
-          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc, _hc);
+          var _rCfg = this.config.getAgentConfig ? this.config.getAgentConfig(session.agentId) : null;
+          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc, _hc, _rCfg?.identity);
           var _resumeCtx = detectSessionContext({
             systemPrompt: _resumePrompt,
             isKeepAlive: this.keepAliveSessions.has(session.id),
@@ -963,7 +996,21 @@ export class AgentRuntime {
   private customProviders: CustomProviderDef[] = [];
   private orgToolSecurity: any = null;
 
-  private resolveApiKey(provider: string): string | undefined {
+  private resolveApiKey(provider: string, agentId?: string): string | undefined {
+    // Synchronous system-wide resolution
+    return resolveApiKeyForProvider(provider, this.config.apiKeys, this.customProviders);
+  }
+
+  /** Resolve API key with org-scoped fallback (async — checks org integrations first) */
+  private async resolveApiKeyAsync(provider: string, agentId?: string): Promise<string | undefined> {
+    // 1. Try org-scoped key if agent has org
+    if (agentId && this.config.resolveOrgApiKey) {
+      try {
+        const orgKey = await this.config.resolveOrgApiKey(agentId, provider);
+        if (orgKey) return orgKey;
+      } catch { /* fall through to system-wide */ }
+    }
+    // 2. System-wide fallback
     return resolveApiKeyForProvider(provider, this.config.apiKeys, this.customProviders);
   }
 
@@ -987,7 +1034,7 @@ export function createAgentRuntime(config: RuntimeConfig): AgentRuntime {
 
 // ─── Default System Prompt ───────────────────────────────
 
-function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string): string {
+function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string, agentIdentity?: any): string {
   var base = `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
 
 You have access to a comprehensive set of tools for completing tasks. Use them effectively.
@@ -1016,6 +1063,38 @@ Current time: ${new Date().toISOString()}`;
 
   if (hierarchyContext) {
     base += '\n\n' + hierarchyContext;
+  }
+
+  // Language enforcement — if agent has a configured language, enforce it
+  if (agentIdentity?.language && agentIdentity.language !== 'en-us') {
+    var langMap: Record<string, string> = {
+      'en-us': 'English (American)', 'en-gb': 'English (British)', 'en-au': 'English (Australian)',
+      'en-ca': 'English (Canadian)', 'en-in': 'English (Indian)', 'en-za': 'English (South African)',
+      'en-ie': 'English (Irish)', 'en-ng': 'English (Nigerian)',
+      'es': 'Spanish', 'es-mx': 'Mexican Spanish', 'es-ar': 'Argentine Spanish',
+      'es-co': 'Colombian Spanish', 'es-latam': 'Latin American Spanish',
+      'pt': 'Portuguese', 'pt-br': 'Brazilian Portuguese',
+      'fr': 'French', 'fr-ca': 'Canadian French', 'fr-be': 'Belgian French', 'fr-ch': 'Swiss French', 'fr-af': 'African French',
+      'zh': 'Simplified Chinese (Mandarin)', 'zh-tw': 'Traditional Chinese (Mandarin)', 'zh-yue': 'Cantonese',
+      'ar': 'Modern Standard Arabic', 'ar-eg': 'Egyptian Arabic', 'ar-sa': 'Saudi Arabic', 'ar-ma': 'Moroccan Arabic',
+      'de': 'German', 'de-at': 'Austrian German', 'de-ch': 'Swiss German',
+      'it': 'Italian', 'nl': 'Dutch', 'ru': 'Russian', 'pl': 'Polish', 'uk': 'Ukrainian',
+      'ja': 'Japanese', 'ko': 'Korean', 'hi': 'Hindi', 'bn': 'Bengali', 'ur': 'Urdu',
+      'ta': 'Tamil', 'te': 'Telugu', 'mr': 'Marathi',
+      'th': 'Thai', 'vi': 'Vietnamese', 'id': 'Indonesian', 'ms': 'Malay', 'tl': 'Filipino (Tagalog)',
+      'yo': 'Yoruba', 'ig': 'Igbo', 'ha': 'Hausa', 'sw': 'Swahili', 'am': 'Amharic',
+      'tr': 'Turkish', 'sv': 'Swedish', 'no': 'Norwegian', 'da': 'Danish', 'fi': 'Finnish',
+      'el': 'Greek', 'he': 'Hebrew', 'fa': 'Persian (Farsi)', 'ro': 'Romanian', 'hu': 'Hungarian',
+      'cs': 'Czech', 'sk': 'Slovak', 'bg': 'Bulgarian', 'hr': 'Croatian', 'sr': 'Serbian',
+      'ca': 'Catalan', 'gl': 'Galician', 'eu': 'Basque', 'af': 'Afrikaans',
+    };
+    var langName = langMap[agentIdentity.language] || agentIdentity.language;
+    base += `\n\n## Language Requirement
+**CRITICAL: You MUST respond in ${langName} at all times.**
+- ALL your responses, messages, emails, and communications must be written in ${langName}.
+- When users write to you in any language, understand their message but ALWAYS reply in ${langName}.
+- Tool calls, code, and technical identifiers remain in their original language (English/code), but all human-facing text must be in ${langName}.
+- This is a hard requirement set by your administrator. Do not switch languages even if asked.`;
   }
 
   return base;

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Guardrails — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Guardrails</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Safety rules, anomaly detection, DLP, onboarding enforcement, and human-in-the-loop approvals for this agent.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#status-bar">Status Bar &amp; Emergency Controls</a></li>
+        <li><a href="#rules">Rules Tab</a></li>
+        <li><a href="#interventions">Interventions Tab</a></li>
+        <li><a href="#dlp">DLP Tab</a></li>
+        <li><a href="#onboarding">Onboarding Tab</a></li>
+        <li><a href="#approvals">Approvals Tab</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Guardrails are the safety net for your AI agents. They're the rules that prevent agents from going rogue — detecting anomalies, blocking data leaks, enforcing policies, and requiring human approval for sensitive actions. Think of guardrails as the combination of a security guard, compliance officer, and safety inspector, all watching your agent 24/7.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>The Guardrails section aggregates eight API endpoints on mount:</p>
+  <ul>
+    <li><code>GET /guardrails/status/:agentId</code> — Pause state and intervention count.</li>
+    <li><code>GET /guardrails/rules?orgId=…</code> — All org rules (filtered client-side to agent-relevant ones).</li>
+    <li><code>GET /guardrails/interventions?agentId=…</code> — Intervention history.</li>
+    <li><code>GET /dlp/violations?agentId=…</code> — Data Loss Prevention violations.</li>
+    <li><code>GET /onboarding/status/:agentId</code> — Onboarding completion status.</li>
+    <li><code>GET /onboarding/progress/:agentId</code> — Per-policy acknowledgment progress.</li>
+    <li><code>GET /approvals/pending?agentId=…</code> — Awaiting human approval.</li>
+    <li><code>GET /approvals/history?agentId=…</code> — Past approval decisions.</li>
+  </ul>
+  <p>Emergency controls: <code>POST /guardrails/pause/:agentId</code>, <code>POST /guardrails/resume/:agentId</code>, <code>POST /guardrails/kill/:agentId</code>.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Status Check</strong> — The status bar shows whether the agent is active or paused, with emergency controls (Pause, Resume, Kill).</li>
+  <li><strong>Rule Evaluation</strong> — Rules are evaluated at runtime against agent behavior. Rules can be agent-specific or global (org-wide).</li>
+  <li><strong>Intervention</strong> — When a rule triggers, an intervention is recorded. Depending on the rule's action, the agent may be warned, paused, or killed.</li>
+  <li><strong>DLP Scanning</strong> — Outbound content is scanned for sensitive data. Violations are logged with severity and action taken.</li>
+  <li><strong>Approval Flow</strong> — Some actions require human approval before proceeding. Pending approvals appear in the Approvals tab.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="status-bar">Status Bar &amp; Emergency Controls</h3>
+<p>The top status bar provides at-a-glance safety information and emergency actions:</p>
+<ul>
+  <li><span class="badge badge-easy">Active</span> — Agent is operating normally.</li>
+  <li><span class="badge badge-medium">Paused</span> — Agent is suspended. All processing is halted.</li>
+  <li><strong>Intervention Count</strong> — Total number of guardrail triggers.</li>
+  <li><strong>Active Rules</strong> — Shows "X/Y rules active" (enabled vs total).</li>
+</ul>
+<p>Emergency controls:</p>
+<ul>
+  <li><strong>Pause</strong> — Immediately suspends the agent. It can be resumed later.</li>
+  <li><strong>Resume</strong> — Restarts a paused agent.</li>
+  <li><strong>Kill</strong> — Terminates all running processes immediately. Requires confirmation. Use as a last resort.</li>
+</ul>
+
+<h3 id="rules">Rules Tab</h3>
+<p>Rules are organized by category, each with an icon and distinct color. Agent-relevant rules include both agent-specific rules and global rules (no <code>agentIds</code> filter).</p>
+
+<h4>Rule Categories</h4>
+<table>
+  <thead><tr><th>Category</th><th>Rule Types</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Anomaly Detection</strong></td><td>Error Rate, Cost Velocity, Volume Spike, Off-Hours Activity, Session Anomaly</td></tr>
+    <tr><td><strong>Policy Compliance</strong></td><td>Policy Violation, Escalation Failure</td></tr>
+    <tr><td><strong>Communication</strong></td><td>Tone Violation, Keyword Detection</td></tr>
+    <tr><td><strong>Memory</strong></td><td>Memory Flood</td></tr>
+    <tr><td><strong>Onboarding</strong></td><td>Onboarding Bypass</td></tr>
+    <tr><td><strong>Security</strong></td><td>Data Leak Attempt, Repeated Error, Prompt Injection</td></tr>
+  </tbody>
+</table>
+
+<h4>Rule Configuration</h4>
+<p>Each rule has:</p>
+<ul>
+  <li><strong>Name &amp; Description</strong> — Human-readable identification.</li>
+  <li><strong>Action</strong> — What happens when triggered: Alert, Notify, Log, Pause Agent, or Kill Agent.</li>
+  <li><strong>Severity</strong> — Low, Medium, High, or Critical. Color-coded.</li>
+  <li><strong>Threshold &amp; Window</strong> — Numeric threshold within a time window (e.g., "10 errors in 60 minutes").</li>
+  <li><strong>Keywords &amp; Patterns</strong> — For communication and security rules. Comma-separated keywords or regex patterns.</li>
+  <li><strong>Cooldown</strong> — Minutes between repeated triggers of the same rule.</li>
+  <li><strong>Toggle Switch</strong> — Enable/disable without deleting.</li>
+  <li><strong>Global Badge</strong> — Rules without agent-specific targeting show a "Global" badge.</li>
+</ul>
+
+<h3 id="interventions">Interventions Tab</h3>
+<p>A log of every guardrail trigger. Each entry shows:</p>
+<ul>
+  <li><strong>Timestamp</strong> — When the intervention occurred.</li>
+  <li><strong>Type</strong> — Block (red), Warn (yellow), or Log (blue).</li>
+  <li><strong>Severity</strong> — Color-coded severity level.</li>
+  <li><strong>Description</strong> — What happened.</li>
+  <li><strong>Resolution</strong> — What action was taken.</li>
+</ul>
+
+<div class="tip">
+  <strong>Tip:</strong> Frequent interventions from the same rule may mean the agent's instructions conflict with the guardrail. Review and adjust either the agent's behavior or the rule.
+</div>
+
+<h3 id="dlp">DLP Tab</h3>
+<p>Data Loss Prevention violations occur when the agent tries to share sensitive data (PII, credentials, proprietary information). Each violation shows the triggering rule, severity, matched content snippet (truncated to 100 chars), and action taken (detected, redacted, blocked).</p>
+
+<h3 id="onboarding">Onboarding Tab</h3>
+<p>Tracks whether the agent has completed required onboarding steps:</p>
+<ul>
+  <li><strong>Status Badge</strong> — "Onboarded" (green) or "Not Onboarded" (yellow).</li>
+  <li><strong>Progress Checklist</strong> — Each policy with a checkmark (✓) or empty circle showing acknowledgment status.</li>
+  <li><strong>Actions</strong> — "Start" to initiate onboarding, "Force Complete" to skip remaining steps (use cautiously).</li>
+</ul>
+
+<h3 id="approvals">Approvals Tab</h3>
+<p>The human-in-the-loop safety system. Two sections:</p>
+<ul>
+  <li><strong>Pending Approvals</strong> — Actions waiting for human review. Each shows a description, timestamp, and Approve/Reject buttons.</li>
+  <li><strong>Approval History</strong> — Past decisions with status (Approved/Rejected), description, timestamp, and who decided.</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Start with alerting, then escalate</strong> — Begin with "Alert" actions and monitor. Only escalate to "Pause" or "Kill" for rules you're confident about.</li>
+    <li><strong>Set reasonable thresholds</strong> — Too strict causes constant interruptions; too loose defeats the purpose. Calibrate based on observed behavior.</li>
+    <li><strong>Use cooldowns to prevent alert fatigue</strong> — A 30-minute cooldown prevents the same rule from firing hundreds of times.</li>
+    <li><strong>Review interventions weekly</strong> — Patterns in interventions reveal agent behavior issues or overly strict rules.</li>
+    <li><strong>Approve or reject pending items promptly</strong> — Agents waiting for approval are blocked. Don't leave them hanging.</li>
+    <li><strong>If you always approve the same type, update the rule</strong> — Persistent approvals for the same action type suggest the rule is too restrictive.</li>
+    <li><strong>Complete onboarding before production use</strong> — Don't force-complete unless absolutely necessary. Onboarding ensures the agent understands org policies.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Agent keeps getting paused</h3>
+  <p>Check the Interventions tab to identify which rule is triggering. The rule may be too sensitive (lower the threshold or increase the window) or the agent's behavior needs adjustment.</p>
+</div>
+
+<div class="card">
+  <h3>Rule not triggering</h3>
+  <p>Verify: (1) the rule is enabled (toggle is on), (2) it targets this agent or is global, (3) the threshold hasn't been set too high, (4) the cooldown hasn't silenced recent triggers.</p>
+</div>
+
+<div class="card">
+  <h3>DLP violations for legitimate content</h3>
+  <p>DLP rules may be too broad. Review the matched content to verify it's actually sensitive. Adjust DLP patterns at the organization level or create agent-specific overrides in the Security tab.</p>
+</div>
+
+<div class="card">
+  <h3>Kill agent didn't work</h3>
+  <p>Kill sends a termination signal. If the agent has external processes, they may continue running. Check the deployment system (PM2, Docker, etc.) to verify all processes stopped.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-security.html">Agent Security</a>
+  <a href="agent-tool-security.html">Tool Security</a>
+  <a href="agent-autonomy.html">Agent Autonomy</a>
+  <a href="agent-activity.html">Agent Activity Log</a>
+  <a href="agent-budget.html">Agent Budget</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

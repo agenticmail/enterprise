@@ -1,6 +1,7 @@
 import { h, useState, useEffect, Fragment, useApp, engineCall, buildAgentEmailMap, buildAgentDataMap, resolveAgentEmail, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function DLPPage() {
   const { toast } = useApp();
@@ -42,7 +43,7 @@ export function DLPPage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h('div', { className: 'page-inner' },
-    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Data Loss Prevention', h(HelpButton, { label: 'Data Loss Prevention' },
+    h('div', { className: 'page-header' }, h('h1', { style: { display: 'flex', alignItems: 'center' } }, 'Data Loss Prevention', h(KnowledgeLink, { page: 'dlp' }), h(HelpButton, { label: 'Data Loss Prevention' },
       h('p', null, 'DLP prevents agents from accidentally leaking sensitive data like API keys, passwords, credit card numbers, or personal information in emails and tool outputs.'),
       h('h4', { style: _h4 }, 'How it works'),
       h('ul', { style: _ul },

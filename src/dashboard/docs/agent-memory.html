@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Memory — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Memory</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Manage the agent's persistent knowledge store — create, search, browse, prune, and decay memories across sessions.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#categories">Memory Categories</a></li>
+        <li><a href="#confidence">Confidence &amp; Decay</a></li>
+        <li><a href="#importance">Importance Levels</a></li>
+        <li><a href="#stats-bar">Stats Bar</a></li>
+        <li><a href="#filtering">Filtering &amp; Search</a></li>
+        <li><a href="#creating">Creating Memories</a></li>
+        <li><a href="#maintenance">Memory Maintenance</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Agent Memory is the agent's long-term brain. Without memory, an agent forgets everything between sessions. With memory, it can recall facts about your organization, remember past interactions, learn from mistakes, and build up expertise over time. You can manually add knowledge, search what the agent knows, and clean up outdated information.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>The Memory section interfaces with these endpoints:</p>
+  <ul>
+    <li><code>GET /memory/agent/:agentId?limit=200&amp;search=…&amp;category=…&amp;importance=…</code> — Query memories with server-side filtering.</li>
+    <li><code>GET /memory/agent/:agentId/stats</code> — Aggregate statistics (total entries, by category, by source, avg confidence).</li>
+    <li><code>POST /memory</code> — Create a new memory entry with title, content, category, importance, and tags.</li>
+    <li><code>DELETE /memory/:id</code> — Delete a specific memory (with confirmation dialog).</li>
+    <li><code>POST /memory/agent/:agentId/prune</code> — Remove expired/stale entries.</li>
+    <li><code>POST /memory/agent/:agentId/decay</code> — Apply confidence decay (default rate: 10%).</li>
+  </ul>
+  <p>Client-side date filtering and pagination (10 items/page) are applied on top of server-side results.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Load</strong> — Memories and stats are fetched in parallel. Stats show totals; memories show individual entries.</li>
+  <li><strong>Browse</strong> — Memories appear in a compact grid layout with title preview, category badge, importance level, confidence bar, and date.</li>
+  <li><strong>Expand</strong> — Click any row to expand it and see the full content, source, creation date, last accessed date, tags, and a delete button.</li>
+  <li><strong>Filter</strong> — Use the search box (triggers on Enter), category dropdown, importance dropdown, and date range to narrow results. Category and importance filters trigger server-side re-fetch.</li>
+  <li><strong>Create</strong> — Click "Add" to open a modal where you enter a title, content, category, importance, and tags.</li>
+  <li><strong>Maintain</strong> — Use the prune (trash icon) and decay (clock icon) buttons for automated memory management.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="categories">Memory Categories</h3>
+<p>Each memory is classified into one of 11 categories, each with a distinct color:</p>
+
+<table>
+  <thead><tr><th>Category</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge badge-medium">Org Knowledge</span></td><td>Facts about your organization — structure, policies, processes.</td></tr>
+    <tr><td><span class="badge">Preference</span></td><td>User or organizational preferences the agent should respect.</td></tr>
+    <tr><td><span class="badge">Interaction Pattern</span></td><td>Learned communication styles and behavioral patterns.</td></tr>
+    <tr><td><span class="badge badge-easy">Context</span></td><td>Situational context from previous interactions.</td></tr>
+    <tr><td><span class="badge badge-easy">Skill</span></td><td>Capabilities or techniques the agent has learned.</td></tr>
+    <tr><td><span class="badge">Processed Email</span></td><td>Summaries of emails the agent has processed.</td></tr>
+    <tr><td><span class="badge">Procedure</span></td><td>Step-by-step processes the agent should follow.</td></tr>
+    <tr><td><span class="badge badge-advanced">Relationship</span></td><td>Information about people and relationships.</td></tr>
+    <tr><td><span class="badge">Reflection</span></td><td>Agent self-assessment and lessons learned.</td></tr>
+    <tr><td><span class="badge badge-easy">Domain Expertise</span></td><td>Specialized knowledge in a specific domain.</td></tr>
+    <tr><td><span class="badge badge-advanced">Error Pattern</span></td><td>Known error scenarios and their resolutions.</td></tr>
+  </tbody>
+</table>
+
+<h3 id="confidence">Confidence &amp; Decay</h3>
+<p>Every memory has a confidence score (0-100%) shown as a color-coded progress bar:</p>
+<ul>
+  <li><strong>Green (≥80%)</strong> — High confidence. The agent trusts this information.</li>
+  <li><strong>Yellow (50-79%)</strong> — Moderate confidence. May need verification.</li>
+  <li><strong>Red (&lt;50%)</strong> — Low confidence. The information may be outdated or unreliable.</li>
+</ul>
+<p><strong>Decay</strong> simulates forgetting. Running decay reduces confidence of memories that haven't been accessed recently by a configurable rate (default 10%). This ensures frequently-used knowledge stays strong while rarely-accessed information gradually fades.</p>
+
+<h3 id="importance">Importance Levels</h3>
+<ul>
+  <li><strong>Critical</strong> — Must never be forgotten. Core organizational facts.</li>
+  <li><strong>High</strong> — Important for daily operations.</li>
+  <li><strong>Normal</strong> — Standard knowledge.</li>
+  <li><strong>Low</strong> — Nice-to-have context that can be pruned if needed.</li>
+</ul>
+
+<h3 id="stats-bar">Stats Bar</h3>
+<p>The compact stats bar shows four metrics at a glance:</p>
+<ul>
+  <li><strong>Total</strong> — Total memory entries stored.</li>
+  <li><strong>Categories</strong> — Number of distinct categories in use.</li>
+  <li><strong>Avg Confidence</strong> — Average confidence across all memories.</li>
+  <li><strong>Sources</strong> — Number of distinct sources that contributed memories.</li>
+</ul>
+
+<h3 id="filtering">Filtering &amp; Search</h3>
+<ul>
+  <li><strong>Search</strong> — Text search (press Enter to execute). Sent to the server as a query parameter.</li>
+  <li><strong>Category</strong> — Dropdown filter. Triggers a server-side re-fetch.</li>
+  <li><strong>Importance</strong> — Dropdown filter. Triggers a server-side re-fetch.</li>
+  <li><strong>Date Range</strong> — Client-side date filtering on <code>createdAt</code>.</li>
+</ul>
+
+<h3 id="creating">Creating Memories</h3>
+<p>The "Add" button opens a creation modal with:</p>
+<ul>
+  <li><strong>Title</strong> — Required. A concise summary of the knowledge.</li>
+  <li><strong>Content</strong> — Required. The detailed information.</li>
+  <li><strong>Category</strong> — Select from the 11 available categories.</li>
+  <li><strong>Importance</strong> — Critical, High, Normal, or Low.</li>
+  <li><strong>Tags</strong> — Comma-separated tags for additional organization.</li>
+</ul>
+
+<h3 id="maintenance">Memory Maintenance</h3>
+<div class="warning">
+  <strong>Warning:</strong> Both prune and decay are irreversible operations. Prune permanently deletes entries; decay permanently reduces confidence scores.
+</div>
+<ul>
+  <li><strong>Prune (🗑)</strong> — Removes expired and stale entries with low confidence. Shows a confirmation dialog and reports how many entries were deleted.</li>
+  <li><strong>Decay (🕐)</strong> — Reduces confidence by 10% for memories not recently accessed. Shows a confirmation dialog and reports how many entries were affected.</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Seed important knowledge manually</strong> — Don't wait for the agent to learn everything on its own. Add critical org knowledge, procedures, and preferences directly.</li>
+    <li><strong>Use appropriate categories</strong> — Proper categorization helps the agent retrieve relevant information faster during operation.</li>
+    <li><strong>Run prune periodically</strong> — Stale memories can confuse the agent. Prune monthly to keep the knowledge base clean.</li>
+    <li><strong>Run decay sparingly</strong> — Decay is useful for identifying unused knowledge, but running it too often can erode valid memories. Monthly or quarterly is sufficient.</li>
+    <li><strong>Set critical importance for must-know facts</strong> — Critical memories resist pruning and decay. Use this for non-negotiable organizational rules.</li>
+    <li><strong>Use tags for cross-cutting concerns</strong> — Tags let you find related memories across categories (e.g., tag "onboarding" across procedures, preferences, and org knowledge).</li>
+    <li><strong>Monitor average confidence</strong> — A dropping average may mean the agent's knowledge is going stale. Add fresh memories or reinforce existing ones.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Search returns no results</h3>
+  <p>Search is server-side and may not support fuzzy matching. Try shorter or more specific search terms. Also check that category and importance filters aren't excluding results.</p>
+</div>
+
+<div class="card">
+  <h3>Memory deleted accidentally</h3>
+  <p>Memory deletion is permanent — there is no undo. The confirmation dialog exists to prevent accidental deletions. If critical knowledge was lost, you'll need to recreate it manually.</p>
+</div>
+
+<div class="card">
+  <h3>Confidence dropping unexpectedly</h3>
+  <p>Someone may have run the decay operation. Check the activity log for decay actions. To prevent this, set important memories to "Critical" importance.</p>
+</div>
+
+<div class="card">
+  <h3>Too many memories slowing down the agent</h3>
+  <p>Large memory stores can slow retrieval. Prune low-confidence and low-importance entries. Consider consolidating multiple related memories into fewer, more comprehensive ones.</p>
+</div>
+
+<!-- Organization Context -->
+<h2 id="organization-context">Organization Context</h2>
+<p>When an agent belongs to a client organization, memory is scoped for data isolation:</p>
+<ul>
+  <li><strong>Data Isolation</strong> — Memory entries are scoped to the organization. An info banner confirms this with "Memory entries are scoped to [Org Name] for data isolation."</li>
+  <li><strong>Org-Labeled Entries</strong> — Memories created within an organization context are tagged with the org identifier, ensuring they don't leak across organizational boundaries.</li>
+  <li><strong>Search &amp; Filtering</strong> — Memory queries automatically respect org boundaries. Only memories belonging to the agent's organization are returned.</li>
+</ul>
+<div class="card">
+  <h3>Can an agent access memories from another organization?</h3>
+  <p>No. When an agent belongs to a client organization, its memory queries are automatically scoped to that organization. This ensures complete data isolation between client organizations.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-activity.html">Agent Activity Log</a>
+  <a href="agent-autonomy.html">Agent Autonomy</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+  <a href="agent-budget.html">Agent Budget</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manager &amp; Daily Catch-Up — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Manager &amp; Daily Catch-Up</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Assign a supervisor for this agent and configure automated daily status briefings across email, WhatsApp, or Telegram.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#manager-types">Manager Types</a></li>
+        <li><a href="#external-manager">External Manager &amp; Messaging Identity</a></li>
+        <li><a href="#internal-manager">Internal Manager</a></li>
+        <li><a href="#daily-catchup">Daily Catch-Up</a></li>
+        <li><a href="#platform-selection">Platform Selection</a></li>
+        <li><a href="#timezone-handling">Timezone Handling</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Every agent can have a manager — someone it reports to. This can be another AI agent in your organization or a real person (via their email address). When a manager is assigned, the agent knows who to escalate issues to and who receives its daily status updates.</p>
+  <p>The <strong>Daily Catch-Up</strong> is an automated briefing the agent sends to its manager at a scheduled time each day. It covers what the agent accomplished, any issues it encountered, and upcoming tasks. Think of it as a morning standup, but your AI sends it automatically.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>The Manager &amp; Daily Catch-Up section edits two top-level config keys on the agent:</p>
+  <ul>
+    <li><code>config.manager</code> — An object with <code>type</code> (<code>"internal"</code> or <code>"external"</code>), plus <code>agentId</code> for internal or <code>name</code>/<code>email</code> for external.</li>
+    <li><code>config.dailyCatchUp</code> — An object with <code>enabled</code>, <code>time</code> (HH:MM), <code>timezone</code> (IANA), and <code>platform</code> (<code>"email"</code>, <code>"whatsapp"</code>, or <code>"telegram"</code>).</li>
+  </ul>
+  <p>For external managers, messaging platform identities (WhatsApp number, Telegram ID) are stored under <code>config.messagingChannels.managerIdentity</code>. This lets the agent recognize the manager across multiple communication channels with full trust.</p>
+  <p>Saves are sent via hot-update (<code>POST /agents/:id/hot-update</code>) if the agent is running, or via config patch (<code>PATCH /agents/:id/config</code>) if stopped. Legacy support maps <code>config.managerId</code> to the new <code>config.manager.agentId</code> format.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Open the Manager &amp; Daily Catch-Up section</strong> on the agent detail page. You'll see the current manager assignment (or "No manager assigned") and the catch-up status.</li>
+  <li><strong>Click "Edit"</strong> to enter edit mode. A form appears with two cards: Manager and Daily Catch-Up.</li>
+  <li><strong>Choose a manager type:</strong>
+    <ul>
+      <li><em>No manager</em> — the agent operates independently.</li>
+      <li><em>Another agent in this organization</em> — select from a dropdown of all other agents.</li>
+      <li><em>External person</em> — enter a name, email, and optionally WhatsApp/Telegram identifiers.</li>
+    </ul>
+  </li>
+  <li><strong>Configure Daily Catch-Up</strong> — toggle it on, set the time and timezone, and choose the delivery platform.</li>
+  <li><strong>Click "Save Changes"</strong> — the configuration is applied immediately if the agent is running (hot-update) or saved for next start.</li>
+</ol>
+
+<div class="tip">
+  <strong>Tip:</strong> Changes take effect immediately on running agents via hot-update. You don't need to restart the agent after saving.
+</div>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="manager-types">Manager Types</h3>
+
+<p>There are three options for the manager assignment:</p>
+
+<div class="card">
+  <h3>No Manager</h3>
+  <p>The agent operates independently. Escalations go to the system admin. Daily catch-ups have no recipient (a warning is shown if catch-up is enabled without a manager).</p>
+</div>
+
+<div class="card">
+  <h3>Internal Manager (Another Agent)</h3>
+  <p>Another AI agent in your organization supervises this one. The supervisor agent receives escalations, status reports, and daily catch-ups. This creates a reporting hierarchy between agents — useful for multi-agent workflows where a coordinator agent oversees specialist agents.</p>
+  <p>The dropdown lists all agents in the organization except the current one (an agent cannot be its own manager). Each entry shows the agent's display name and role.</p>
+</div>
+
+<div class="card">
+  <h3>External Manager (Human)</h3>
+  <p>A real person outside the system — identified by name and email address. The agent sends reports, catch-ups, and escalations to this person. Additional fields let you specify the manager's WhatsApp number and Telegram ID so the agent can recognize them across messaging platforms.</p>
+</div>
+
+<h3 id="external-manager">External Manager &amp; Messaging Identity</h3>
+
+<p>When you choose an external manager, you can optionally provide:</p>
+<ul>
+  <li><strong>WhatsApp Number</strong> — The manager's phone number in international format (e.g., <code>+1234567890</code>). Enables the agent to send catch-ups via WhatsApp and recognize the manager in WhatsApp conversations.</li>
+  <li><strong>Telegram ID</strong> — The manager's Telegram user ID (obtainable from <code>@userinfobot</code>). Enables Telegram-based catch-ups and recognition.</li>
+</ul>
+
+<p>These identities are stored under <code>config.messagingChannels.managerIdentity</code> and allow the agent to establish trust with the manager across platforms — the agent knows that messages from these accounts carry managerial authority.</p>
+
+<h3 id="internal-manager">Internal Manager</h3>
+
+<p>When selecting an internal manager, the agent's <code>config.manager</code> is set to:</p>
+<pre><code>{
+  "type": "internal",
+  "agentId": "selected-agent-id"
+}</code></pre>
+<p>For backward compatibility, the legacy <code>config.managerId</code> field is also set. The <code>resolveManager()</code> function handles both formats, looking up the agent's display name from the full agent list.</p>
+
+<h3 id="daily-catchup">Daily Catch-Up</h3>
+
+<p>The daily catch-up is an automated status briefing. When enabled, the agent sends a structured update to its manager covering:</p>
+<ul>
+  <li>Tasks completed since the last catch-up</li>
+  <li>Issues or blockers encountered</li>
+  <li>Upcoming work and priorities</li>
+  <li>Key metrics and activity summary</li>
+</ul>
+
+<p>Configuration fields:</p>
+<ul>
+  <li><strong>Enabled</strong> — Toggle on/off.</li>
+  <li><strong>Time</strong> — The time of day to send (HH:MM format, e.g., <code>09:00</code>).</li>
+  <li><strong>Timezone</strong> — The IANA timezone for the scheduled time. Supports 30+ common timezones across Americas, Europe, Africa, Asia, and Pacific regions.</li>
+  <li><strong>Platform</strong> — How to deliver: Email, WhatsApp, or Telegram.</li>
+</ul>
+
+<h3 id="platform-selection">Platform Selection</h3>
+
+<p>The available delivery platforms depend on your configuration:</p>
+<ul>
+  <li><strong>Email</strong> — Always available. The default option.</li>
+  <li><strong>WhatsApp</strong> — Shown when WhatsApp is configured in messaging channels, or when the manager's WhatsApp number is provided, or when the manager type is external.</li>
+  <li><strong>Telegram</strong> — Shown when Telegram is configured in messaging channels, or when the manager type is external.</li>
+</ul>
+
+<div class="warning">
+  <strong>Warning:</strong> If you select WhatsApp but haven't set the manager's WhatsApp number, or select Telegram without a Telegram ID, a warning message appears. The catch-up won't be deliverable until the identity is provided.
+</div>
+
+<h3 id="timezone-handling">Timezone Handling</h3>
+
+<p>The system includes 30+ pre-configured IANA timezones covering major business centers worldwide. The catch-up is scheduled according to the selected timezone — if you set 09:00 in <code>America/New_York</code>, it fires at 9 AM Eastern regardless of where the server runs. The default timezone is <code>America/New_York</code>.</p>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <h3>Start with Email</h3>
+  <p>Email is the most reliable delivery platform and requires no additional setup. Start with email catch-ups, then add WhatsApp or Telegram once you've verified the agent's reporting is useful.</p>
+</div>
+
+<div class="card">
+  <h3>Match Timezone to the Manager</h3>
+  <p>Set the catch-up timezone to the manager's local timezone, not the agent's server timezone. A catch-up arriving at 9 AM in the manager's morning is far more useful than one arriving at 3 AM.</p>
+</div>
+
+<div class="card">
+  <h3>Use Internal Managers for Multi-Agent Workflows</h3>
+  <p>When running multiple agents, assign a coordinator agent as the manager for specialist agents. The coordinator receives all catch-ups and can synthesize a summary for the human owner — reducing notification fatigue.</p>
+</div>
+
+<div class="card">
+  <h3>Always Assign a Manager Before Enabling Catch-Up</h3>
+  <p>A catch-up without a manager has no recipient. The dashboard warns you about this, but it's best to assign the manager first, then enable the catch-up.</p>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Catch-up is enabled but nobody receives it</h3>
+  <p>Check that a manager is assigned. If the manager type is "No manager," the catch-up has no recipient. Also verify the manager's email address is correct for external managers.</p>
+</div>
+
+<div class="card">
+  <h3>WhatsApp/Telegram delivery fails</h3>
+  <p>Ensure the manager's messaging identity (phone number or Telegram ID) is set in the external manager configuration. Also check that the corresponding messaging channel is configured in the agent's Channels tab.</p>
+</div>
+
+<div class="card">
+  <h3>"Failed to save" error</h3>
+  <p>If the agent is running, saves use hot-update. If the hot-update endpoint fails, try stopping the agent, saving, then restarting. Also check that required fields (name and email for external managers, or agent selection for internal) are filled in.</p>
+</div>
+
+<div class="card">
+  <h3>Legacy managerId not resolving</h3>
+  <p>Older configurations may use <code>config.managerId</code> instead of <code>config.manager.agentId</code>. The <code>resolveManager()</code> function handles both, but saving the form will migrate to the new format automatically.</p>
+</div>
+
+<div class="card">
+  <h3>Catch-up arrives at the wrong time</h3>
+  <p>Double-check the timezone setting. The time is interpreted in the selected timezone, not UTC or the server's local time. Ensure you've selected the correct IANA timezone from the dropdown.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+
+<div class="nav">
+  <a href="/docs/agent-channels.html">Channels</a> — Configure WhatsApp, Telegram, and other messaging integrations
+  <br>
+  <a href="/docs/agent-communication.html">Communication</a> — Email and messaging settings for the agent
+  <br>
+  <a href="/docs/agent-permissions.html">Permissions</a> — Control what the agent can do and escalation behavior
+  <br>
+  <a href="/docs/agent-activity.html">Activity Log</a> — See the agent's catch-up history and delivery status
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

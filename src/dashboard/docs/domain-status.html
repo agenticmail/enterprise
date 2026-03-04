@@ -1,0 +1,288 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Domain &amp; Deployment — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Domain &amp; Deployment</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Configure how your AgenticMail Enterprise instance is accessed on the internet — subdomains, custom domains, CORS, tunnels, and migration.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#current-deployment">Current Deployment</a></li>
+<li><a href="#subdomain">AgenticMail Subdomain</a></li>
+<li><a href="#custom-domain">Custom Domain</a></li>
+<li><a href="#dns-verification">DNS Verification</a></li>
+<li><a href="#deploy-production">Deploy to Production</a></li>
+<li><a href="#cors">CORS Configuration</a></li>
+<li><a href="#deployment-key">Deployment Key</a></li>
+<li><a href="#migration">Migration</a></li>
+<li><a href="#cli-commands">CLI Commands</a></li>
+<li><a href="#configuration">Configuration &amp; Setup</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p><strong>For everyone:</strong> This page controls how people reach your AgenticMail dashboard. By default, it runs on your local machine (localhost). To let your team and agents access it from anywhere, you can set up a free subdomain (yourcompany.agenticmail.io), connect your own custom domain (agents.yourcompany.com), or deploy via a Cloudflare Tunnel.</p>
+<p><strong>For technical users:</strong> The Domain &amp; Deployment page manages DNS registration/verification, subdomain allocation on agenticmail.io, CORS origin policies, Cloudflare Tunnel lifecycle, and deployment key issuance for disaster recovery. The page queries <code>/domain/status</code>, <code>/domain/cors</code>, and <code>/tunnel/status</code> on load and provides forms for domain registration, subdomain changes, and tunnel management.</p>
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+<ol>
+<li><strong>Start locally</strong> — your instance runs on localhost after initial setup.</li>
+<li><strong>Choose a URL strategy</strong> — free agenticmail.io subdomain, your own custom domain, or both.</li>
+<li><strong>Expose to the internet</strong> — via Cloudflare Tunnel (recommended for local), VPS deployment, Docker, Railway, or Fly.io.</li>
+<li><strong>Verify ownership</strong> — for custom domains, add DNS TXT records and verify.</li>
+<li><strong>Share the URL</strong> — your team and agents connect via the configured domain.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Domain Status States</h3>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-easy">verified</span></td><td>Domain ownership confirmed. Ready for use.</td></tr>
+<tr><td><span class="badge badge-medium">pending_dns</span></td><td>Waiting for DNS records to propagate and verify.</td></tr>
+<tr><td><span class="badge">not configured</span></td><td>No custom domain set up.</td></tr>
+</tbody>
+</table>
+
+<h3>Domain Types</h3>
+<table>
+<thead><tr><th>Type</th><th>Example</th><th>DNS Record</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><strong>Subdomain</strong></td><td>agents.yourcompany.com</td><td>CNAME</td><td>Recommended — easier setup, doesn't affect main site.</td></tr>
+<tr><td><strong>Root/Apex</strong></td><td>yourcompany.com</td><td>A record</td><td>Entire domain dedicated to AgenticMail. Requires A record (most providers don't support CNAME at apex).</td></tr>
+</tbody>
+</table>
+
+<h2 id="current-deployment">Current Deployment</h2>
+<p>Shows the URL you're currently accessing the dashboard from (<code>window.location.origin</code>). This is the URL your team uses. If it shows <code>localhost</code>, the instance is only accessible from your machine.</p>
+
+<h2 id="subdomain">AgenticMail Subdomain</h2>
+<p>A free subdomain on <code>agenticmail.io</code> — for example, <code>yourcompany.agenticmail.io</code>. This gives you a public URL without needing your own domain.</p>
+
+<h3>Changing Your Subdomain</h3>
+<p>Click "Change" to update. Validation rules:</p>
+<ul>
+<li>Minimum 2 characters, maximum 63</li>
+<li>Lowercase letters, numbers, and hyphens only</li>
+<li>Cannot start or end with a hyphen</li>
+</ul>
+
+<div class="warning">
+<strong>Warning:</strong> If you're currently accessing the dashboard from the subdomain URL, changing it will require you to update DNS records, bookmarks, agent configurations, and access the dashboard from the new URL. CORS origins are auto-updated.
+</div>
+
+<h2 id="custom-domain">Custom Domain</h2>
+<p>Use your own domain for a professional, branded deployment.</p>
+
+<h3>Setup Process</h3>
+<ol>
+<li><strong>Click "Add Custom Domain"</strong> — choose between subdomain or root domain type.</li>
+<li><strong>Enter your domain</strong> — e.g., <code>agents.yourcompany.com</code> (just the domain, not a URL).</li>
+<li><strong>Optionally add contact email</strong> — for domain-related notifications.</li>
+<li><strong>Click Register</strong> — the system issues DNS challenge records.</li>
+<li><strong>Add DNS records</strong> at your DNS provider (see DNS Verification below).</li>
+<li><strong>Click "Verify DNS Now"</strong> — or wait for automatic verification.</li>
+</ol>
+
+<div class="tip">
+<strong>Tip:</strong> Use a subdomain like <code>agents.yourcompany.com</code> instead of the root domain — it's easier to set up and doesn't affect your main website.
+</div>
+
+<h2 id="dns-verification">DNS Verification</h2>
+<p>After registering a domain, you need to add two DNS records:</p>
+
+<h3>Step 1: Ownership Verification (TXT Record)</h3>
+<table>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Type</strong></td><td>TXT</td></tr>
+<tr><td><strong>Host / Name</strong></td><td><code>_agenticmail-verify.yourdomain.com</code></td></tr>
+<tr><td><strong>Value</strong></td><td>The challenge string shown in the dashboard</td></tr>
+</tbody>
+</table>
+
+<h3>Step 2: Route Traffic</h3>
+<p><strong>For subdomains (CNAME):</strong></p>
+<table>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Type</strong></td><td>CNAME</td></tr>
+<tr><td><strong>Host / Name</strong></td><td>Your domain</td></tr>
+<tr><td><strong>Value</strong></td><td><code>yoursubdomain.agenticmail.io</code> or your server hostname</td></tr>
+</tbody>
+</table>
+
+<p><strong>For root domains (A Record):</strong></p>
+<table>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Type</strong></td><td>A</td></tr>
+<tr><td><strong>Host / Name</strong></td><td>Your domain (or <code>@</code>)</td></tr>
+<tr><td><strong>Value</strong></td><td>Your server's IP address</td></tr>
+</tbody>
+</table>
+
+<div class="tip">
+<strong>Tip:</strong> DNS changes can take up to 48 hours to propagate. Some providers (Cloudflare, Route 53) support CNAME flattening at the apex, which allows CNAME records on root domains.
+</div>
+
+<h2 id="deploy-production">Deploy to Production</h2>
+<p>The deployment section offers five methods to expose your local instance to the internet:</p>
+
+<table>
+<thead><tr><th>Method</th><th>Difficulty</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Cloudflare Tunnel</strong> <span class="badge badge-easy">Recommended</span></td><td>Easy</td><td>Keep running locally, securely exposed via your domain. No port forwarding needed. Automatic HTTPS.</td></tr>
+<tr><td><strong>VPS / Server</strong></td><td>Easy</td><td>Deploy to DigitalOcean, Hetzner, AWS, or any Linux server.</td></tr>
+<tr><td><strong>Docker</strong></td><td>Medium</td><td>Run as a Docker container on any host.</td></tr>
+<tr><td><strong>Railway</strong></td><td>Easy</td><td>One-click deploy to Railway.app.</td></tr>
+<tr><td><strong>Fly.io</strong></td><td>Medium</td><td>Deploy to Fly.io edge network.</td></tr>
+</tbody>
+</table>
+
+<h3>Cloudflare Tunnel</h3>
+<p>The recommended method. Your app stays on your machine; Cloudflare Tunnel creates a secure connection to their network. Steps:</p>
+<ol>
+<li><strong>Install cloudflared</strong> — click "Install Cloudflared" or install manually.</li>
+<li><strong>Login to Cloudflare</strong> — authenticate with your Cloudflare account.</li>
+<li><strong>Create tunnel</strong> — specify the hostname and local port.</li>
+<li><strong>Start tunnel</strong> — traffic flows securely from your domain to localhost.</li>
+</ol>
+
+<h2 id="cors">CORS Configuration</h2>
+<p>CORS (Cross-Origin Resource Sharing) controls which websites can make API requests to your server.</p>
+<ul>
+<li><strong>No origins listed</strong> — open access (any website can call your API). Fine for development, risky for production.</li>
+<li><strong>Origins listed</strong> — only those specific domains can make requests.</li>
+</ul>
+<p>CORS is auto-updated when you change your subdomain or custom domain. For manual control, go to <strong>Settings → Network &amp; Firewall</strong>.</p>
+
+<div class="warning">
+<strong>Warning:</strong> Open CORS in production is a security risk. Always configure allowed origins when deploying publicly.
+</div>
+
+<h2 id="deployment-key">Deployment Key</h2>
+<p>After registering a domain, a deployment key is shown <strong>once</strong>. This key is required to recover your domain if you migrate to a new server.</p>
+
+<div class="danger">
+<strong>Danger:</strong> The deployment key is shown only once. Save it securely immediately. Without it, domain recovery requires manual intervention.
+</div>
+
+<p>Recovery command:</p>
+<pre><code>npx @agenticmail/enterprise recover --domain your.domain.com</code></pre>
+
+<h2 id="migration">Migration</h2>
+<p>To move your entire deployment to a new machine:</p>
+<ol>
+<li>Copy <code>~/.agenticmail/.env</code> from the old machine (contains DATABASE_URL, JWT_SECRET, VAULT_KEY, PORT).</li>
+<li>On the new machine: <code>mkdir -p ~/.agenticmail</code></li>
+<li>Save the .env file to <code>~/.agenticmail/.env</code></li>
+<li>Copy <code>~/.agenticmail/branding/</code> folder if you have custom branding (logo, favicon, login background).</li>
+<li>Start the server: <code>npx @agenticmail/enterprise@latest start</code></li>
+<li>If using Cloudflare Tunnel: <code>cloudflared tunnel login</code> on the new machine, then redeploy from the dashboard.</li>
+</ol>
+
+<div class="danger">
+<strong>Important:</strong> Without the same <code>VAULT_KEY</code>, encrypted credentials (agent email passwords, API keys) cannot be decrypted. You would need to re-enter them.
+</div>
+
+<h2 id="cli-commands">CLI Commands</h2>
+<table>
+<thead><tr><th>Purpose</th><th>Command</th></tr></thead>
+<tbody>
+<tr><td>Initial setup</td><td><code>npx @agenticmail/enterprise setup</code></td></tr>
+<tr><td>Start server</td><td><code>npx @agenticmail/enterprise start</code></td></tr>
+<tr><td>Verify DNS</td><td><code>npx @agenticmail/enterprise verify-domain</code></td></tr>
+<tr><td>Recover on new server</td><td><code>npx @agenticmail/enterprise recover --domain your.domain.com</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>API Endpoints</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/domain/status</code></td><td>Get domain registration and verification status</td></tr>
+<tr><td>POST</td><td><code>/domain/register</code></td><td>Register a new custom domain</td></tr>
+<tr><td>POST</td><td><code>/domain/change</code></td><td>Change to a different custom domain</td></tr>
+<tr><td>POST</td><td><code>/domain/verify</code></td><td>Check DNS verification status</td></tr>
+<tr><td>DELETE</td><td><code>/domain</code></td><td>Remove custom domain</td></tr>
+<tr><td>POST</td><td><code>/domain/subdomain</code></td><td>Set/change agenticmail.io subdomain</td></tr>
+<tr><td>GET</td><td><code>/domain/cors</code></td><td>Get CORS allowed origins</td></tr>
+<tr><td>GET</td><td><code>/tunnel/status</code></td><td>Cloudflare Tunnel status</td></tr>
+<tr><td>POST</td><td><code>/tunnel/install</code></td><td>Install cloudflared</td></tr>
+<tr><td>POST</td><td><code>/tunnel/stop</code></td><td>Stop running tunnel</td></tr>
+</tbody>
+</table>
+
+<h3>Environment Variables (.env)</h3>
+<table>
+<thead><tr><th>Variable</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>DATABASE_URL</code></td><td>Database connection — all data lives here</td></tr>
+<tr><td><code>JWT_SECRET</code></td><td>Keeps login sessions valid across restarts</td></tr>
+<tr><td><code>AGENTICMAIL_VAULT_KEY</code></td><td>Decrypts stored credentials</td></tr>
+<tr><td><code>PORT</code></td><td>Server port (default: 3200)</td></tr>
+</tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Use Cloudflare Tunnel for local deployments</strong> — no port forwarding, automatic HTTPS, and easy management.</li>
+<li><strong>Use a subdomain for custom domains</strong> — <code>agents.yourcompany.com</code> is easier to set up than a root domain.</li>
+<li><strong>Save your deployment key immediately</strong> — it's shown once and cannot be retrieved later.</li>
+<li><strong>Back up your .env file</strong> — this is your entire configuration. Store it securely (password manager, encrypted backup).</li>
+<li><strong>Configure CORS in production</strong> — never leave CORS open on a public deployment.</li>
+<li><strong>Keep cloudflared updated</strong> — the dashboard shows the installed version; update periodically.</li>
+<li><strong>Test DNS before going live</strong> — use <code>dig</code> or <code>nslookup</code> to verify records before clicking "Verify DNS Now."</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+<h3>DNS verification fails</h3>
+<p>DNS propagation can take up to 48 hours. Verify your records are correct with <code>dig TXT _agenticmail-verify.yourdomain.com</code>. Ensure there are no typos in the challenge value.</p>
+
+<h3>Subdomain change breaks access</h3>
+<p>After changing the subdomain, you must update DNS to point the new subdomain to your server, then access the dashboard from the new URL. The old URL will stop working.</p>
+
+<h3>Cloudflare Tunnel not connecting</h3>
+<p>Ensure cloudflared is installed and logged in (<code>cloudflared tunnel login</code>). Check that the configured port matches your server's actual port. Review cloudflared logs for errors.</p>
+
+<h3>CORS errors in browser console</h3>
+<p>Add your dashboard URL to the allowed origins in Settings → Network &amp; Firewall. CORS is auto-updated when you change subdomain/domain, but manual additions may be needed for custom setups.</p>
+
+<h3>"Enter just the domain, not a URL" error</h3>
+<p>Don't include <code>https://</code> — enter only the domain (e.g., <code>agents.yourcompany.com</code>).</p>
+
+<h3>Lost deployment key</h3>
+<p>If you've lost the deployment key and need to recover, contact support. As a workaround, you can remove the domain and re-register it, but you'll need to update DNS records again.</p>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+<a href="/docs/vault.html">Vault</a> — Credentials encrypted with VAULT_KEY are tied to your deployment.
+<a href="/docs/users.html">Users</a> — User access requires a reachable deployment URL.
+<a href="/docs/compliance.html">Compliance</a> — Domain and deployment changes are logged in audit reports.
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

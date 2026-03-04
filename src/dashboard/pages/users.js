@@ -2,6 +2,7 @@ import { h, useState, useEffect, Fragment, useApp, apiCall, showConfirm } from '
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 // ─── Permission Editor Component ───────────────────
 
@@ -254,7 +255,7 @@ function PermissionEditor({ userId, userName, currentPerms, pageRegistry, onSave
           return h('option', { key: o.id, value: o.id }, o.name);
         })
       ),
-      userOrgId && h('div', { style: { fontSize: 11, color: 'var(--warning, #f59e0b)', marginTop: 6 } },
+      userOrgId && h('div', { style: { fontSize: 11, color: 'var(--danger, #991b1b)', marginTop: 6 } },
         'This user will only see agents and data belonging to this organization. The org switcher will be locked for them.'
       )
     ),
@@ -586,7 +587,7 @@ export function UsersPage() {
 
   return h(Fragment, null,
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Users', h(HelpButton, { label: 'Users' },
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Users', h(KnowledgeLink, { page: 'users' }), h(HelpButton, { label: 'Users' },
         h('p', null, 'Manage dashboard users who can access and administer the AgenticMail Enterprise console. Each user has a role that controls what they can see and do.'),
         h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Roles'),
         h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
@@ -612,7 +613,7 @@ export function UsersPage() {
           h('input', { className: 'input', type: 'text', value: form.password, onChange: function(e) { setForm(function(f) { return Object.assign({}, f, { password: e.target.value }); }); }, placeholder: 'Min 8 characters', style: { flex: 1, fontFamily: 'var(--font-mono)', fontSize: 13 } }),
           h('button', { type: 'button', className: 'btn btn-secondary btn-sm', onClick: generateCreatePassword, title: 'Generate random password', style: { whiteSpace: 'nowrap' } }, I.refresh(), ' Generate')
         ),
-        form.password && h('div', { style: { marginTop: 6, padding: 8, background: 'var(--warning-soft, rgba(245,158,11,0.08))', borderRadius: 6, fontSize: 11, color: 'var(--text-secondary)' } },
+        form.password && h('div', { style: { marginTop: 6, padding: 8, background: 'var(--warning-soft, rgba(153,27,27,0.08))', borderRadius: 6, fontSize: 11, color: 'var(--text-secondary)' } },
           'The user will be required to change this password on their first login. Share it securely.'
         )
       ),
@@ -709,7 +710,7 @@ export function UsersPage() {
             return h('option', { key: o.id, value: o.id }, o.name);
           })
         ),
-        editForm.clientOrgId && h('div', { style: { fontSize: 11, color: 'var(--warning, #f59e0b)', marginTop: 4 } },
+        editForm.clientOrgId && h('div', { style: { fontSize: 11, color: 'var(--danger, #991b1b)', marginTop: 4 } },
           'This user will only see agents and data from this organization.'
         )
       ),
@@ -770,7 +771,7 @@ export function UsersPage() {
       // Step 3: Impact
       deleteStep === 3 && h('div', null,
         h('h4', { style: { marginBottom: 12 } }, 'Impact Assessment'),
-        h('div', { style: { padding: 12, background: 'var(--warning-soft, rgba(245,158,11,0.08))', borderRadius: 8, fontSize: 13, lineHeight: 1.6 } },
+        h('div', { style: { padding: 12, background: 'var(--warning-soft, rgba(153,27,27,0.08))', borderRadius: 8, fontSize: 13, lineHeight: 1.6 } },
           h('p', null, 'If this user manages or supervises any agents, those agents will lose their manager assignment.'),
           h('p', { style: { marginTop: 8 } }, 'If this user created approval workflows, pending approvals may become orphaned.'),
           h('p', { style: { marginTop: 8 } }, 'Any scheduled tasks or cron jobs created by this user will continue to run but cannot be modified.')
@@ -851,7 +852,7 @@ export function UsersPage() {
                       className: 'btn btn-ghost btn-sm',
                       title: isDeactivated ? 'Reactivate User' : 'Deactivate User',
                       onClick: function() { toggleActive(u); },
-                      style: { color: isDeactivated ? 'var(--success, #15803d)' : 'var(--warning, #f59e0b)' }
+                      style: { color: isDeactivated ? 'var(--success, #15803d)' : 'var(--warning, #991b1b)' }
                     }, isDeactivated ? I.check() : I.pause()),
                     // Delete (owner only)
                     !isSelf && h('button', { className: 'btn btn-ghost btn-sm', title: 'Delete User Permanently', onClick: function() { startDelete(u); }, style: { color: 'var(--danger)' } }, I.trash())

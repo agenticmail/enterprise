@@ -1,0 +1,197 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Action Journal — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Action Journal</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Tamper-proof audit trail of every agent action with rollback capabilities</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#stats-cards">Stats Cards</a></li>
+    <li><a href="#journal-table">Journal Table</a></li>
+    <li><a href="#rollback">Rollback Actions</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> The Action Journal is like a security camera for your AI agents. Every tool they use, every action they take is recorded here with a timestamp and full details. If an agent makes a mistake — like sending the wrong email or deleting something it shouldn't have — you can find the action in the journal and hit "Rollback" to undo it. Think of it as Ctrl+Z for your AI workforce.
+</div>
+
+<p>The Action Journal page (<code>JournalPage</code>) provides a comprehensive audit trail of all agent actions across the system. Every tool call, side effect, and external interaction is logged with full context including the agent identity, tool name, action type, reversibility status, and timestamp. The journal supports organization-scoped filtering and rollback of reversible actions.</p>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Agent executes an action</strong> — Any tool call or side effect triggers a journal entry automatically.</li>
+  <li><strong>Entry is recorded</strong> — The system logs the agent ID, tool name, action type, reversibility flag, parameters, and timestamp.</li>
+  <li><strong>Admin reviews</strong> — Browse the journal table to see what agents have done. Filter by organization context.</li>
+  <li><strong>Rollback if needed</strong> — For reversible actions, click the Rollback button to undo the action. The entry is marked as "Rolled Back".</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Reversible vs. Non-Reversible Actions</h3>
+<p>Not all actions can be undone. The journal marks each entry as reversible (✅) or non-reversible (❌):</p>
+
+<table>
+  <thead><tr><th>Reversible</th><th>Non-Reversible</th></tr></thead>
+  <tbody>
+    <tr><td>Creating a record (can be deleted)</td><td>Sent emails (cannot be unsent)</td></tr>
+    <tr><td>Updating a field (can be reverted)</td><td>SMS messages</td></tr>
+    <tr><td>Moving files (can be moved back)</td><td>Social media posts (once public)</td></tr>
+    <tr><td>Toggling settings</td><td>Financial transactions (once settled)</td></tr>
+    <tr><td>Assigning resources</td><td>Deleted data (if not soft-deleted)</td></tr>
+  </tbody>
+</table>
+
+<h3>Action Types</h3>
+<p>Each journal entry has an <code>actionType</code> displayed as a badge tag. Common types include tool calls, API requests, file operations, message sends, and data modifications.</p>
+
+<h3>Status States</h3>
+<table>
+  <thead><tr><th>Status</th><th>Badge</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Active</td><td><span class="badge badge-easy">Active</span></td><td>Action was executed and is in effect</td></tr>
+    <tr><td>Rolled Back</td><td><span class="badge badge-medium">Rolled Back</span></td><td>Action was reversed by an admin</td></tr>
+  </tbody>
+</table>
+
+<h2 id="stats-cards">Stats Cards</h2>
+
+<p>Three summary statistics are displayed above the journal table, loaded from <code>/api/engine/journal/stats/default</code>:</p>
+
+<table>
+  <thead><tr><th>Stat</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Total Actions</strong></td><td>Total number of tool calls and side effects recorded across all agents</td></tr>
+    <tr><td><strong>Reversible</strong></td><td>Actions that can be undone via rollback</td></tr>
+    <tr><td><strong>Rolled Back</strong></td><td>Actions that have been reversed. A high count may indicate agents need tighter permissions or better instructions</td></tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>Reading the stats:</strong> If "Rolled Back" is a large percentage of "Reversible", your agents may be making too many mistakes. Consider tightening permissions, adding approval requirements, or improving agent instructions.
+</div>
+
+<h2 id="journal-table">Journal Table</h2>
+
+<p>The main table displays the last 50 journal entries with the following columns:</p>
+
+<table>
+  <thead><tr><th>Column</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Time</strong></td><td>When the action was executed (localized timestamp)</td></tr>
+    <tr><td><strong>Agent</strong></td><td>Agent badge with avatar and name (resolved from agent data)</td></tr>
+    <tr><td><strong>Tool</strong></td><td>The tool or function that was called (<code>toolName</code> or <code>toolId</code>)</td></tr>
+    <tr><td><strong>Type</strong></td><td>Action type badge (e.g., "api-call", "file-write", "email-send")</td></tr>
+    <tr><td><strong>Reversible</strong></td><td>✅ if the action can be rolled back, ❌ if not</td></tr>
+    <tr><td><strong>Status</strong></td><td>Green "Active" or yellow "Rolled Back" badge</td></tr>
+    <tr><td><strong>Actions</strong></td><td>Rollback button (only shown for reversible, non-rolled-back entries)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="rollback">Rollback Actions</h2>
+
+<p>Rollback reverses a previously executed action. The rollback mechanism is action-specific — for example, rolling back a record creation deletes the record; rolling back a field update restores the previous value.</p>
+
+<pre><code>POST /api/engine/journal/{entryId}/rollback
+Content-Type: application/json
+
+{}</code></pre>
+
+<p>The response includes:</p>
+<ul>
+  <li><code>success: true</code> — Rollback completed, entry status changes to "Rolled Back"</li>
+  <li><code>success: false</code> — Rollback failed with an error message explaining why</li>
+</ul>
+
+<div class="danger">
+  <strong>Rollback is itself irreversible.</strong> Once you roll back an action, the rollback cannot be undone. The original action is marked as reversed and the undo operation takes effect immediately. Verify you're rolling back the correct entry before proceeding.
+</div>
+
+<div class="warning">
+  <strong>Not all "reversible" actions can always be rolled back.</strong> An action may be marked as reversible at creation time, but the rollback could fail if the system state has changed (e.g., the record was already deleted by another process). The rollback endpoint returns an error message if this happens.
+</div>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/engine/journal</code></td><td>GET</td><td>List journal entries (supports <code>?orgId=</code>, <code>?limit=</code>)</td></tr>
+    <tr><td><code>/api/engine/journal/stats/default</code></td><td>GET</td><td>Get summary statistics (total, reversible, rolled back)</td></tr>
+    <tr><td><code>/api/engine/journal/{id}/rollback</code></td><td>POST</td><td>Roll back a specific action</td></tr>
+  </tbody>
+</table>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>The journal is automatically populated — no configuration is required to start logging. However, you can influence what gets logged by configuring agent permissions:</p>
+
+<ul>
+  <li><strong>Blocked side effects</strong> — Actions blocked by permission settings never execute and thus don't appear in the journal.</li>
+  <li><strong>Approval-required actions</strong> — Actions requiring approval only appear in the journal after they're approved and executed. Rejected actions appear in the Approvals history instead.</li>
+  <li><strong>Rate limits</strong> — Actions throttled by rate limits are recorded as failed attempts.</li>
+</ul>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Review the journal daily</strong> — Especially during the first weeks of deploying new agents. Early detection of problematic patterns prevents larger issues.</li>
+  <li><strong>Monitor the rollback ratio</strong> — If you're rolling back more than 5% of actions, agent permissions or instructions need tightening.</li>
+  <li><strong>Use org filtering for compliance</strong> — When auditing for a specific client, use the org context switcher to focus on their agents' actions only.</li>
+  <li><strong>Export for compliance</strong> — The journal data is available via API for export to external compliance systems or SIEM tools.</li>
+  <li><strong>Correlate with approvals</strong> — Cross-reference journal entries with approval history to verify that approved actions executed correctly.</li>
+  <li><strong>Set up alerts</strong> — Consider monitoring the journal API for specific action types or high-volume activity that might indicate runaway agents.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h4>"No journal entries" despite active agents</h4>
+  <p>Check: (1) The org context switcher — you may be filtering to an org with no agents. (2) The agents are actually running and making tool calls. (3) The engine service is connected and logging correctly.</p>
+</div>
+
+<div class="card">
+  <h4>Rollback fails with an error</h4>
+  <p>The action may no longer be reversible due to system state changes. For example, if a created record was already modified or deleted by another process. Check the error message for specifics.</p>
+</div>
+
+<div class="card">
+  <h4>Agent badge shows ID instead of name</h4>
+  <p>The agent data may not have loaded. Refresh the page. If the agent was deleted, only the ID will be available.</p>
+</div>
+
+<div class="card">
+  <h4>Stats don't match the visible entries</h4>
+  <p>Stats come from <code>/journal/stats/default</code> which covers all entries, while the table only shows the last 50. The stats reflect the complete history.</p>
+</div>
+
+<div class="nav">
+  <h3 id="related">Related Pages</h3>
+  <ul>
+    <li><a href="/docs/approvals.html">Approvals</a> — Human-in-the-loop approval queue (actions before they execute)</li>
+    <li><a href="/docs/agents.html">Agents</a> — Configure permissions that control what actions are logged</li>
+    <li><a href="/docs/organizations.html">Organizations</a> — Filter journal by organization</li>
+    <li><a href="/docs/knowledge-contributions.html">Knowledge Contributions</a> — Track knowledge-building actions</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

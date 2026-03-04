@@ -12,6 +12,7 @@ import { AgentTaskPipeline } from '../task-pipeline.js';
 
 export function WorkforceSection(props) {
   var agentId = props.agentId;
+  var engineAgent = props.engineAgent;
   var app = useApp();
   var toast = app.toast;
 
@@ -44,6 +45,16 @@ export function WorkforceSection(props) {
   var _selectedRecord = useState(null);
   var selectedRecord = _selectedRecord[0]; var setSelectedRecord = _selectedRecord[1];
   var CLOCK_PAGE_SIZE = 15;
+
+  // Organization context
+  var _orgInfo = useState(null);
+  var orgInfo = _orgInfo[0]; var setOrgInfo = _orgInfo[1];
+
+  useEffect(function() {
+    if (engineAgent && engineAgent.client_org_id) {
+      apiCall('/client-orgs/' + engineAgent.client_org_id).then(function(d) { setOrgInfo(d.org || d); }).catch(function() {});
+    }
+  }, [engineAgent && engineAgent.client_org_id]);
 
   // Real-time status
   var _rtStatus = useState(null);
@@ -210,6 +221,13 @@ export function WorkforceSection(props) {
   }
 
   return h(Fragment, null,
+
+    // ─── Organization Context Banner ────────────────────
+    engineAgent && engineAgent.client_org_id && h('div', { style: { padding: '10px 16px', marginBottom: 16, background: 'var(--info-bg, rgba(59,130,246,0.1))', border: '1px solid var(--info-border, rgba(59,130,246,0.3))', borderRadius: 'var(--radius, 8px)', fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 } },
+      I.info && I.info(),
+      h('span', null, 'Work schedule follows ', h('strong', null, orgInfo ? orgInfo.name : 'organization'), ' business hours.'),
+      orgInfo && orgInfo.workingHours && h('span', { style: { marginLeft: 8, color: 'var(--text-muted)' } }, '(' + (orgInfo.workingHours.start || '09:00') + ' – ' + (orgInfo.workingHours.end || '17:00') + ', ' + (orgInfo.workingHours.timezone || 'UTC') + ')')
+    ),
 
     // ─── Status Card (Real-Time) ──────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },

@@ -3,6 +3,7 @@ import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function KnowledgeContributionsPage() {
   var { toast } = useApp();
@@ -535,11 +536,27 @@ export function KnowledgeContributionsPage() {
     );
   };
 
+  // Schedules pagination/filter
+  var [schedPage, setSchedPage] = useState(0);
+  var [schedSearch, setSchedSearch] = useState('');
+  var [schedAgentFilter, setSchedAgentFilter] = useState('');
+  var [schedEnabledFilter, setSchedEnabledFilter] = useState('');
+  var SCHED_PAGE_SIZE = 20;
+
   // ── Schedules Tab ──────────────────────────────
   var renderSchedules = function() {
+    var filteredScheds = schedules;
+    if (schedSearch) { var s = schedSearch.toLowerCase(); filteredScheds = filteredScheds.filter(function(sc) { return (sc.baseName || sc.targetBaseId || '').toLowerCase().includes(s) || (sc.frequency || '').toLowerCase().includes(s); }); }
+    if (schedAgentFilter) filteredScheds = filteredScheds.filter(function(sc) { return sc.agentId === schedAgentFilter; });
+    if (schedEnabledFilter === 'on') filteredScheds = filteredScheds.filter(function(sc) { return sc.enabled; });
+    if (schedEnabledFilter === 'off') filteredScheds = filteredScheds.filter(function(sc) { return !sc.enabled; });
+    var totalSchedFiltered = filteredScheds.length;
+    var totalSchedPages = Math.ceil(totalSchedFiltered / SCHED_PAGE_SIZE);
+    var pagedScheds = filteredScheds.slice(schedPage * SCHED_PAGE_SIZE, (schedPage + 1) * SCHED_PAGE_SIZE);
+
     return h(Fragment, null,
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
-        h('span', { style: { fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, schedules.length + ' schedule' + (schedules.length !== 1 ? 's' : ''),
+        h('span', { style: { fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center' } }, totalSchedFiltered + ' schedule' + (totalSchedFiltered !== 1 ? 's' : ''),
           h(HelpButton, { label: 'Contribution Schedules' },
             h('p', null, 'Schedules automate knowledge contributions. Instead of relying on agents to contribute spontaneously, schedules trigger periodic knowledge synthesis.'),
             h('h4', { style: _h4 }, 'How Schedules Work'),
@@ -553,8 +570,31 @@ export function KnowledgeContributionsPage() {
         ),
         h('button', { className: 'btn btn-primary', onClick: function() { setShowCreateSchedule(true); } }, I.plus(), ' Create Schedule')
       ),
-      schedules.length === 0
-        ? h('div', { style: { textAlign: 'center', padding: 60, color: 'var(--text-muted)' } }, 'No contribution schedules configured.')
+      // Filter bar
+      h('div', { style: { display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' } },
+        h('input', {
+          type: 'text', placeholder: 'Search base name...',
+          value: schedSearch, onInput: function(e) { setSchedSearch(e.target.value); setSchedPage(0); },
+          style: { flex: '1 1 200px', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 13, minWidth: 180, outline: 'none' }
+        }),
+        h('select', {
+          value: schedAgentFilter, onChange: function(e) { setSchedAgentFilter(e.target.value); setSchedPage(0); },
+          style: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 13, cursor: 'pointer', outline: 'none' }
+        },
+          h('option', { value: '' }, 'All Agents'),
+          agents.map(function(a) { return h('option', { key: a.id, value: a.id }, a.config && a.config.identity && a.config.identity.name || a.config && a.config.displayName || a.name || a.id); })
+        ),
+        h('select', {
+          value: schedEnabledFilter, onChange: function(e) { setSchedEnabledFilter(e.target.value); setSchedPage(0); },
+          style: { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: 13, cursor: 'pointer', outline: 'none' }
+        },
+          h('option', { value: '' }, 'All'),
+          h('option', { value: 'on' }, 'Enabled'),
+          h('option', { value: 'off' }, 'Disabled')
+        )
+      ),
+      pagedScheds.length === 0
+        ? h('div', { style: { textAlign: 'center', padding: 60, color: 'var(--text-muted)' } }, schedSearch || schedAgentFilter || schedEnabledFilter ? 'No matching schedules.' : 'No contribution schedules configured.')
         : h('table', { className: 'data-table' },
             h('thead', null,
               h('tr', null,
@@ -567,7 +607,7 @@ export function KnowledgeContributionsPage() {
               )
             ),
             h('tbody', null,
-              schedules.map(function(sched) {
+              pagedScheds.map(function(sched) {
                 return h('tr', { key: sched.id },
                   h('td', null, renderAgentBadge(sched.agentId, agentData)),
                   h('td', null, sched.baseName || sched.targetBaseId || '-'),
@@ -605,7 +645,18 @@ export function KnowledgeContributionsPage() {
                 );
               })
             )
-          )
+          ),
+      // Pagination
+      totalSchedPages > 1 && h('div', {
+        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', fontSize: 13, color: 'var(--text-muted)' }
+      },
+        h('span', null, 'Showing ' + (schedPage * SCHED_PAGE_SIZE + 1) + '-' + Math.min((schedPage + 1) * SCHED_PAGE_SIZE, totalSchedFiltered) + ' of ' + totalSchedFiltered),
+        h('div', { style: { display: 'flex', gap: 4 } },
+          h('button', { onClick: function() { setSchedPage(function(p) { return Math.max(0, p - 1); }); }, disabled: schedPage === 0, style: _pgBtn(false) }, '\u2039 Prev'),
+          h('span', { style: { padding: '4px 8px', fontSize: 12 } }, (schedPage + 1) + ' / ' + totalSchedPages),
+          h('button', { onClick: function() { setSchedPage(function(p) { return Math.min(totalSchedPages - 1, p + 1); }); }, disabled: schedPage >= totalSchedPages - 1, style: _pgBtn(false) }, 'Next \u203A')
+        )
+      )
     );
   };
 
@@ -623,7 +674,7 @@ export function KnowledgeContributionsPage() {
   useEffect(function() { if (tab === 'stats') loadTimeline(); }, [tab, loadTimeline]);
 
   // SVG chart helpers — clean background, dark mode, hover tooltips
-  var CHART_COLORS = ['#6366f1', '#15803d', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#9d174d', '#14b8a6'];
+  var CHART_COLORS = ['#6366f1', '#15803d', '#991b1b', '#ef4444', '#8b5cf6', '#06b6d4', '#9d174d', '#14b8a6'];
   var [tooltip, setTooltip] = useState(null); // { x, y, lines: [] }
 
   // Shared tooltip overlay (rendered once, positioned absolutely)
@@ -1371,13 +1422,13 @@ export function KnowledgeContributionsPage() {
   };
 
   // ── Tab labels ──────────────────────────────
-  var tabLabels = {
-    bases: 'Knowledge Bases',
-    contributions: 'Contributions',
-    schedules: 'Schedules',
-    stats: 'Stats',
-    searchMetrics: 'Search Metrics'
-  };
+  var tabDefs = [
+    { key: 'bases', label: 'Knowledge Bases', icon: I.knowledge },
+    { key: 'contributions', label: 'Contributions', icon: I.edit },
+    { key: 'schedules', label: 'Schedules', icon: I.calendar },
+    { key: 'stats', label: 'Stats', icon: I.chart },
+    { key: 'searchMetrics', label: 'Search Metrics', icon: I.search }
+  ];
 
   return h(Fragment, null,
     // Org context switcher
@@ -1387,6 +1438,7 @@ export function KnowledgeContributionsPage() {
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
         h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Knowledge Contributions',
+          h(KnowledgeLink, { page: 'knowledge-contributions' }),
           h(HelpButton, { label: 'Knowledge Contributions' },
             h('p', null, 'This is where your agents build shared organizational knowledge. Agents contribute what they learn from conversations, tasks, and research into knowledge bases that all agents can search.'),
             h('h4', { style: _h4 }, 'Tabs'),
@@ -1409,12 +1461,13 @@ export function KnowledgeContributionsPage() {
 
     // Tabs
     h('div', { className: 'tabs', style: { marginBottom: 16 } },
-      Object.keys(tabLabels).map(function(t) {
+      tabDefs.map(function(td) {
         return h('button', {
-          key: t,
-          className: 'tab' + (tab === t ? ' active' : ''),
-          onClick: function() { setTab(t); }
-        }, tabLabels[t]);
+          key: td.key,
+          className: 'tab' + (tab === td.key ? ' active' : ''),
+          onClick: function() { setTab(td.key); },
+          style: { display: 'flex', alignItems: 'center', gap: 6 }
+        }, td.icon(), td.label);
       })
     ),
 

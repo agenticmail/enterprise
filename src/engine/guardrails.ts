@@ -95,6 +95,7 @@ export class GuardrailEngine {
   private interventions: InterventionRecord[] = [];
   private engineDb?: EngineDatabase;
   private checkInterval?: NodeJS.Timeout;
+  private refreshInterval?: NodeJS.Timeout;
   private onboardingManager?: { isOnboarded(agentId: string): boolean };
 
   /** External references for intervention actions */
@@ -158,6 +159,63 @@ export class GuardrailEngine {
         });
       }
     } catch { /* table may not exist yet */ }
+  }
+
+  /**
+   * Refresh paused state and guardrail rules from DB.
+   * Picks up pause/resume actions from other processes (dashboard, enterprise server).
+   */
+  async refreshFromDb(): Promise<void> {
+    if (!this.engineDb) return;
+    try {
+      // Rebuild paused set from most recent intervention per agent
+      const recent = await this.engineDb.query<any>(
+        "SELECT * FROM interventions ORDER BY created_at DESC LIMIT 200"
+      );
+      const lastAction = new Map<string, string>();
+      for (const r of recent) {
+        if (!lastAction.has(r.agent_id)) lastAction.set(r.agent_id, r.type);
+      }
+      this.pausedAgents.clear();
+      for (const [agentId, type] of lastAction) {
+        if (type === 'pause') this.pausedAgents.add(agentId);
+      }
+
+      // Reload guardrail rules
+      const gRules = await this.engineDb.query<any>('SELECT * FROM guardrail_rules WHERE enabled = TRUE');
+      this.guardrailRules.clear();
+      for (const r of gRules) {
+        this.guardrailRules.set(r.id, {
+          id: r.id, orgId: r.org_id, name: r.name, description: r.description,
+          category: r.category, ruleType: r.rule_type,
+          conditions: typeof r.conditions === 'string' ? JSON.parse(r.conditions) : (r.conditions || {}),
+          action: r.action, severity: r.severity || 'medium',
+          cooldownMinutes: r.cooldown_minutes || 0,
+          lastTriggeredAt: r.last_triggered_at || undefined,
+          triggerCount: r.trigger_count || 0,
+          enabled: !!r.enabled, createdBy: r.created_by || 'system',
+          createdAt: r.created_at, updatedAt: r.updated_at,
+        });
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  /**
+   * Start periodic refresh from DB (default: every 15s for guardrails — latency-sensitive).
+   */
+  startAutoRefresh(intervalMs = 15_000): void {
+    if (this.refreshInterval) return;
+    this.refreshInterval = setInterval(() => {
+      this.refreshFromDb().catch(() => {});
+    }, intervalMs);
+    if (this.refreshInterval?.unref) this.refreshInterval.unref();
+  }
+
+  stopAutoRefresh(): void {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = undefined;
+    }
   }
 
   // ─── Intervention Actions ──────────────────────────

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guardrails & Policies — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-easy { background: rgba(21,128,61,0.2); color: var(--success); }
+  .badge-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge-advanced { background: rgba(239,68,68,0.2); color: var(--danger); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/guardrails">&#8592; Back to Dashboard</a>
+
+<h1>Guardrails &amp; Policies</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Define behavioral rules for your agents, enforce compliance, and intervene when things go wrong.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#tabs">Dashboard Tabs</a></li>
+    <li><a href="#policies">Creating &amp; Managing Policies</a></li>
+    <li><a href="#enforcement">Enforcement Levels</a></li>
+    <li><a href="#onboarding">Agent Onboarding</a></li>
+    <li><a href="#memory">Agent Memory</a></li>
+    <li><a href="#rules">Rules &amp; Automated Interventions</a></li>
+    <li><a href="#manual">Manual Interventions</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>The Guardrails page is your central control panel for agent safety. It lets you define policies that agents must follow, track whether agents have acknowledged those policies, inspect agent memory, and set up automated rules that trigger interventions (pause, kill, alert) when agents misbehave.</p>
+<p>Think of it as the compliance layer between your organization's rules and your AI agents' behavior. Policies are written in plain language (Markdown), and agents internalize them during an onboarding flow before they start operating.</p>
+
+<h2 id="tabs">Dashboard Tabs</h2>
+<div class="card">
+  <table>
+    <tr><th>Tab</th><th>Purpose</th></tr>
+    <tr><td><strong>Overview</strong></td><td>Quick stats — policy count, onboarding progress, recent interventions. Also has agent pause/resume/kill controls.</td></tr>
+    <tr><td><strong>Policies</strong></td><td>Create, edit, and manage behavioral policies grouped by category.</td></tr>
+    <tr><td><strong>Onboarding</strong></td><td>Track which agents have acknowledged your policies. Force-complete or re-initiate onboarding.</td></tr>
+    <tr><td><strong>Agent Memory</strong></td><td>View and manage what agents remember — org knowledge, corrections, preferences, and more.</td></tr>
+    <tr><td><strong>Rules &amp; Interventions</strong></td><td>Configure automated guardrail rules, anomaly detection thresholds, and review the intervention log.</td></tr>
+  </table>
+</div>
+<div class="tip"><strong>Start here:</strong> The Overview tab gives you a quick health check. If everything looks green, you're good. Drill into specific tabs for detailed management.</div>
+
+<h2 id="policies">Creating &amp; Managing Policies</h2>
+<p>Policies are the rules your agents must follow. Each policy has a name, category, enforcement level, and content written in Markdown.</p>
+
+<h3>Policy Categories</h3>
+<table>
+  <tr><th>Category</th><th>Use For</th></tr>
+  <tr><td><strong>Code of Conduct</strong></td><td>General behavioral expectations — tone, professionalism, boundaries</td></tr>
+  <tr><td><strong>Communication</strong></td><td>Rules about how agents communicate — response style, escalation triggers, language</td></tr>
+  <tr><td><strong>Data Handling</strong></td><td>PII protection, data retention, what agents can and cannot store</td></tr>
+  <tr><td><strong>Brand Voice</strong></td><td>Tone, terminology, messaging guidelines</td></tr>
+  <tr><td><strong>Security</strong></td><td>Credential handling, API usage limits, prohibited actions</td></tr>
+  <tr><td><strong>Escalation</strong></td><td>When and how agents should escalate to humans</td></tr>
+  <tr><td><strong>Custom</strong></td><td>Anything else specific to your organization</td></tr>
+</table>
+
+<h3>Creating a Policy</h3>
+<ol>
+  <li>Go to the <strong>Policies</strong> tab and click <strong>Create Policy</strong></li>
+  <li>Enter a <strong>Name</strong> and choose a <strong>Category</strong></li>
+  <li>Set the <strong>Enforcement</strong> level (see below)</li>
+  <li>Write the policy <strong>Content</strong> in Markdown — be specific and actionable</li>
+  <li>Set <strong>Applies To</strong> — use <code>*</code> for all agents, or list specific agent IDs</li>
+  <li>Set <strong>Priority</strong> (0 = highest priority, shown first)</li>
+  <li>Click <strong>Create Policy</strong></li>
+</ol>
+
+<div class="tip"><strong>Default Templates:</strong> Click <strong>Apply Default Templates</strong> to load a starter set of policies covering common scenarios like data handling, communication standards, and escalation procedures.</div>
+
+<h3>Policy Content Tips</h3>
+<p>Write policies as clear, actionable instructions. Agents internalize these during onboarding and store them in memory. Good policies are:</p>
+<ul>
+  <li><strong>Specific:</strong> "Never share API keys in email" beats "Handle credentials carefully"</li>
+  <li><strong>Actionable:</strong> Tell the agent what to do, not just what not to do</li>
+  <li><strong>Testable:</strong> Could you check if the agent followed this? If not, make it more concrete</li>
+</ul>
+
+<h2 id="enforcement">Enforcement Levels</h2>
+<div class="card">
+  <table>
+    <tr><th>Level</th><th>Behavior</th><th>Use When</th></tr>
+    <tr><td><span class="badge badge-advanced">Mandatory</span></td><td>Agent <strong>must</strong> acknowledge before operating. Violations can trigger interventions.</td><td>Security policies, legal compliance, data handling rules</td></tr>
+    <tr><td><span class="badge badge-medium">Recommended</span></td><td>Agent should follow but won't be blocked. Flagged in audits.</td><td>Best practices, style guides, preferred workflows</td></tr>
+    <tr><td><span class="badge badge-easy">Informational</span></td><td>Provided for context only. No enforcement.</td><td>Background info, org culture notes, nice-to-knows</td></tr>
+  </table>
+</div>
+<div class="warning"><strong>Versioning:</strong> When you update a mandatory policy, agents that already acknowledged the old version may need re-onboarding. Use the <strong>Check Policy Changes</strong> button in the Onboarding tab to detect stale acknowledgments.</div>
+
+<h2 id="onboarding">Agent Onboarding</h2>
+<p>Onboarding is the process by which agents acknowledge and internalize your organization's policies. Until an agent completes onboarding, it operates with limited capabilities.</p>
+
+<h3>Onboarding Statuses</h3>
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td><strong style="color: #15803d;">Completed</strong></td><td>Agent has acknowledged all required policies</td></tr>
+  <tr><td><strong style="color: #eab308;">In Progress</strong></td><td>Agent has acknowledged some policies but not all</td></tr>
+  <tr><td><strong style="color: #ef4444;">Needs Renewal</strong></td><td>Policies changed since last acknowledgment — re-onboarding needed</td></tr>
+  <tr><td><strong style="color: #6b7394;">Not Started</strong></td><td>Agent hasn't begun onboarding</td></tr>
+</table>
+
+<h3>Managing Onboarding</h3>
+<ul>
+  <li><strong>Initiate Onboarding:</strong> Select an agent and click to start the process</li>
+  <li><strong>Force Complete:</strong> Skip the acknowledgment flow and mark an agent as onboarded (use sparingly)</li>
+  <li><strong>Check Policy Changes:</strong> Scan for agents whose onboarding is stale due to policy updates</li>
+</ul>
+
+<h2 id="memory">Agent Memory</h2>
+<p>The Agent Memory tab lets you inspect, create, and manage what agents remember. Memories are categorized and have confidence scores that decay over time.</p>
+
+<h3>Memory Categories</h3>
+<table>
+  <tr><th>Category</th><th>Examples</th></tr>
+  <tr><td><strong>Org Knowledge</strong></td><td>Company facts, team structure, product details</td></tr>
+  <tr><td><strong>Interaction Pattern</strong></td><td>How a specific user prefers to communicate</td></tr>
+  <tr><td><strong>Preference</strong></td><td>User likes morning summaries, prefers bullet points</td></tr>
+  <tr><td><strong>Correction</strong></td><td>"The CEO's name is spelled Kathryn, not Katherine"</td></tr>
+  <tr><td><strong>Skill</strong></td><td>Learned capabilities from training or experience</td></tr>
+  <tr><td><strong>Context</strong></td><td>Background information for ongoing projects</td></tr>
+  <tr><td><strong>Reflection</strong></td><td>Agent's self-assessment and lessons learned</td></tr>
+</table>
+
+<h3>Memory Management</h3>
+<ul>
+  <li><strong>Add Memory:</strong> Manually inject knowledge into an agent's memory (e.g., "Our Q3 revenue target is $2M")</li>
+  <li><strong>Prune:</strong> Remove expired memory entries</li>
+  <li><strong>Decay:</strong> Reduce confidence scores on old memories, making them less influential</li>
+  <li><strong>Delete:</strong> Remove specific memory entries</li>
+</ul>
+<div class="tip"><strong>Confidence scores</strong> range from 0–100%. Memories above 70% are considered reliable. Below 30%, they're treated as uncertain. Use the Decay button to gradually reduce confidence on stale information.</div>
+
+<h2 id="rules">Rules &amp; Automated Interventions</h2>
+<p>Rules let you define automated responses to agent behavior. When a rule's conditions are met, the system automatically takes action — alerting admins, pausing agents, or killing sessions.</p>
+
+<h3>Rule Categories</h3>
+<table>
+  <tr><th>Category</th><th>What It Detects</th></tr>
+  <tr><td><strong>Anomaly Detection</strong></td><td>Unusual patterns — excessive API calls, error spikes, abnormal token usage</td></tr>
+  <tr><td><strong>Policy Compliance</strong></td><td>Violations of defined policies</td></tr>
+  <tr><td><strong>Communication</strong></td><td>Inappropriate messaging, tone violations</td></tr>
+  <tr><td><strong>Security</strong></td><td>Credential exposure, unauthorized access attempts</td></tr>
+</table>
+
+<h3>Rule Actions</h3>
+<table>
+  <tr><th>Action</th><th>Effect</th></tr>
+  <tr><td><strong>Alert</strong></td><td>Send a notification to admins</td></tr>
+  <tr><td><strong>Pause Agent</strong></td><td>Temporarily suspend the agent — can be resumed from the dashboard</td></tr>
+  <tr><td><strong>Kill Agent</strong></td><td>Immediately terminate the agent session</td></tr>
+  <tr><td><strong>Notify Admin</strong></td><td>Send a notification without affecting the agent</td></tr>
+  <tr><td><strong>Log Only</strong></td><td>Record the event for auditing but take no action</td></tr>
+</table>
+
+<h3>Severity Levels</h3>
+<p>Each rule has a severity (Low, Medium, High, Critical) that determines how urgently the intervention is surfaced in the dashboard and notifications.</p>
+
+<h2 id="manual">Manual Interventions</h2>
+<p>From the Overview tab, you can manually control any agent:</p>
+<ul>
+  <li><strong>Pause:</strong> Temporarily suspends the agent. It stops processing but retains state.</li>
+  <li><strong>Resume:</strong> Resumes a paused agent.</li>
+  <li><strong>Kill:</strong> Immediately terminates the agent session. Use for emergencies.</li>
+</ul>
+<p>All interventions (manual and automated) are logged in the intervention history with timestamps, the triggering user or rule, and the reason.</p>
+<div class="danger"><strong>Kill is irreversible for the current session.</strong> The agent's session is terminated immediately. You'll need to restart the agent from the Agents page.</div>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+  <ul>
+    <li><strong>Start with default templates</strong> — they cover common scenarios and give you a solid foundation</li>
+    <li><strong>Use mandatory enforcement sparingly</strong> — reserve it for security and compliance. Over-restricting agents reduces their effectiveness</li>
+    <li><strong>Review the intervention log weekly</strong> — patterns in interventions reveal whether your policies need tuning</li>
+    <li><strong>Keep policies concise</strong> — agents internalize every word. Long, vague policies dilute important rules</li>
+    <li><strong>Set up anomaly rules early</strong> — catch runaway agents before they cause damage</li>
+    <li><strong>Use cooldown periods</strong> on rules to prevent alert fatigue from repeated triggers</li>
+    <li><strong>Decay memory periodically</strong> — old information becomes less reliable. Let confidence scores reflect that</li>
+  </ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>Agent not following policies</td><td>Check the Onboarding tab — the agent may not have acknowledged the policy. Force-complete or re-initiate onboarding.</td></tr>
+  <tr><td>Too many intervention alerts</td><td>Increase cooldown periods on rules, or change severity from "alert" to "log only" for low-priority rules.</td></tr>
+  <tr><td>"Needs Renewal" showing for all agents</td><td>You recently updated a mandatory policy. Click <strong>Check Policy Changes</strong> to re-onboard affected agents.</td></tr>
+  <tr><td>Memory entries not appearing</td><td>Select the correct agent from the dropdown. Memories are per-agent. Also check category and importance filters.</td></tr>
+  <tr><td>Paused agent won't resume</td><td>Check if the agent was killed (not paused). Killed agents need to be restarted from the Agents page.</td></tr>
+</table>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/audit">Audit Log</a> — Review all administrative actions and policy changes</li>
+    <li><a href="/docs/multi-tenant">Multi-Tenant Guide</a> — Organization-scoped policies and agent assignment</li>
+    <li><a href="/docs/settings">Settings</a> — Configure security, tool permissions, and network rules</li>
+  </ul>
+</div>
+
+<p style="margin-top: 32px; color: var(--text-muted); font-size: 12px; text-align: center;">
+  AgenticMail Enterprise — Guardrails &amp; Policies Documentation
+</p>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

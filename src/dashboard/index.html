@@ -32,8 +32,8 @@
   --accent-text: var(--brand-text, #818cf8);
   --success: #15803d;
   --success-soft: rgba(21,128,61,0.15);
-  --warning: #f59e0b;
-  --warning-soft: rgba(245,158,11,0.12);
+  --warning: #991b1b;
+  --warning-soft: rgba(153,27,27,0.12);
   --danger: #ef4444;
   --danger-soft: rgba(239,68,68,0.12);
   --danger-hover: #dc2626;
@@ -418,7 +418,7 @@ tbody tr:hover { background: var(--bg-hover); }
 .status-dot.stopped { background: var(--text-muted); }
 .status-dot.error { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
 .status-dot.deploying, .status-dot.provisioning, .status-dot.starting { background: var(--accent); animation: pulse-dot 1.5s ease-in-out infinite; }
-.status-dot.degraded { background: var(--warning, #f59e0b); }
+.status-dot.degraded { background: var(--warning, #991b1b); }
 .target-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .target-card { padding: 14px; border: 2px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; transition: all var(--transition); }
 .target-card:hover { border-color: var(--accent); }

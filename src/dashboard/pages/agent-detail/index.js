@@ -2,7 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineC
 import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, StatCard, ProgressBar, EmptyState, formatNumber, formatCost, riskBadgeClass, formatTime, MEMORY_CATEGORIES, memCatColor, memCatLabel, importanceBadgeColor } from './shared.js?v=5';
-import { OverviewSection } from './overview.js?v=5';
+import { OverviewSection } from './overview.js?v=6';
 import { PersonalDetailsSection } from './personal-details.js?v=5';
 import { PermissionsSection } from './permissions.js?v=5';
 import { BudgetSection } from './budget.js?v=5';
@@ -23,6 +23,7 @@ import { AgentSecurityTab } from './security.js?v=5';
 import { AutonomySection } from './autonomy.js?v=5';
 import { ChannelsSection } from './channels.js?v=5';
 import { WhatsAppSection } from './whatsapp.js?v=5';
+import { KnowledgeLink, AGENT_TAB_DOCS } from '../../components/knowledge-link.js';
 
 export function AgentDetailPage(props) {
   var agentId = props.agentId;
@@ -207,6 +208,11 @@ export function AgentDetailPage(props) {
     ),
     ), // close tab bar sticky wrapper
 
+    // ─── Knowledge Link for current tab ─────────────────
+    AGENT_TAB_DOCS[tab] && h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8 } },
+      h(KnowledgeLink, { page: AGENT_TAB_DOCS[tab], label: (TAB_LABELS[tab] || tab.charAt(0).toUpperCase() + tab.slice(1)) + ' Docs' })
+    ),
+
     // ─── Tab Content ────────────────────────────────────
     tab === 'overview' && h(OverviewSection, { agentId: agentId, agent: agent, engineAgent: engineAgent, profile: profile, reload: load, agents: agents, onBack: onBack }),
     tab === 'personal' && h(PersonalDetailsSection, { agentId: agentId, agent: agent, engineAgent: engineAgent, reload: load }),
@@ -217,15 +223,15 @@ export function AgentDetailPage(props) {
     tab === 'manager' && h(ManagerCatchUpSection, { agentId: agentId, engineAgent: engineAgent, agents: agents, reload: load }),
     tab === 'tools' && h(ToolsSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'skills' && h(SkillsSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
-    tab === 'permissions' && h(PermissionsSection, { agentId: agentId, profile: profile, reload: load }),
+    tab === 'permissions' && h(PermissionsSection, { agentId: agentId, engineAgent: engineAgent, profile: profile, reload: load }),
     tab === 'activity' && h(ActivitySection, { agentId: agentId }),
     tab === 'communication' && h(CommunicationSection, { agentId: agentId, agents: agents }),
-    tab === 'workforce' && h(WorkforceSection, { agentId: agentId }),
-    tab === 'memory' && h(MemorySection, { agentId: agentId }),
+    tab === 'workforce' && h(WorkforceSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
+    tab === 'memory' && h(MemorySection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'guardrails' && h(GuardrailsSection, { agentId: agentId, agents: agents }),
     tab === 'autonomy' && h(AutonomySection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
-    tab === 'budget' && h(BudgetSection, { agentId: agentId }),
-    tab === 'security' && h(AgentSecurityTab, { agentId: agentId }),
+    tab === 'budget' && h(BudgetSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
+    tab === 'security' && h(AgentSecurityTab, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'tool-security' && h(ToolSecuritySection, { agentId: agentId }),
     tab === 'deployment' && h(DeploymentSection, { agentId: agentId, engineAgent: engineAgent, agent: agent, reload: load, onBack: onBack })
   );

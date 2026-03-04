@@ -1,0 +1,270 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integrations &amp; MCP Hub — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Integrations &amp; MCP Hub</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Connect MCP servers, built-in integrations, and community skills to extend your agents with external tools and services.</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#mcp-servers">MCP Servers</a></li>
+    <li><a href="#built-in-integrations">Built-in Integrations</a></li>
+    <li><a href="#community-skills">Community Skills</a></li>
+    <li><a href="#agent-access">Agent Access Control</a></li>
+    <li><a href="#configuration">Configuration &amp; Setup</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> This page is the "app store" for your AI agents. You can connect them to external services like GitHub, Slack, databases, and more. There are three ways to add tools: MCP servers (technical), built-in integrations (just add a password), and community skills (install from marketplace).
+</div>
+
+<p>The Integrations &amp; MCP Hub is the central place to extend your agents' capabilities. It has three tabs:</p>
+<ul>
+  <li><strong>MCP Servers</strong> — Connect Model Context Protocol servers that provide custom tools</li>
+  <li><strong>Built-in Integrations</strong> — 145+ pre-built adapters for popular services (one-click or credential-based setup)</li>
+  <li><strong>Community Skills</strong> — Custom skill packages installed from the marketplace</li>
+</ul>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<p>When you add a connection (MCP server, integration, or community skill), the system:</p>
+<ol>
+  <li><strong>Discovers tools</strong> — Queries the server/adapter for available tools</li>
+  <li><strong>Registers tools</strong> — Makes them available to assigned agents</li>
+  <li><strong>Stores credentials</strong> — Encrypts API keys and tokens in the vault</li>
+  <li><strong>Manages lifecycle</strong> — Handles auto-restart, connection health, and token refresh</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>MCP (Model Context Protocol)</h3>
+<p>MCP is an open standard by Anthropic for connecting AI models to external tools. It's the same protocol used by Claude Code, Cursor, and other AI tools. Any MCP-compatible server works with AgenticMail.</p>
+
+<h3>Connection Types</h3>
+<table>
+  <thead><tr><th>Type</th><th>Transport</th><th>Best For</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Local Process (stdio)</strong></td><td>stdin/stdout</td><td>Locally installed tools. Most common. Runs a command on your server.</td></tr>
+    <tr><td><strong>SSE</strong></td><td>HTTP + Server-Sent Events</td><td>Remote/cloud MCP servers with streaming</td></tr>
+    <tr><td><strong>HTTP (Streamable)</strong></td><td>Standard HTTP</td><td>Stateless remote servers</td></tr>
+  </tbody>
+</table>
+
+<h3>Authentication Types</h3>
+<table>
+  <thead><tr><th>Type</th><th>Flow</th></tr></thead>
+  <tbody>
+    <tr><td><strong>OAuth 2.0</strong></td><td>Click "Connect" → authorize via service's login page. Tokens auto-refresh.</td></tr>
+    <tr><td><strong>API Key</strong></td><td>Paste a key from the service's developer settings</td></tr>
+    <tr><td><strong>Bearer Token</strong></td><td>Paste an access token</td></tr>
+    <tr><td><strong>Credentials</strong></td><td>Multiple fields (e.g., key + domain, key + project ID)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="mcp-servers">MCP Servers</h2>
+
+<h3>Server List</h3>
+<p>Each connected server shows:</p>
+<ul>
+  <li><strong>Status dot</strong> — Green (connected), amber (enabled but not connected), red (error), gray (disabled)</li>
+  <li><strong>Name and type badge</strong> (stdio / SSE / HTTP)</li>
+  <li><strong>Tool count</strong> — Number of discovered tools</li>
+  <li><strong>Command/URL</strong> — The connection string</li>
+  <li><strong>Description</strong> and assigned agents</li>
+  <li><strong>Tool list</strong> — Expandable list showing up to 20 tool names</li>
+</ul>
+
+<h3>Actions</h3>
+<ul>
+  <li><strong>Test</strong> — Verifies connection and reports discovered tool count</li>
+  <li><strong>Enable/Disable</strong> — Toggle server without deleting it</li>
+  <li><strong>Edit</strong> — Modify configuration</li>
+  <li><strong>Remove</strong> — Delete (3-step confirmation process)</li>
+</ul>
+
+<h3>Adding an MCP Server</h3>
+<p>The Add modal includes:</p>
+<ul>
+  <li><strong>Server Name</strong> — Friendly identifier</li>
+  <li><strong>Description</strong> — What the server provides</li>
+  <li><strong>Connection Type</strong> — Visual selector for stdio/SSE/HTTP</li>
+  <li><strong>For stdio:</strong> Command, Arguments, Environment Variables (JSON, encrypted)</li>
+  <li><strong>For SSE/HTTP:</strong> Server URL, API Key/Bearer Token, Custom Headers (JSON)</li>
+  <li><strong>Connection Timeout</strong> — Seconds to wait (default: 30)</li>
+  <li><strong>Auto-restart on failure</strong> — Toggle</li>
+  <li><strong>Agent Access</strong> — Select which agents can use this server's tools</li>
+</ul>
+
+<h3>Quick Start Templates</h3>
+<p>Pre-configured templates for common MCP servers:</p>
+<table>
+  <thead><tr><th>Template</th><th>Command</th><th>Environment Needed</th></tr></thead>
+  <tbody>
+    <tr><td>Filesystem</td><td><code>npx -y @modelcontextprotocol/server-filesystem /home</code></td><td>None</td></tr>
+    <tr><td>GitHub</td><td><code>npx -y @modelcontextprotocol/server-github</code></td><td><code>GITHUB_PERSONAL_ACCESS_TOKEN</code></td></tr>
+    <tr><td>PostgreSQL</td><td><code>npx -y @modelcontextprotocol/server-postgres</code></td><td><code>DATABASE_URL</code></td></tr>
+    <tr><td>Brave Search</td><td><code>npx -y @modelcontextprotocol/server-brave-search</code></td><td><code>BRAVE_API_KEY</code></td></tr>
+    <tr><td>Puppeteer</td><td><code>npx -y @modelcontextprotocol/server-puppeteer</code></td><td>None</td></tr>
+    <tr><td>Slack</td><td><code>npx -y @modelcontextprotocol/server-slack</code></td><td><code>SLACK_BOT_TOKEN</code>, <code>SLACK_TEAM_ID</code></td></tr>
+    <tr><td>Google Drive</td><td><code>npx -y @modelcontextprotocol/server-gdrive</code></td><td>OAuth</td></tr>
+    <tr><td>Memory</td><td><code>npx -y @modelcontextprotocol/server-memory</code></td><td>None</td></tr>
+    <tr><td>Sentry</td><td><code>npx -y @modelcontextprotocol/server-sentry</code></td><td><code>SENTRY_AUTH_TOKEN</code></td></tr>
+    <tr><td>Fetch</td><td><code>npx -y @modelcontextprotocol/server-fetch</code></td><td>None</td></tr>
+  </tbody>
+</table>
+
+<div class="warning">
+  <strong>Note:</strong> Templates using <code>npx</code> require Node.js installed on the host machine. The <code>-y</code> flag auto-installs packages without prompting.
+</div>
+
+<h3>3-Step Delete Confirmation</h3>
+<p>Deleting an MCP server requires three confirmation steps:</p>
+<ol>
+  <li><strong>Step 1:</strong> Review what you're deleting (server name, tools, command/URL)</li>
+  <li><strong>Step 2:</strong> Agent impact warning — lists affected agents and consequences</li>
+  <li><strong>Step 3:</strong> Type the server name to confirm permanent deletion</li>
+</ol>
+
+<div class="danger">
+  <strong>Destructive action:</strong> Deleting an MCP server is irreversible. All tool registrations are removed, and agents using those tools will get errors. Running tasks that depend on these tools will fail.
+</div>
+
+<h2 id="built-in-integrations">Built-in Integrations</h2>
+
+<p>AgenticMail includes 145+ pre-built integrations organized by category:</p>
+
+<table>
+  <thead><tr><th>Category</th><th>Examples</th></tr></thead>
+  <tbody>
+    <tr><td>CRM &amp; Sales</td><td>Salesforce, HubSpot, Pipedrive</td></tr>
+    <tr><td>Communication</td><td>Slack, Discord, Twilio</td></tr>
+    <tr><td>Productivity</td><td>Notion, Asana, Trello</td></tr>
+    <tr><td>DevOps &amp; CI/CD</td><td>GitHub, GitLab, Jenkins</td></tr>
+    <tr><td>Finance &amp; Billing</td><td>Stripe, QuickBooks</td></tr>
+    <tr><td>Marketing</td><td>Mailchimp, SendGrid</td></tr>
+    <tr><td>HR &amp; People</td><td>BambooHR, Gusto</td></tr>
+    <tr><td>E-Commerce</td><td>Shopify, WooCommerce</td></tr>
+    <tr><td>Security</td><td>1Password, Vault</td></tr>
+    <tr><td>Data &amp; AI</td><td>Snowflake, BigQuery</td></tr>
+  </tbody>
+</table>
+
+<p>Each integration card shows: name, category, auth type, tool count, and a Connect/Disconnect button. Use the search bar and category dropdown to filter.</p>
+
+<div class="tip">
+  <strong>Tip:</strong> All credentials are encrypted in the vault. OAuth tokens auto-refresh before expiry — you don't need to manually reconnect.
+</div>
+
+<h2 id="community-skills">Community Skills</h2>
+
+<p>Community skills are custom packages installed from the marketplace. This tab shows:</p>
+<ul>
+  <li>Installed skill name and description</li>
+  <li>Connection status (Connected / Not connected)</li>
+  <li>Configure button for skill-specific settings</li>
+</ul>
+
+<p>The configuration modal dynamically renders fields based on the skill's config schema, with automatic secret field detection for passwords/tokens.</p>
+
+<h2 id="agent-access">Agent Access Control</h2>
+
+<p>MCP servers have explicit agent access control — you must select which agents can use each server's tools. This ensures:</p>
+<ul>
+  <li>Sensitive tools (database access, file system) are only available to authorized agents</li>
+  <li>No agent gets unexpected capabilities</li>
+  <li>You can audit exactly which agent has access to what</li>
+</ul>
+
+<div class="warning">
+  <strong>Important:</strong> No agent has access to an MCP server until explicitly granted. This is a security-first design.
+</div>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>Adding Your First MCP Server</h3>
+<ol>
+  <li>Click "Add MCP Server" in the MCP Servers tab</li>
+  <li>Choose a Quick Start Template or fill in manually</li>
+  <li>Set environment variables (API keys, etc.) if required</li>
+  <li>Select which agents should have access</li>
+  <li>Click "Add Server" and then test the connection</li>
+</ol>
+
+<h3>Connecting a Built-in Integration</h3>
+<ol>
+  <li>Switch to the "Built-in Integrations" tab</li>
+  <li>Find your service using search or category filter</li>
+  <li>Click "Connect" — for OAuth services, a popup opens; for API key services, a credential modal appears</li>
+  <li>Enter credentials and save</li>
+</ol>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/mcp-servers</code></td><td>GET/POST</td><td>List or add MCP servers</td></tr>
+    <tr><td><code>/mcp-servers/:id</code></td><td>PUT/DELETE</td><td>Update or delete a server</td></tr>
+    <tr><td><code>/mcp-servers/:id/test</code></td><td>POST</td><td>Test connection, discover tools</td></tr>
+    <tr><td><code>/integrations/catalog</code></td><td>GET</td><td>List all built-in integrations</td></tr>
+    <tr><td><code>/integrations/:skillId/credentials</code></td><td>PUT/DELETE</td><td>Save or remove credentials</td></tr>
+    <tr><td><code>/oauth/authorize/:skillId</code></td><td>GET</td><td>Start OAuth flow</td></tr>
+    <tr><td><code>/community/installed</code></td><td>GET</td><td>List installed community skills</td></tr>
+    <tr><td><code>/community/skills/:id/config</code></td><td>PUT</td><td>Update skill configuration</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Use Quick Start Templates:</strong> They pre-fill command, args, and environment variable names correctly.</li>
+  <li><strong>Test after adding:</strong> Always test the connection before assigning agents to catch configuration errors early.</li>
+  <li><strong>Enable auto-restart:</strong> Keep this on for production MCP servers so agents don't lose access if a server crashes.</li>
+  <li><strong>Least-privilege access:</strong> Only assign agents to servers they actually need. Don't give every agent access to your database.</li>
+  <li><strong>Use environment variables for secrets:</strong> Never put API keys in the command arguments — use the encrypted environment variables field.</li>
+  <li><strong>Monitor tool counts:</strong> If a server suddenly shows 0 tools after having many, something went wrong with the connection.</li>
+  <li><strong>Review connected integrations:</strong> Periodically audit which integrations are connected and disconnect unused ones.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<table>
+  <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr><td>MCP server shows red status</td><td>Click Test to see the error. Common causes: command not found (Node.js not installed), wrong URL, invalid credentials.</td></tr>
+    <tr><td>0 tools discovered</td><td>The server may be running but not responding correctly. Check the command/URL. Try running the command manually in a terminal.</td></tr>
+    <tr><td>Agent can't find tools</td><td>Verify the agent is in the server's assigned agents list. Check the server is enabled.</td></tr>
+    <tr><td>OAuth popup doesn't open</td><td>Browser may be blocking popups. Allow popups for this domain.</td></tr>
+    <tr><td>Integration shows "Not connected" after connecting</td><td>Credentials may be invalid. Disconnect and reconnect with correct credentials.</td></tr>
+    <tr><td>Connection timeout</td><td>Increase the timeout value. Docker-based servers may need 60+ seconds to start.</td></tr>
+    <tr><td>Environment variables not working</td><td>Ensure the JSON is valid. Common mistake: trailing commas or missing quotes.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="related">Related Pages</h2>
+
+<div class="nav">
+  <a href="/docs/task-pipeline.html">Task Pipeline</a> — See tasks that use integrated tools
+  <a href="/docs/activity.html">Activity Log</a> — Tool call history and performance
+  <a href="/docs/workforce.html">Workforce Management</a> — Manage agent schedules
+  <a href="/docs/org-chart.html">Organization Chart</a> — Agent hierarchy
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

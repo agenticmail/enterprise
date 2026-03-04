@@ -241,9 +241,12 @@ export class SessionManager {
    * Find all active sessions (for resume on startup).
    */
   async findActiveSessions(): Promise<Omit<SessionState, 'messages'>[]> {
+    // Include active/resuming sessions AND recently-failed sessions (within 10 min)
+    // so we can recover from transient errors like rate limits
+    var cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     var rows = await this.db.query(
-      `SELECT * FROM agent_sessions WHERE status = 'active' OR status = 'resuming' ORDER BY updated_at DESC`,
-      [],
+      `SELECT * FROM agent_sessions WHERE status = 'active' OR status = 'resuming' OR (status = 'failed' AND updated_at > ?) ORDER BY updated_at DESC`,
+      [cutoff],
     );
     return (rows || []).map(function(row: any) {
       return {

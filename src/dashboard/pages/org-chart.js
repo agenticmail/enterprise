@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, engineCa
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 // ─── Inject theme CSS once ───────────────────────────────
 var _injected = false;
@@ -23,7 +24,7 @@ var H_GAP = 40;
 var V_GAP = 80;
 var PAD = 60;
 
-var STATE_COLORS = { running: '#15803d', stopped: '#6b7394', error: '#ef4444', paused: '#f59e0b', deploying: '#06b6d4' };
+var STATE_COLORS = { running: '#15803d', stopped: '#6b7394', error: '#ef4444', paused: '#991b1b', deploying: '#06b6d4' };
 var ACCENT = '#6366f1';
 
 // ─── Tree Layout ─────────────────────────────────────────
@@ -121,12 +122,12 @@ function OrgSummary(props) {
     chip('Running', running, '#15803d'),
     stopped > 0 && chip('Stopped', stopped, '#6b7394'),
     errored > 0 && chip('Error', errored, '#ef4444'),
-    paused > 0 && chip('Paused', paused, '#f59e0b'),
+    paused > 0 && chip('Paused', paused, '#991b1b'),
     external > 0 && chip('Human', external, '#8b5cf6'),
     managers > 0 && chip('Managers', managers, ACCENT),
     totalTasks > 0 && h(Fragment, null,
       h('div', { style: { width: 1, height: 14, background: 'var(--oc-faint)' } }),
-      chip('Active Tasks', totalTasks, '#f59e0b')
+      chip('Active Tasks', totalTasks, '#991b1b')
     ),
     totalErrors > 0 && chip('Errors Today', totalErrors, '#ef4444')
   );
@@ -219,6 +220,7 @@ export function OrgChartPage() {
     h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--oc-border)', background: 'var(--oc-toolbar)', flexShrink: 0, flexWrap: 'wrap' } },
       h('div', { style: { fontWeight: 700, fontSize: 14, color: 'var(--oc-text)', display: 'flex', alignItems: 'center', gap: 6 } },
         I.orgChart(), 'Organization Chart',
+        h(KnowledgeLink, { page: 'org-chart' }),
         h(HelpButton, { label: 'Organization Chart' },
           h('p', null, 'Visual hierarchy of all agents in your organization. Shows reporting relationships, status, and activity at a glance.'),
           h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Interactions'),
@@ -233,7 +235,7 @@ export function OrgChartPage() {
       ),
       h('div', { style: { color: 'var(--oc-dim)', fontSize: 12 } }, positioned.length + ' agents'),
       h('div', { style: { flex: 1 } }),
-      legendDot('#15803d', 'Running'), legendDot('#6b7394', 'Stopped'), legendDot('#ef4444', 'Error'), legendDot('#f59e0b', 'Paused'), legendDot('#8b5cf6', 'External'),
+      legendDot('#15803d', 'Running'), legendDot('#6b7394', 'Stopped'), legendDot('#ef4444', 'Error'), legendDot('#991b1b', 'Paused'), legendDot('#8b5cf6', 'External'),
       h('div', { style: { width: 1, height: 14, background: 'var(--oc-faint)', margin: '0 4px' } }),
       h('button', { onClick: function() { setZoom(function(z) { return Math.min(3, z + 0.2); }); }, style: toolbarBtnStyle }, '+'),
       h('div', { style: { color: 'var(--oc-dim)', fontSize: 11, minWidth: 36, textAlign: 'center' } }, Math.round(zoom * 100) + '%'),
@@ -303,7 +305,7 @@ export function OrgChartPage() {
               h('div', { style: { fontSize: 11, color: 'var(--oc-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 } }, node.role || (node.isExternal ? 'External Manager' : 'Agent')),
               !node.isExternal && h('div', { style: { display: 'flex', gap: 4, marginTop: 4 } },
                 node.isManager && h('span', { style: tagStyle(ACCENT) }, 'MGR'),
-                node.activeTasks > 0 && h('span', { style: tagStyle('#f59e0b') }, node.activeTasks + ' tasks'),
+                node.activeTasks > 0 && h('span', { style: tagStyle('#991b1b') }, node.activeTasks + ' tasks'),
                 node.errorsToday > 0 && h('span', { style: tagStyle('#ef4444') }, node.errorsToday + ' err')
               )
             )
@@ -333,7 +335,7 @@ export function OrgChartPage() {
         tooltipRow('Type', hoveredNode.isExternal ? 'External (Human)' : 'Internal (AI)'),
         hoveredNode.managerName && tooltipRow('Reports To', hoveredNode.managerName),
         hoveredNode.subordinateCount > 0 && tooltipRow('Direct Reports', String(hoveredNode.subordinateCount), ACCENT),
-        hoveredNode.activeTasks > 0 && tooltipRow('Active Tasks', String(hoveredNode.activeTasks), '#f59e0b'),
+        hoveredNode.activeTasks > 0 && tooltipRow('Active Tasks', String(hoveredNode.activeTasks), '#991b1b'),
         hoveredNode.errorsToday > 0 && tooltipRow('Errors Today', String(hoveredNode.errorsToday), '#ef4444'),
         hoveredNode.lastActivityAt && tooltipRow('Last Active', timeAgo(hoveredNode.lastActivityAt))
       )

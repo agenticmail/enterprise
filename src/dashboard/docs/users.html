@@ -1,0 +1,225 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>User Management — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>User Management</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Manage dashboard users, roles, permissions, and access control for your AgenticMail Enterprise instance.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#roles">Role System</a></li>
+<li><a href="#permissions">Permission Editor</a></li>
+<li><a href="#agent-access">Agent Access Control</a></li>
+<li><a href="#org-assignment">Client Organization Assignment</a></li>
+<li><a href="#user-lifecycle">User Lifecycle</a></li>
+<li><a href="#configuration">Configuration &amp; Setup</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p><strong>For everyone:</strong> The Users page is where you manage who can access your AgenticMail Enterprise dashboard and what they can see and do. Think of it as the "guest list" for your control center — you decide who gets in, what rooms they can enter, and which agents they can interact with.</p>
+<p><strong>For technical users:</strong> This page implements a full RBAC (Role-Based Access Control) system with page-level and tab-level permission granularity, per-user agent access restrictions, client organization scoping, and a multi-step destructive action workflow. The backend exposes <code>/users</code>, <code>/users/:id/permissions</code>, <code>/page-registry</code>, and <code>/organizations</code> API endpoints.</p>
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+<ol>
+<li><strong>Create a user</strong> — provide email, initial password, name, and role. The user is forced to change their password on first login.</li>
+<li><strong>Assign a role</strong> — Owner and Admin get full access automatically. Member and Viewer roles can be restricted via the Permission Editor.</li>
+<li><strong>Configure permissions</strong> — Click the shield icon on any Member/Viewer to control which pages, tabs, and agents they can access.</li>
+<li><strong>Optionally bind to an organization</strong> — Restrict a user to only see agents and data belonging to a specific client organization.</li>
+<li><strong>Manage lifecycle</strong> — Edit, deactivate, reactivate, reset passwords, impersonate, or permanently delete users as needed.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Page Registry</h3>
+<p>The backend maintains a registry of all dashboard pages and their tabs. This registry is fetched via <code>GET /page-registry</code> and used by the Permission Editor to generate the access control UI. Pages are organized into three sections:</p>
+<table>
+<thead><tr><th>Section</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Overview</strong></td><td>Dashboard home, analytics, and monitoring pages</td></tr>
+<tr><td><strong>Management</strong></td><td>Agent management, email, tools, and operational pages</td></tr>
+<tr><td><strong>Administration</strong></td><td>Users, vault, compliance, DLP, and system settings</td></tr>
+</tbody>
+</table>
+
+<h3>Permission Format</h3>
+<p>Permissions are stored as a JSON object or the string <code>"*"</code> for full access:</p>
+<pre><code>// Full access
+"*"
+
+// Granular access — page IDs as keys, true or tab array as values
+{
+  "agents": true,              // All tabs on agents page
+  "vault": ["secrets", "audit"], // Only secrets and audit tabs
+  "_allowedAgents": ["agent-id-1", "agent-id-2"]  // Specific agents only
+}</code></pre>
+
+<h2 id="roles">Role System</h2>
+<table>
+<thead><tr><th>Role</th><th>Access Level</th><th>Permissions Configurable?</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><span class="badge">Owner</span></td><td>Full</td><td>No — always full</td><td>Cannot be restricted. Can impersonate other users.</td></tr>
+<tr><td><span class="badge">Admin</span></td><td>Full</td><td>No — always full</td><td>Cannot be restricted. Full administrative access.</td></tr>
+<tr><td><span class="badge">Member</span></td><td>Configurable</td><td>Yes</td><td>Can view and act on assigned pages/tabs.</td></tr>
+<tr><td><span class="badge">Viewer</span></td><td>Configurable (read-only)</td><td>Yes</td><td>Can view but not modify.</td></tr>
+</tbody>
+</table>
+
+<div class="tip">
+<strong>Tip:</strong> Owner and Admin users always have full access to all pages — the Permission Editor only affects Member and Viewer roles.
+</div>
+
+<h2 id="permissions">Permission Editor</h2>
+<p>The Permission Editor (shield icon) opens a modal where you can configure:</p>
+<ul>
+<li><strong>Full Access toggle</strong> — grants unrestricted access to all pages, tabs, and agents.</li>
+<li><strong>Page-level access</strong> — check/uncheck individual pages grouped by section (Overview, Management, Administration).</li>
+<li><strong>Tab-level access</strong> — for pages with tabs (e.g., Agents), expand the page to grant access to specific tabs only.</li>
+<li><strong>Quick actions</strong> — "Select All" and "Select None" buttons for bulk toggling.</li>
+<li><strong>Agent access</strong> — restrict which agents the user can see and manage (see below).</li>
+<li><strong>Organization assignment</strong> — bind user to a client organization.</li>
+</ul>
+
+<p>The editor also shows an inline permission picker when creating new users with Member or Viewer roles, so you can set permissions before the user is created.</p>
+
+<h2 id="agent-access">Agent Access Control</h2>
+<p>Beyond page/tab permissions, you can control which agents a user can see:</p>
+<ul>
+<li><strong>All Agents</strong> (default) — the user can see and manage every agent in the system.</li>
+<li><strong>Specific agents</strong> — uncheck "All Agents" and select individual agents from the list. The user will only see these agents across the entire dashboard.</li>
+</ul>
+
+<div class="warning">
+<strong>Warning:</strong> If you select no agents, the user will see an empty agent list everywhere. Make sure at least one agent is selected.
+</div>
+
+<h2 id="org-assignment">Client Organization Assignment</h2>
+<p>If your deployment uses multi-tenancy with client organizations:</p>
+<ul>
+<li>Assign a user to a client organization to restrict them to only that organization's agents and data.</li>
+<li>The organization switcher will be locked for that user — they cannot switch to other orgs.</li>
+<li>Users without an org assignment are "Internal Users" and can see everything (subject to their role and permissions).</li>
+</ul>
+
+<h2 id="user-lifecycle">User Lifecycle</h2>
+
+<h3>Creating Users</h3>
+<p>Click "Add User" and fill in name, email, initial password (or generate one), and role. For Member/Viewer roles, you can customize permissions inline before creating.</p>
+
+<div class="tip">
+<strong>Tip:</strong> Use the "Generate" button to create a strong random password. The user will be required to change it on first login.
+</div>
+
+<h3>Editing Users</h3>
+<p>Click the edit icon to change a user's name, role, or organization. Email cannot be changed after creation.</p>
+
+<h3>Resetting Passwords</h3>
+<p>Click the lock icon to set a new password. If the user has 2FA enabled, the password reset will not affect their TOTP setup.</p>
+
+<h3>Impersonation (Owner Only)</h3>
+<p>Owners can click the impersonate icon to view the dashboard as another user, seeing exactly what they see based on their permissions. Useful for debugging access issues.</p>
+
+<h3>Deactivation vs. Deletion</h3>
+
+<table>
+<thead><tr><th>Action</th><th>Reversible?</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><strong>Deactivate</strong></td><td>Yes</td><td>Blocks login. All data preserved. User sees "contact your organization" message.</td></tr>
+<tr><td><strong>Delete</strong></td><td>No</td><td>Permanently removes user, sessions, API keys, permissions, and 2FA config.</td></tr>
+</tbody>
+</table>
+
+<div class="danger">
+<strong>Danger:</strong> Deletion is a 5-step process requiring you to type the user's email to confirm. It cannot be undone. Always prefer deactivation unless you are certain.
+</div>
+
+<h3>5-Step Delete Confirmation</h3>
+<ol>
+<li><strong>Warning</strong> — confirms you understand this is permanent.</li>
+<li><strong>Data loss</strong> — lists all data that will be lost (sessions, audit references, API keys, 2FA).</li>
+<li><strong>Impact assessment</strong> — warns about orphaned agent assignments, approval workflows, and cron jobs.</li>
+<li><strong>Alternative suggestion</strong> — recommends deactivation as the safe option.</li>
+<li><strong>Final confirmation</strong> — type the user's email to confirm deletion.</li>
+</ol>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>API Endpoints</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/users</code></td><td>List all users</td></tr>
+<tr><td>POST</td><td><code>/users</code></td><td>Create a new user</td></tr>
+<tr><td>PATCH</td><td><code>/users/:id</code></td><td>Update user (name, role, clientOrgId)</td></tr>
+<tr><td>DELETE</td><td><code>/users/:id</code></td><td>Permanently delete user (requires confirmation token)</td></tr>
+<tr><td>GET</td><td><code>/users/:id/permissions</code></td><td>Get user permissions</td></tr>
+<tr><td>PUT</td><td><code>/users/:id/permissions</code></td><td>Update user permissions</td></tr>
+<tr><td>POST</td><td><code>/users/:id/reset-password</code></td><td>Reset user password</td></tr>
+<tr><td>POST</td><td><code>/users/:id/deactivate</code></td><td>Deactivate user</td></tr>
+<tr><td>POST</td><td><code>/users/:id/reactivate</code></td><td>Reactivate user</td></tr>
+<tr><td>GET</td><td><code>/page-registry</code></td><td>Get page/tab registry for permission editor</td></tr>
+<tr><td>GET</td><td><code>/organizations</code></td><td>List client organizations</td></tr>
+</tbody>
+</table>
+
+<h3>User Table Columns</h3>
+<p>The users table displays: Name, Email, Role, Organization, Status (Active/Deactivated), Access (Full or page count), 2FA (On/Off), Created date, and Actions.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Principle of least privilege</strong> — start users with Viewer role and only elevate as needed.</li>
+<li><strong>Use organizations</strong> — for multi-tenant setups, always bind external users to their client org.</li>
+<li><strong>Prefer deactivation</strong> — deactivate users who leave the team instead of deleting them, preserving audit trail integrity.</li>
+<li><strong>Limit Owner accounts</strong> — only 1–2 users should have Owner role. Use Admin for day-to-day administration.</li>
+<li><strong>Review permissions quarterly</strong> — audit who has access to what and remove unnecessary grants.</li>
+<li><strong>Use tab-level restrictions</strong> — if a Member only needs to see agent logs but not configuration, restrict at the tab level.</li>
+<li><strong>Generate passwords</strong> — always use the Generate button rather than creating weak passwords manually.</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+<h3>User can't see certain pages</h3>
+<p>Check their role and permissions. If they're a Member or Viewer, click the shield icon to verify which pages are granted. Remember that Owner and Admin roles always have full access.</p>
+
+<h3>User can't see any agents</h3>
+<p>The agent access control may be set to specific agents with none selected. Open the Permission Editor and either check "All Agents" or select specific agents.</p>
+
+<h3>Organization switcher is locked</h3>
+<p>The user is bound to a client organization. Edit the user and change their organization to "None (Internal User)" to unlock it.</p>
+
+<h3>"Cannot delete user" error</h3>
+<p>Ensure you're sending the correct confirmation token: <code>DELETE_USER_{email}</code>. Only Owners can delete users, and you cannot delete yourself.</p>
+
+<h3>Permissions not taking effect</h3>
+<p>The user may need to refresh their browser or log out and back in for permission changes to take effect.</p>
+
+<h3>2FA still active after password reset</h3>
+<p>This is by design — resetting a password does not disable two-factor authentication. The user's TOTP setup is preserved.</p>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+<a href="/docs/vault.html">Vault</a> — Manage secrets and credentials that users access.
+<a href="/docs/compliance.html">Compliance</a> — Generate audit reports that reference user actions.
+<a href="/docs/dlp.html">DLP</a> — Data loss prevention rules that apply to user-managed agents.
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

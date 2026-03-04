@@ -1,5 +1,6 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, formatUptime, buildAgentDataMap, renderAgentBadge, showConfirm, getOrgId } from '../../components/utils.js';
 import { I } from '../../components/icons.js';
+import { E } from '../../assets/icons/emoji-icons.js';
 import { DetailModal } from '../../components/modal.js';
 import { HelpButton } from '../../components/help-button.js';
 
@@ -239,7 +240,7 @@ export function ActivitySection(props) {
                     h('td', { style: { fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' } }, new Date(e.createdAt).toLocaleString()),
                     h('td', null, e.toolName || e.toolId || '-'),
                     h('td', null, h('span', { className: 'badge-tag' }, e.actionType || '-')),
-                    h('td', null, e.reversible ? '\u2705' : '\u274C'),
+                    h('td', null, e.reversible ? I.check() : E.cross()),
                     h('td', null, e.reversed ? h('span', { className: 'status-badge status-warning' }, 'Rolled Back') : h('span', { className: 'status-badge status-success' }, 'Active')),
                     h('td', null, e.reversible && !e.reversed && h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { rollback(e.id); } }, I.undo(), ' Rollback'))
                   );

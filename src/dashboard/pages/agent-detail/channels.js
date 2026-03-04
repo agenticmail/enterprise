@@ -431,10 +431,22 @@ export function ChannelsSection(props) {
   var channels = agentConfig.messagingChannels || {};
   var _caps = useState(null);
   var caps = _caps[0]; var setCaps = _caps[1];
+  var _orgInfo = useState(null);
+  var orgInfo = _orgInfo[0]; var setOrgInfo = _orgInfo[1];
 
   useEffect(function() {
     apiCall('/platform-capabilities').then(function(r) { setCaps(r.capabilities || r || {}); }).catch(function() {});
   }, []);
+
+  useEffect(function() {
+    if (engineAgent?.client_org_id) {
+      apiCall('/organizations/' + engineAgent.client_org_id)
+        .then(function(org) { setOrgInfo(org); })
+        .catch(function() {});
+    }
+  }, [engineAgent?.client_org_id]);
+
+  var orgName = orgInfo ? (orgInfo.name || orgInfo.display_name || 'Organization') : null;
 
   var saveChannelConfig = function(patch) {
     var updated = Object.assign({}, channels, patch);
@@ -459,6 +471,14 @@ export function ChannelsSection(props) {
       ),
       h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Add trusted contacts to control who can message the agent. Only trusted contacts get responses — everyone else gets an auto-reply.')
     )),
+
+    engineAgent?.client_org_id && orgName && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft)', borderRadius: '8px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border)' } },
+      I.building(),
+      h('div', null,
+        h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'This agent belongs to ', h('strong', null, orgName), '.'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, 'Channel configurations are scoped to this organization. Messaging connections and trusted contacts apply within the organization context.')
+      )
+    ),
 
     noChannels && h('div', { style: Object.assign({}, cardStyle, { textAlign: 'center', padding: '40px' }) },
       h('div', { style: { marginBottom: '12px' } }, E.chat(40)),

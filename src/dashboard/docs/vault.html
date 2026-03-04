@@ -1,0 +1,257 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vault — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Vault</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Encrypted secrets management — securely store API keys, passwords, and credentials used by your agents.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#secrets">Managing Secrets</a></li>
+<li><a href="#platform-presets">Platform Presets</a></li>
+<li><a href="#categories">Secret Categories</a></li>
+<li><a href="#rotation">Key Rotation</a></li>
+<li><a href="#audit-log">Audit Log</a></li>
+<li><a href="#vault-status">Vault Status</a></li>
+<li><a href="#configuration">Configuration &amp; Setup</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p><strong>For everyone:</strong> The Vault is a secure safe for all the passwords and API keys your AI agents need. Instead of putting credentials directly in agent configs (where they could be leaked), you store them in the Vault. The Vault encrypts everything so even if someone accesses the database, they can't read your secrets. Every time anyone looks at or changes a secret, it's logged.</p>
+<p><strong>For technical users:</strong> The Vault implements AES-256-GCM authenticated encryption with PBKDF2 key derivation (100,000 iterations). Each secret gets a unique random salt and initialization vector. The master encryption key is derived from <code>AGENTICMAIL_VAULT_KEY</code> in the .env file. Platform presets auto-name secrets as <code>skill:&lt;platform&gt;:&lt;key&gt;</code> for automatic discovery by agent tools. Full audit trail via <code>/vault/audit-log</code>.</p>
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+<ol>
+<li><strong>Store a secret</strong> — select a platform preset or create a custom secret. The value is encrypted before being written to the database.</li>
+<li><strong>Agents use secrets</strong> — agent tools automatically discover secrets named <code>skill:&lt;platform&gt;:&lt;key&gt;</code> and decrypt them on demand.</li>
+<li><strong>Access is logged</strong> — every read, create, delete, and rotate operation is recorded in the audit trail.</li>
+<li><strong>Rotate periodically</strong> — re-encrypt secrets with fresh salts and IVs without changing the actual credential value.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Encryption Details</h3>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><strong>Algorithm</strong></td><td>AES-256-GCM (authenticated encryption with tamper detection)</td></tr>
+<tr><td><strong>Key Derivation</strong></td><td>PBKDF2 with 100,000 iterations</td></tr>
+<tr><td><strong>Salt</strong></td><td>Unique random salt per secret</td></tr>
+<tr><td><strong>IV</strong></td><td>Unique random initialization vector per secret</td></tr>
+<tr><td><strong>Master Key</strong></td><td>Derived from <code>AGENTICMAIL_VAULT_KEY</code> environment variable</td></tr>
+</tbody>
+</table>
+
+<h3>Secret Naming Convention</h3>
+<p>Platform preset secrets follow the naming pattern <code>skill:&lt;platform&gt;:&lt;key&gt;</code>:</p>
+<pre><code>skill:openai:access_token
+skill:anthropic:access_token
+skill:stripe:access_token
+skill:stripe:webhook_secret
+skill:aws:access_key_id
+skill:aws:secret_access_key</code></pre>
+<p>Agent tools automatically discover and use secrets matching this pattern.</p>
+
+<h2 id="secrets">Managing Secrets</h2>
+
+<h3>Adding Secrets</h3>
+<p>Click <strong>"Add Secret"</strong> to open the modal:</p>
+<ol>
+<li><strong>Select Platform/Service</strong> — choose from presets or "Custom Secret."</li>
+<li><strong>Fill in fields</strong> — each platform has specific fields (API key, token, etc.). Required fields are marked with *.</li>
+<li><strong>Click "Store Secret"</strong> — the value is encrypted and saved.</li>
+</ol>
+
+<h3>Viewing Secrets</h3>
+<p>Click any secret in the table (or the eye icon) to open the view modal:</p>
+<ul>
+<li>Secret metadata: category, created by, created date, last rotated date.</li>
+<li><strong>Reveal/hide toggle</strong> — click the eye icon to show the decrypted value.</li>
+<li><strong>Copy button</strong> — copies decrypted value to clipboard.</li>
+<li>Every view is logged in the audit trail.</li>
+</ul>
+
+<div class="warning">
+<strong>Warning:</strong> Viewing a secret creates an audit log entry. Be mindful of who has access to view secrets in production.
+</div>
+
+<h3>Deleting Secrets</h3>
+<p>Click the trash icon and confirm. Deletion is permanent and immediately revokes access for any services using the secret.</p>
+
+<div class="danger">
+<strong>Danger:</strong> Deleting a secret cannot be undone. Any agents or services using the secret will immediately lose access. Make sure the credential is no longer needed before deleting.
+</div>
+
+<h3>Searching and Filtering</h3>
+<ul>
+<li><strong>Search bar</strong> — search by name, category, or creator.</li>
+<li><strong>Category filter</strong> — filter by Deploy Credentials, Cloud Storage, API Key, Skill Credential, or Custom.</li>
+</ul>
+
+<h2 id="platform-presets">Platform Presets</h2>
+<p>The Vault includes presets for common platforms. Each preset auto-configures the secret name, category, and required fields:</p>
+
+<table>
+<thead><tr><th>Platform</th><th>Category</th><th>Fields</th></tr></thead>
+<tbody>
+<tr><td><strong>OpenAI</strong></td><td>Skill Credential</td><td>API Key (<code>sk-...</code>)</td></tr>
+<tr><td><strong>Anthropic</strong></td><td>Skill Credential</td><td>API Key (<code>sk-ant-...</code>)</td></tr>
+<tr><td><strong>Google Cloud / Gemini</strong></td><td>Skill Credential</td><td>API Key, OAuth Client ID*, OAuth Client Secret*</td></tr>
+<tr><td><strong>ElevenLabs</strong></td><td>Skill Credential</td><td>API Key (<code>xi_...</code>)</td></tr>
+<tr><td><strong>Telegram Bot</strong></td><td>Skill Credential</td><td>Bot Token</td></tr>
+<tr><td><strong>Slack</strong></td><td>Skill Credential</td><td>Bot Token (<code>xoxb-...</code>), Signing Secret*</td></tr>
+<tr><td><strong>GitHub</strong></td><td>Skill Credential</td><td>Personal Access Token (<code>ghp_...</code>)</td></tr>
+<tr><td><strong>Stripe</strong></td><td>Skill Credential</td><td>Secret Key (<code>sk_live_...</code>), Webhook Secret*</td></tr>
+<tr><td><strong>SendGrid</strong></td><td>Skill Credential</td><td>API Key (<code>SG...</code>)</td></tr>
+<tr><td><strong>Twilio</strong></td><td>Skill Credential</td><td>Account SID (<code>AC...</code>), Auth Token</td></tr>
+<tr><td><strong>AWS</strong></td><td>Cloud Storage</td><td>Access Key ID (<code>AKIA...</code>), Secret Access Key, Region*</td></tr>
+<tr><td><strong>Cloudflare</strong></td><td>Skill Credential</td><td>API Token, Account ID*</td></tr>
+<tr><td><strong>Notion</strong></td><td>Skill Credential</td><td>Integration Token (<code>secret_...</code>)</td></tr>
+<tr><td><strong>HubSpot</strong></td><td>Skill Credential</td><td>Private App Token (<code>pat-...</code>)</td></tr>
+<tr><td><strong>SMTP / Email</strong></td><td>Deploy Credentials</td><td>Host, Port*, Username, App Password</td></tr>
+<tr><td><strong>Database</strong></td><td>Deploy Credentials</td><td>Connection String</td></tr>
+</tbody>
+</table>
+<p>* = optional field</p>
+
+<h2 id="categories">Secret Categories</h2>
+<table>
+<thead><tr><th>Category</th><th>Color</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Deploy Credentials</strong></td><td>Indigo</td><td>Infrastructure and deployment secrets (SMTP, database connections)</td></tr>
+<tr><td><strong>Skill Credentials</strong></td><td>Green</td><td>API keys for agent tools (OpenAI, Slack, GitHub, etc.)</td></tr>
+<tr><td><strong>Cloud Storage</strong></td><td>Blue</td><td>AWS, GCP, and other cloud provider credentials</td></tr>
+<tr><td><strong>API Keys</strong></td><td>Amber</td><td>General-purpose API keys</td></tr>
+<tr><td><strong>Custom</strong></td><td>Gray</td><td>User-defined secrets with custom names</td></tr>
+</tbody>
+</table>
+
+<h2 id="rotation">Key Rotation</h2>
+<p>Rotating a secret re-encrypts it with a fresh salt and initialization vector <strong>without changing the actual credential value</strong>. This limits the window of exposure if encryption material is compromised.</p>
+
+<h3>Single Secret Rotation</h3>
+<p>Click the rotate icon on any secret, or use the "Rotate" button in the view modal.</p>
+
+<h3>Bulk Rotation</h3>
+<p>Click <strong>"Rotate All"</strong> to re-encrypt every secret in the vault at once. Use after security incidents or as periodic hygiene.</p>
+
+<div class="tip">
+<strong>Tip:</strong> Rotate secrets periodically (monthly or quarterly). Use "Rotate All" immediately after any suspected security incident.
+</div>
+
+<h2 id="audit-log">Audit Log</h2>
+<p>The <strong>Audit Log</strong> tab records every vault operation. Each entry includes:</p>
+<table>
+<thead><tr><th>Field</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Action</strong></td><td>encrypt, decrypt, delete, rotate, migrate, read, create</td></tr>
+<tr><td><strong>Secret</strong></td><td>Name or ID of the secret accessed</td></tr>
+<tr><td><strong>Actor</strong></td><td>User or system that performed the action</td></tr>
+<tr><td><strong>Timestamp</strong></td><td>When the action occurred</td></tr>
+<tr><td><strong>Details</strong></td><td>Additional metadata (IP address, etc.)</td></tr>
+</tbody>
+</table>
+
+<p>Features:</p>
+<ul>
+<li><strong>Search</strong> — search across all fields</li>
+<li><strong>Action filter</strong> — filter by specific action types</li>
+<li><strong>Pagination</strong> — 25 entries per page with full navigation</li>
+<li><strong>Click to expand</strong> — view full metadata including IP address and entry ID</li>
+</ul>
+
+<h2 id="vault-status">Vault Status</h2>
+<p>The <strong>Status</strong> tab shows:</p>
+<ul>
+<li><strong>Vault Status</strong> — Active or Not Configured</li>
+<li><strong>Total Secrets</strong> — count of stored secrets</li>
+<li><strong>Encryption method</strong> — AES-256-GCM</li>
+<li><strong>Key Derivation</strong> — PBKDF2</li>
+<li><strong>Secrets by Category</strong> — breakdown chart showing how many secrets are in each category</li>
+</ul>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>API Endpoints</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/vault/secrets?orgId=</code></td><td>List all secrets (metadata only, not decrypted)</td></tr>
+<tr><td>POST</td><td><code>/vault/secrets</code></td><td>Create/encrypt a new secret</td></tr>
+<tr><td>GET</td><td><code>/vault/secrets/:id</code></td><td>Decrypt and retrieve a secret value</td></tr>
+<tr><td>DELETE</td><td><code>/vault/secrets/:id</code></td><td>Permanently delete a secret</td></tr>
+<tr><td>POST</td><td><code>/vault/secrets/:id/rotate</code></td><td>Re-encrypt a single secret</td></tr>
+<tr><td>POST</td><td><code>/vault/rotate-all</code></td><td>Re-encrypt all secrets</td></tr>
+<tr><td>GET</td><td><code>/vault/audit-log</code></td><td>Query audit log (supports search, action filter, pagination)</td></tr>
+<tr><td>GET</td><td><code>/vault/status</code></td><td>Vault status and statistics</td></tr>
+</tbody>
+</table>
+
+<h3>Create Secret Request</h3>
+<pre><code>POST /vault/secrets
+{
+  "orgId": "org-123",
+  "name": "skill:openai:access_token",
+  "value": "sk-...",
+  "category": "skill_credential"
+}</code></pre>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Use platform presets</strong> — they auto-configure naming so agent tools can discover credentials automatically.</li>
+<li><strong>Rotate regularly</strong> — monthly rotation limits cryptographic exposure.</li>
+<li><strong>Review audit logs</strong> — check for unexpected decrypt operations, especially from unfamiliar actors.</li>
+<li><strong>Limit vault access</strong> — use the Users page to restrict which users can access the Vault page.</li>
+<li><strong>Back up VAULT_KEY</strong> — without this environment variable, all secrets are permanently unrecoverable.</li>
+<li><strong>Use Rotate All after incidents</strong> — if any encryption material may have been compromised, rotate everything immediately.</li>
+<li><strong>Don't duplicate secrets</strong> — if a platform needs multiple credentials (e.g., Stripe key + webhook secret), the preset handles this automatically.</li>
+<li><strong>Prefer vault over inline config</strong> — never put credentials directly in agent configurations. Always use the vault.</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+<h3>"Decryption failed" when viewing a secret</h3>
+<p>The <code>AGENTICMAIL_VAULT_KEY</code> in your .env may have changed or been corrupted. If you migrated to a new machine, ensure you copied the exact same .env file. Secrets encrypted with a different key cannot be recovered.</p>
+
+<h3>Agent can't find credentials</h3>
+<p>Verify the secret follows the <code>skill:&lt;platform&gt;:&lt;key&gt;</code> naming convention. Check the secret name in the vault list — it must match exactly what the agent tool expects.</p>
+
+<h3>"Vault not configured" status</h3>
+<p>The <code>AGENTICMAIL_VAULT_KEY</code> environment variable is missing. Add it to <code>~/.agenticmail/.env</code> and restart the server.</p>
+
+<h3>Audit log shows unexpected access</h3>
+<p>Check the actor column for the user or system that accessed the secret. Review user permissions on the Users page and consider restricting Vault access to fewer users.</p>
+
+<h3>Bulk rotation fails partway</h3>
+<p>Some secrets may have been rotated while others weren't. Check the audit log for which secrets were rotated successfully, then manually rotate the remaining ones.</p>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+<a href="/docs/users.html">Users</a> — Control who can access the Vault.
+<a href="/docs/dlp.html">DLP</a> — Prevents agents from leaking credentials stored in the Vault.
+<a href="/docs/compliance.html">Compliance</a> — Vault audit logs feed into SOC2 and audit reports.
+<a href="/docs/database-access.html">Database Access</a> — Database credentials can be stored in the Vault.
+<a href="/docs/domain-status.html">Domain &amp; Deployment</a> — VAULT_KEY migration is critical during server moves.
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

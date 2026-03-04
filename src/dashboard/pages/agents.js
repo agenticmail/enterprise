@@ -1,9 +1,10 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, DEPLOY_PHASES, DEPLOY_PHASE_LABELS, showConfirm, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
-import { CULTURES, LANGUAGES, PersonaForm } from '../components/persona-fields.js';
+import { CULTURES, LANGUAGES, PersonaForm, LanguageSelect, getLanguageName } from '../components/persona-fields.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 // ════════════════════════════════════════════════════════════
 // DEPLOY MODAL
@@ -285,7 +286,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
   useEffect(() => {
     engineCall('/skills/by-category').then(d => setAllSkills(d.categories || {})).catch(() => {});
     engineCall('/profiles/presets').then(d => setPresets(d.presets || [])).catch(() => {});
-    engineCall('/souls/by-category').then(d => { setSoulCategories(d.categories || {}); setSoulMeta(d.categoryMeta || {}); }).catch(() => {});
+    engineCall('/souls/by-category?orgId=' + (getOrgId() || '')).then(d => { setSoulCategories(d.categories || {}); setSoulMeta(d.categoryMeta || {}); }).catch(() => {});
     apiCall('/providers').then(function(d) {
       var provList = d.providers || [];
       setProviders(provList);
@@ -628,7 +629,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
                       h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 } },
                         h('span', { className: 'badge badge-primary' }, identity.role || selectedSoul.name),
                         h('span', { className: 'badge badge-neutral' }, toneLabels[identity.tone] || 'Professional'),
-                        h('span', { className: 'badge badge-neutral' }, 'Language: ' + (identity.language || 'en').toUpperCase()),
+                        h('span', { className: 'badge badge-neutral' }, 'Language: ' + getLanguageName(identity.language || 'en-us')),
                         selectedSoul.suggestedPreset && h('span', { className: 'badge badge-info' }, 'Preset: ' + selectedSoul.suggestedPreset)
                       )
                     ),
@@ -1067,7 +1068,7 @@ export function CreateAgentWizard({ onClose, onCreated, toast }) {
                     })(),
                     form.maritalStatus && h(Fragment, null, h('span', { style: { color: 'var(--text-muted)' } }, 'Marital Status'), h('span', null, form.maritalStatus.charAt(0).toUpperCase() + form.maritalStatus.slice(1))),
                     form.culturalBackground && h(Fragment, null, h('span', { style: { color: 'var(--text-muted)' } }, 'Background'), h('span', null, CULTURES.find(c => c.id === form.culturalBackground)?.name || form.culturalBackground)),
-                    h('span', { style: { color: 'var(--text-muted)' } }, 'Language'), h('span', null, LANGUAGES.find(l => l.id === form.language)?.name || form.language),
+                    h('span', { style: { color: 'var(--text-muted)' } }, 'Language'), h('span', null, getLanguageName(form.language)),
                     h('span', { style: { color: 'var(--text-muted)' } }, 'Traits'), h('span', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
                       h('span', { className: 'badge badge-neutral' }, form.traits.communication),
                       h('span', { className: 'badge badge-neutral' }, form.traits.detail),
@@ -1157,7 +1158,7 @@ export function AgentsPage({ onSelectAgent }) {
   return h(Fragment, null,
     h(orgCtx.Switcher),
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
-      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Agents', h(HelpButton, { label: 'Agents' },
+      h('div', null, h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Agents', h(KnowledgeLink, { page: 'agents' }), h(HelpButton, { label: 'Agents' },
         h('p', null, 'Your AI workforce. Each agent has its own email identity, personality, skills, permissions, and deployment target.'),
         h('h4', { style: _h4 }, 'Agent lifecycle'),
         h('ul', { style: _ul },
@@ -1208,4 +1209,4 @@ export function AgentsPage({ onSelectAgent }) {
 // AGENT DETAIL PAGE — Re-exported from agent-detail.js
 // ════════════════════════════════════════════════════════════
 
-export { AgentDetailPage } from './agent-detail/index.js?v=5';
+export { AgentDetailPage } from './agent-detail/index.js?v=6';

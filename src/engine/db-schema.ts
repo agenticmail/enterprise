@@ -78,12 +78,14 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
   name TEXT NOT NULL,
   description TEXT,
   agent_ids JSON NOT NULL DEFAULT '[]',
+  client_org_id TEXT,
   config JSON NOT NULL DEFAULT '{}',
   stats JSON NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_org ON knowledge_bases(org_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_client_org ON knowledge_bases(client_org_id);
 
 -- Knowledge base documents
 CREATE TABLE IF NOT EXISTS kb_documents (
@@ -1703,6 +1705,189 @@ ALTER TABLE agent_delegated_tasks ADD COLUMN last_check_in_at DATETIME;
 ALTER TABLE agent_delegated_tasks ADD COLUMN required_tools JSON;
 ALTER TABLE agent_delegated_tasks ADD COLUMN original_agent_id VARCHAR(255);
 ALTER TABLE agent_delegated_tasks ADD COLUMN reassign_reason TEXT;
+    `,
+    nosql: async () => {},
+  },
+  {
+    version: 29,
+    name: 'managed_agents_client_org',
+    sqlite: `
+ALTER TABLE managed_agents ADD COLUMN client_org_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_managed_agents_client_org ON managed_agents(client_org_id);
+    `,
+    postgres: `
+ALTER TABLE managed_agents ADD COLUMN IF NOT EXISTS client_org_id VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_managed_agents_client_org ON managed_agents(client_org_id);
+    `,
+    mysql: `
+ALTER TABLE managed_agents ADD COLUMN client_org_id VARCHAR(255);
+CREATE INDEX idx_managed_agents_client_org ON managed_agents(client_org_id);
+    `,
+    nosql: async () => {},
+  },
+  {
+    version: 30,
+    name: 'knowledge_bases_client_org',
+    sqlite: `
+ALTER TABLE knowledge_bases ADD COLUMN client_org_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_client_org ON knowledge_bases(client_org_id);
+    `,
+    postgres: `
+ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS client_org_id VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_client_org ON knowledge_bases(client_org_id);
+    `,
+    mysql: `
+ALTER TABLE knowledge_bases ADD COLUMN client_org_id VARCHAR(255);
+CREATE INDEX idx_knowledge_bases_client_org ON knowledge_bases(client_org_id);
+    `,
+    nosql: async () => {},
+  },
+  {
+    version: 31,
+    name: 'organization_integrations',
+    sqlite: `
+CREATE TABLE IF NOT EXISTS organization_integrations (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  provider_type TEXT NOT NULL DEFAULT 'oauth2',
+  display_name TEXT,
+  config TEXT NOT NULL DEFAULT '{}',
+  credentials TEXT NOT NULL DEFAULT '{}',
+  scopes TEXT,
+  domain TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  is_default BOOLEAN NOT NULL DEFAULT 0,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by TEXT,
+  UNIQUE(org_id, provider, domain)
+);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_org ON organization_integrations(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_provider ON organization_integrations(provider);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_status ON organization_integrations(status);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS organization_integrations (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  provider_type TEXT NOT NULL DEFAULT 'oauth2',
+  display_name TEXT,
+  config JSONB NOT NULL DEFAULT '{}',
+  credentials JSONB NOT NULL DEFAULT '{}',
+  scopes TEXT,
+  domain TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  created_by TEXT,
+  UNIQUE(org_id, provider, domain)
+);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_org ON organization_integrations(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_provider ON organization_integrations(provider);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_status ON organization_integrations(status);
+    `,
+    mysql: `
+CREATE TABLE IF NOT EXISTS organization_integrations (
+  id VARCHAR(255) PRIMARY KEY,
+  org_id VARCHAR(255) NOT NULL,
+  provider VARCHAR(100) NOT NULL,
+  provider_type VARCHAR(50) NOT NULL DEFAULT 'oauth2',
+  display_name VARCHAR(255),
+  config JSON NOT NULL,
+  credentials JSON NOT NULL,
+  scopes TEXT,
+  domain VARCHAR(255),
+  status VARCHAR(50) NOT NULL DEFAULT 'active',
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  metadata JSON NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_by VARCHAR(255),
+  UNIQUE KEY uq_org_provider_domain (org_id, provider, domain)
+);
+CREATE INDEX idx_org_integrations_org ON organization_integrations(org_id);
+CREATE INDEX idx_org_integrations_provider ON organization_integrations(provider);
+    `,
+    nosql: async () => {},
+  },
+  {
+    version: 32,
+    name: 'custom_roles',
+    sqlite: `
+CREATE TABLE IF NOT EXISTS custom_roles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'operations',
+  description TEXT,
+  personality TEXT,
+  identity TEXT NOT NULL DEFAULT '{}',
+  suggested_skills TEXT NOT NULL DEFAULT '[]',
+  suggested_preset TEXT,
+  tags TEXT NOT NULL DEFAULT '[]',
+  org_id TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(slug, org_id)
+);
+CREATE INDEX IF NOT EXISTS idx_custom_roles_org ON custom_roles(org_id);
+CREATE INDEX IF NOT EXISTS idx_custom_roles_slug ON custom_roles(slug);
+CREATE INDEX IF NOT EXISTS idx_custom_roles_active ON custom_roles(is_active);
+    `,
+    postgres: `
+CREATE TABLE IF NOT EXISTS custom_roles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'operations',
+  description TEXT,
+  personality TEXT,
+  identity JSONB NOT NULL DEFAULT '{}',
+  suggested_skills JSONB NOT NULL DEFAULT '[]',
+  suggested_preset TEXT,
+  tags JSONB NOT NULL DEFAULT '[]',
+  org_id TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  created_by TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(slug, org_id)
+);
+CREATE INDEX IF NOT EXISTS idx_custom_roles_org ON custom_roles(org_id);
+CREATE INDEX IF NOT EXISTS idx_custom_roles_slug ON custom_roles(slug);
+CREATE INDEX IF NOT EXISTS idx_custom_roles_active ON custom_roles(is_active);
+    `,
+    mysql: `
+CREATE TABLE IF NOT EXISTS custom_roles (
+  id VARCHAR(255) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL,
+  category VARCHAR(50) NOT NULL DEFAULT 'operations',
+  description TEXT,
+  personality LONGTEXT,
+  identity JSON NOT NULL,
+  suggested_skills JSON NOT NULL,
+  suggested_preset VARCHAR(255),
+  tags JSON NOT NULL,
+  org_id VARCHAR(255),
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  metadata JSON NOT NULL,
+  created_by VARCHAR(255),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE KEY uq_role_slug_org (slug, org_id)
+);
+CREATE INDEX idx_custom_roles_org ON custom_roles(org_id);
+CREATE INDEX idx_custom_roles_slug ON custom_roles(slug);
     `,
     nosql: async () => {},
   },

@@ -1,0 +1,261 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Pipeline — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Task Pipeline</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Visual flow of all agent tasks — delegation chains, real-time status, and multi-agent handoffs on an interactive canvas.</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#canvas-interactions">Canvas Interactions</a></li>
+    <li><a href="#task-statuses">Task Statuses &amp; Priority</a></li>
+    <li><a href="#delegation-chains">Delegation Chains</a></li>
+    <li><a href="#source-badges">Source Badges</a></li>
+    <li><a href="#metrics-bar">Metrics Bar</a></li>
+    <li><a href="#task-detail-modal">Task Detail Modal</a></li>
+    <li><a href="#toolbar-filters">Toolbar &amp; Filters</a></li>
+    <li><a href="#real-time-updates">Real-Time Updates (SSE)</a></li>
+    <li><a href="#configuration">Configuration &amp; Setup</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> The Task Pipeline is like a live whiteboard showing all the work your AI agents are doing right now. Each task is a card, and arrows show how work flows between agents — who started it, who's working on it, and who reviewed it.
+</div>
+
+<p>The Task Pipeline page provides a full-screen, zoomable, pannable canvas that renders every task as a node in a left-to-right flow graph. Tasks are grouped into <strong>delegation chains</strong> — horizontal rows where each step represents a handoff between agents. Orphan tasks (not part of any chain) are displayed in a separate row.</p>
+
+<p>Key capabilities include:</p>
+<ul>
+  <li>Horizontal left-to-right flow visualization of task chains</li>
+  <li>Animated SVG edges showing active task flow</li>
+  <li>Real-time updates via Server-Sent Events (SSE)</li>
+  <li>Customer context badges on chain origins</li>
+  <li>Circular flow detection for revision/review loops</li>
+  <li>Inline expanded chain flowcharts below clicked nodes</li>
+  <li>Full task detail modal with activity log, progress, and cost tracking</li>
+</ul>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<p>When you open the Task Pipeline, the system:</p>
+<ol>
+  <li><strong>Fetches tasks</strong> — Loads up to 200 tasks from the <code>/task-pipeline</code> endpoint along with aggregate statistics.</li>
+  <li><strong>Groups by chain</strong> — Tasks with a shared <code>chainId</code> are grouped into horizontal rows, sorted by <code>chainSeq</code>. Single-task "chains" become orphans.</li>
+  <li><strong>Lays out nodes</strong> — Each chain is a horizontal row of 200×52px nodes spaced 32px apart. Chains stack vertically with 12px gaps.</li>
+  <li><strong>Draws edges</strong> — SVG cubic Bézier curves connect consecutive nodes. Active edges get animated dash overlays. Circular (revision) flows use arc paths.</li>
+  <li><strong>Streams updates</strong> — An SSE connection at <code>/task-pipeline/stream</code> pushes task updates in real-time. Stats refresh every 15 seconds.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Delegation Chain</h3>
+<p>A chain is a sequence of tasks linked by a shared <code>chainId</code>. When a manager agent delegates work to a junior agent, both tasks share the same chain. Each task has a <code>chainSeq</code> (sequence number) determining its position in the flow.</p>
+
+<h3>Chain Flow Types</h3>
+<table>
+  <thead><tr><th>Type</th><th>Color</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Delegation</td><td><span class="badge" style="background:#6366f122;color:#6366f1">Indigo</span></td><td>Standard work handoff to another agent</td></tr>
+    <tr><td>Review</td><td><span class="badge" style="background:#991b1b22;color:#991b1b">Amber</span></td><td>Task sent for quality review</td></tr>
+    <tr><td>Revision</td><td><span class="badge" style="background:#f9731622;color:#f97316">Orange</span></td><td>Task returned for corrections</td></tr>
+    <tr><td>Escalation</td><td><span class="badge" style="background:#ef444422;color:#ef4444">Red</span></td><td>Task escalated to a senior agent</td></tr>
+    <tr><td>Return</td><td><span class="badge" style="background:#15803d22;color:#15803d">Green</span></td><td>Task returned to original requester</td></tr>
+  </tbody>
+</table>
+
+<h3>Circular Flows</h3>
+<p>When a task returns to an agent who already appeared earlier in the chain (e.g., Agent A → B → A for revision), the edge renders as an upward arc to visually distinguish the loop from forward flow.</p>
+
+<h2 id="canvas-interactions">Canvas Interactions</h2>
+
+<table>
+  <thead><tr><th>Action</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Hover</strong> on a node</td><td>Highlights the entire chain, dims all other nodes</td></tr>
+    <tr><td><strong>Click</strong> a node</td><td>Expands an inline chain flowchart below the node showing the person-centric flow</td></tr>
+    <tr><td><strong>Double-click</strong> a node</td><td>Opens the full Task Detail modal</td></tr>
+    <tr><td><strong>Scroll wheel</strong></td><td>Zoom in/out (range: 15%–300%)</td></tr>
+    <tr><td><strong>Click + drag</strong> background</td><td>Pan the canvas</td></tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>Tip:</strong> Use the "Fit" button in the toolbar to auto-zoom so all tasks fit in view. The canvas also auto-pans to the first active (in-progress) task on load.
+</div>
+
+<h2 id="task-statuses">Task Statuses &amp; Priority</h2>
+
+<h3>Statuses</h3>
+<table>
+  <thead><tr><th>Status</th><th>Color</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Created</td><td>Indigo</td><td>Task exists but hasn't been assigned yet</td></tr>
+    <tr><td>Assigned</td><td>Amber</td><td>Task assigned to an agent, not yet started</td></tr>
+    <tr><td>In Progress</td><td>Cyan</td><td>Agent is actively working on this task (animated pulse)</td></tr>
+    <tr><td>Completed</td><td>Green</td><td>Task finished successfully</td></tr>
+    <tr><td>Failed</td><td>Red</td><td>Task encountered an error</td></tr>
+    <tr><td>Cancelled</td><td>Gray</td><td>Task was manually cancelled</td></tr>
+  </tbody>
+</table>
+
+<h3>Priority Levels</h3>
+<table>
+  <thead><tr><th>Priority</th><th>Color</th></tr></thead>
+  <tbody>
+    <tr><td>Urgent</td><td>Red</td></tr>
+    <tr><td>High</td><td>Amber</td></tr>
+    <tr><td>Normal</td><td>Indigo</td></tr>
+    <tr><td>Low</td><td>Gray</td></tr>
+  </tbody>
+</table>
+
+<h2 id="delegation-chains">Delegation Chains</h2>
+
+<p>The expanded chain view (shown when clicking a node) renders a person-centric flow:</p>
+<ol>
+  <li><strong>Creator</strong> — The person or system that originated the chain</li>
+  <li><strong>Agent steps</strong> — Each agent in the chain, with status, duration, and progress</li>
+  <li><strong>Terminal node</strong> — Final status (completed ✓, failed ✗, or cancelled ⊘)</li>
+</ol>
+
+<p>Arrows between steps are labeled with the delegation type (delegation, review, revision, etc.) and colored accordingly.</p>
+
+<h2 id="source-badges">Source Badges</h2>
+
+<p>Each task can have a source indicating where it originated:</p>
+<table>
+  <thead><tr><th>Source</th><th>Icon</th><th>Color</th></tr></thead>
+  <tbody>
+    <tr><td>Telegram</td><td>✈️</td><td>#0088cc</td></tr>
+    <tr><td>WhatsApp</td><td>💬</td><td>#25d366</td></tr>
+    <tr><td>Email</td><td>✉️</td><td>#ea4335</td></tr>
+    <tr><td>Google Chat</td><td>🗨️</td><td>#1a73e8</td></tr>
+    <tr><td>Internal</td><td>⚙️</td><td>#6b7394</td></tr>
+    <tr><td>API</td><td>🔗</td><td>#8b5cf6</td></tr>
+  </tbody>
+</table>
+
+<h2 id="metrics-bar">Metrics Bar</h2>
+
+<p>Below the toolbar, a compact metrics bar shows real-time stats:</p>
+<ul>
+  <li><strong>Today's counters:</strong> Done, Active, New, Failed</li>
+  <li><strong>All-time:</strong> Total tasks, average duration, total tokens used, total cost</li>
+  <li><strong>Top agents:</strong> Up to 3 agents with their completed/active task counts</li>
+</ul>
+
+<h2 id="task-detail-modal">Task Detail Modal</h2>
+
+<p>Double-clicking a task node opens a detailed modal containing:</p>
+<ul>
+  <li>Status, priority, source, chain ID, and delegation type badges</li>
+  <li>Customer context card (name, email, company, channel, new/returning)</li>
+  <li>Full task description</li>
+  <li>Progress bar (for in-progress tasks)</li>
+  <li>Assignment details: assigned to, created by, creation time, duration, model, tokens/cost</li>
+  <li>Delegation chain timeline (visual horizontal flow of all chain steps)</li>
+  <li>Paginated activity log with search and type filter</li>
+  <li>Error display (for failed tasks)</li>
+  <li>Cancel button (for active tasks)</li>
+</ul>
+
+<h2 id="toolbar-filters">Toolbar &amp; Filters</h2>
+
+<p>The toolbar provides:</p>
+<ul>
+  <li><strong>Filter buttons:</strong> Active (default), All, Completed, Failed</li>
+  <li><strong>Status legend:</strong> Color dots for Active, Done, Failed</li>
+  <li><strong>Zoom controls:</strong> +, −, percentage display, Fit button</li>
+  <li><strong>Refresh:</strong> Manual data reload</li>
+  <li><strong>Live indicator:</strong> Green pulsing dot confirming SSE connection</li>
+</ul>
+
+<h2 id="real-time-updates">Real-Time Updates (SSE)</h2>
+
+<p>The pipeline maintains a persistent Server-Sent Events connection to <code>/api/engine/task-pipeline/stream</code>. Events include:</p>
+<ul>
+  <li><strong>init</strong> — Bulk task load with initial stats</li>
+  <li><strong>task update</strong> — Individual task state changes (new, status change, progress)</li>
+</ul>
+<p>On every task event, stats are also refreshed. A 15-second interval additionally polls stats as a fallback.</p>
+
+<div class="warning">
+  <strong>Note:</strong> If the SSE connection drops, the pipeline will not auto-reconnect. Use the Refresh button to reload data manually.
+</div>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<p>The Task Pipeline works out of the box once agents are configured and tasks are being created. No additional configuration is required.</p>
+
+<h3>Organization Filtering</h3>
+<p>When an organization is selected via the org switcher, the pipeline filters tasks to only show those belonging to agents in that organization.</p>
+
+<h3>Agent Avatars</h3>
+<p>Agent avatars are resolved from <code>config.identity.avatar</code>, <code>config.avatar</code>, or <code>config.persona.avatar</code>. If none is set, a colored initial circle is displayed.</p>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/task-pipeline?limit=200</code></td><td>GET</td><td>Fetch tasks</td></tr>
+    <tr><td><code>/task-pipeline/stats</code></td><td>GET</td><td>Aggregate statistics</td></tr>
+    <tr><td><code>/task-pipeline/stream</code></td><td>SSE</td><td>Real-time task updates</td></tr>
+    <tr><td><code>/task-pipeline/:id/cancel</code></td><td>POST</td><td>Cancel a task</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Use chain IDs:</strong> Always link related tasks with a shared <code>chainId</code> so the pipeline can visualize the full delegation flow.</li>
+  <li><strong>Set delegation types:</strong> Mark each handoff with the correct type (delegation, review, revision, escalation, return) for clear visual labeling.</li>
+  <li><strong>Add customer context:</strong> Include <code>customerContext</code> on chain-origin tasks so support workflows display customer badges.</li>
+  <li><strong>Monitor the metrics bar:</strong> Watch the Active count and average duration to spot bottlenecks early.</li>
+  <li><strong>Use the "Active" filter:</strong> Focus on in-progress and pending tasks during daily operations. Switch to "All" for auditing.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<table>
+  <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr><td>Canvas is empty</td><td>Check filter is set to "All" — the "Active" filter hides completed/failed tasks. Also verify agents exist in the selected organization.</td></tr>
+    <tr><td>No live indicator</td><td>SSE connection failed. Check network and ensure <code>/api/engine/task-pipeline/stream</code> is accessible. Click Refresh.</td></tr>
+    <tr><td>Tasks not showing chains</td><td>Ensure tasks have a <code>chainId</code> set. Single-task chains are treated as orphans.</td></tr>
+    <tr><td>Canvas zoom is too small/large</td><td>Click "Fit" to auto-zoom, or use scroll wheel to adjust manually.</td></tr>
+    <tr><td>Agent avatars missing</td><td>Set <code>config.identity.avatar</code> on the agent configuration.</td></tr>
+  </tbody>
+</table>
+
+<div class="danger">
+  <strong>Destructive action:</strong> The "Cancel Task" button in the detail modal immediately cancels an active task. This cannot be undone — the agent will stop working on it.
+</div>
+
+<h2 id="related">Related Pages</h2>
+
+<div class="nav">
+  <a href="/docs/workforce.html">Workforce Management</a> — Schedule agents and manage workloads
+  <a href="/docs/activity.html">Activity Log</a> — Detailed event and tool call history
+  <a href="/docs/org-chart.html">Organization Chart</a> — Agent hierarchy and reporting structure
+  <a href="/docs/messages.html">Agent Messages</a> — Inter-agent communication
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, showCon
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function DomainStatusPage() {
   var { toast } = useApp();
@@ -176,7 +177,7 @@ export function DomainStatusPage() {
   return h(Fragment, null,
     // ─── Page Header ──────────────────────────────
     h('div', { style: { marginBottom: 24 } },
-      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Domain & Deployment', h(HelpButton, { label: 'Domain & Deployment' },
+      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Domain & Deployment', h(KnowledgeLink, { page: 'domain-status' }), h(HelpButton, { label: 'Domain & Deployment' },
         h('p', null, 'Configure how your AgenticMail Enterprise instance is accessed on the internet. Set up subdomains, custom domains, CORS policies, and deployment tunnels.'),
         h('h4', { style: _h4 }, 'Sections'),
         h('ul', { style: _ul },
@@ -239,7 +240,7 @@ export function DomainStatusPage() {
       // Edit mode
       showEditSub && h(Fragment, null,
         // Warning if currently active
-        sub && actualHost === sub + '.agenticmail.io' && h('div', { style: { padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius)', marginBottom: 14, fontSize: 12, lineHeight: 1.6, color: 'var(--warning)' } },
+        sub && actualHost === sub + '.agenticmail.io' && h('div', { style: { padding: '10px 14px', background: 'rgba(153,27,27,0.08)', border: '1px solid rgba(153,27,27,0.2)', borderRadius: 'var(--radius)', marginBottom: 14, fontSize: 12, lineHeight: 1.6, color: 'var(--warning)' } },
           h('strong', null, 'Warning:'), ' You are currently accessing this dashboard from ', h('strong', null, sub + '.agenticmail.io'),
           '. Changing the subdomain will update the database but will NOT automatically redirect traffic. You will need to update your DNS records and access the dashboard from the new URL.'
         ),
@@ -441,7 +442,7 @@ export function DomainStatusPage() {
         h('a', { href: '/dashboard/settings#network', style: { fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 } }, 'Manage in Settings \u2192')
       ),
       corsOrigins.length === 0
-        ? h('div', { style: { padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 } },
+        ? h('div', { style: { padding: '10px 14px', background: 'rgba(153,27,27,0.08)', border: '1px solid rgba(153,27,27,0.2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--warning)', lineHeight: 1.5 } },
             h('strong', null, 'Open access:'), ' No CORS restrictions configured. Any domain can make API requests. ',
             h('a', { href: '/dashboard/settings#network', style: { color: 'var(--warning)', fontWeight: 600 } }, 'Configure in Settings \u2192 Network & Firewall')
           )
@@ -460,7 +461,7 @@ export function DomainStatusPage() {
     // ═══════════════════════════════════════════════
     h('div', { style: Object.assign({}, card, { border: '1px solid rgba(59,130,246,0.25)', background: 'linear-gradient(135deg, rgba(59,130,246,0.04), rgba(99,102,241,0.04))' }) },
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 } },
-        h('span', { style: { fontSize: 20 } }, '\uD83D\uDCE6'),
+        E.package(20),
         h('div', null,
           h('div', { style: { fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Migrate to Another Machine', h(HelpButton, { label: 'Migration' },
             h('p', null, 'Move your entire AgenticMail deployment to a different server or computer. You need the .env file (configuration and encryption keys) and optionally the ~/.agenticmail/branding/ folder (company logo, favicon, login background).'),
@@ -644,7 +645,7 @@ function DeployToProduction({ toast, isLocalhost }) {
     },
       recommended && h('span', { style: { position: 'absolute', top: -8, right: 12, fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'var(--accent)', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' } }, 'Recommended'),
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 } },
-        h('span', { style: { fontSize: 20 } }, icon),
+        h('span', { style: { fontSize: 20, display: 'inline-flex' } }, icon),
         h('span', { style: { fontWeight: 600, fontSize: 14 } }, title),
       ),
       h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, lineHeight: 1.5 } }, subtitle),
@@ -675,22 +676,22 @@ function DeployToProduction({ toast, isLocalhost }) {
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }, onClick: function() { setExpanded(!expanded); } },
       h('div', null,
         h('div', { style: { fontSize: 16, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 } },
-          isLocalhost ? '\uD83D\uDE80 Deploy to Production' : '\u2601\uFE0F Tunnel & Deployment',
-          isLocalhost && h('span', { style: { fontSize: 10, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.15)', color: 'var(--warning)', fontWeight: 600 } }, 'LOCALHOST'),
+          isLocalhost ? [E.rocket(16), ' Deploy to Production'] : [E.cloud(16), ' Tunnel & Deployment'],
+          isLocalhost && h('span', { style: { fontSize: 10, padding: '2px 8px', borderRadius: 99, background: 'rgba(153,27,27,0.15)', color: 'var(--warning)', fontWeight: 600 } }, 'LOCALHOST'),
         ),
         h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, isLocalhost ? 'You\'re running locally. Deploy to a domain so your agents can be reached from anywhere.' : 'Manage your Cloudflare Tunnel and deployment configuration.'),
       ),
-      h('span', { style: { fontSize: 18, color: 'var(--text-muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' } }, '\u25BC'),
+      h('span', { style: { color: 'var(--text-muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-flex' } }, I.chevronDown()),
     ),
 
     expanded && h('div', { style: { marginTop: 20 } },
       // Method cards
       h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 } },
-        methodCard('cloudflare', '\u2601\uFE0F', 'Cloudflare Tunnel', 'Keep running locally, expose via your domain. No server needed.', 'Easy', true),
-        methodCard('vps', '\uD83D\uDDA5\uFE0F', 'VPS / Server', 'Deploy to any Linux server (DigitalOcean, Hetzner, AWS, etc.)', 'Easy'),
-        methodCard('docker', '\uD83D\uDC33', 'Docker', 'Run as a Docker container on any host', 'Medium'),
-        methodCard('railway', '\uD83D\uDE82', 'Railway', 'One-click deploy to Railway.app', 'Easy'),
-        methodCard('fly', '\u2708\uFE0F', 'Fly.io', 'Deploy to Fly.io edge network', 'Medium'),
+        methodCard('cloudflare', E.cloud(20), 'Cloudflare Tunnel', 'Keep running locally, expose via your domain. No server needed.', 'Easy', true),
+        methodCard('vps', E.computer(20), 'VPS / Server', 'Deploy to any Linux server (DigitalOcean, Hetzner, AWS, etc.)', 'Easy'),
+        methodCard('docker', E.package(20), 'Docker', 'Run as a Docker container on any host', 'Medium'),
+        methodCard('railway', E.rocket(20), 'Railway', 'One-click deploy to Railway.app', 'Easy'),
+        methodCard('fly', E.globe(20), 'Fly.io', 'Deploy to Fly.io edge network', 'Medium'),
       ),
 
       // ─── Cloudflare Tunnel ─────────────────────────
@@ -867,7 +868,7 @@ function DeployToProduction({ toast, isLocalhost }) {
         )),
 
         h('div', { style: { marginTop: 16, padding: '12px 16px', background: 'var(--success-soft)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--success)', lineHeight: 1.6 } },
-          '\u2705 Done! Your dashboard will be live at ', h('strong', null, 'https://yourdomain.com'), '. All your agents, settings, and data will be on your own server.'
+          I.check(), ' Done! Your dashboard will be live at ', h('strong', null, 'https://yourdomain.com'), '. All your agents, settings, and data will be on your own server.'
         ),
       ),
 
@@ -896,7 +897,7 @@ function DeployToProduction({ toast, isLocalhost }) {
         stepItem('1', h(Fragment, null,
           h('strong', null, 'Click to deploy:'),
           h('div', { style: { marginTop: 8 } },
-            h('a', { href: 'https://railway.app/new', target: '_blank', style: { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--accent)', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 } }, '\uD83D\uDE82 Open Railway'),
+            h('a', { href: 'https://railway.app/new', target: '_blank', style: { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--accent)', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 } }, E.rocket(14), ' Open Railway'),
           ),
         )),
         stepItem('2', h(Fragment, null, h('strong', null, 'Create a new project'), ' and select "Deploy from GitHub" or "Empty Project".')),

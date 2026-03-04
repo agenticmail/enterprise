@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Community Skills Marketplace — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-easy { background: rgba(21,128,61,0.2); color: var(--success); }
+  .badge-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge-advanced { background: rgba(239,68,68,0.2); color: var(--danger); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/community-skills">&#8592; Back to Dashboard</a>
+
+<h1>Community Skills Marketplace</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Browse, install, and manage integration skills that give your agents new capabilities.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#browsing">Browsing Skills</a></li>
+    <li><a href="#installing">Installing &amp; Connecting</a></li>
+    <li><a href="#credentials">Credential Scopes</a></li>
+    <li><a href="#updates">Skill Updates</a></li>
+    <li><a href="#importing">Importing from GitHub</a></li>
+    <li><a href="#publishing">Publishing Skills</a></li>
+    <li><a href="#risk">Risk Levels</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>The Community Skills Marketplace is where you discover and install integration packages that give your agents new capabilities. Each skill defines a set of tools — like "create GitHub issue," "send Slack message," or "query Salesforce contacts" — that agents can use once the skill is installed and connected.</p>
+
+<h3>How Skills Work</h3>
+<ol>
+  <li><strong>Install</strong> — Adds the skill to your organization. No credentials needed yet.</li>
+  <li><strong>Connect credentials</strong> — Add an API key, OAuth token, or bot token for the service.</li>
+  <li><strong>Assign to agents</strong> — Enable the skill per-agent or org-wide from the agent's Skills tab.</li>
+  <li><strong>Agent uses tools</strong> — The agent can now call the skill's tools during conversations.</li>
+</ol>
+
+<h2 id="browsing">Browsing Skills</h2>
+<p>The marketplace has four tabs:</p>
+<table>
+  <tr><th>Tab</th><th>Shows</th></tr>
+  <tr><td><strong>Browse</strong></td><td>All available skills, searchable and filterable</td></tr>
+  <tr><td><strong>Installed</strong></td><td>Skills you've installed — manage credentials, enable/disable, uninstall</td></tr>
+  <tr><td><strong>Featured</strong></td><td>Editor's picks and popular skills</td></tr>
+  <tr><td><strong>Updates</strong></td><td>Available updates for installed skills, update history</td></tr>
+</table>
+
+<h3>Filtering &amp; Sorting</h3>
+<ul>
+  <li><strong>Search:</strong> Find skills by name or keyword</li>
+  <li><strong>Category:</strong> Filter by category (development, communication, productivity, etc.)</li>
+  <li><strong>Risk Level:</strong> Filter by risk assessment (low, medium, high, critical)</li>
+  <li><strong>Sort:</strong> Newest, Most Popular, Highest Rated, or A–Z</li>
+</ul>
+
+<h3>Skill Cards</h3>
+<p>Each skill card shows:</p>
+<ul>
+  <li>Name, icon, and description</li>
+  <li>Number of tools provided</li>
+  <li>Category and risk level</li>
+  <li>Star rating and install count</li>
+  <li>Connection status (Connected / Not connected)</li>
+  <li>Verification badge (✓ Verified) for officially reviewed skills</li>
+</ul>
+<p>Click any skill card to view full details including tool list, tags, reviews, and repository link.</p>
+
+<h2 id="installing">Installing &amp; Connecting</h2>
+
+<h3>Install Flow</h3>
+<p>Click <strong>Connect</strong> on any skill card to open the credential setup modal. Depending on the skill's authentication type, you'll see different options:</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">OAuth 2.0 Skills</h3>
+  <p>Two options (tabbed interface):</p>
+  <ul>
+    <li><strong>OAuth App (Recommended):</strong> Enter Client ID and Secret from the service's developer portal. The system handles the full OAuth flow with token refresh.</li>
+    <li><strong>Access Token:</strong> Paste a Personal Access Token for quick setup. May have limited scopes.</li>
+  </ul>
+  <p>For OAuth App setup, use this redirect URI in the service's developer portal:</p>
+  <pre><code>https://your-domain.com/api/engine/oauth/callback</code></pre>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">API Key / Token Skills</h3>
+  <p>Paste the API key or token from the service's settings page. One field, encrypted with AES-256-GCM.</p>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Multi-Field Credential Skills</h3>
+  <p>Some services require multiple values (e.g., AWS Access Key ID + Secret Key). Each field is labeled and encrypted separately.</p>
+</div>
+
+<h2 id="credentials">Credential Scopes</h2>
+<p>When connecting a skill, you choose the credential scope:</p>
+<table>
+  <tr><th>Scope</th><th>Behavior</th><th>Use When</th></tr>
+  <tr><td><strong>Organization-wide</strong></td><td>One set of credentials shared by all agents</td><td>Most cases — shared Slack bot, company GitHub token</td></tr>
+  <tr><td><strong>Per-Agent</strong></td><td>Each agent gets its own credentials</td><td>Different permission levels per agent (read-only vs. write)</td></tr>
+</table>
+<div class="tip"><strong>All credentials are encrypted with AES-256-GCM</strong> and stored in the secure vault. They're never exposed in logs or the UI after saving.</div>
+
+<h2 id="updates">Skill Updates</h2>
+<p>The <strong>Updates</strong> tab manages the lifecycle of installed skills.</p>
+
+<h3>Update Configuration</h3>
+<table>
+  <tr><th>Setting</th><th>Options</th><th>Default</th></tr>
+  <tr><td><strong>Auto-Update</strong></td><td>Enabled / Disabled</td><td>Disabled</td></tr>
+  <tr><td><strong>Check Interval</strong></td><td>Hourly, Daily, Weekly, Manual Only</td><td>Daily</td></tr>
+  <tr><td><strong>Max Risk Level</strong></td><td>Low, Medium, High, Critical</td><td>Medium</td></tr>
+</table>
+<p>When <strong>Max Risk Level</strong> is set to "Medium," auto-updates will only apply updates that don't increase risk above medium. Higher-risk updates require manual approval.</p>
+
+<h3>Managing Updates</h3>
+<ul>
+  <li><strong>Check for Updates:</strong> Manually scan for new versions of installed skills</li>
+  <li><strong>Apply:</strong> Update a single skill to the latest version</li>
+  <li><strong>Skip:</strong> Dismiss an update (it won't be shown again until a newer version is available)</li>
+  <li><strong>Apply All:</strong> Update all skills at once</li>
+</ul>
+<p>Each update shows the version change (e.g., v1.2 → v1.3), any risk level changes, and a changelog when available.</p>
+
+<h3>Update History</h3>
+<p>The update history table shows all past updates with skill name, version change, status (applied/failed/skipped), date, and who applied it.</p>
+
+<h2 id="importing">Importing from GitHub</h2>
+<p>You can import custom skills from GitHub repositories:</p>
+<ol>
+  <li>Click <strong>Import from GitHub</strong></li>
+  <li>Paste the repository URL</li>
+  <li>The system fetches the <code>agenticmail-skill.json</code> manifest</li>
+  <li>Review the manifest and click <strong>Publish</strong></li>
+</ol>
+<div class="warning"><strong>Important:</strong> Imported skills are stored in the database, not your codebase. They define tool schemas but need an MCP server or API endpoint to execute tools. Package updates don't affect imported skills.</div>
+
+<h2 id="publishing">Publishing Skills</h2>
+<p>To publish a skill to the marketplace, create a repository with an <code>agenticmail-skill.json</code> manifest that defines:</p>
+<ul>
+  <li>Skill metadata (name, description, author, version, category)</li>
+  <li>Tool definitions (name, description, input/output schemas)</li>
+  <li>Authentication requirements (OAuth, API key, etc.)</li>
+  <li>Risk assessment</li>
+</ul>
+
+<h2 id="risk">Risk Levels</h2>
+<p>Each skill has a risk assessment that indicates its potential impact:</p>
+<table>
+  <tr><th>Level</th><th>Meaning</th><th>Examples</th></tr>
+  <tr><td><span class="badge badge-easy">Low</span></td><td>Read-only access, no sensitive data</td><td>Weather API, public data queries</td></tr>
+  <tr><td><span class="badge badge-medium">Medium</span></td><td>Write access to non-critical systems</td><td>Slack messaging, calendar events</td></tr>
+  <tr><td><span class="badge badge-advanced">High</span></td><td>Write access to critical systems</td><td>GitHub code changes, database writes</td></tr>
+  <tr><td><span class="badge" style="background: rgba(239,68,68,0.3); color: #ef4444;">Critical</span></td><td>Can cause significant damage if misused</td><td>Payment processing, infrastructure changes</td></tr>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+  <ul>
+    <li><strong>Start with verified skills</strong> — they've been reviewed for security and reliability</li>
+    <li><strong>Review tools before installing</strong> — click on a skill to see exactly what tools it provides</li>
+    <li><strong>Set conservative auto-update limits</strong> — use "Medium" max risk to prevent unexpected permission escalation</li>
+    <li><strong>Use org-wide credentials</strong> unless you need per-agent permission differences</li>
+    <li><strong>Check reviews</strong> — community ratings help identify well-maintained skills</li>
+    <li><strong>Uninstall unused skills</strong> — fewer skills = smaller attack surface</li>
+    <li><strong>Monitor the Updates tab</strong> — the yellow dot indicates available updates</li>
+  </ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>Skill installed but tools not available</td><td>Credentials not configured. Click Connect on the skill in the Installed tab.</td></tr>
+  <tr><td>"Connected" but agent can't use tools</td><td>The skill may be disabled for that agent. Check the agent's Skills tab.</td></tr>
+  <tr><td>OAuth popup closes without connecting</td><td>Check browser popup blocker. Ensure redirect URI matches. Try the Access Token approach instead.</td></tr>
+  <tr><td>GitHub import fails</td><td>Verify the repository has an <code>agenticmail-skill.json</code> file at the root. The repo must be public or accessible.</td></tr>
+  <tr><td>Auto-update not working</td><td>Check Update Configuration — auto-update may be disabled or interval set to "Manual Only."</td></tr>
+  <tr><td>Skill shows "Update Available" dot</td><td>Go to the Updates tab to review and apply the update, or skip it.</td></tr>
+</table>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/skills">Skills &amp; Integrations</a> — Manage installed skills and integrations catalog</li>
+    <li><a href="/docs/settings">Settings</a> — Tool security and platform configuration</li>
+    <li><a href="/docs/guardrails">Guardrails</a> — Control agent behavior with policies</li>
+  </ul>
+</div>
+
+<p style="margin-top: 32px; color: var(--text-muted); font-size: 12px; text-align: center;">
+  AgenticMail Enterprise — Community Skills Marketplace Documentation
+</p>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

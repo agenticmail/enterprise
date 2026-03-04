@@ -312,6 +312,21 @@ export class SecureVault {
   }
 
   /**
+   * Get and decrypt a secret by org + name + category.
+   * Used by connection manager and other modules that store secrets by name.
+   */
+  async getSecretByName(orgId: string, name: string, category?: string): Promise<{ plaintext: string } | null> {
+    for (const entry of this.entries.values()) {
+      if (entry.orgId === orgId && entry.name === name && (!category || entry.category === category)) {
+        const decrypted = this.decrypt(entry.encryptedValue);
+        await this.auditLog(orgId, 'decrypt', 'system', entry.id, { name });
+        return { plaintext: decrypted };
+      }
+    }
+    return null;
+  }
+
+  /**
    * Re-encrypt a secret with a new plaintext value.
    */
   async updateSecret(id: string, plaintext: string, metadata?: Record<string, any>): Promise<VaultEntry | null> {

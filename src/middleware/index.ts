@@ -386,3 +386,4 @@ export { dnsRebindingProtection } from './dns-rebinding.js';
 export { requestBodyLimit, requestTimeout } from './request-limits.js';
 export { geoIpRestriction } from './geo-ip.js';
 export { initProxyConfig } from './proxy-config.js';
+export { transportEncryptionMiddleware, setTransportEncryptionConfig, getConfig as getTransportEncryptionConfig, encryptPayload as encryptTransportPayload, decryptPayload as decryptTransportPayload, resetKeys as resetTransportKeys, loadConfig as loadTransportEncryptionConfig, setSettingsDb as setTransportEncryptionSettingsDb } from './transport-encryption.js';

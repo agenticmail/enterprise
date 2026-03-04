@@ -10,7 +10,7 @@ import { Hono } from 'hono';
 import { configBus } from '../engine/config-bus.js';
 import type { AppEnv } from '../types/hono-env.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
-import { validate, requireRole, ValidationError } from '../middleware/index.js';
+import { validate, requireRole, ValidationError, transportEncryptionMiddleware } from '../middleware/index.js';
 import { PROVIDER_REGISTRY, type ProviderDef, type CustomProviderDef } from '../runtime/providers.js';
 
 /**
@@ -197,6 +197,9 @@ const vault = new SecureVault();
 
 export function createAdminRoutes(db: DatabaseAdapter) {
   const api = new Hono<AppEnv>();
+
+  // Transport encryption middleware — decrypts incoming, encrypts outgoing
+  api.use('*', transportEncryptionMiddleware());
 
   // Wrapper: updateSettings + auto-emit config change events
   const updateSettingsAndEmit = async (updates: any) => {
@@ -1575,6 +1578,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
 
       await updateSettingsAndEmit({ securityConfig } as any);
+
+      // Sync transport encryption config to middleware
+      if (securityConfig.transportEncryption) {
+        try {
+          const { setTransportEncryptionConfig } = await import('../middleware/transport-encryption.js');
+          setTransportEncryptionConfig(securityConfig.transportEncryption);
+        } catch {}
+      }
+
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
@@ -2350,16 +2362,100 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
   api.post('/agents/:id/assign-org', requireRole('admin'), async (c) => {
     const agentId = c.req.param('id');
-    const { orgId } = await c.req.json();
+    const { orgId, clearCredentials } = await c.req.json();
     if (!orgId) return c.json({ error: 'orgId is required' }, 400);
     try {
       const isPostgres = (db as any).pool;
+
+      // Get current org to detect reassignment
+      let previousOrgId: string | null = null;
+      if (isPostgres) {
+        const { rows } = await (db as any)._query(`SELECT client_org_id FROM agents WHERE id = $1`, [agentId]);
+        previousOrgId = rows[0]?.client_org_id || null;
+      } else {
+        const row = await db.getEngineDB()!.get(`SELECT client_org_id FROM agents WHERE id = ?`, [agentId]);
+        previousOrgId = (row as any)?.client_org_id || null;
+      }
+
+      const isReassignment = previousOrgId && previousOrgId !== orgId;
+
+      // Update admin agents table
       if (isPostgres) {
         await (db as any)._query(`UPDATE agents SET client_org_id = $1 WHERE id = $2`, [orgId, agentId]);
       } else {
         await db.getEngineDB()!.run(`UPDATE agents SET client_org_id = ? WHERE id = ?`, [orgId, agentId]);
       }
-      return c.json({ success: true });
+      // Also update engine managed_agents table
+      const engineDb = db.getEngineDB();
+      if (engineDb) {
+        try {
+          if (isPostgres) {
+            await (db as any)._query(`UPDATE managed_agents SET client_org_id = $1, updated_at = NOW() WHERE id = $2`, [orgId, agentId]);
+          } else {
+            await engineDb.run(`UPDATE managed_agents SET client_org_id = ?, updated_at = datetime('now') WHERE id = ?`, [orgId, agentId]);
+          }
+        } catch { /* column may not exist yet before migration */ }
+      }
+
+      // ALWAYS clear agent credentials when assigning to an org
+      // Agent should start fresh with the new org's inherited credentials
+      let credentialsCleared = 0;
+      if (clearCredentials !== false) {
+        try {
+          // Clear agent-level email config from DB
+          if (isPostgres) {
+            await (db as any)._query(
+              `UPDATE managed_agents SET config = config - 'emailConfig' - 'email', updated_at = NOW() WHERE id = $1`,
+              [agentId]
+            ).catch(() => {});
+          } else {
+            // SQLite: read-modify-write
+            const row = await db.getEngineDB()!.get(`SELECT config FROM managed_agents WHERE id = ?`, [agentId]);
+            if (row) {
+              const cfg = JSON.parse((row as any).config || '{}');
+              delete cfg.emailConfig;
+              delete cfg.email;
+              await db.getEngineDB()!.run(`UPDATE managed_agents SET config = ?, updated_at = datetime('now') WHERE id = ?`, [JSON.stringify(cfg), agentId]);
+            }
+          }
+          // Clear per-agent vault secrets from previous org (if reassignment)
+          if (previousOrgId && (globalThis as any).__vault) {
+            const vault = (globalThis as any).__vault;
+            try {
+              const secrets = await vault.getSecretsByOrg(previousOrgId, 'skill_credential');
+              for (const secret of secrets) {
+                if (secret.name?.includes(':agent:' + agentId)) {
+                  await vault.deleteSecret(secret.id);
+                  credentialsCleared++;
+                }
+              }
+            } catch { /* vault may not support this query */ }
+          }
+        } catch { /* best effort */ }
+      }
+
+      // Clear in-memory + push new org's credentials to the running agent
+      let credentialsPushed = false;
+      try {
+        const oi = (globalThis as any).__orgIntegrations;
+        if (oi) {
+          // Force-clear ALL email config from running agent (in-memory)
+          const agent = oi.lifecycle?.getAgent?.(agentId);
+          if (agent?.config) {
+            agent.config.emailConfig = null;
+            if (agent.config.email) agent.config.email = null;
+          }
+          // Update the agent's client_org_id in-memory
+          if (agent) {
+            agent.client_org_id = orgId;
+            agent.clientOrgId = orgId;
+          }
+          // Push new org's credentials
+          credentialsPushed = await oi.pushCredentialsToAgent(agentId, orgId);
+        }
+      } catch { /* best effort */ }
+
+      return c.json({ success: true, reassigned: !!isReassignment, previousOrgId, credentialsCleared, credentialsPushed });
     } catch (e: any) {
       return c.json({ error: e.message }, 500);
     }
@@ -2369,12 +2465,85 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     const agentId = c.req.param('id');
     try {
       const isPostgres = (db as any).pool;
+
+      // Get current org before clearing
+      let previousOrgId: string | null = null;
+      if (isPostgres) {
+        const { rows } = await (db as any)._query(`SELECT client_org_id FROM agents WHERE id = $1`, [agentId]);
+        previousOrgId = rows[0]?.client_org_id || null;
+      } else {
+        const row = await db.getEngineDB()!.get(`SELECT client_org_id FROM agents WHERE id = ?`, [agentId]);
+        previousOrgId = (row as any)?.client_org_id || null;
+      }
+
+      // Update admin agents table
       if (isPostgres) {
         await (db as any)._query(`UPDATE agents SET client_org_id = NULL WHERE id = $1`, [agentId]);
       } else {
         await db.getEngineDB()!.run(`UPDATE agents SET client_org_id = NULL WHERE id = ?`, [agentId]);
       }
-      return c.json({ success: true });
+      // Also update engine managed_agents table
+      const engineDb = db.getEngineDB();
+      if (engineDb) {
+        try {
+          if (isPostgres) {
+            await (db as any)._query(`UPDATE managed_agents SET client_org_id = NULL, updated_at = NOW() WHERE id = $1`, [agentId]);
+          } else {
+            await engineDb.run(`UPDATE managed_agents SET client_org_id = NULL, updated_at = datetime('now') WHERE id = ?`, [agentId]);
+          }
+        } catch { /* column may not exist yet before migration */ }
+      }
+
+      // Clear org-inherited credentials from DB
+      let credentialsCleared = 0;
+      if (previousOrgId) {
+        try {
+          if (isPostgres) {
+            await (db as any)._query(
+              `UPDATE managed_agents SET config = config - 'emailConfig' - 'email', updated_at = NOW() WHERE id = $1`,
+              [agentId]
+            ).catch(() => {});
+          } else {
+            const row = await db.getEngineDB()!.get(`SELECT config FROM managed_agents WHERE id = ?`, [agentId]);
+            if (row) {
+              const cfg = JSON.parse((row as any).config || '{}');
+              delete cfg.emailConfig;
+              delete cfg.email;
+              await db.getEngineDB()!.run(`UPDATE managed_agents SET config = ?, updated_at = datetime('now') WHERE id = ?`, [JSON.stringify(cfg), agentId]);
+            }
+          }
+          if ((globalThis as any).__vault) {
+            const vault = (globalThis as any).__vault;
+            try {
+              const secrets = await vault.getSecretsByOrg(previousOrgId, 'skill_credential');
+              for (const secret of secrets) {
+                if (secret.name?.includes(':agent:' + agentId)) {
+                  await vault.deleteSecret(secret.id);
+                  credentialsCleared++;
+                }
+              }
+            } catch { /* best effort */ }
+          }
+        } catch { /* best effort */ }
+      }
+
+      // Clear ALL credentials from the running agent (in-memory)
+      try {
+        const oi = (globalThis as any).__orgIntegrations;
+        if (oi) {
+          const agent = oi.lifecycle?.getAgent?.(agentId);
+          if (agent?.config) {
+            agent.config.emailConfig = null;
+            if (agent.config.email) agent.config.email = null;
+          }
+          if (agent) {
+            agent.client_org_id = null;
+            agent.clientOrgId = null;
+          }
+        }
+      } catch { /* best effort */ }
+
+      return c.json({ success: true, previousOrgId, credentialsCleared });
     } catch (e: any) {
       return c.json({ error: e.message }, 500);
     }
@@ -2529,6 +2698,178 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     } catch (e: any) {
       return c.json({ error: e.message }, 500);
     }
+  });
+
+  // ─── Custom Agent Roles (Soul Templates) ──────────────
+
+  const rolesQuery = async (sql: string, params: any[] = []) => {
+    const isPostgres = (db as any).pool;
+    if (isPostgres) {
+      const { rows } = await (db as any)._query(sql, params);
+      return rows;
+    } else {
+      const engineDb = db.getEngineDB();
+      return await engineDb!.all(sql.replace(/\$(\d+)/g, '?'), params);
+    }
+  };
+
+  const rolesExec = async (sql: string, params: any[] = []) => {
+    const isPostgres = (db as any).pool;
+    if (isPostgres) {
+      await (db as any)._query(sql, params);
+    } else {
+      const engineDb = db.getEngineDB();
+      await engineDb!.run(sql.replace(/\$(\d+)/g, '?'), params);
+    }
+  };
+
+  const rolesGet = async (sql: string, params: any[] = []) => {
+    const isPostgres = (db as any).pool;
+    if (isPostgres) {
+      const { rows } = await (db as any)._query(sql, params);
+      return rows[0] || null;
+    } else {
+      const engineDb = db.getEngineDB();
+      return await engineDb!.get(sql.replace(/\$(\d+)/g, '?'), params);
+    }
+  };
+
+  const mapRole = (r: any) => {
+    if (!r) return null;
+    const parse = (v: any) => { try { return typeof v === 'string' ? JSON.parse(v) : v; } catch { return v; } };
+    return {
+      id: r.id, name: r.name, slug: r.slug, category: r.category || 'operations',
+      description: r.description, personality: r.personality || '',
+      identity: parse(r.identity) || {}, suggestedSkills: parse(r.suggested_skills) || [],
+      suggestedPreset: r.suggested_preset || null, tags: parse(r.tags) || [],
+      orgId: r.org_id, isActive: r.is_active !== false && r.is_active !== 0,
+      isCustom: true, metadata: parse(r.metadata),
+      createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at,
+    };
+  };
+
+  // List custom agent roles
+  api.get('/roles', requireRole('admin'), async (c) => {
+    try {
+      const orgId = c.req.query('orgId');
+      let sql: string, params: any[];
+      if (orgId) {
+        sql = 'SELECT * FROM custom_roles WHERE (org_id = $1 OR org_id IS NULL) AND is_active = $2 ORDER BY category, name';
+        params = [orgId, (db as any).pool ? true : 1];
+      } else {
+        sql = 'SELECT * FROM custom_roles ORDER BY category, name';
+        params = [];
+      }
+      const rows = await rolesQuery(sql, params);
+      return c.json({ roles: rows.map(mapRole) });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get single role
+  api.get('/roles/:id', requireRole('admin'), async (c) => {
+    try {
+      const role = mapRole(await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [c.req.param('id')]));
+      if (!role) return c.json({ error: 'Role not found' }, 404);
+      return c.json(role);
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Create role
+  api.post('/roles', requireRole('admin'), async (c) => {
+    try {
+      const body = await c.req.json();
+      validate(body, [
+        { field: 'name', type: 'string', required: true, minLength: 1, maxLength: 128 },
+        { field: 'category', type: 'string', required: true },
+        { field: 'description', type: 'string', maxLength: 1024 },
+      ]);
+      const slug = (body.slug || body.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const existing = body.orgId
+        ? await rolesGet('SELECT id FROM custom_roles WHERE slug = $1 AND org_id = $2', [slug, body.orgId])
+        : await rolesGet('SELECT id FROM custom_roles WHERE slug = $1 AND org_id IS NULL', [slug]);
+      if (existing) return c.json({ error: 'A role with this name already exists' }, 409);
+
+      const id = crypto.randomUUID();
+      const isPostgres = (db as any).pool;
+      await rolesExec(
+        `INSERT INTO custom_roles (id, name, slug, category, description, personality, identity, suggested_skills, suggested_preset, tags, org_id, is_active, metadata, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          id, body.name, slug, body.category || 'operations', body.description || null,
+          body.personality || null, JSON.stringify(body.identity || {}),
+          JSON.stringify(body.suggestedSkills || []), body.suggestedPreset || null,
+          JSON.stringify(body.tags || []), body.orgId || null,
+          isPostgres ? true : 1, JSON.stringify(body.metadata || {}),
+          (c as any).get?.('userId') || 'system',
+        ]
+      );
+      return c.json(mapRole(await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [id])), 201);
+    } catch (e: any) { return c.json({ error: e.message }, e instanceof ValidationError ? 400 : 500); }
+  });
+
+  // Update role
+  api.put('/roles/:id', requireRole('admin'), async (c) => {
+    try {
+      const existing = await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [c.req.param('id')]);
+      if (!existing) return c.json({ error: 'Role not found' }, 404);
+      const body = await c.req.json();
+      const isPostgres = (db as any).pool;
+      const fields: string[] = [];
+      const values: any[] = [];
+      let i = 1;
+      const strMap: Record<string, string> = { name: 'name', category: 'category', description: 'description', personality: 'personality', suggestedPreset: 'suggested_preset' };
+      for (const [key, col] of Object.entries(strMap)) {
+        if (body[key] !== undefined) { fields.push(`${col} = $${i++}`); values.push(body[key]); }
+      }
+      if (body.identity !== undefined) { fields.push(`identity = $${i++}`); values.push(JSON.stringify(body.identity)); }
+      if (body.suggestedSkills !== undefined) { fields.push(`suggested_skills = $${i++}`); values.push(JSON.stringify(body.suggestedSkills)); }
+      if (body.tags !== undefined) { fields.push(`tags = $${i++}`); values.push(JSON.stringify(body.tags)); }
+      if (body.orgId !== undefined) { fields.push(`org_id = $${i++}`); values.push(body.orgId || null); }
+      if (body.isActive !== undefined) { fields.push(`is_active = $${i++}`); values.push(isPostgres ? !!body.isActive : (body.isActive ? 1 : 0)); }
+      if (body.metadata !== undefined) { fields.push(`metadata = $${i++}`); values.push(JSON.stringify(body.metadata)); }
+      if (body.name && body.name !== existing.name) {
+        const slug = body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        fields.push(`slug = $${i++}`); values.push(slug);
+      }
+      if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400);
+      fields.push(`updated_at = $${i++}`); values.push(new Date().toISOString());
+      values.push(c.req.param('id'));
+      await rolesExec(`UPDATE custom_roles SET ${fields.join(', ')} WHERE id = $${i}`, values);
+      return c.json(mapRole(await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [c.req.param('id')])));
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Delete role
+  api.delete('/roles/:id', requireRole('admin'), async (c) => {
+    try {
+      const existing = await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [c.req.param('id')]);
+      if (!existing) return c.json({ error: 'Role not found' }, 404);
+      await rolesExec('DELETE FROM custom_roles WHERE id = $1', [c.req.param('id')]);
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Duplicate role
+  api.post('/roles/:id/duplicate', requireRole('admin'), async (c) => {
+    try {
+      const source = mapRole(await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [c.req.param('id')]));
+      if (!source) return c.json({ error: 'Role not found' }, 404);
+      const body = await c.req.json().catch(() => ({}));
+      const newName = body.name || source.name + ' (Copy)';
+      const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const id = crypto.randomUUID();
+      const isPostgres = (db as any).pool;
+      await rolesExec(
+        `INSERT INTO custom_roles (id, name, slug, category, description, personality, identity, suggested_skills, suggested_preset, tags, org_id, is_active, metadata, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          id, newName, slug, source.category, source.description, source.personality,
+          JSON.stringify(source.identity), JSON.stringify(source.suggestedSkills),
+          source.suggestedPreset, JSON.stringify(source.tags), source.orgId || null,
+          isPostgres ? true : 1, JSON.stringify(source.metadata),
+          (c as any).get?.('userId') || 'system',
+        ]
+      );
+      return c.json(mapRole(await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [id])), 201);
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
   return api;

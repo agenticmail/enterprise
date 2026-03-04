@@ -8,7 +8,7 @@ import { useOrgContext } from '../components/org-switcher.js';
 var POLICY_CATEGORIES = [
   { value: 'code_of_conduct', label: 'Code of Conduct', color: '#6366f1' },
   { value: 'communication', label: 'Communication', color: '#0ea5e9' },
-  { value: 'data_handling', label: 'Data Handling', color: '#f59e0b' },
+  { value: 'data_handling', label: 'Data Handling', color: '#991b1b' },
   { value: 'brand_voice', label: 'Brand Voice', color: '#9d174d' },
   { value: 'security', label: 'Security', color: '#ef4444' },
   { value: 'escalation', label: 'Escalation', color: '#8b5cf6' },
@@ -17,7 +17,7 @@ var POLICY_CATEGORIES = [
 
 var ENFORCEMENT_TYPES = [
   { value: 'mandatory', label: 'Mandatory', color: '#ef4444' },
-  { value: 'recommended', label: 'Recommended', color: '#f59e0b' },
+  { value: 'recommended', label: 'Recommended', color: '#991b1b' },
   { value: 'informational', label: 'Informational', color: '#0ea5e9' },
 ];
 
@@ -25,7 +25,7 @@ var MEMORY_CATEGORIES = [
   { value: 'org_knowledge', label: 'Org Knowledge', color: '#6366f1' },
   { value: 'interaction_pattern', label: 'Interaction Pattern', color: '#0ea5e9' },
   { value: 'preference', label: 'Preference', color: '#15803d' },
-  { value: 'correction', label: 'Correction', color: '#f59e0b' },
+  { value: 'correction', label: 'Correction', color: '#991b1b' },
   { value: 'skill', label: 'Skill', color: '#8b5cf6' },
   { value: 'context', label: 'Context', color: '#64748b' },
   { value: 'reflection', label: 'Reflection', color: '#9d174d' },
@@ -42,7 +42,7 @@ var RULE_CATEGORIES = [
 
 var RULE_ACTIONS = [
   { value: 'alert', label: 'Alert', color: '#0ea5e9' },
-  { value: 'pause', label: 'Pause Agent', color: '#f59e0b' },
+  { value: 'pause', label: 'Pause Agent', color: '#991b1b' },
   { value: 'kill', label: 'Kill Agent', color: '#ef4444' },
   { value: 'notify', label: 'Notify Admin', color: '#8b5cf6' },
   { value: 'log', label: 'Log Only', color: '#64748b' },
@@ -50,7 +50,7 @@ var RULE_ACTIONS = [
 
 var SEVERITIES = [
   { value: 'low', label: 'Low', color: '#64748b' },
-  { value: 'medium', label: 'Medium', color: '#f59e0b' },
+  { value: 'medium', label: 'Medium', color: '#991b1b' },
   { value: 'high', label: 'High', color: '#f97316' },
   { value: 'critical', label: 'Critical', color: '#ef4444' },
 ];
@@ -203,7 +203,7 @@ function OverviewTab(props) {
       .catch(function(e) { toast(e.message, 'error'); });
   };
 
-  var typeColor = function(t) { return t === 'kill' ? '#ef4444' : t === 'pause' ? '#f59e0b' : t === 'resume' ? '#15803d' : '#0ea5e9'; };
+  var typeColor = function(t) { return t === 'kill' ? '#ef4444' : t === 'pause' ? '#991b1b' : t === 'resume' ? '#15803d' : '#0ea5e9'; };
 
   return h(Fragment, null,
     h(orgCtx.Switcher),
@@ -223,7 +223,7 @@ function OverviewTab(props) {
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 } },
       h(StatCard, { label: 'Org Policies', value: policyCount, sub: mandatoryCount + ' mandatory', color: '#6366f1' }),
       h(StatCard, { label: 'Agents Onboarded', value: onboarded + '/' + totalAgents, color: '#15803d' }),
-      h(StatCard, { label: 'In Onboarding', value: inProgress, color: '#f59e0b' }),
+      h(StatCard, { label: 'In Onboarding', value: inProgress, color: '#991b1b' }),
       h(StatCard, { label: 'Recent Interventions', value: recentInterventions, color: '#ef4444' })
     ),
     // Onboarding progress summary
@@ -238,7 +238,7 @@ function OverviewTab(props) {
       ))),
       h('div', { className: 'card-body' },
         onboardingData.slice(0, 8).map(function(ag) {
-          var statusColor = ag.overallStatus === 'completed' ? '#15803d' : ag.overallStatus === 'in_progress' ? '#f59e0b' : ag.overallStatus === 'needs_renewal' ? '#ef4444' : '#64748b';
+          var statusColor = ag.overallStatus === 'completed' ? '#15803d' : ag.overallStatus === 'in_progress' ? '#991b1b' : ag.overallStatus === 'needs_renewal' ? '#ef4444' : '#64748b';
           return h('div', { key: ag.agentId, style: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' } },
             h('div', { style: { minWidth: 120, fontWeight: 500, fontSize: 13 } }, renderAgentBadge(ag.agentId, agentData)),
             h('div', { style: { flex: 1 } }, h(ProgressBar, { value: ag.acknowledgedPolicies || 0, total: ag.totalPolicies || 1, color: statusColor })),
@@ -337,7 +337,7 @@ function PoliciesTab() {
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 16 } },
       h(StatCard, { label: 'Total Policies', value: policies.length }),
       h(StatCard, { label: 'Mandatory', value: policies.filter(function(p) { return p.enforcement === 'mandatory'; }).length, color: '#ef4444' }),
-      h(StatCard, { label: 'Recommended', value: policies.filter(function(p) { return p.enforcement === 'recommended'; }).length, color: '#f59e0b' }),
+      h(StatCard, { label: 'Recommended', value: policies.filter(function(p) { return p.enforcement === 'recommended'; }).length, color: '#991b1b' }),
       h(StatCard, { label: 'Categories', value: Object.keys(grouped).length, color: '#6366f1' })
     ),
     // Policy cards grouped by category
@@ -479,7 +479,7 @@ function OnboardingTab(props) {
   var needsRenewal = progress.filter(function(p) { return p.overallStatus === 'needs_renewal'; }).length;
   var notStarted = progress.filter(function(p) { return p.overallStatus === 'not_started'; }).length;
 
-  var statusColor = function(s) { return s === 'completed' ? '#15803d' : s === 'in_progress' ? '#f59e0b' : s === 'needs_renewal' ? '#ef4444' : '#64748b'; };
+  var statusColor = function(s) { return s === 'completed' ? '#15803d' : s === 'in_progress' ? '#991b1b' : s === 'needs_renewal' ? '#ef4444' : '#64748b'; };
 
   return h(Fragment, null,
     // Actions bar
@@ -495,7 +495,7 @@ function OnboardingTab(props) {
     // Stats
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 16 } },
       h(StatCard, { label: 'Completed', value: completed, color: '#15803d' }),
-      h(StatCard, { label: 'In Progress', value: inProg, color: '#f59e0b' }),
+      h(StatCard, { label: 'In Progress', value: inProg, color: '#991b1b' }),
       h(StatCard, { label: 'Needs Renewal', value: needsRenewal, color: '#ef4444' }),
       h(StatCard, { label: 'Not Started', value: notStarted, color: '#64748b' })
     ),
@@ -519,7 +519,7 @@ function OnboardingTab(props) {
                   h('table', { className: 'data-table', style: { fontSize: 12 } },
                     h('thead', null, h('tr', null, h('th', null, 'Policy'), h('th', null, 'Status'), h('th', null, 'Acknowledged'), h('th', null, 'Memory ID'))),
                     h('tbody', null, ag.records.map(function(r) {
-                      var rColor = r.status === 'acknowledged' ? '#15803d' : r.status === 'failed' ? '#ef4444' : '#f59e0b';
+                      var rColor = r.status === 'acknowledged' ? '#15803d' : r.status === 'failed' ? '#ef4444' : '#991b1b';
                       return h('tr', { key: r.id },
                         h('td', null, r.policyId ? r.policyId.substring(0, 16) : '-'),
                         h('td', null, h(Badge, { color: rColor }, r.status)),
@@ -649,7 +649,7 @@ function MemoryTab(props) {
                   ),
                   // Confidence bar
                   h('div', { style: { height: 3, background: 'var(--border)', borderRadius: 2, marginBottom: isExpanded ? 8 : 0 } },
-                    h('div', { style: { width: ((m.confidence || 0) * 100) + '%', height: '100%', background: m.confidence > 0.7 ? '#15803d' : m.confidence > 0.3 ? '#f59e0b' : '#ef4444', borderRadius: 2 } })
+                    h('div', { style: { width: ((m.confidence || 0) * 100) + '%', height: '100%', background: m.confidence > 0.7 ? '#15803d' : m.confidence > 0.3 ? '#991b1b' : '#ef4444', borderRadius: 2 } })
                   ),
                   isExpanded && h(Fragment, null,
                     h('div', { style: { fontSize: 13, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', marginBottom: 8 } }, m.content),
@@ -831,7 +831,7 @@ function RulesTab(props) {
 
   var sevColor = function(s) { var f = SEVERITIES.find(function(x) { return x.value === s; }); return f ? f.color : '#64748b'; };
   var actColor = function(a) { var f = RULE_ACTIONS.find(function(x) { return x.value === a; }); return f ? f.color : '#64748b'; };
-  var typeColor = function(t) { return t === 'kill' ? '#ef4444' : t === 'pause' ? '#f59e0b' : t === 'resume' ? '#15803d' : '#0ea5e9'; };
+  var typeColor = function(t) { return t === 'kill' ? '#ef4444' : t === 'pause' ? '#991b1b' : t === 'resume' ? '#15803d' : '#0ea5e9'; };
 
   return h(Fragment, null,
     // Sub-tabs
@@ -889,7 +889,7 @@ function RulesTab(props) {
                 return h('tr', { key: r.id },
                   h('td', null, h('strong', null, r.name)),
                   h('td', null, h('span', { className: 'badge-tag' }, r.ruleType)),
-                  h('td', null, h(Badge, { color: r.action === 'kill' ? '#ef4444' : r.action === 'pause' ? '#f59e0b' : '#0ea5e9' }, r.action)),
+                  h('td', null, h(Badge, { color: r.action === 'kill' ? '#ef4444' : r.action === 'pause' ? '#991b1b' : '#0ea5e9' }, r.action)),
                   h('td', null, r.enabled ? 'Yes' : 'No'),
                   h('td', null, h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { deleteAnomalyRule(r.id); } }, I.trash()))
                 );

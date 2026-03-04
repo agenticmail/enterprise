@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Overview — AgenticMail Enterprise</title>
+  <link rel="stylesheet" href="/docs/docs-style.css">
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+  <a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+  <h1>Agent Overview</h1>
+  <p style="color:var(--text-muted);margin-bottom:24px">The central dashboard for monitoring an agent's status, usage, and performing quick actions.</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#agent-summary">Agent Summary Card</a></li>
+      <li><a href="#usage-stats">Today's Usage Stats</a></li>
+      <li><a href="#status-indicators">Status Indicators</a></li>
+      <li><a href="#org-knowledge">Organization & Knowledge Access</a></li>
+      <li><a href="#live-status">Live Status (SSE)</a></li>
+      <li><a href="#quick-actions">Quick Actions</a></li>
+      <li><a href="#danger-zone">Danger Zone</a></li>
+      <li><a href="#key-concepts">Key Concepts</a></li>
+      <li><a href="#best-practices">Best Practices</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#related">Related Pages</a></li>
+    </ul>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">Overview</h2>
+
+  <div class="card">
+    <h3>For Everyone</h3>
+    <p>The Overview tab is the first thing you see when you open an agent's detail page. It provides a snapshot of the agent's current state — whether it's running, how much it's cost today, whether it's been onboarded, and whether its guardrails are active. Think of it as the agent's "home screen."</p>
+  </div>
+
+  <div class="card">
+    <h3>For Developers</h3>
+    <p>The Overview section aggregates data from four engine endpoints (<code>/agents/:id/usage</code>, <code>/onboarding/status/:id</code>, <code>/guardrails/status/:id</code>, <code>/workforce/status/:id</code>) and subscribes to real-time updates via Server-Sent Events (SSE) on <code>/api/engine/agent-status-stream</code>. Actions like deploy, stop, restart, pause, resume, clock-in, and clock-out are POST calls to the engine. The 5-step delete flow goes through the bridge API (<code>DELETE /bridge/agents/:id</code>).</p>
+  </div>
+
+  <!-- How It Works -->
+  <h2 id="how-it-works">How It Works</h2>
+  <p>When you navigate to an agent's detail page, the Overview tab loads automatically. It:</p>
+  <ol>
+    <li>Fetches the agent's <strong>usage data</strong> (tokens, cost, uptime, error rate, active sessions)</li>
+    <li>Checks <strong>onboarding status</strong> — whether the agent has acknowledged your organization's policies</li>
+    <li>Checks <strong>guardrail status</strong> — whether the agent is active or paused, and its intervention count</li>
+    <li>Checks <strong>workforce status</strong> — whether the agent is clocked in and how many tasks are active</li>
+    <li>Opens an <strong>SSE connection</strong> for live status updates (online/idle/busy/error)</li>
+  </ol>
+  <p>All data refreshes automatically. The SSE connection keeps the live status updated without polling.</p>
+
+  <!-- Agent Summary -->
+  <h2 id="agent-summary">Agent Summary Card</h2>
+  <p>The top card shows five key fields at a glance:</p>
+  <table>
+    <thead><tr><th>Field</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Status</strong></td><td>Current agent state — running, active, deploying, ready, degraded, error, stopped, or draft. Color-coded badges.</td></tr>
+      <tr><td><strong>Role</strong></td><td>The agent's assigned role (e.g., agent, assistant, manager, specialist).</td></tr>
+      <tr><td><strong>Model</strong></td><td>The LLM model the agent uses (e.g., claude-sonnet-4-20250514). Shown in monospace.</td></tr>
+      <tr><td><strong>Reports To</strong></td><td>The agent's manager — either another agent (clickable) or an external person with email.</td></tr>
+      <tr><td><strong>Created</strong></td><td>When the agent was created.</td></tr>
+    </tbody>
+  </table>
+  <p>Below the grid, the agent's <strong>description</strong> and <strong>personality traits</strong> are displayed as neutral badges.</p>
+
+  <!-- Usage Stats -->
+  <h2 id="usage-stats">Today's Usage Stats</h2>
+  <p>A row of five stat cards showing real-time metrics for the current day (UTC):</p>
+  <ul>
+    <li><strong>Tokens Today</strong> — Total input + output tokens consumed by the LLM.</li>
+    <li><strong>Cost Today</strong> — Estimated API cost based on token usage and model pricing.</li>
+    <li><strong>Uptime</strong> — How long since the agent's last restart.</li>
+    <li><strong>Error Rate</strong> — Percentage of failed requests. Turns red above 5%.</li>
+    <li><strong>Active Sessions</strong> — Currently open conversation sessions.</li>
+  </ul>
+  <div class="tip">
+    <strong>Tip:</strong> If cost is climbing faster than expected, check the Budget tab to set daily/monthly spending limits.
+  </div>
+
+  <!-- Status Indicators -->
+  <h2 id="status-indicators">Status Indicators</h2>
+  <p>Three cards in a row show the agent's operational status:</p>
+
+  <h3>Onboarding</h3>
+  <p>Shows whether the agent has acknowledged your organization's policies. States:</p>
+  <ul>
+    <li><span class="badge badge-easy">Onboarded</span> — Complete. The agent has read all policies.</li>
+    <li><span class="badge badge-medium">In Progress (X/Y)</span> — Partially complete.</li>
+    <li><span class="badge badge-advanced">Not Onboarded</span> — Hasn't started. You can "Start Onboarding" or "Force Complete" to skip.</li>
+  </ul>
+
+  <h3>Guardrails</h3>
+  <p>Shows whether the agent's safety rules are active:</p>
+  <ul>
+    <li><span class="badge badge-easy">Active</span> — All guardrails enforced.</li>
+    <li><span class="badge badge-medium">Paused</span> — Agent paused manually or by an automated trigger.</li>
+  </ul>
+  <p>Also shows the <strong>intervention count</strong> — how many times a guardrail rule has triggered.</p>
+
+  <h3>Workforce</h3>
+  <p>Shows whether the agent is "on duty":</p>
+  <ul>
+    <li><span class="badge badge-easy">Clocked In</span> — The agent processes incoming tasks.</li>
+    <li><span class="badge">Clocked Out</span> — Off duty. Tasks queue until the agent clocks back in.</li>
+  </ul>
+
+  <!-- Org & Knowledge -->
+  <h2 id="org-knowledge">Organization & Knowledge Access</h2>
+  <p>Two side-by-side cards:</p>
+  <h3>Organization</h3>
+  <p>Shows which client organization the agent is assigned to. You can reassign via the dropdown. Selecting "No organization" unassigns the agent.</p>
+
+  <h3>Knowledge Access</h3>
+  <p>Lists all knowledge bases and the agent's access level for each:</p>
+  <ul>
+    <li><strong>No access</strong> — Agent cannot use this knowledge base.</li>
+    <li><strong>Read</strong> — Agent can search and retrieve information.</li>
+    <li><strong>Contribute</strong> — Agent can add new entries.</li>
+    <li><strong>Both</strong> — Read + Contribute.</li>
+  </ul>
+
+  <!-- Live Status -->
+  <h2 id="live-status">Live Status (SSE)</h2>
+  <p>A real-time card that streams the agent's current activity via Server-Sent Events. Updates automatically without refreshing.</p>
+  <ul>
+    <li><strong>Online</strong> — Running and processing requests.</li>
+    <li><strong>Idle</strong> — Running but waiting for tasks.</li>
+    <li><strong>Busy</strong> — Actively processing. Shows the current activity, tool being used, and start time.</li>
+    <li><strong>Offline</strong> — Agent is not running. Shows last activity time.</li>
+  </ul>
+  <p>The stats row shows active session count, uptime, and last heartbeat time.</p>
+
+  <!-- Quick Actions -->
+  <h2 id="quick-actions">Quick Actions</h2>
+  <p>A toolbar of common operations:</p>
+  <table>
+    <thead><tr><th>Action</th><th>When Available</th><th>What It Does</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Reset State</strong></td><td>Error / Degraded / Draft</td><td>Resets agent state to "ready"</td></tr>
+      <tr><td><strong>Deploy</strong></td><td>Not running</td><td>Starts the agent</td></tr>
+      <tr><td><strong>Stop</strong></td><td>Running / Active</td><td>Stops the agent</td></tr>
+      <tr><td><strong>Restart</strong></td><td>Running / Active / Stopped</td><td>Restarts the engine</td></tr>
+      <tr><td><strong>Pause / Resume</strong></td><td>Guardrails available</td><td>Temporarily halts task processing (context preserved)</td></tr>
+      <tr><td><strong>Clock In / Out</strong></td><td>Workforce available</td><td>Toggles availability</td></tr>
+    </tbody>
+  </table>
+  <div class="tip">
+    <strong>Tip:</strong> Pause is instant and safe — it doesn't lose any context. Use it when you need to make config changes.
+  </div>
+
+  <!-- Danger Zone -->
+  <h2 id="danger-zone">Danger Zone</h2>
+  <p>Contains the <strong>Delete Agent</strong> button. This triggers a <strong>5-step confirmation flow</strong>:</p>
+  <ol>
+    <li><strong>Step 1:</strong> Initial warning — "Are you sure?"</li>
+    <li><strong>Step 2:</strong> Data loss warning — emails, sessions, logs, config, scheduled jobs</li>
+    <li><strong>Step 3:</strong> Memory & knowledge loss — long-term memory, learned preferences, embeddings, personality</li>
+    <li><strong>Step 4:</strong> Communication & integration impact — email stops, APIs break, workflows disrupted</li>
+    <li><strong>Step 5:</strong> Type the agent's name to confirm deletion</li>
+  </ol>
+  <div class="danger">
+    <strong>Warning:</strong> Agent deletion is permanent and irreversible. There is no recycle bin. Export any data you need before proceeding.
+  </div>
+
+  <!-- Key Concepts -->
+  <h2 id="key-concepts">Key Concepts</h2>
+  <ul>
+    <li><strong>Agent State</strong> — The lifecycle state: draft → ready → deploying → running/active → stopped/error/degraded.</li>
+    <li><strong>Hot-Update</strong> — When an agent is running, config changes use the hot-update endpoint to apply without restart.</li>
+    <li><strong>SSE (Server-Sent Events)</strong> — A persistent HTTP connection that streams real-time status updates from the engine.</li>
+    <li><strong>Onboarding</strong> — A process where the agent reads and acknowledges your organization's policies before it can work.</li>
+    <li><strong>Guardrail Interventions</strong> — Each time a safety rule triggers (blocks a response, flags content, or pauses the agent).</li>
+    <li><strong>Workforce Clock</strong> — An availability system — agents only process tasks when clocked in.</li>
+  </ul>
+
+  <!-- Best Practices -->
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>Always <strong>onboard agents</strong> before deploying them to production. This ensures they know your policies.</li>
+    <li>Monitor the <strong>error rate</strong> — anything above 5% warrants investigation.</li>
+    <li>Use <strong>Pause</strong> instead of Stop when making config changes — it preserves session context.</li>
+    <li>Set up <strong>workforce schedules</strong> to automatically clock agents in/out during business hours.</li>
+    <li>Check the <strong>intervention count</strong> regularly. High counts may indicate the agent needs reconfiguration or better prompting.</li>
+    <li>Assign agents to <strong>organizations</strong> to scope their knowledge access and policies correctly.</li>
+  </ul>
+
+  <!-- Troubleshooting -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+    <tbody>
+      <tr><td>Agent shows "offline" but should be running</td><td>Try Restart from Quick Actions. Check engine logs for errors.</td></tr>
+      <tr><td>High error rate</td><td>Check the Activity tab for specific errors. Common causes: expired API keys, rate limits, model unavailable.</td></tr>
+      <tr><td>Agent stuck in "deploying"</td><td>Use Reset State to return to "ready", then Deploy again.</td></tr>
+      <tr><td>Onboarding won't complete</td><td>Use "Force Complete" to skip. Or ensure guardrail policies are configured in the Guardrails tab.</td></tr>
+      <tr><td>Live status not updating</td><td>The SSE connection may have dropped. Refresh the page. Check browser console for connection errors.</td></tr>
+      <tr><td>Cost unexpectedly high</td><td>Check token usage. Review the heartbeat interval in Configuration tab — frequent heartbeats with expensive models add up.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Related Pages -->
+  <h2 id="related">Related Pages</h2>
+  <div class="nav">
+    <a href="/docs/agent-configuration.html">Configuration</a> — LLM model, heartbeat, voice, and model routing settings.
+    <a href="/docs/agent-manager.html">Manager</a> — Assign a supervisor and configure daily catch-ups.
+    <a href="/docs/agent-permissions.html">Permissions</a> — Risk levels, rate limits, approval workflows.
+    <a href="/docs/agent-tools.html">Tools</a> — Enable/disable tool categories.
+    <a href="/docs/agent-personal.html">Personal Details</a> — Name, role, personality, and identity.
+  </div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

@@ -2,6 +2,7 @@ import { h, useState, useEffect, Fragment, useApp, engineCall, showConfirm, buil
 import { I } from '../components/icons.js';
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 export function ApprovalsPage() {
   var orgCtx = useOrgContext();
@@ -38,7 +39,7 @@ export function ApprovalsPage() {
   return h(Fragment, null,
     h(orgCtx.Switcher),
     h('div', { style: { marginBottom: 20 } },
-      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Approvals', h(HelpButton, { label: 'Approvals' },
+      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Approvals', h(KnowledgeLink, { page: 'approvals' }), h(HelpButton, { label: 'Approvals' },
         h('p', null, 'The human-in-the-loop checkpoint. When agents attempt sensitive actions (based on your permission settings), they pause and wait for your approval here.'),
         h('h4', { style: _h4 }, 'How it works'),
         h('ul', { style: _ul },

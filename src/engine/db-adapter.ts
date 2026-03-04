@@ -462,7 +462,7 @@ export class EngineDatabase {
     if (!row) return null;
     const kb: any = {
       id: row.id, orgId: row.org_id, name: row.name, description: row.description,
-      agentIds: sj(row.agent_ids), config: sj(row.config),
+      agentIds: sj(row.agent_ids), clientOrgId: row.client_org_id || null, config: sj(row.config),
       stats: sj(row.stats), createdAt: row.created_at, updatedAt: row.updated_at,
       documents: [],
     };
@@ -475,7 +475,7 @@ export class EngineDatabase {
     const rows = await this.db.all<any>('SELECT * FROM knowledge_bases WHERE org_id = ? ORDER BY name', [orgId]);
     return rows.map(r => ({
       id: r.id, orgId: r.org_id, name: r.name, description: r.description,
-      agentIds: sj(r.agent_ids), config: sj(r.config),
+      agentIds: sj(r.agent_ids), clientOrgId: r.client_org_id || null, config: sj(r.config),
       stats: sj(r.stats), createdAt: r.created_at, updatedAt: r.updated_at,
       documents: [], // Loaded on demand
     }));
@@ -1107,6 +1107,10 @@ export class EngineDatabase {
       lastHealthCheckAt: row.last_health_check_at,
       version: row.version,
     };
+    // Map client_org_id
+    if (row.client_org_id) {
+      (agent as any).client_org_id = row.client_org_id;
+    }
     // Read budgetConfig from dedicated column (not config JSON)
     const bc = sj(row.budget_config || '{}');
     if (bc && Object.keys(bc).length > 0) {

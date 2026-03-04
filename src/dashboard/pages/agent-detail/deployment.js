@@ -4,6 +4,7 @@ import { E } from '../../assets/icons/emoji-icons.js';
 import { HelpButton } from '../../components/help-button.js';
 import { TagInput } from '../../components/tag-input.js';
 import { Badge, StatCard, EmptyState } from './shared.js?v=4';
+import { getLanguageName } from '../../components/persona-fields.js';
 
 // ════════════════════════════════════════════════════════════
 // DEPLOYMENT SECTION
@@ -29,16 +30,37 @@ export function DeploymentSection(props) {
   var pmStatus = _pmStatus[0]; var setPmStatus = _pmStatus[1];
   var _installingPm2 = useState(false);
   var installingPm2 = _installingPm2[0]; var setInstallingPm2 = _installingPm2[1];
+  var _syncingKbs = useState(false);
+  var syncingKbs = _syncingKbs[0]; var setSyncingKbs = _syncingKbs[1];
 
   var load = function() {
     setLoading(true);
-    engineCall('/knowledge-bases?agentId=' + agentId)
+    var clientOrg = agent && (agent.client_org_id || agent.clientOrgId) || '';
+    var url = '/knowledge-bases?agentId=' + agentId + (clientOrg ? '&clientOrgId=' + clientOrg : '');
+    engineCall(url)
       .then(function(d) { setKnowledgeBases(d.knowledgeBases || d.bases || d || []); })
       .catch(function() { setKnowledgeBases([]); })
       .finally(function() { setLoading(false); });
   };
 
   useEffect(function() { load(); }, [agentId]);
+
+  var syncKnowledgeBases = function() {
+    setSyncingKbs(true);
+    var clientOrgId = ea.client_org_id || ea.clientOrgId || null;
+    engineCall('/knowledge-bases/auto-assign/' + agentId, {
+      method: 'POST',
+      body: JSON.stringify({ clientOrgId: clientOrgId })
+    }).then(function(d) {
+      if (d.count > 0) {
+        toast(d.count + ' knowledge base(s) assigned', 'success');
+        load();
+      } else {
+        toast('Agent already has access to all relevant knowledge bases', 'info');
+      }
+    }).catch(function(e) { toast(e.message || 'Failed to sync', 'error'); })
+    .finally(function() { setSyncingKbs(false); });
+  };
 
   // ─── Derived Values ─────────────────────────────────────
 
@@ -680,13 +702,17 @@ export function DeploymentSection(props) {
 
     // ─── Knowledge Bases Card ───────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Knowledge Bases',
-        h(HelpButton, { label: 'Knowledge Bases' },
-          h('p', null, 'Connect knowledge bases to give this agent access to your organization\'s documents, FAQs, and reference material.'),
-          h('p', null, 'When a knowledge base is connected, the agent can search and retrieve relevant information during conversations — this is called Retrieval-Augmented Generation (RAG).'),
-          h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Create knowledge bases from the Knowledge page first, then connect them here. An agent can have multiple knowledge bases.')
-        )
-      )),
+      h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Knowledge Bases',
+          h(HelpButton, { label: 'Knowledge Bases' },
+            h('p', null, 'Connect knowledge bases to give this agent access to your organization\'s documents, FAQs, and reference material.'),
+            h('p', null, 'When a knowledge base is connected, the agent can search and retrieve relevant information during conversations — this is called Retrieval-Augmented Generation (RAG).'),
+            h('p', null, h('strong', null, 'Auto-assign: '), 'Click "Sync Knowledge" to automatically assign all knowledge bases relevant to this agent\'s organization. Internal agents get internal KBs; client org agents get their org\'s KBs.'),
+            h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'New agents are auto-assigned relevant KBs on creation. Use "Sync Knowledge" to pick up any new KBs added after the agent was created.')
+          )
+        ),
+        h('button', { className: 'btn btn-secondary btn-sm', onClick: syncKnowledgeBases, disabled: syncingKbs, style: { whiteSpace: 'nowrap' } }, syncingKbs ? 'Syncing...' : (I.refresh ? I.refresh() : ''), ' Sync Knowledge')
+      ),
       knowledgeBases.length > 0
         ? h('div', { className: 'card-body-flush' },
             h('table', { className: 'data-table' },
@@ -743,7 +769,7 @@ export function DeploymentSection(props) {
                   h('span', { style: { color: 'var(--text-muted)' } }, 'Date of Birth'),
                   h('span', null, identity.dob || identity.dateOfBirth || identity.date_of_birth || '-'),
                   h('span', { style: { color: 'var(--text-muted)' } }, 'Language'),
-                  h('span', null, identity.language || config.language || '-')
+                  h('span', null, getLanguageName(identity.language || config.language) || '-')
                 )
               ),
 

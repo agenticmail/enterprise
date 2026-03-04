@@ -62,6 +62,14 @@ export interface TaskRecord {
   // Source platform
   source: string | null;         // 'telegram' | 'whatsapp' | 'email' | 'google_chat' | 'internal' | 'api'
 
+  // Delivery context — how to deliver results back to the requester
+  deliveryContext: {
+    channel: string;            // 'telegram' | 'whatsapp' | 'google_chat' | 'email' | etc.
+    chatId: string;             // platform-specific chat/conversation ID
+    replyToMessageId?: string;  // optional message to reply to
+    [key: string]: any;         // additional platform-specific fields
+  } | null;
+
   // Task chain (multi-agent delegation tracking)
   chainId: string | null;        // shared ID across all tasks in a delegation chain
   chainSeq: number;              // sequence number within chain (0 = origin)
@@ -164,7 +172,8 @@ export class TaskQueueManager {
           ['chain_id', 'TEXT'], ['chain_seq', 'INTEGER DEFAULT 0'], ['delegated_from', 'TEXT'],
           ['delegated_to', 'TEXT'], ['delegation_type', 'TEXT'], ['customer_context', 'TEXT'],
           ['activity_log', 'TEXT DEFAULT \'[]\''],
-          ['source', 'TEXT']
+          ['source', 'TEXT'],
+          ['delivery_context', 'TEXT']
         ]) {
           try { await this.db.run(`ALTER TABLE task_pipeline ADD COLUMN ${col[0]} ${col[1]}`); } catch { /* already exists */ }
         }
@@ -209,6 +218,7 @@ export class TaskQueueManager {
     delegatedFrom?: string;
     delegationType?: string;
     customerContext?: TaskRecord['customerContext'];
+    deliveryContext?: TaskRecord['deliveryContext'];
     source?: string;
   }): Promise<TaskRecord> {
     await this.init();
@@ -250,6 +260,7 @@ export class TaskQueueManager {
       delegationType: opts.delegationType || null,
       customerContext: opts.customerContext || null,
       source: opts.source || null,
+      deliveryContext: opts.deliveryContext || null,
       activityLog: [{ ts: now, type: 'created', agent: opts.createdBy || 'system', detail: 'Task created' }],
     };
     this.tasks.set(task.id, task);
@@ -294,6 +305,7 @@ export class TaskQueueManager {
       delegatedFrom: source.id,
       delegationType: opts.delegationType || 'delegation',
       customerContext: source.customerContext,
+      deliveryContext: source.deliveryContext,
     });
 
     // Update source to point to delegated task
@@ -529,8 +541,8 @@ export class TaskQueueManager {
         parent_task_id, related_agent_ids, session_id,
         model, fallback_model, model_used, tokens_used, cost_usd,
         chain_id, chain_seq, delegated_from, delegated_to, delegation_type,
-        customer_context, activity_log, source
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        customer_context, activity_log, source, delivery_context
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT (id) DO UPDATE SET
           status=EXCLUDED.status, priority=EXCLUDED.priority, progress=EXCLUDED.progress,
           assigned_at=EXCLUDED.assigned_at, started_at=EXCLUDED.started_at, completed_at=EXCLUDED.completed_at,
@@ -552,6 +564,7 @@ export class TaskQueueManager {
         task.customerContext ? JSON.stringify(task.customerContext) : null,
         JSON.stringify(task.activityLog || []),
         task.source,
+        task.deliveryContext ? JSON.stringify(task.deliveryContext) : null,
       ]);
     } catch (e: any) {
       console.error('[TaskQueue] persist error:', e.message);
@@ -596,6 +609,7 @@ export class TaskQueueManager {
       delegationType: row.delegation_type || null,
       customerContext: safeJson(row.customer_context, null),
       source: row.source || null,
+      deliveryContext: safeJson(row.delivery_context, null),
       activityLog: safeJson(row.activity_log, []),
     };
   }

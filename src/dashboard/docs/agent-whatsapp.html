@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Business — AgenticMail Enterprise</title>
+  <link rel="stylesheet" href="/docs/docs-style.css">
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+  <a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+  <h1>WhatsApp Business</h1>
+  <p style="color:var(--text-muted);margin-bottom:24px">Connect a dedicated business phone number for customer support via WhatsApp — separate from your personal messaging.</p>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#connection-modes">Connection Modes</a></li>
+      <li><a href="#same-number">Same Number Mode</a></li>
+      <li><a href="#separate-number">Separate Number Mode</a></li>
+      <li><a href="#customer-access">Customer Access & Pairing</a></li>
+      <li><a href="#security">Security & Prompt Injection</a></li>
+      <li><a href="#customer-experience">Customer Experience Settings</a></li>
+      <li><a href="#conversations">Conversations</a></li>
+      <li><a href="#client-org-whatsapp">Client Organization Context</a></li>
+      <li><a href="#key-concepts">Key Concepts</a></li>
+      <li><a href="#best-practices">Best Practices</a></li>
+      <li><a href="#troubleshooting">Troubleshooting</a></li>
+      <li><a href="#related">Related Pages</a></li>
+    </ul>
+  </div>
+
+  <!-- Overview -->
+  <h2 id="overview">Overview</h2>
+
+  <div class="card">
+    <h3>For Everyone</h3>
+    <p>The WhatsApp Business tab lets your agent handle customer support via WhatsApp. Customers message a phone number and your AI agent responds automatically. You can use a dedicated business number or share your personal WhatsApp — the agent recognizes your manager number and gives you priority. Features include customer pairing codes, prompt injection protection, rate limiting, and a full conversation viewer.</p>
+  </div>
+
+  <div class="card">
+    <h3>For Developers</h3>
+    <p>WhatsApp Business config is stored in <code>config.messagingChannels.whatsapp.business</code>. The connection uses the Baileys WhatsApp Web library via <code>/bridge/agents/:id/whatsapp/connect</code> with mode=business. QR code scanning is polled every 3 seconds until connection succeeds. Customer pairing uses <code>/whatsapp/pairing-requests</code> and <code>/whatsapp/pairing-approve</code> endpoints. Conversations are paginated via <code>/whatsapp/conversations</code>.</p>
+  </div>
+
+  <!-- How It Works -->
+  <h2 id="how-it-works">How It Works</h2>
+  <ol>
+    <li>Choose a <strong>connection mode</strong> — same number (share your personal WhatsApp) or separate number (dedicated business phone).</li>
+    <li>For separate number: scan a <strong>QR code</strong> with the business phone's WhatsApp (Settings → Linked Devices).</li>
+    <li>Set your <strong>manager phone number</strong> so the agent recognizes you.</li>
+    <li>Enable <strong>business mode</strong> to accept customer messages.</li>
+    <li>Configure <strong>customer DM policy</strong> — pairing (recommended), open, or closed.</li>
+    <li>Set up <strong>security</strong> — prompt injection detection, message blocking, tool restrictions, rate limits.</li>
+  </ol>
+
+  <!-- Connection Modes -->
+  <h2 id="connection-modes">Connection Modes</h2>
+  <p>Two approaches to connect WhatsApp for business use:</p>
+  <table>
+    <thead><tr><th>Mode</th><th>Description</th><th>Best For</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Same Number</strong></td><td>Uses your personal WhatsApp connection from the Channels tab. Agent recognizes your manager number and treats everyone else as customers.</td><td>Simplicity, solo operators, getting started quickly</td></tr>
+      <tr><td><strong>Separate Number</strong></td><td>Dedicated business phone number with its own QR connection. Your personal WhatsApp stays private.</td><td>Clear separation, teams, professional appearance</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Same Number -->
+  <h2 id="same-number">Same Number Mode</h2>
+  <p>Toggle "Use same phone number for both" to enable. In this mode:</p>
+  <ul>
+    <li>Your personal WhatsApp connection (from the <strong>Channels</strong> tab) is shared for business.</li>
+    <li>Messages from your <strong>manager phone number</strong> get priority — even with 10 active customer chats.</li>
+    <li>Everyone else is treated as a customer (if business mode is enabled).</li>
+    <li>No separate QR scan needed — just ensure your personal connection is active in Channels.</li>
+  </ul>
+  <div class="warning">
+    <strong>Required:</strong> Set your manager phone number below so the agent can identify you. Without it, the agent can't distinguish you from customers.
+  </div>
+
+  <!-- Separate Number -->
+  <h2 id="separate-number">Separate Number Mode</h2>
+  <p>Setup guide for a dedicated business number:</p>
+  <ol>
+    <li><strong>Get a phone number</strong> — A new SIM, Google Voice, or existing WhatsApp Business number.</li>
+    <li><strong>Register on WhatsApp</strong> — Install WhatsApp on a phone with that number and set up the account.</li>
+    <li><strong>Scan the QR code</strong> — Click "Connect Business Number", then scan the QR code from WhatsApp → Settings → Linked Devices → Link a Device.</li>
+  </ol>
+  <p>Once connected, you can send test messages and toggle business mode on/off.</p>
+
+  <!-- Customer Access -->
+  <h2 id="customer-access">Customer Access & Pairing</h2>
+  <h3>DM Policies</h3>
+  <table>
+    <thead><tr><th>Policy</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Pairing</strong> <span class="badge badge-easy">Recommended</span></td><td>New customers receive a pairing code. You approve or reject from the dashboard. Most secure.</td></tr>
+      <tr><td><strong>Open</strong></td><td>Anyone can message and the agent responds. Use with strong security settings.</td></tr>
+      <tr><td><strong>Closed</strong></td><td>No new customers. Only previously approved customers can message.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Pairing Flow</h3>
+  <p>When a new customer messages (in pairing mode):</p>
+  <ol>
+    <li>Customer sends a message → receives an auto-reply with a pairing code.</li>
+    <li>The request appears in <strong>Pending Customer Requests</strong> with name, phone, code, and timestamp.</li>
+    <li>You click <strong>Approve</strong> or <strong>Reject</strong>.</li>
+    <li>Approved customers are added to the <strong>Approved Customers</strong> list and can chat freely.</li>
+  </ol>
+
+  <!-- Security -->
+  <h2 id="security">Security & Prompt Injection Protection</h2>
+  <p>Customer messages are treated as <strong>untrusted external content</strong>. Security features:</p>
+  <table>
+    <thead><tr><th>Setting</th><th>Default</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Prompt injection detection</strong></td><td>On</td><td>Scans messages for known injection patterns ("ignore previous instructions", etc.). Suspicious messages are flagged and logged.</td></tr>
+      <tr><td><strong>Block suspicious messages</strong></td><td>Off</td><td>Messages matching multiple injection patterns are blocked with a generic reply.</td></tr>
+      <tr><td><strong>Restrict customer tools</strong></td><td>On</td><td>Limits which tools the agent can use during customer conversations. Prevents customers from tricking the agent into accessing files, running commands, or sending emails.</td></tr>
+      <tr><td><strong>Max message length</strong></td><td>2000</td><td>Messages longer than this are truncated.</td></tr>
+      <tr><td><strong>Rate limit</strong></td><td>10 msgs/min/sender</td><td>Prevents spam and brute-force attempts.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Customer Experience -->
+  <h2 id="customer-experience">Customer Experience Settings</h2>
+  <ul>
+    <li><strong>Greeting Message</strong> — Sent to newly approved customers on first interaction. Leave empty for natural response.</li>
+    <li><strong>Auto-Reply to Unknown Senders</strong> — Shown briefly before the pairing code.</li>
+    <li><strong>Custom Instructions</strong> — Additional system prompt for customer conversations. Define brand voice, what to discuss/avoid, and business rules.</li>
+    <li><strong>Business Hours</strong> — Managed in the Workforce tab. The agent respects those settings automatically.</li>
+  </ul>
+
+  <!-- Conversations -->
+  <h2 id="conversations">Conversations</h2>
+  <p>When business mode is active, a full <strong>Conversations</strong> section appears with:</p>
+  <ul>
+    <li><strong>Search</strong> — Find conversations by name, number, or message content.</li>
+    <li><strong>Filters</strong> — All messages, customer messages only, or agent replies only.</li>
+    <li><strong>Conversation list</strong> — Shows avatar, name, last message, timestamp, message counts, and trust/customer badges.</li>
+    <li><strong>Conversation detail</strong> — Click any conversation to view the full message history with a chat-style interface (agent messages on the right, customer on the left). Load older messages with pagination.</li>
+  </ul>
+
+  <!-- Client Org WhatsApp -->
+  <h2 id="client-org-whatsapp">Client Organization Context</h2>
+  <p>When an agent belongs to a <strong>client organization</strong>, an info banner appears indicating which organization the agent serves. This affects WhatsApp Business in several ways:</p>
+  <ul>
+    <li>The business WhatsApp number is labeled as the <strong>organization's business line</strong>.</li>
+    <li>Customer pairing requests note which organization the customer will be paired with, providing clarity in multi-org environments.</li>
+    <li>Greeting messages and auto-replies should reference the organization's brand, not the platform's.</li>
+    <li>Conversation logs are scoped to the organization for reporting and compliance purposes.</li>
+  </ul>
+  <div class="tip">
+    <strong>Tip:</strong> When writing custom instructions for customer conversations, reference the organization name and brand guidelines to maintain consistency.
+  </div>
+
+  <!-- Key Concepts -->
+  <h2 id="key-concepts">Key Concepts</h2>
+  <ul>
+    <li><strong>Business Mode</strong> — The master toggle for accepting customer messages. Without it, only trusted contacts can reach the agent.</li>
+    <li><strong>Manager Number</strong> — Your phone number. Messages from this number always get priority and bypass customer restrictions.</li>
+    <li><strong>Customer Pairing</strong> — A verification flow where new customers receive a code and await admin approval.</li>
+    <li><strong>Prompt Injection</strong> — Attempts by users to manipulate the AI by embedding instructions in their messages (e.g., "ignore all previous instructions and...").</li>
+    <li><strong>Tool Restrictions</strong> — Limits the agent's capabilities during customer conversations to prevent exploitation.</li>
+  </ul>
+
+  <!-- Best Practices -->
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li><strong>Start with same-number mode</strong> for simplicity. Switch to separate number when you need clear separation.</li>
+    <li><strong>Always use pairing mode</strong> for customer access unless you have a specific reason for open access.</li>
+    <li><strong>Enable prompt injection detection</strong> — it's on by default for good reason.</li>
+    <li><strong>Set a reasonable rate limit</strong> — 10 msgs/min prevents abuse without annoying legitimate customers.</li>
+    <li><strong>Write custom instructions</strong> — Tell the agent exactly what it should and shouldn't discuss with customers.</li>
+    <li><strong>Monitor conversations regularly</strong> — Check the conversation viewer for quality and any issues.</li>
+  </ul>
+
+  <!-- Troubleshooting -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+    <tbody>
+      <tr><td>QR code won't scan</td><td>Ensure WhatsApp is updated. Try refreshing the QR code. The code expires after ~60 seconds.</td></tr>
+      <tr><td>Connection drops frequently</td><td>WhatsApp Web connections can be unstable. The system auto-reconnects. Check the business phone's internet connection.</td></tr>
+      <tr><td>Agent not responding to customers</td><td>Verify business mode is enabled. Check the customer's DM policy — they may need to be approved first (pairing mode).</td></tr>
+      <tr><td>Same number mode: agent can't tell who's the manager</td><td>Ensure the manager phone number is set and matches exactly (including country code, e.g., +1234567890).</td></tr>
+      <tr><td>Messages being blocked incorrectly</td><td>Lower the prompt injection sensitivity or disable "Block suspicious messages." Check the agent's logs for false positives.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Related Pages -->
+  <h2 id="related">Related Pages</h2>
+  <div class="nav">
+    <a href="/docs/agent-channels.html">Channels</a> — Personal WhatsApp and Telegram messaging setup.
+    <a href="/docs/agent-email.html">Email</a> — Email account connection for the agent.
+    <a href="/docs/agent-permissions.html">Permissions</a> — Rate limits and tool restrictions.
+    <a href="/docs/agent-tools.html">Tools</a> — Enable/disable messaging tools.
+  </div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agents — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Agents</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Create, configure, deploy, and monitor your AI workforce</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#create-agent-wizard">Create Agent Wizard</a></li>
+    <li><a href="#deploy-modal">Deploy Modal</a></li>
+    <li><a href="#agent-list">Agent List &amp; Filtering</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#permissions-security">Permissions &amp; Security</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> The Agents page is your command center for managing AI workers. Each agent is like a virtual employee — it has a name, email address, personality, job role, and set of skills. You create agents here, give them permissions, and deploy them to start working autonomously.
+</div>
+
+<p>The Agents page (<code>AgentsPage</code>) is the primary management interface for your AI agent fleet. It provides a tabular listing of all agents in the current organization context, a multi-step creation wizard with role templates ("souls"), a deployment modal supporting multiple infrastructure targets, and navigation into each agent's detail view for deep monitoring and configuration.</p>
+
+<p>The page is organization-aware — when an org is selected via the org context switcher, only agents belonging to that organization are displayed. Agents can be filtered, restarted, and navigated to their full detail pages directly from the list.</p>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Browse agents</strong> — The page loads all agents via <code>GET /api/agents</code>, filtered by the current organization context and user permissions.</li>
+  <li><strong>Create a new agent</strong> — Click "Create Agent" to open the 7-step wizard. Choose a role template, configure identity, persona, skills, permissions, deployment target, and review.</li>
+  <li><strong>Deploy the agent</strong> — Use the Deploy Modal to push the agent to Docker, VPS, Fly.io, or Railway with stored credentials.</li>
+  <li><strong>Monitor &amp; manage</strong> — Click any agent name to access its detail page with activity logs, email inbox, sessions, workforce schedule, and journal.</li>
+  <li><strong>Restart agents</strong> — Hit the refresh button on any agent row to trigger a restart via the engine API.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Soul Templates (Role Templates)</h3>
+<p>Souls are pre-built role configurations that auto-populate an agent's personality, skills, permissions, and behavior. They are loaded from the engine's <code>/souls/by-category</code> endpoint and organized into categories (e.g., Customer Support, Engineering, Sales). Selecting a soul pre-fills the wizard but all fields remain editable.</p>
+
+<div class="tip">
+  <strong>Think of it like this:</strong> A soul template is a job description. It tells the agent what kind of worker it should be — a support rep, an engineer, an analyst. You can customize everything after picking a template, or skip templates entirely and build from scratch.
+</div>
+
+<h3>Skill Suites</h3>
+<p>Suites are bundles of related skills (e.g., "Google Workspace" includes Gmail, Calendar, Drive). Toggling a suite adds or removes all its skills at once. Individual skills can also be toggled independently. Skills are loaded from <code>/skills/by-category</code> and <code>/skills/suites</code>.</p>
+
+<h3>Permission Presets</h3>
+<p>Pre-configured security profiles (e.g., "Strict", "Standard", "Autonomous") that set max risk level, blocked side effects, approval requirements, and rate limits. Loaded from <code>/profiles/presets</code>.</p>
+
+<h3>Draft Auto-Save</h3>
+<p>The creation wizard auto-saves progress to <code>localStorage</code> on each step change. If the browser is closed mid-creation, the draft is restored on next visit. Drafts are cleared after successful agent creation.</p>
+
+<h2 id="create-agent-wizard">Create Agent Wizard</h2>
+
+<p>The <code>CreateAgentWizard</code> is a 7-step modal wizard:</p>
+
+<table>
+  <thead><tr><th>Step</th><th>Name</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>Role</td><td>Choose a soul template or skip to configure manually. Search and filter by category.</td></tr>
+    <tr><td>1</td><td>Basics</td><td>Name, email, role title, LLM provider/model selection, description.</td></tr>
+    <tr><td>2</td><td>Persona</td><td>Avatar upload, gender, date of birth (agents age naturally), cultural background, language, personality traits (communication style, energy, humor, formality, empathy, patience, creativity).</td></tr>
+    <tr><td>3</td><td>Skills</td><td>Select skill suites and individual skills. Search/filter available. Shows selected count.</td></tr>
+    <tr><td>4</td><td>Permissions</td><td>Permission preset, max risk level, blocked side effects, approval requirements (per risk level and side effect type), rate limits, execution constraints (concurrency, session duration, sandbox mode).</td></tr>
+    <tr><td>5</td><td>Deployment</td><td>Choose target: Fly.io, Docker, Railway, VPS, or Local.</td></tr>
+    <tr><td>6</td><td>Review</td><td>Full summary of all configuration. Auto-onboarding toggle. Create button.</td></tr>
+  </tbody>
+</table>
+
+<div class="warning">
+  <strong>Setup required:</strong> If no LLM providers are configured, the wizard shows a setup guide instead of the creation form. You must add at least one provider API key in Settings → LLM Providers before creating agents.
+</div>
+
+<h3>Agent Creation API</h3>
+<pre><code>POST /api/engine/bridge/agents
+Content-Type: application/json
+
+{
+  "orgId": "org-abc123",
+  "name": "Sarah Chen",
+  "email": "sarah.chen@yourdomain.com",
+  "role": "Customer Support Lead",
+  "soulId": "customer-support-lead",
+  "model": { "provider": "anthropic", "modelId": "claude-sonnet-4-20250514" },
+  "deployment": { "target": "fly" },
+  "skills": ["email", "calendar", "knowledge-search"],
+  "permissions": {
+    "maxRiskLevel": "medium",
+    "blockedSideEffects": ["deletes-data", "financial"],
+    "requireApproval": {
+      "enabled": true,
+      "forRiskLevels": ["high", "critical"],
+      "forSideEffects": ["sends-email"]
+    },
+    "rateLimits": {
+      "toolCallsPerMinute": 30,
+      "toolCallsPerHour": 500
+    }
+  },
+  "persona": {
+    "gender": "female",
+    "language": "en-us",
+    "traits": { "communication": "direct", "humor": "warm" }
+  }
+}</code></pre>
+
+<h2 id="deploy-modal">Deploy Modal</h2>
+
+<p>The <code>DeployModal</code> is a 3-step wizard for deploying an existing agent to infrastructure:</p>
+
+<table>
+  <thead><tr><th>Target</th><th>Configuration Options</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Docker</strong></td><td>Image tag, ports, memory limit, CPU allocation</td></tr>
+    <tr><td><strong>VPS / Server</strong></td><td>Install path, systemd service creation, SSH credential selection</td></tr>
+    <tr><td><strong>Fly.io</strong></td><td>Region selection (iad, ord, lax, lhr, ams, nrt)</td></tr>
+    <tr><td><strong>Railway</strong></td><td>Region selection (us-west1, us-east4, europe-west4, asia-southeast1)</td></tr>
+  </tbody>
+</table>
+
+<p>Deploy credentials are loaded from the engine's <code>/deploy-credentials</code> endpoint and filtered by target type. The deployment is triggered via:</p>
+
+<pre><code>POST /api/agents/{agentId}/deploy
+{
+  "targetType": "fly",
+  "credentialId": "cred-xyz",
+  "config": { "region": "iad" },
+  "deployedBy": "dashboard"
+}</code></pre>
+
+<h3>Deployment Progress</h3>
+<p>The <code>DeploymentProgress</code> component connects to a Server-Sent Events stream (<code>/api/engine/activity/stream</code>) and renders a real-time timeline of deployment phases. Each phase shows status (pending, active, completed, failed) with timestamps and messages.</p>
+
+<h2 id="agent-list">Agent List &amp; Filtering</h2>
+
+<p>The main agent list displays a table with columns: Name, Email, Role, Status, Created, and Actions. Features include:</p>
+<ul>
+  <li><strong>Org context filtering</strong> — Agents are filtered by the selected organization via <code>useOrgContext()</code></li>
+  <li><strong>Permission-based filtering</strong> — If the logged-in user has restricted permissions, only allowed agents are shown</li>
+  <li><strong>Quick actions</strong> — "View Details" navigates to the agent detail page; the refresh icon triggers a restart</li>
+  <li><strong>Empty state</strong> — When no agents exist, a prompt encourages creating the first one</li>
+</ul>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/agents</code></td><td>GET</td><td>List all agents (supports <code>?clientOrgId=</code> filter)</td></tr>
+    <tr><td><code>/api/engine/bridge/agents</code></td><td>POST</td><td>Create a new agent with full configuration</td></tr>
+    <tr><td><code>/api/agents/{id}/deploy</code></td><td>POST</td><td>Trigger deployment to target infrastructure</td></tr>
+    <tr><td><code>/api/engine/agents/{id}/restart</code></td><td>POST</td><td>Restart a running agent</td></tr>
+    <tr><td><code>/api/engine/skills/by-category</code></td><td>GET</td><td>List available skills grouped by category</td></tr>
+    <tr><td><code>/api/engine/skills/suites</code></td><td>GET</td><td>List skill suites (bundles)</td></tr>
+    <tr><td><code>/api/engine/souls/by-category</code></td><td>GET</td><td>List soul templates grouped by category</td></tr>
+    <tr><td><code>/api/engine/profiles/presets</code></td><td>GET</td><td>List permission presets</td></tr>
+    <tr><td><code>/api/providers</code></td><td>GET</td><td>List configured LLM providers</td></tr>
+    <tr><td><code>/api/providers/{id}/models</code></td><td>GET</td><td>List models for a provider</td></tr>
+    <tr><td><code>/api/engine/deploy-credentials</code></td><td>GET</td><td>List deploy credentials by org</td></tr>
+    <tr><td><code>/api/engine/onboarding/initiate/{id}</code></td><td>POST</td><td>Start agent onboarding pipeline</td></tr>
+  </tbody>
+</table>
+
+<h2 id="permissions-security">Permissions &amp; Security</h2>
+
+<h3>Side Effects Reference</h3>
+<table>
+  <thead><tr><th>Side Effect ID</th><th>Description</th><th>Default Blocked</th></tr></thead>
+  <tbody>
+    <tr><td><code>sends-email</code></td><td>Send emails to external recipients</td><td>No</td></tr>
+    <tr><td><code>sends-message</code></td><td>Send messages via chat/messaging</td><td>No</td></tr>
+    <tr><td><code>sends-sms</code></td><td>Send SMS text messages</td><td>No</td></tr>
+    <tr><td><code>posts-social</code></td><td>Post to social media platforms</td><td>No</td></tr>
+    <tr><td><code>runs-code</code></td><td>Execute arbitrary code</td><td>Yes</td></tr>
+    <tr><td><code>modifies-files</code></td><td>Modify files on disk</td><td>No</td></tr>
+    <tr><td><code>deletes-data</code></td><td>Delete data permanently</td><td>Yes</td></tr>
+    <tr><td><code>controls-device</code></td><td>Control hardware/IoT devices</td><td>Yes</td></tr>
+    <tr><td><code>financial</code></td><td>Financial transactions or payments</td><td>Yes</td></tr>
+  </tbody>
+</table>
+
+<h3>Rate Limits</h3>
+<table>
+  <thead><tr><th>Limit</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Tool calls / minute</td><td>30</td><td>Maximum tool invocations per minute</td></tr>
+    <tr><td>Tool calls / hour</td><td>500</td><td>Maximum tool invocations per hour</td></tr>
+    <tr><td>Tool calls / day</td><td>5,000</td><td>Maximum tool invocations per day</td></tr>
+    <tr><td>External actions / hour</td><td>50</td><td>Actions with external side effects per hour</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Start with a soul template</strong> — Templates provide battle-tested configurations. Customize from there rather than building from scratch.</li>
+  <li><strong>Use permission presets first</strong> — Start with "Strict" and loosen as you build trust with the agent's behavior.</li>
+  <li><strong>Enable auto-onboarding</strong> — The onboarding pipeline ensures agents go through compliance checks and guardrail verification before going live.</li>
+  <li><strong>Set meaningful rate limits</strong> — Prevent runaway agents by setting appropriate per-minute and per-hour limits.</li>
+  <li><strong>Use sandbox mode for testing</strong> — Enable sandbox in execution constraints to simulate actions without real side effects.</li>
+  <li><strong>Save drafts</strong> — For complex agents, use the "Save Draft" button. Drafts persist across browser sessions.</li>
+  <li><strong>Deploy to Fly.io for production</strong> — Fly.io provides auto-scaling, TLS, and health checks out of the box.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h4>"Setup Required" appears instead of the wizard</h4>
+  <p>No LLM providers are configured. Go to Settings → LLM Providers and add an API key for at least one provider (Anthropic, OpenAI, etc.).</p>
+</div>
+
+<div class="card">
+  <h4>Agent creation fails with "provider not configured"</h4>
+  <p>The selected provider doesn't have an API key set. Switch to a configured provider or add the key in Settings.</p>
+</div>
+
+<div class="card">
+  <h4>Deploy modal shows "No credentials found"</h4>
+  <p>You need to add deploy credentials for the selected target type. Go to Settings → Deployments and add SSH keys, Fly.io tokens, or Railway API keys.</p>
+</div>
+
+<div class="card">
+  <h4>Agent doesn't appear in the list</h4>
+  <p>Check the org context switcher — you may be viewing a different organization. Also verify user permissions allow access to the agent.</p>
+</div>
+
+<div class="danger">
+  <strong>Deleting agents is irreversible.</strong> Agent deletion has been moved to the agent detail page with triple confirmation. Always archive an agent first if you're unsure.
+</div>
+
+<div class="nav">
+  <h3 id="related">Related Pages</h3>
+  <ul>
+    <li><a href="/docs/organizations.html">Organizations</a> — Manage client orgs that agents belong to</li>
+    <li><a href="/docs/approvals.html">Approvals</a> — Review agent actions requiring human approval</li>
+    <li><a href="/docs/journal.html">Action Journal</a> — Audit trail of all agent actions</li>
+    <li><a href="/docs/knowledge.html">Knowledge Bases</a> — Document ingestion for agent RAG</li>
+    <li><a href="/docs/knowledge-contributions.html">Knowledge Contributions</a> — Agent-contributed knowledge hub</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

@@ -24,6 +24,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { TaskQueueManager } from './engine/task-queue.js';
 import { beforeSpawn } from './engine/task-queue-before-spawn.js';
 import { afterSpawn, markInProgress } from './engine/task-queue-after-spawn.js';
+import { TaskPoller } from './engine/task-poller.js';
 
 // ════════════════════════════════════════════════════════════
 // SYSTEM DEPENDENCY AUTO-INSTALLER
@@ -436,6 +437,7 @@ export async function runAgent(_args: string[]) {
   await routes.lifecycle.setDb(engineDb);
   await routes.lifecycle.loadFromDb();
   routes.lifecycle.standaloneMode = true; // Standalone agent machine — reload dashboard fields from DB before each save
+  routes.lifecycle.startConfigRefresh(30_000); // Refresh agent config from DB every 30s (picks up dashboard changes)
   const lifecycle = routes.lifecycle; // Use the singleton everywhere
 
   const managed = lifecycle.getAgent(AGENT_ID);
@@ -499,9 +501,36 @@ export async function runAgent(_args: string[]) {
   // 7. Create agent runtime
   const { createAgentRuntime } = await import('./runtime/index.js');
 
+  // Import org integrations manager for credential resolution
+  let orgIntMgr: any = null;
+  try {
+    const { orgIntegrations: oi } = await import('./engine/routes.js');
+    orgIntMgr = oi;
+  } catch { /* not available in standalone mode */ }
+
   const getEmailConfig = (agentId: string) => {
     const m = lifecycle.getAgent(agentId);
-    return m?.config?.emailConfig || null;
+    const agentEmailCfg = m?.config?.emailConfig || null;
+    
+    // If agent has its own complete email config, use it
+    if (agentEmailCfg?.oauthAccessToken || agentEmailCfg?.smtpHost) {
+      return agentEmailCfg;
+    }
+    
+    // Try to resolve from org integrations (async resolved, cached on agent)
+    if (orgIntMgr && m) {
+      const orgId = (m as any).client_org_id || (m as any).clientOrgId || null;
+      // Trigger async resolution and cache on agent config for next call
+      orgIntMgr.resolveEmailConfig(orgId, agentEmailCfg).then((resolved: any) => {
+        if (resolved && (resolved.oauthAccessToken || resolved.smtpHost)) {
+          if (!m.config) m.config = {} as any;
+          (m.config as any).emailConfig = resolved;
+          (m.config as any).emailConfig._fromOrgIntegration = true;
+        }
+      }).catch(() => {});
+    }
+    
+    return agentEmailCfg;
   };
   const onTokenRefresh = (agentId: string, tokens: any) => {
     const m = lifecycle.getAgent(agentId);
@@ -509,7 +538,10 @@ export async function runAgent(_args: string[]) {
       if (tokens.accessToken) m.config.emailConfig.oauthAccessToken = tokens.accessToken;
       if (tokens.refreshToken) m.config.emailConfig.oauthRefreshToken = tokens.refreshToken;
       if (tokens.expiresAt) m.config.emailConfig.oauthTokenExpiry = tokens.expiresAt;
-      lifecycle.saveAgent(agentId).catch(() => {});
+      // Only persist if NOT from org integration (org tokens are managed separately)
+      if (!(m.config.emailConfig as any)._fromOrgIntegration) {
+        lifecycle.saveAgent(agentId).catch(() => {});
+      }
     }
   };
 
@@ -564,6 +596,16 @@ export async function runAgent(_args: string[]) {
     permissionEngine: routes.permissionEngine,
     knowledgeEngine: routes.knowledgeBase,
     agentStatusTracker: routes.agentStatus,
+    resolveOrgApiKey: async (agentId: string, provider: string) => {
+      if (!orgIntMgr) return null;
+      try {
+        const agent = lifecycle.getAgent(agentId);
+        const agentOrgId = agent?.client_org_id || (agent as any)?.clientOrgId;
+        if (!agentOrgId) return null;
+        const creds = await orgIntMgr.resolveForAgent(agentOrgId, 'llm_' + provider);
+        return creds?.apiKey || null;
+      } catch { return null; }
+    },
     resumeOnStartup: false, // Disabled: zombie sessions exhaust Supabase pool on restart
   });
 
@@ -600,6 +642,8 @@ export async function runAgent(_args: string[]) {
   }
 
   await runtime.start();
+  // Expose runtime globally for inject-message endpoint
+  (globalThis as any).__agenticmail_runtime = runtime;
   const runtimeApp = runtime.getApp();
 
   // ─── Task Pipeline ──────────────────────────────────────
@@ -630,6 +674,8 @@ export async function runAgent(_args: string[]) {
   // Note: lifecycle was already initialized in step 4 (we use routes.lifecycle as the single instance)
   try {
     await routes.permissionEngine.setDb(engineDb);
+    routes.permissionEngine.startAutoRefresh(30_000); // Refresh permissions every 30s from DB
+    routes.guardrails.startAutoRefresh(15_000); // Refresh guardrail state every 15s (pause/resume, rules)
     console.log('   Permissions: loaded from DB');
     console.log('   Hooks lifecycle: initialized (shared singleton from step 4)');
   } catch (permErr: any) {
@@ -657,6 +703,103 @@ export async function runAgent(_args: string[]) {
   const sessionRouter = new SessionRouter({
     staleThresholdMs: 30 * 60 * 1000, // 30 min for chat, meeting gets 2h grace internally
   });
+
+  // 7d. Task Poller — monitors stuck tasks and routes/spawns recovery sessions
+  const taskPoller = new TaskPoller({
+    taskQueue,
+    sessionRouter,
+    spawnForTask: async (task) => {
+      try {
+        const session = await runtime.spawnSession({
+          agentId,
+          message: `[System — Task Recovery] You have a stuck task to complete:\n\nTask: ${task.title}\nID: ${task.id}\nCategory: ${task.category}\nPriority: ${task.priority}\nDescription: ${task.description}\n\nPlease complete this task now.`,
+          model: task.model || undefined,
+        });
+        if (session?.id) {
+          sessionRouter.register({
+            sessionId: session.id,
+            type: 'task',
+            agentId,
+            createdAt: Date.now(),
+            lastActivityAt: Date.now(),
+            meta: { taskId: task.id, recoveredBy: 'task-poller' },
+          });
+
+          // Set up delivery callback so the response reaches the user
+          if (task.deliveryContext?.channel && task.deliveryContext?.chatId) {
+            const dc = task.deliveryContext;
+            runtime.onSessionComplete(session.id, async (result: any) => {
+              sessionRouter?.unregister(agentId, session.id);
+              // Record completion
+              afterSpawn(taskQueue, {
+                taskId: task.id,
+                status: result?.error ? 'failed' : 'completed',
+                error: result?.error?.message || result?.error,
+                sessionId: session.id,
+              }).catch(() => {});
+
+              // Extract last assistant text
+              const messages = result?.messages || [];
+              let lastText = '';
+              for (let i = messages.length - 1; i >= 0; i--) {
+                const msg = messages[i];
+                if (msg.role === 'assistant') {
+                  if (typeof msg.content === 'string') lastText = msg.content;
+                  else if (Array.isArray(msg.content)) {
+                    lastText = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+                  }
+                  if (lastText.trim()) break;
+                }
+              }
+
+              if (!lastText.trim()) return;
+
+              try {
+                if (dc.channel === 'telegram') {
+                  const channelCfg = agent.config?.messagingChannels?.telegram || {};
+                  const botToken = (channelCfg as any).botToken;
+                  if (botToken) {
+                    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ chat_id: dc.chatId, text: lastText.trim() }),
+                    });
+                    console.log(`[TaskPoller] Delivered recovery response to Telegram chat ${dc.chatId}`);
+                  }
+                } else if (dc.channel === 'whatsapp') {
+                  const { getOrCreateConnection, toJid } = await import('./agent-tools/tools/messaging/whatsapp.js');
+                  const conn = await getOrCreateConnection(agentId as any);
+                  if ((conn as any).connected && (conn as any).sock) {
+                    await (conn as any).sock.sendMessage(toJid(dc.chatId), { text: lastText.trim() });
+                    console.log(`[TaskPoller] Delivered recovery response to WhatsApp ${dc.chatId}`);
+                  }
+                } else if (dc.channel === 'google_chat') {
+                  console.log(`[TaskPoller] Google Chat delivery not yet implemented for recovery`);
+                }
+              } catch (deliveryErr: any) {
+                console.warn(`[TaskPoller] Failed to deliver recovery response: ${deliveryErr.message}`);
+              }
+            });
+          }
+
+          return session.id;
+        }
+      } catch (e: any) {
+        console.warn(`[TaskPoller] spawnForTask error: ${e.message}`);
+      }
+      return null;
+    },
+    sendToSession: async (sessionId, message) => {
+      await runtime.sendMessage(sessionId, message);
+    },
+  }, {
+    intervalMs: 2 * 60 * 1000,     // Poll every 2 minutes
+    stuckThresholdMs: 5 * 60 * 1000,  // 5 min for created/assigned
+    staleThresholdMs: 15 * 60 * 1000, // 15 min for in_progress without activity
+    maxRetries: 3,
+    debug: false,
+  });
+  taskPoller.start();
 
   // 8. Start health check HTTP server
   const app = new Hono();
@@ -969,6 +1112,9 @@ export async function runAgent(_args: string[]) {
           model: (config.model ? `${config.model.provider}/${config.model.modelId}` : undefined) || process.env.AGENTICMAIL_MODEL,
           sessionId: undefined,
           source: ctx.source || 'internal',
+          deliveryContext: (ctx.source === 'telegram' || ctx.source === 'whatsapp' || ctx.source === 'google_chat')
+            ? { channel: ctx.source, chatId: ctx.senderEmail || '' }
+            : null,
         });
       } catch (e: any) { /* non-fatal */ }
 
@@ -1282,6 +1428,10 @@ export async function runAgent(_args: string[]) {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log('\n⏳ Shutting down agent...');
+    taskPoller.stop();
+    routes.permissionEngine.stopAutoRefresh();
+    routes.guardrails.stopAutoRefresh();
+    routes.lifecycle.stopConfigRefresh();
     runtime.stop().then(() => {
       // Small delay to let in-flight DB writes finish before ending pool
       return new Promise(r => setTimeout(r, 2000));
@@ -1699,6 +1849,16 @@ Available tools: gmail_send (to, subject, body) or agenticmail_send (to, subject
         isClockedIn,
         enabledChecks: (config as any).heartbeat?.enabledChecks,
       }, (config as any).heartbeat?.settings);
+
+      // Apply dashboard intervalMinutes → baseIntervalMs if set
+      const hbConfig = (config as any).heartbeat || {};
+      if (hbConfig.intervalMinutes && !hbConfig.settings?.baseIntervalMs) {
+        heartbeat['settings'].baseIntervalMs = hbConfig.intervalMinutes * 60_000;
+        heartbeat['settings'].maxIntervalMs = Math.max(heartbeat['settings'].maxIntervalMs, hbConfig.intervalMinutes * 60_000);
+      }
+      if (hbConfig.enabled === false) {
+        heartbeat['settings'].enabled = false;
+      }
 
       await heartbeat.start();
       process.on('SIGTERM', () => heartbeat.stop());

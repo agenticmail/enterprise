@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Workforce — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Workforce</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Manage agent schedules, work hours, clock in/out, task queues, task pipelines, and clock history.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#agent-status">Real-Time Agent Status</a></li>
+        <li><a href="#schedules">Schedules</a></li>
+        <li><a href="#task-queue">Task Queue</a></li>
+        <li><a href="#task-pipeline">Task Pipeline</a></li>
+        <li><a href="#clock-history">Clock History</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Think of the Workforce tab as your agent's HR department. It controls when the agent works (schedules), what the agent is working on (tasks), and tracks its time (clock history). You can set 9-to-5 hours, define shift patterns, clock agents in and out, and assign work — just like managing a human employee.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>The Workforce section integrates five subsystems:</p>
+  <ul>
+    <li><strong>Agent Status</strong> — Real-time via SSE (<code>EventSource</code> on <code>/api/engine/agent-status-stream?agentId=…</code>) plus initial fetch from <code>GET /agent-status/:id</code>.</li>
+    <li><strong>Schedules</strong> — CRUD via <code>GET/POST/PUT/DELETE /workforce/schedules/:agentId</code>. Supports standard hours, shift patterns, and custom types.</li>
+    <li><strong>Workforce Status</strong> — <code>GET /workforce/status/:agentId</code> for clock state and hours worked.</li>
+    <li><strong>Tasks</strong> — <code>GET/POST /workforce/tasks/:agentId</code> with complete/cancel actions.</li>
+    <li><strong>Clock Records</strong> — <code>GET /workforce/clock-records/:agentId</code> with client-side filtering and pagination (15/page).</li>
+  </ul>
+  <p>The <code>AgentTaskPipeline</code> component is embedded from <code>task-pipeline.js</code> and provides real-time task tracking via SSE.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Status Monitoring</strong> — On mount, the current status is fetched and an SSE connection is opened. Status updates (online, idle, error) stream in real time.</li>
+  <li><strong>Schedule Configuration</strong> — Create or edit a schedule defining work hours, days, timezone, and enforcement rules.</li>
+  <li><strong>Clock In/Out</strong> — Manually clock the agent in or out. When clocked out, the agent's behavior depends on the off-hours action setting.</li>
+  <li><strong>Task Assignment</strong> — Create tasks with title, description, priority, and type. The agent processes tasks in priority order.</li>
+  <li><strong>Pipeline Tracking</strong> — The Task Pipeline shows automatically-recorded tasks from agent spawns with real-time status updates.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="agent-status">Real-Time Agent Status</h3>
+<p>The status card at the top shows live agent state:</p>
+<ul>
+  <li><strong>Status Badge</strong> — Online (green), Idle (blue), Error (red), or Unknown (gray).</li>
+  <li><strong>Clock State</strong> — Whether the agent is currently clocked in or out, with the time since last clock-in.</li>
+  <li><strong>Hours Today</strong> — Total worked hours for the current day.</li>
+  <li><strong>Current Activity</strong> — If the agent is actively doing something, a banner shows what it's working on and which tool it's using.</li>
+</ul>
+
+<h3 id="schedules">Schedules</h3>
+<p>Three schedule types are supported:</p>
+
+<table>
+  <thead><tr><th>Type</th><th>Description</th><th>Configuration</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Standard</strong></td><td>Fixed daily hours</td><td>Start time, end time, days of week (clickable day buttons)</td></tr>
+    <tr><td><strong>Shift</strong></td><td>Named shift patterns</td><td>Multiple shifts, each with name, start, and end time</td></tr>
+    <tr><td><strong>Custom</strong></td><td>Flexible scheduling</td><td>Custom configuration</td></tr>
+  </tbody>
+</table>
+
+<p>Schedule options include:</p>
+<ul>
+  <li><strong>Timezone</strong> — Full timezone selector. All times are interpreted in this timezone.</li>
+  <li><strong>Enforce Clock-In</strong> — Agent must be clocked in to work.</li>
+  <li><strong>Enforce Clock-Out</strong> — Agent is automatically clocked out at schedule end.</li>
+  <li><strong>Auto-Wake</strong> — Automatically starts the agent when the schedule begins.</li>
+  <li><strong>Off-Hours Action</strong> — What happens outside schedule: <em>Pause</em> (suspend), <em>Stop</em> (terminate), or <em>Queue</em> (buffer work for later).</li>
+  <li><strong>Grace Period</strong> — Minutes of flexibility before/after schedule boundaries.</li>
+</ul>
+
+<h3 id="task-queue">Task Queue</h3>
+<p>Manually assign work to the agent. Each task has:</p>
+<ul>
+  <li><strong>Title</strong> — Required. A brief description of the work.</li>
+  <li><strong>Description</strong> — Optional detailed instructions.</li>
+  <li><strong>Priority</strong> — Urgent, High, Normal, or Low. Color-coded badges.</li>
+  <li><strong>Type</strong> — General, Email, Research, or Communication. Helps categorize work.</li>
+  <li><strong>Status</strong> — Pending, In Progress, Completed, or Cancelled.</li>
+  <li><strong>Actions</strong> — Complete or Cancel buttons for active tasks.</li>
+</ul>
+
+<h3 id="task-pipeline">Task Pipeline</h3>
+<p>Unlike the manual Task Queue, the Task Pipeline tracks tasks automatically created when the agent is spawned for work. It shows:</p>
+<ul>
+  <li>Task status with real-time SSE updates</li>
+  <li>Duration and model used</li>
+  <li>Full task details on click</li>
+</ul>
+<div class="tip">
+  <strong>Tip:</strong> The Task Pipeline is separate from the manual Task Queue. Pipeline tasks are system-generated; queue tasks are manually created by administrators.
+</div>
+
+<h3 id="clock-history">Clock History</h3>
+<p>A complete audit trail of all clock-in/out events. Features include:</p>
+<ul>
+  <li><strong>Search</strong> — Filter by timestamp, type, or notes.</li>
+  <li><strong>Type Filter</strong> — Show all records, clock-ins only, or clock-outs only.</li>
+  <li><strong>Pagination</strong> — 15 records per page with next/previous navigation.</li>
+  <li><strong>Detail Modal</strong> — Click any record to see full details including IP address, session ID, source, duration, and metadata.</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Set schedules to match your team's hours</strong> — If your team works 9-5 EST, set the agent to the same. This ensures it's available when needed and not burning tokens overnight.</li>
+    <li><strong>Use "Queue" for off-hours action</strong> — This buffers incoming work instead of dropping it. The agent processes the queue when it clocks back in.</li>
+    <li><strong>Enable Auto-Wake for critical agents</strong> — Ensures the agent starts on time without manual intervention.</li>
+    <li><strong>Use priority levels consistently</strong> — Reserve "Urgent" for genuinely time-sensitive tasks. Overusing high priority defeats its purpose.</li>
+    <li><strong>Review clock history for anomalies</strong> — Unexpected clock-ins/outs may indicate guardrail interventions or system issues.</li>
+    <li><strong>Set a grace period of 5-10 minutes</strong> — Prevents the agent from being cut off mid-task when the schedule ends.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Agent won't clock in</h3>
+  <p>Check if the schedule is enabled and the current time falls within the configured hours (accounting for timezone). If "Enforce Clock-In" is active, the agent can only clock in during scheduled hours.</p>
+</div>
+
+<div class="card">
+  <h3>Tasks stuck in "Pending"</h3>
+  <p>The agent must be clocked in and active to process tasks. Verify the agent status shows "Online" and "Clocked In". Also check if the agent is paused by guardrails.</p>
+</div>
+
+<div class="card">
+  <h3>Real-time status not updating</h3>
+  <p>The SSE connection may have dropped. Refresh the page to re-establish it. If the issue persists, check network connectivity and that the engine API is running.</p>
+</div>
+
+<div class="card">
+  <h3>Schedule changes not taking effect</h3>
+  <p>Schedule changes take effect at the next schedule boundary. If the agent is currently clocked in, it will continue until the current period ends. For immediate effect, manually clock the agent out and back in.</p>
+</div>
+
+<!-- Organization Context -->
+<h2 id="organization-context">Organization Context</h2>
+<p>When an agent belongs to a client organization, workforce management respects organization-level settings:</p>
+<ul>
+  <li><strong>Business Hours</strong> — The agent's work schedule follows the organization's defined business hours and timezone. An info banner displays the organization name and configured hours.</li>
+  <li><strong>Schedule Inheritance</strong> — If the organization defines standard working hours, new schedules default to those hours. You can still override per-agent.</li>
+  <li><strong>Clock Records</strong> — Clock-in/out records are tagged with the organization context for auditing and compliance.</li>
+</ul>
+<div class="card">
+  <h3>How do I know if an agent follows org hours?</h3>
+  <p>A blue info banner appears at the top of the Workforce tab showing "Work schedule follows [Org Name] business hours" along with the configured hours and timezone when applicable.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-autonomy.html">Agent Autonomy</a>
+  <a href="agent-activity.html">Agent Activity Log</a>
+  <a href="agent-budget.html">Agent Budget</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

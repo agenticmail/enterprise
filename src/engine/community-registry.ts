@@ -33,6 +33,12 @@ export interface CommunitySkillManifest {
     parameters?: Record<string, any>;
     riskLevel?: string;
   }>;
+  auth?: {
+    type: 'oauth2' | 'api_key' | 'token' | 'credentials';
+    provider?: string;
+    fields?: string[];
+    fieldLabels?: Record<string, string>;
+  };
   configSchema?: Record<string, any>;
   minEngineVersion?: string;
   homepage?: string;

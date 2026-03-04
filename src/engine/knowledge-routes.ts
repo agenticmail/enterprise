@@ -12,15 +12,33 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
   // ─── Knowledge Base ─────────────────────────────────────
 
   router.post('/knowledge-bases', async (c) => {
-    const { orgId, name, description, agentIds, config } = await c.req.json();
+    const { orgId, name, description, agentIds, config, clientOrgId } = await c.req.json();
     const kb = knowledgeBase.createKnowledgeBase(orgId, { name, description, agentIds, config });
+    if (clientOrgId) (kb as any).clientOrgId = clientOrgId;
+    // Persist clientOrgId to DB
+    if (clientOrgId && (knowledgeBase as any).db) {
+      try {
+        await (knowledgeBase as any).db.execute(
+          'UPDATE knowledge_bases SET client_org_id = $1 WHERE id = $2', [clientOrgId, kb.id]
+        );
+      } catch { /* column may not exist */ }
+    }
     return c.json({ knowledgeBase: kb }, 201);
   });
 
   router.get('/knowledge-bases', (c) => {
     const orgId = c.req.query('orgId');
     const agentId = c.req.query('agentId');
-    if (agentId) return c.json({ knowledgeBases: knowledgeBase.getKnowledgeBasesForAgent(agentId) });
+    if (agentId) {
+      const clientOrgId = c.req.query('clientOrgId');
+      const bases = knowledgeBase.getKnowledgeBasesForAgent(agentId);
+      // If agent has a clientOrgId, only show KBs belonging to that org (or explicitly assigned)
+      if (clientOrgId) {
+        const filtered = bases.filter((kb: any) => kb.clientOrgId === clientOrgId || (Array.isArray(kb.agentIds) && kb.agentIds.includes(agentId)));
+        return c.json({ knowledgeBases: filtered });
+      }
+      return c.json({ knowledgeBases: bases });
+    }
     if (orgId) return c.json({ knowledgeBases: knowledgeBase.getKnowledgeBasesByOrg(orgId) });
     // No filter = return all (admin dashboard context)
     return c.json({ knowledgeBases: knowledgeBase.getAllKnowledgeBases() });
@@ -67,13 +85,15 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
     const body = await c.req.json();
     if (body.name !== undefined) (kb as any).name = body.name;
     if (body.description !== undefined) (kb as any).description = body.description;
+    if (body.agentIds !== undefined) (kb as any).agentIds = body.agentIds;
+    if (body.clientOrgId !== undefined) (kb as any).clientOrgId = body.clientOrgId || null;
     (kb as any).updatedAt = new Date().toISOString();
     // Persist to DB if engine supports it
     if ((knowledgeBase as any).db) {
       try {
         await (knowledgeBase as any).db.execute(
-          'UPDATE knowledge_bases SET name = $1, description = $2, updated_at = $3 WHERE id = $4',
-          [kb.name, kb.description, (kb as any).updatedAt, id]
+          'UPDATE knowledge_bases SET name = $1, description = $2, agent_ids = $3, updated_at = $4, client_org_id = $5 WHERE id = $6',
+          [kb.name, kb.description, JSON.stringify((kb as any).agentIds || []), (kb as any).updatedAt, (kb as any).clientOrgId || null, id]
         );
       } catch { /* in-memory only fallback */ }
     }
@@ -149,6 +169,58 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
       await knowledgeBase.reloadKnowledgeBase(kbId);
       return c.json({ success: true });
     } catch (e: any) { return c.json({ error: e.message }, 400); }
+  });
+
+  /**
+   * POST /knowledge-bases/auto-assign/:agentId — Auto-assign knowledge bases to an agent.
+   * 
+   * Logic:
+   * - If agent belongs to a client org → assign all KBs belonging to that org
+   * - If agent is internal (no client org) → assign all KBs NOT belonging to any client org
+   * - Does NOT remove existing assignments, only adds new ones
+   * - Returns list of newly assigned KB IDs
+   */
+  router.post('/knowledge-bases/auto-assign/:agentId', async (c) => {
+    const agentId = c.req.param('agentId');
+    const body = await c.req.json().catch(() => ({}));
+    const clientOrgId = body.clientOrgId || null;
+    
+    const allKbs = knowledgeBase.getAllKnowledgeBases();
+    const assigned: string[] = [];
+
+    for (const kb of allKbs) {
+      // Skip if agent already assigned
+      const agentIds: string[] = Array.isArray((kb as any).agentIds) ? (kb as any).agentIds : [];
+      if (agentIds.includes(agentId)) continue;
+
+      let shouldAssign = false;
+      if (clientOrgId) {
+        // Agent belongs to a client org → assign KBs of that org
+        shouldAssign = (kb as any).orgId === clientOrgId || (kb as any).clientOrgId === clientOrgId;
+      } else {
+        // Internal agent → assign KBs with no client org
+        shouldAssign = !(kb as any).clientOrgId;
+      }
+
+      if (shouldAssign) {
+        agentIds.push(agentId);
+        (kb as any).agentIds = agentIds;
+        (kb as any).updatedAt = new Date().toISOString();
+
+        // Persist
+        if ((knowledgeBase as any).db) {
+          try {
+            await (knowledgeBase as any).db.execute(
+              'UPDATE knowledge_bases SET agent_ids = $1, updated_at = $2 WHERE id = $3',
+              [JSON.stringify(agentIds), (kb as any).updatedAt, kb.id]
+            );
+          } catch { /* in-memory fallback */ }
+        }
+        assigned.push(kb.id);
+      }
+    }
+
+    return c.json({ agentId, clientOrgId, assigned, count: assigned.length });
   });
 
   router.delete('/knowledge-bases/:id', (c) => {

@@ -74,7 +74,7 @@ export var MEMORY_CATEGORIES = [
   { value: 'org_knowledge', label: 'Org Knowledge', color: '#6366f1' },
   { value: 'interaction_pattern', label: 'Interaction Pattern', color: '#0ea5e9' },
   { value: 'preference', label: 'Preference', color: '#15803d' },
-  { value: 'correction', label: 'Correction', color: '#f59e0b' },
+  { value: 'correction', label: 'Correction', color: '#991b1b' },
   { value: 'skill', label: 'Skill', color: '#8b5cf6' },
   { value: 'context', label: 'Context', color: '#64748b' },
   { value: 'reflection', label: 'Reflection', color: '#9d174d' },

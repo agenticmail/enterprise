@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Communication — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Communication</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Inter-agent messaging system — view message history, manage the inbox, send messages, and visualize communication topology.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#all-messages">All Messages Tab</a></li>
+        <li><a href="#inbox">Inbox Tab</a></li>
+        <li><a href="#topology">Topology Tab</a></li>
+        <li><a href="#sending-messages">Sending Messages</a></li>
+        <li><a href="#priority-levels">Priority Levels</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>The Communication tab is your agent's messaging center. Agents don't work in isolation — they need to coordinate with each other. This tab shows all the messages an agent has sent and received, lets you send messages on its behalf, and shows a map of which agents talk to each other the most.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>Three endpoints power this section:</p>
+  <ul>
+    <li><code>GET /messages?agentId=…&amp;orgId=…&amp;limit=50</code> — Full message history (sent + received).</li>
+    <li><code>GET /messages/inbox/:agentId?orgId=…</code> — Unread/pending messages for this agent.</li>
+    <li><code>GET /messages/topology?agentId=…&amp;orgId=…</code> — Communication graph edges showing message counts between agent pairs.</li>
+  </ul>
+  <p>Sending a message calls <code>POST /messages</code> with <code>fromAgentId</code>, <code>toAgentId</code>, <code>orgId</code>, <code>subject</code>, <code>content</code>, and <code>priority</code>. Marking as read uses <code>POST /messages/:id/read</code>.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Load</strong> — All three data sources (messages, inbox, topology) are fetched on mount.</li>
+  <li><strong>Browse</strong> — Use the three tabs to switch views. "All Messages" shows full history, "Inbox" shows unread messages, "Topology" shows communication partners.</li>
+  <li><strong>Send</strong> — Click "Send Message" to open a modal. Select a recipient agent, write a subject and content, choose a priority, and send.</li>
+  <li><strong>Read</strong> — In the Inbox tab, unread messages appear in bold. Click "Mark Read" to acknowledge them.</li>
+  <li><strong>Refresh</strong> — Refreshes only the current tab's data source.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="all-messages">All Messages Tab</h3>
+<p>A complete chronological history of messages involving this agent. Each row shows:</p>
+<ul>
+  <li><strong>Time</strong> — When the message was created.</li>
+  <li><strong>Direction</strong> — <span class="badge badge-easy">Sent</span> or <span class="badge badge-medium">Received</span>. Determined by comparing <code>fromAgentId</code> with the current agent.</li>
+  <li><strong>From / To</strong> — Agent badges showing who sent and received the message.</li>
+  <li><strong>Subject</strong> — Truncated to 200px width.</li>
+  <li><strong>Type</strong> — Message type badge (e.g., task, notification, query).</li>
+  <li><strong>Priority</strong> — Color-coded priority level.</li>
+</ul>
+
+<h3 id="inbox">Inbox Tab</h3>
+<p>Shows messages awaiting this agent's attention. Key differences from All Messages:</p>
+<ul>
+  <li>Only shows inbound messages.</li>
+  <li>Displays read/unread status with a badge.</li>
+  <li>Provides a "Mark Read" button for unread messages.</li>
+  <li>Unread messages appear in bold (fontWeight: 500).</li>
+</ul>
+
+<h3 id="topology">Topology Tab</h3>
+<p>A visual overview of this agent's communication partners. For each agent this one communicates with, you see:</p>
+<ul>
+  <li><strong>Agent Badge</strong> — The partner agent's identity.</li>
+  <li><strong>Sent Count</strong> — Number of messages sent to this partner (in blue).</li>
+  <li><strong>Received Count</strong> — Number of messages received from this partner (in green).</li>
+</ul>
+<p>The topology is derived from the graph edges returned by the topology API. Edges where this agent is the <code>from</code> node count as sent; edges where this agent is the <code>to</code> node count as received.</p>
+
+<h3 id="sending-messages">Sending Messages</h3>
+<p>The Send Message modal includes:</p>
+<ul>
+  <li><strong>To Agent</strong> — A dropdown of all agents in the system except the current one. Shows display name and email.</li>
+  <li><strong>Subject</strong> — Required. Describe the purpose clearly.</li>
+  <li><strong>Content</strong> — The message body (textarea, min-height 120px).</li>
+  <li><strong>Priority</strong> — Low, Normal, High, or Urgent.</li>
+</ul>
+<p>After sending, the modal closes and all three data sources are refreshed.</p>
+
+<h3 id="priority-levels">Priority Levels</h3>
+<table>
+  <thead><tr><th>Priority</th><th>Badge</th><th>Use Case</th></tr></thead>
+  <tbody>
+    <tr><td>Urgent</td><td><span class="badge badge-advanced">Urgent</span></td><td>Immediate attention required. Time-sensitive actions.</td></tr>
+    <tr><td>High</td><td><span class="badge badge-medium">High</span></td><td>Important but not time-critical. Should be handled soon.</td></tr>
+    <tr><td>Normal</td><td><span class="badge">Normal</span></td><td>Standard priority. Processed in order.</td></tr>
+    <tr><td>Low</td><td><span class="badge">Low</span></td><td>Background tasks. Handle when convenient.</td></tr>
+  </tbody>
+</table>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Use priority levels meaningfully</strong> — Priority helps agents triage incoming messages. Reserve "Urgent" for truly time-sensitive items.</li>
+    <li><strong>Write clear subjects</strong> — Agents parse subjects to understand message intent. "Process Q4 report" is better than "Hey".</li>
+    <li><strong>Monitor topology for anomalies</strong> — If an agent is sending hundreds of messages to one partner, it might indicate a loop or misconfiguration.</li>
+    <li><strong>Check inbox regularly</strong> — Unread messages may contain pending tasks or important information the agent hasn't processed yet.</li>
+    <li><strong>Use messages for coordination, not data transfer</strong> — For large data, use shared storage or knowledge bases. Messages are best for coordination signals.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Sent message not appearing in recipient's inbox</h3>
+  <p>The inbox only shows messages fetched at load time. The recipient agent's dashboard needs a refresh to see new messages. Messages are delivered immediately at the API level.</p>
+</div>
+
+<div class="card">
+  <h3>"Recipient and subject are required" error</h3>
+  <p>Ensure you've selected an agent from the dropdown and entered a subject. Both fields are mandatory for sending.</p>
+</div>
+
+<div class="card">
+  <h3>Topology shows no data</h3>
+  <p>Communication topology is built from actual message exchanges. If the agent hasn't sent or received any messages yet, the topology will be empty.</p>
+</div>
+
+<div class="card">
+  <h3>Agent not appearing in recipient dropdown</h3>
+  <p>The dropdown excludes the current agent (you can't message yourself). If other agents are missing, they may not be registered in the system. Check the Agents page.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-activity.html">Agent Activity Log</a>
+  <a href="agent-workforce.html">Agent Workforce</a>
+  <a href="agent-autonomy.html">Agent Autonomy</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

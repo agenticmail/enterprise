@@ -1,0 +1,217 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Messages — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Agent Messages</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Inter-agent and external communications — message log, topology visualization, and compose interface.</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#stats-cards">Stats Cards</a></li>
+    <li><a href="#messages-tab">Messages Tab</a></li>
+    <li><a href="#topology-tab">Topology Tab</a></li>
+    <li><a href="#composing">Composing Messages</a></li>
+    <li><a href="#configuration">Configuration &amp; Setup</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> This page is like a company messaging dashboard. You can see every message your AI agents send to each other or to the outside world, and there's a visual map showing who talks to whom most often.
+</div>
+
+<p>The Agent Messages page centralizes all inter-agent and external communications into two views:</p>
+<ul>
+  <li><strong>Messages</strong> — A filterable table of all messages with type, direction, channel, sender/receiver, subject, status, priority, and timestamp</li>
+  <li><strong>Topology</strong> — A force-directed graph visualization showing communication patterns between agents</li>
+</ul>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<p>On load, three API calls execute:</p>
+<ol>
+  <li><code>/messages?orgId=...&limit=100</code> — Fetches the last 100 messages</li>
+  <li><code>/agents</code> — Loads agent list for name/badge resolution</li>
+  <li><code>/messages/topology?orgId=...</code> — Fetches the communication graph data (nodes + edges + stats)</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Message Types</h3>
+<table>
+  <thead><tr><th>Type</th><th>Icon</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Message</td><td>💬</td><td>General agent-to-agent or external message</td></tr>
+    <tr><td>Task</td><td>📋</td><td>Structured work delegation</td></tr>
+    <tr><td>Handoff</td><td>🤝</td><td>Conversation or context handoff between agents</td></tr>
+    <tr><td>Broadcast</td><td>📢</td><td>One-to-many announcement</td></tr>
+  </tbody>
+</table>
+
+<h3>Direction</h3>
+<table>
+  <thead><tr><th>Direction</th><th>Badge</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Internal</td><td><span class="badge" style="background:rgba(59,130,246,0.15);color:#3b82f6">Internal</span></td><td>Between agents in the same org</td></tr>
+    <tr><td>External Outbound</td><td><span class="badge" style="background:rgba(249,115,22,0.15);color:#f97316">Ext Out</span></td><td>Agent sent to external recipient</td></tr>
+    <tr><td>External Inbound</td><td><span class="badge" style="background:rgba(34,197,94,0.15);color:#15803d">Ext In</span></td><td>Received from external source</td></tr>
+  </tbody>
+</table>
+
+<h3>Channels</h3>
+<p>Messages can flow through: <strong>email</strong> (📧), <strong>task</strong> (📋), or <strong>direct</strong> (💬) channels.</p>
+
+<h2 id="stats-cards">Stats Cards</h2>
+
+<p>Four stat cards at the top show aggregate counts:</p>
+<ul>
+  <li><strong>Total</strong> — All messages across all directions</li>
+  <li><strong>Internal</strong> — Agent-to-agent messages (high internal traffic = healthy collaboration)</li>
+  <li><strong>External Out</strong> — Messages sent to external recipients (monitor for over-communication)</li>
+  <li><strong>External In</strong> — Messages received from outside (these trigger agent workflows)</li>
+</ul>
+
+<h2 id="messages-tab">Messages Tab</h2>
+
+<p>The messages table supports sub-tab filtering:</p>
+<ul>
+  <li><strong>All</strong> — Every message</li>
+  <li><strong>Internal</strong> — Agent-to-agent only</li>
+  <li><strong>External</strong> — Outbound and inbound external messages</li>
+  <li><strong>Messages</strong> — Type: message</li>
+  <li><strong>Tasks</strong> — Type: task</li>
+  <li><strong>Handoffs</strong> — Type: handoff</li>
+  <li><strong>Broadcasts</strong> — Type: broadcast</li>
+</ul>
+
+<p>Table columns: Type, Direction, Channel, From, To, Subject, Status, Priority, Time.</p>
+
+<h2 id="topology-tab">Topology Tab</h2>
+
+<div class="tip">
+  <strong>Tip:</strong> The topology visualization is the fastest way to understand which agents collaborate most. Thicker lines mean more messages between those agents.
+</div>
+
+<p>The topology view renders a <strong>force-directed graph</strong> using a custom physics simulation:</p>
+<ul>
+  <li><strong>Nodes</strong> — Circles for agents (colored by state: green = running, gray = stopped), rectangles for external contacts (orange)</li>
+  <li><strong>Edges</strong> — Lines between communicating nodes, with width proportional to message count. Blue = internal, orange = external.</li>
+</ul>
+
+<h3>Interactions</h3>
+<ul>
+  <li><strong>Click a node</strong> — Highlights its connections, dims everything else, and shows a detail panel below</li>
+  <li><strong>Click again</strong> — Deselects the node</li>
+</ul>
+
+<h3>Detail Panel</h3>
+<p>When a node is selected, a card appears showing:</p>
+<ul>
+  <li>Agent name, email, and state</li>
+  <li>Total messages sent and received</li>
+  <li>Top 5 communication partners with message counts</li>
+</ul>
+
+<h3>Physics Simulation</h3>
+<p>The layout uses 200 iterations of:</p>
+<ul>
+  <li><strong>Charge repulsion</strong> — Nodes push apart (force ∝ 1/distance²)</li>
+  <li><strong>Link springs</strong> — Connected nodes pull toward ideal distance of 120px</li>
+  <li><strong>Center gravity</strong> — Nodes drift toward the center</li>
+  <li><strong>Velocity damping</strong> — 0.6x per iteration for stability</li>
+</ul>
+
+<h2 id="composing">Composing Messages</h2>
+
+<p>Click "New Message" to open the compose modal with fields:</p>
+<ul>
+  <li><strong>From Agent</strong> — Select the sending agent</li>
+  <li><strong>To Agent</strong> — Select the receiving agent</li>
+  <li><strong>Subject</strong> — Message subject line</li>
+  <li><strong>Content</strong> — Message body (textarea)</li>
+  <li><strong>Priority</strong> — Low, Normal, High, Urgent</li>
+</ul>
+
+<p>The message is sent via <code>POST /messages</code> and both the message list and topology are refreshed.</p>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<p>Agent Messages works automatically once agents are created. Messages are generated by:</p>
+<ul>
+  <li>Agent-to-agent task delegation</li>
+  <li>Manual message composition via this page</li>
+  <li>External inbound messages (email, API, etc.)</li>
+  <li>Agent-initiated outbound communication</li>
+</ul>
+
+<p>The org switcher filters messages to the selected organization.</p>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/messages?orgId=...&limit=100</code></td><td>GET</td><td>Fetch messages</td></tr>
+    <tr><td><code>/messages</code></td><td>POST</td><td>Send a new message</td></tr>
+    <tr><td><code>/messages/topology?orgId=...</code></td><td>GET</td><td>Communication graph (nodes, edges, stats)</td></tr>
+  </tbody>
+</table>
+
+<h3>POST /messages Body</h3>
+<pre><code>{
+  "orgId": "org_123",
+  "fromAgentId": "agent_abc",
+  "toAgentId": "agent_xyz",
+  "subject": "Monthly report ready",
+  "content": "The report has been generated...",
+  "priority": "normal"
+}</code></pre>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Monitor external outbound:</strong> High external outbound counts may indicate agents over-communicating with customers. Review and adjust agent instructions.</li>
+  <li><strong>Use the topology regularly:</strong> It reveals communication bottlenecks — if one agent is a hub for all messages, consider distributing responsibilities.</li>
+  <li><strong>Set meaningful subjects:</strong> Message subjects appear in the table and make filtering and auditing much easier.</li>
+  <li><strong>Use priority levels:</strong> Mark urgent messages as such so receiving agents can prioritize accordingly.</li>
+  <li><strong>Watch for isolated nodes:</strong> Agents with no topology connections may not be properly integrated into your workflows.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<table>
+  <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr><td>No messages shown</td><td>Check that agents exist in the selected organization. Try the "All" sub-tab filter.</td></tr>
+    <tr><td>Topology is empty</td><td>At least two agents need to have exchanged messages for the graph to render.</td></tr>
+    <tr><td>Message send fails</td><td>Ensure both From and To agents are selected. Check that the org ID is valid.</td></tr>
+    <tr><td>Agent names show as IDs</td><td>Agent list failed to load. Click Refresh or check <code>/agents</code> endpoint.</td></tr>
+    <tr><td>Topology nodes overlap</td><td>This can happen with few nodes. The force-directed layout works best with 4+ agents.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="related">Related Pages</h2>
+
+<div class="nav">
+  <a href="/docs/task-pipeline.html">Task Pipeline</a> — Visual task flow and delegation chains
+  <a href="/docs/workforce.html">Workforce Management</a> — Agent scheduling and budgets
+  <a href="/docs/org-chart.html">Organization Chart</a> — Agent hierarchy
+  <a href="/docs/activity.html">Activity Log</a> — Detailed event history
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

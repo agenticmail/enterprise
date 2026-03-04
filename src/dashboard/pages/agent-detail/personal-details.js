@@ -3,7 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { TimezoneSelect } from '../../components/timezones.js';
 import { HelpButton } from '../../components/help-button.js';
-import { CULTURES, LANGUAGES, DEFAULT_TRAITS, computeAge, PersonaForm } from '../../components/persona-fields.js';
+import { CULTURES, LANGUAGES, DEFAULT_TRAITS, computeAge, PersonaForm, getLanguageName } from '../../components/persona-fields.js';
 import { TagInput } from '../../components/tag-input.js';
 import { Badge, StatCard, formatTime } from './shared.js?v=4';
 
@@ -132,7 +132,7 @@ export function PersonalDetailsSection(props) {
     var age = computeAge(identity.dateOfBirth);
 
     var cultureName = displayCulture ? (CULTURES.find(function(c) { return c.id === displayCulture; }) || {}).name || displayCulture : '—';
-    var langName = displayLang !== '—' ? (LANGUAGES.find(function(l) { return l.id === displayLang; }) || {}).name || displayLang : '—';
+    var langName = getLanguageName(displayLang);
 
     var fieldView = function(label, value) {
       return h('div', { style: fieldGroupStyle },

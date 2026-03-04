@@ -171,6 +171,43 @@ export function createAgentRoutes(opts: {
     }
   });
 
+  // ─── Inject a system message into an agent's active session ──────
+  router.post('/agents/:id/inject-message', async (c) => {
+    try {
+      const { role, content } = await c.req.json();
+      if (!content) return c.json({ error: 'content is required' }, 400);
+      const agentId = c.req.param('id');
+
+      // Find the agent's active session in the runtime
+      const runtime = (globalThis as any).__agenticmail_runtime;
+      if (!runtime) return c.json({ error: 'Runtime not available' }, 503);
+
+      // Try to send via the runtime's session manager (private, accessed via any)
+      const sessionMgr = (runtime as any).sessionManager;
+      if (!sessionMgr) return c.json({ error: 'Session manager not available' }, 503);
+
+      // Find active sessions for this agent
+      const activeSessions = await sessionMgr.findActiveSessions();
+      const agentSessions = activeSessions.filter((s: any) => s.agentId === agentId);
+
+      if (agentSessions.length === 0) {
+        return c.json({ injected: false, reason: 'No active sessions for this agent' });
+      }
+
+      // Inject into the most recent active session
+      const session = agentSessions[agentSessions.length - 1];
+      await sessionMgr.appendMessage(session.id, {
+        role: role || 'system',
+        content: content,
+        timestamp: new Date().toISOString(),
+      });
+
+      return c.json({ injected: true, sessionId: session.id });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
   router.delete('/agents/:id', async (c) => {
     const { destroyedBy } = await c.req.json().catch(() => ({ destroyedBy: 'unknown' }));
     try {
@@ -426,6 +463,37 @@ export function createAgentRoutes(opts: {
       // 2) Create engine managed agent (same ID via config.id)
       const managedAgent = await lifecycle.createAgent(orgId, config, actor);
 
+      // 3) Auto-assign knowledge bases based on org context
+      try {
+        const { knowledgeBase: kbEngine } = await import('./routes.js');
+        const allKbs = kbEngine.getAllKnowledgeBases();
+        const clientOrgId = (managedAgent as any)?.clientOrgId || (config as any)?.clientOrgId || null;
+        let kbAssigned = 0;
+        for (const kb of allKbs) {
+          const ids: string[] = Array.isArray((kb as any).agentIds) ? (kb as any).agentIds : [];
+          if (ids.includes(agentId)) continue;
+          let shouldAssign = false;
+          if (clientOrgId) {
+            shouldAssign = (kb as any).orgId === clientOrgId || (kb as any).clientOrgId === clientOrgId;
+          } else {
+            shouldAssign = !(kb as any).clientOrgId;
+          }
+          if (shouldAssign) {
+            ids.push(agentId);
+            (kb as any).agentIds = ids;
+            (kb as any).updatedAt = new Date().toISOString();
+            const _db = getAdminDb();
+            if (_db) {
+              try { await (_db as any).execute?.('UPDATE knowledge_bases SET agent_ids = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(ids), (kb as any).updatedAt, kb.id]); } catch {}
+            }
+            kbAssigned++;
+          }
+        }
+        if (kbAssigned > 0) console.log(`[agent-create] Auto-assigned ${kbAssigned} knowledge base(s) to agent ${agentId}`);
+      } catch (e: any) {
+        console.warn(`[agent-create] KB auto-assign failed: ${e.message}`);
+      }
+
       return c.json({
         agent: managedAgent,
         adminAgent,
@@ -563,6 +631,14 @@ export function createAgentRoutes(opts: {
       lastConnected: emailConfig.lastConnected,
       lastError: emailConfig.lastError,
       orgEmailConfig,
+      // Sending config override (no password)
+      sendingConfig: emailConfig.sendingConfig ? {
+        provider: 'smtp',
+        email: emailConfig.sendingConfig.email,
+        smtpHost: emailConfig.sendingConfig.smtpHost,
+        smtpPort: emailConfig.sendingConfig.smtpPort,
+        configured: true,
+      } : undefined,
     });
   });
 
@@ -714,6 +790,17 @@ export function createAgentRoutes(opts: {
       emailConfig.status = 'awaiting_oauth';
     } else {
       return c.json({ error: `Unknown provider: ${provider}. Valid: imap, microsoft, google` }, 400);
+    }
+
+    // Attach sending config override if provided
+    if (body.sendingConfig && body.sendingConfig.smtpHost) {
+      emailConfig.sendingConfig = {
+        provider: 'smtp',
+        email: body.sendingConfig.email || emailConfig.email,
+        password: body.sendingConfig.password,
+        smtpHost: body.sendingConfig.smtpHost,
+        smtpPort: body.sendingConfig.smtpPort || 587,
+      };
     }
 
     // Save to agent config and persist to DB
@@ -894,6 +981,63 @@ export function createAgentRoutes(opts: {
   });
 
   /**
+   * POST /bridge/agents/:id/email-config/test-credentials — Test SMTP/IMAP credentials WITHOUT saving.
+   * Allows user to verify email+password works before committing the config.
+   */
+  router.post('/bridge/agents/:id/email-config/test-credentials', async (c) => {
+    const body = await c.req.json();
+    const { email, password, imapHost, imapPort, smtpHost, smtpPort } = body;
+
+    if (!email || !password) return c.json({ error: 'Email and password are required' }, 400);
+    if (!imapHost && !smtpHost) return c.json({ error: 'At least IMAP or SMTP host is required' }, 400);
+
+    const results: any = { email };
+
+    // Test IMAP
+    if (imapHost) {
+      try {
+        const { ImapFlow } = await import('imapflow');
+        const client = new (ImapFlow as any)({
+          host: imapHost,
+          port: imapPort || 993,
+          secure: true,
+          auth: { user: email, pass: password },
+          logger: false,
+          tls: { rejectUnauthorized: false },
+        });
+        await client.connect();
+        const status = await client.status('INBOX', { messages: true, unseen: true });
+        await client.logout();
+        results.imap = { success: true, inbox: { total: status.messages, unread: status.unseen } };
+      } catch (err: any) {
+        results.imap = { success: false, error: err.message };
+      }
+    }
+
+    // Test SMTP
+    if (smtpHost) {
+      try {
+        const nodemailer = await import('nodemailer');
+        const transport = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort || 587,
+          secure: (smtpPort || 587) === 465,
+          auth: { user: email, pass: password },
+          tls: { rejectUnauthorized: false },
+        } as any);
+        await transport.verify();
+        transport.close();
+        results.smtp = { success: true };
+      } catch (err: any) {
+        results.smtp = { success: false, error: err.message };
+      }
+    }
+
+    const allPassed = (!results.imap || results.imap.success) && (!results.smtp || results.smtp.success);
+    return c.json({ success: allPassed, ...results });
+  });
+
+  /**
    * POST /bridge/agents/:id/email-config/reauthorize — Generate a new OAuth URL with updated scopes.
    * Preserves all existing config/tokens. Just builds a fresh auth URL for re-consent.
    */
@@ -961,6 +1105,47 @@ export function createAgentRoutes(opts: {
     const _m = lifecycle.getAgent(agentId); if (_m) { _m.config.emailConfig = null; _m.updatedAt = new Date().toISOString(); }
     await lifecycle.saveAgent(agentId);
     return c.json({ success: true });
+  });
+
+  /**
+   * POST /agents/:id/clear-email — Deep clear all email config (agent + DB).
+   * Used when reassigning orgs or manually resetting.
+   */
+  router.post('/agents/:id/clear-email', async (c) => {
+    const agentId = c.req.param('id');
+    const managed = lifecycle.getAgent(agentId);
+    if (!managed) return c.json({ error: 'Agent not found' }, 404);
+
+    // Clear in-memory config
+    managed.config.emailConfig = null;
+    if ((managed.config as any).email) (managed.config as any).email = null;
+    managed.updatedAt = new Date().toISOString();
+    await lifecycle.saveAgent(agentId);
+
+    // Also clear directly in DB to ensure no stale data
+    try {
+      const db = lifecycle.getDb?.() || (globalThis as any).__engineDb;
+      if (db) {
+        const isPostgres = !!(db as any).pool;
+        if (isPostgres) {
+          await (db as any).pool.query(
+            `UPDATE managed_agents SET config = config - 'emailConfig' - 'email', updated_at = NOW() WHERE id = $1`,
+            [agentId]
+          );
+        } else {
+          // SQLite: read, modify, write back
+          const row = await db.get(`SELECT config FROM managed_agents WHERE id = ?`, [agentId]);
+          if (row) {
+            const cfg = JSON.parse((row as any).config || '{}');
+            delete cfg.emailConfig;
+            delete cfg.email;
+            await db.run(`UPDATE managed_agents SET config = ?, updated_at = datetime('now') WHERE id = ?`, [JSON.stringify(cfg), agentId]);
+          }
+        }
+      }
+    } catch { /* best effort DB cleanup */ }
+
+    return c.json({ success: true, cleared: true });
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -1646,6 +1831,19 @@ export function createAgentRoutes(opts: {
     const body = await c.req.json();
     if (!managed.config) managed.config = {} as any;
     managed.config.toolRestrictions = body;
+
+    // Sync restrictions to permission profile
+    const profile = permissions.getProfile(agentId);
+    if (profile) {
+      if (body.blockedTools) profile.tools = { ...profile.tools, blocked: body.blockedTools };
+      if (body.maxRiskLevel) profile.maxRiskLevel = body.maxRiskLevel;
+      if (body.blockedSideEffects) profile.blockedSideEffects = body.blockedSideEffects;
+      if (body.requireApproval) profile.requireApproval = body.requireApproval;
+      if (body.rateLimits) profile.rateLimits = body.rateLimits;
+      if (body.constraints) profile.constraints = body.constraints;
+      permissions.setProfile(agentId, profile, managed.org_id);
+    }
+
     managed.updatedAt = new Date().toISOString();
     await lifecycle.saveAgent(agentId);
     return c.json({ success: true });
@@ -1723,6 +1921,30 @@ export function createAgentRoutes(opts: {
       const cat = TOOL_CATALOG.find(c => c.id === catId);
       if (cat?.alwaysOn) continue;
       managed.config.toolAccess[catId] = !!enabled;
+    }
+
+    // Sync toolAccess categories → permission profile blocked/allowed tools
+    const profile = permissions.getProfile(agentId);
+    if (profile) {
+      if (!profile.tools) profile.tools = { blocked: [], allowed: [] };
+      const newBlocked = new Set(profile.tools.blocked || []);
+      const newAllowed = new Set(profile.tools.allowed || []);
+      for (const [catId, enabled] of Object.entries(managed.config.toolAccess)) {
+        const cat = TOOL_CATALOG.find((c: any) => c.id === catId);
+        if (!cat) continue;
+        for (const toolId of cat.tools) {
+          if (enabled) {
+            newBlocked.delete(toolId);
+            newAllowed.add(toolId);
+          } else {
+            newAllowed.delete(toolId);
+            newBlocked.add(toolId);
+          }
+        }
+      }
+      profile.tools.blocked = [...newBlocked];
+      profile.tools.allowed = [...newAllowed];
+      permissions.setProfile(agentId, profile, managed.org_id);
     }
 
     managed.updatedAt = new Date().toISOString();

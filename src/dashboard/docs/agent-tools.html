@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Tools — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Tools</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Toggle tool categories on or off, view individual tools, configure browser access, and set tool-level restrictions for this agent.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#tool-categories">Tool Categories</a></li>
+        <li><a href="#always-on">Always-On Tools</a></li>
+        <li><a href="#oauth-tools">OAuth-Required Tools</a></li>
+        <li><a href="#filtering">Filter Tabs</a></li>
+        <li><a href="#expanding">Expanding Categories</a></li>
+        <li><a href="#bulk-actions">Bulk Enable / Disable</a></li>
+        <li><a href="#browser-config">Browser Configuration</a></li>
+        <li><a href="#tool-restrictions">Tool Restrictions</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#org-context">Organization Context</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Tools are the individual functions your agent can call — sending emails, reading files, searching the web, posting to social media, managing calendars, and more. They are organized into <strong>categories</strong> (e.g., "Email Tools," "Google Workspace," "Messaging").</p>
+  <p>This page lets you turn entire categories on or off with a toggle switch, see exactly which tools are in each category, and apply filters to find what you need. Think of it as a control panel for your agent's capabilities.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>Tool data is fetched from <code>GET /bridge/agents/:id/tools</code>, which returns an array of category objects, each containing:</p>
+  <ul>
+    <li><code>id</code> — Category identifier used in toggle requests</li>
+    <li><code>name</code>, <code>icon</code>, <code>description</code> — Display metadata</li>
+    <li><code>enabled</code> — Whether the category is currently on</li>
+    <li><code>toolCount</code> — Number of individual tools in this category</li>
+    <li><code>tools</code> — Array of tool name strings (shown on expand)</li>
+    <li><code>alwaysOn</code> — If true, the category cannot be disabled</li>
+    <li><code>requiresOAuth</code> — OAuth provider needed (e.g., <code>"google"</code>)</li>
+    <li><code>requiresIntegration</code> — Whether an external service must be configured</li>
+    <li><code>platformUnavailable</code> / <code>platformMessage</code> — When the platform isn't supported</li>
+    <li><code>isAvailable</code> — Whether prerequisites (OAuth, integration) are satisfied</li>
+  </ul>
+  <p>Toggling sends <code>PUT /bridge/agents/:id/tools</code> with a body mapping category IDs to booleans. The response is optimistically applied client-side, with a full reload on bulk operations.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>View the stats bar</strong> at the top — it shows how many tools are currently enabled out of the total available (e.g., "42 of 87 tools enabled").</li>
+  <li><strong>Browse categories</strong> — each card shows the category icon, name, tool count, and status badges (OAuth Required, Integration, Always On, Unavailable).</li>
+  <li><strong>Toggle a category</strong> by clicking the switch on the right side of any card. The change is saved immediately to the server.</li>
+  <li><strong>Expand a category</strong> by clicking anywhere on the card (except the toggle). This reveals all individual tool names within that category.</li>
+  <li><strong>Filter categories</strong> using the tab bar: All, Enabled, Disabled, Google Workspace, Messaging, Local System, Enterprise, or Integrations.</li>
+  <li><strong>Bulk actions</strong> — use "Enable All" or "Disable Optional" buttons in the stats bar to change all categories at once.</li>
+</ol>
+
+<div class="tip">
+  <strong>Tip:</strong> Click any tool category card to expand it and see the individual tool names. This helps you understand exactly what you're enabling before toggling.
+</div>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="tool-categories">Tool Categories</h3>
+
+<p>Tools are grouped into logical categories. Each category represents a related set of functionality. Examples include:</p>
+<ul>
+  <li><strong>Email Tools</strong> — Sending, reading, searching, and managing emails</li>
+  <li><strong>Google Workspace</strong> — Gmail, Calendar, Drive, Sheets, Docs, Contacts (requires Google OAuth)</li>
+  <li><strong>WhatsApp / Telegram</strong> — Messaging platform integrations</li>
+  <li><strong>Local System</strong> — File operations, shell commands, process management</li>
+  <li><strong>Enterprise</strong> — Organization-level tools like policy management and agent coordination</li>
+</ul>
+
+<p>Each category has an icon that is mapped from server-side emoji strings to custom SVG icons for consistent rendering across platforms.</p>
+
+<h3 id="always-on">Always-On Tools</h3>
+
+<p>Some tool categories are marked <strong>Always On</strong> and cannot be disabled. These are core capabilities the agent needs to function — things like memory management, basic utilities, and internal communication. They appear with an "Always On" badge and no toggle switch.</p>
+
+<h3 id="oauth-tools">OAuth-Required Tools</h3>
+
+<p>Categories like Google Workspace require an OAuth connection before they can be used. If OAuth hasn't been configured:</p>
+<ul>
+  <li>The category appears at reduced opacity (60%)</li>
+  <li>An "OAuth Required" badge is displayed</li>
+  <li>A yellow notice bar appears at the top of the page directing you to the Email tab to connect a Google account</li>
+</ul>
+
+<div class="warning">
+  <strong>Note:</strong> You can still toggle OAuth-required categories on, but the tools won't function until OAuth is connected. Connect Google in the <strong>Email</strong> tab first.
+</div>
+
+<h3 id="filtering">Filter Tabs</h3>
+
+<p>The filter tab bar provides quick views:</p>
+<ul>
+  <li><strong>All</strong> — Every category</li>
+  <li><strong>Enabled</strong> — Only currently active categories</li>
+  <li><strong>Disabled</strong> — Only inactive categories</li>
+  <li><strong>Google Workspace</strong> — Categories requiring Google OAuth or with <code>google_</code> prefix</li>
+  <li><strong>Messaging</strong> — WhatsApp and Telegram categories</li>
+  <li><strong>Local System</strong> — Categories with <code>local_</code> prefix (file, shell, etc.)</li>
+  <li><strong>Enterprise</strong> — Categories with <code>enterprise_</code> prefix</li>
+  <li><strong>Integrations</strong> — Categories requiring external service integration</li>
+</ul>
+
+<h3 id="expanding">Expanding Categories</h3>
+
+<p>Clicking a category card (not the toggle) expands it to show the individual tool names within. Tools are displayed as monospaced badges — green-tinted when the category is enabled, gray when disabled. This lets you audit exactly which functions the agent gains access to.</p>
+
+<h3 id="bulk-actions">Bulk Enable / Disable</h3>
+
+<p>Two bulk action buttons sit in the stats bar:</p>
+<ul>
+  <li><strong>Enable All</strong> — Turns on every non-always-on category</li>
+  <li><strong>Disable Optional</strong> — Turns off all categories except always-on ones. A full reload is triggered after bulk operations to ensure consistency.</li>
+</ul>
+
+<h3 id="browser-config">Browser Configuration</h3>
+
+<p>Below the tool categories, a <strong>Browser Configuration</strong> card (from <code>BrowserConfigCard</code>) lets you configure the agent's headless browser settings — user agent, viewport, proxy, and other browsing parameters. This controls how the agent interacts with web pages.</p>
+
+<h3 id="tool-restrictions">Tool Restrictions</h3>
+
+<p>The <strong>Tool Restrictions</strong> card (from <code>ToolRestrictionsCard</code>) provides fine-grained control beyond category-level toggling. Here you can block specific individual tools, set execution policies, or configure safety guards on particular tool calls.</p>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <h3>Principle of Least Privilege</h3>
+  <p>Only enable the tool categories your agent actually needs. A customer support agent doesn't need local system tools. A research agent doesn't need messaging. Start minimal and add capabilities as needed.</p>
+</div>
+
+<div class="card">
+  <h3>Review Before Enabling</h3>
+  <p>Expand a category to see its individual tools before toggling it on. Some categories contain powerful tools (e.g., shell execution, file deletion) that deserve careful consideration.</p>
+</div>
+
+<div class="card">
+  <h3>Set Up OAuth Before Enabling Google Tools</h3>
+  <p>Connect your Google account in the Email tab before enabling Google Workspace categories. Enabling them without OAuth means the tools exist but can't function — potentially confusing the agent.</p>
+</div>
+
+<div class="card">
+  <h3>Use Filters for Audit</h3>
+  <p>Periodically use the "Enabled" filter to review what's active. Use "Integrations" to check which external services are connected. This is especially important for security-conscious deployments.</p>
+</div>
+
+<div class="card">
+  <h3>Combine with Permissions</h3>
+  <p>Tool toggles control availability; the Permissions tab controls risk levels and approval requirements. Use both together — enable a category here, then set approval requirements for its risky tools in Permissions.</p>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Tool category appears grayed out with "Unavailable"</h3>
+  <p>The category's platform isn't supported in the current environment. Check the <code>platformMessage</code> for details — it may require a specific OS, runtime, or service that isn't available on this server.</p>
+</div>
+
+<div class="card">
+  <h3>Toggle doesn't save / reverts immediately</h3>
+  <p>Check the browser console for API errors from <code>PUT /bridge/agents/:id/tools</code>. Common causes: the agent engine is unreachable, or the agent ID is invalid. Try refreshing the page.</p>
+</div>
+
+<div class="card">
+  <h3>Google Workspace tools say "OAuth Required" after connecting</h3>
+  <p>The tool list may be cached. Refresh the page to re-fetch from the server. If it persists, check that the OAuth token in the Email tab is valid and hasn't expired.</p>
+</div>
+
+<div class="card">
+  <h3>"Enable All" doesn't enable always-on categories</h3>
+  <p>This is expected. Always-on categories are already enabled and can't be toggled. The bulk action only affects optional categories.</p>
+</div>
+
+<div class="card">
+  <h3>Tool count doesn't match expectations</h3>
+  <p>The stats bar shows the sum of <code>toolCount</code> across enabled categories. If a category has <code>alwaysOn: true</code>, its tools are always counted as enabled even though they don't appear in the toggle list.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+
+<h2 id="org-context">Organization Context</h2>
+<p>When an agent belongs to a <strong>client organization</strong>, tool access is governed by that organization's policies:</p>
+<ul>
+  <li>An <strong>info banner</strong> appears at the top of the Tools tab indicating which organization's policies apply.</li>
+  <li>The organization may enforce <strong>tool-level restrictions</strong> that limit which categories can be enabled or disabled.</li>
+  <li>An <strong>org badge</strong> is displayed to clearly identify the governing organization.</li>
+  <li>Organization-level restrictions take precedence over individual agent toggles — if the org blocks a tool category, it cannot be re-enabled at the agent level.</li>
+</ul>
+<div class="tip">
+  <strong>Tip:</strong> If you see tool categories that cannot be toggled, check with your organization administrator — they may have enforced restrictions at the org level.
+</div>
+
+<div class="nav">
+  <a href="/docs/agent-skills.html">Skills</a> — Higher-level skill bundles that include tool categories
+  <br>
+  <a href="/docs/agent-permissions.html">Permissions</a> — Risk levels, rate limits, and approval settings for tool use
+  <br>
+  <a href="/docs/agent-activity.html">Activity Log</a> — See tool call history and execution results
+  <br>
+  <a href="/docs/agent-channels.html">Channels</a> — Configure messaging integrations that some tools require
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

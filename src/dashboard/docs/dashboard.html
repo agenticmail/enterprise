@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Overview — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Dashboard Overview</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Your command center — real-time stats, agent health, and recent activity at a glance.</p>
+
+<div class="toc"><h3>Contents</h3><ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#stats">Stat Cards</a></li>
+<li><a href="#org-switching">Organization Switching</a></li>
+<li><a href="#events">Recent Events</a></li>
+<li><a href="#checklist">Setup Checklist</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+</ul></div>
+
+<h2 id="overview">Overview</h2>
+<p>The Dashboard is the first page you see after logging in. It provides a high-level snapshot of your entire agent workforce: how many agents are running, how many tasks are in progress, recent activity events, and any pending approvals that need your attention.</p>
+<div class="tip"><strong>For non-technical users:</strong> Think of the Dashboard as a control room. The stat cards at the top are your gauges — they tell you instantly if everything is running smoothly or if something needs attention.</div>
+
+<h2 id="stats">Stat Cards</h2>
+<p>The top row shows four key metrics:</p>
+<table>
+<tr><th>Card</th><th>What It Shows</th><th>Why It Matters</th></tr>
+<tr><td><strong>Total Agents</strong></td><td>Number of agents in your organization</td><td>Capacity planning — know your workforce size</td></tr>
+<tr><td><strong>Active Agents</strong></td><td>Agents currently online and processing</td><td>Operational health — are your agents running?</td></tr>
+<tr><td><strong>Pending Approvals</strong></td><td>Actions waiting for human review</td><td>Compliance — don't let tasks pile up</td></tr>
+<tr><td><strong>Recent Events</strong></td><td>Activity in the last 24 hours</td><td>Situational awareness — what happened today</td></tr>
+</table>
+<div class="tip"><strong>Organization filtering:</strong> When you select a client organization from the org switcher, the "Total Agents" count updates to show only that org's agents.</div>
+
+<h2 id="org-switching">Organization Switching</h2>
+<p>If you have client organizations set up, a dropdown appears at the top of the Dashboard labeled <strong>"Viewing:"</strong>. This lets you switch context between:</p>
+<ul>
+<li><strong>My Organization</strong> — Shows all internal agents and data (the default)</li>
+<li><strong>[Client Org Name]</strong> — Filters everything to show only that client's agents, tasks, and activity</li>
+</ul>
+<div class="card">
+<h3>How It Works Technically</h3>
+<p>The org switcher calls <code>GET /api/agents?clientOrgId=xxx</code> which filters agents by their <code>client_org_id</code> column. All downstream data (tasks, events, stats) is then scoped to those agents.</p>
+<p>Users bound to a client organization (via the <code>client_org_id</code> field on their user record) see the switcher <strong>locked</strong> to their org — they cannot switch to other orgs or see internal data.</p>
+</div>
+
+<h2 id="events">Recent Events</h2>
+<p>The bottom section shows the 10 most recent activity events across all agents. Each event shows:</p>
+<ul>
+<li><strong>Timestamp</strong> — When it happened</li>
+<li><strong>Agent</strong> — Which agent generated the event (shown as a colored badge)</li>
+<li><strong>Event type</strong> — Task completed, email sent, tool called, error occurred, etc.</li>
+<li><strong>Summary</strong> — Brief description of what happened</li>
+</ul>
+<p>Click any event to see full details in a modal.</p>
+
+<h2 id="checklist">Setup Checklist</h2>
+<p>When you first set up AgenticMail Enterprise, a setup checklist appears at the top of the Dashboard. It guides you through essential configuration steps:</p>
+<ol>
+<li>Create your first agent</li>
+<li>Configure a communication channel (email, WhatsApp, etc.)</li>
+<li>Set up a knowledge base</li>
+<li>Deploy an agent</li>
+<li>Configure branding (optional)</li>
+</ol>
+<p>The checklist disappears once all steps are completed.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+<ul>
+<li><strong>Check daily:</strong> Make the Dashboard your first stop each morning. Glance at pending approvals and active agents.</li>
+<li><strong>Monitor events:</strong> If you see a spike in error events, investigate immediately via the Activity tab.</li>
+<li><strong>Use org switching:</strong> If you manage multiple client organizations, switch context to review each client's health separately.</li>
+</ul>
+
+<div class="nav"><strong>Related:</strong>
+<a href="/docs/agents">Agents</a>
+<a href="/docs/task-pipeline">Task Pipeline</a>
+<a href="/docs/organizations">Organizations</a>
+<a href="/docs/multi-tenant">Multi-Tenant Guide</a>
+</div>
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

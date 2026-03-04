@@ -1,0 +1,220 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Loss Prevention — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Data Loss Prevention (DLP)</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Prevent agents from accidentally leaking sensitive data like API keys, passwords, credit card numbers, or personal information.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#rules">Creating Rules</a></li>
+<li><a href="#violations">Violation Tracking</a></li>
+<li><a href="#testing">Testing Rules</a></li>
+<li><a href="#configuration">Configuration &amp; Setup</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p><strong>For everyone:</strong> DLP is like a security guard that watches everything your AI agents send and receive. If an agent accidentally tries to include a password, credit card number, or API key in an email or output, DLP catches it and blocks, redacts, or logs it — before any damage is done.</p>
+<p><strong>For technical users:</strong> The DLP system applies pattern-matching rules (regex, keyword, or PII type detectors) to agent inputs and outputs. Rules are evaluated in real-time with configurable actions (block, redact, warn, log) and severity levels. All matches are recorded as violations in an audit-ready log. The engine exposes <code>/dlp/rules</code>, <code>/dlp/violations</code>, and <code>/dlp/scan</code> endpoints.</p>
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+<ol>
+<li><strong>Define rules</strong> — create patterns that identify sensitive data (regex, keywords, or built-in PII types).</li>
+<li><strong>Content is scanned</strong> — as agents process emails and tool outputs, content is checked against all active rules.</li>
+<li><strong>Action is taken</strong> — when a match is found, the configured action fires: block, redact, warn, or log.</li>
+<li><strong>Violation is recorded</strong> — every detection is logged with the agent, tool, direction, match context, and action taken.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Pattern Types</h3>
+<table>
+<thead><tr><th>Type</th><th>Description</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td><strong>Regex</strong></td><td>Regular expression pattern matching</td><td><code>sk-[a-zA-Z0-9]{48}</code> (OpenAI key)</td></tr>
+<tr><td><strong>Keyword</strong></td><td>Simple text matching</td><td><code>password</code>, <code>secret_key</code></td></tr>
+<tr><td><strong>PII Type</strong></td><td>Built-in detectors for common PII</td><td><code>email</code>, <code>ssn</code>, <code>credit_card</code></td></tr>
+</tbody>
+</table>
+
+<h3>Built-in PII Types</h3>
+<div class="card">
+<ul>
+<li><code>email</code> — Email addresses</li>
+<li><code>ssn</code> — US Social Security Numbers</li>
+<li><code>credit_card</code> — Credit/debit card numbers (Visa, Mastercard, Amex, etc.)</li>
+<li><code>phone</code> — Phone numbers (various formats)</li>
+<li><code>api_key</code> — Generic API key patterns</li>
+<li><code>aws_key</code> — AWS access key IDs (AKIA...)</li>
+</ul>
+</div>
+
+<h3>Actions</h3>
+<table>
+<thead><tr><th>Action</th><th>Behavior</th><th>Use When</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-advanced">Block</span></td><td>Prevents the content from being sent/processed entirely</td><td>Critical secrets, credentials, highly sensitive PII</td></tr>
+<tr><td><span class="badge badge-medium">Redact</span></td><td>Replaces the matched content with [REDACTED] and allows the rest through</td><td>Semi-sensitive data where the message itself is important</td></tr>
+<tr><td><span class="badge badge-easy">Warn</span></td><td>Allows the content but flags it with a warning</td><td>Potentially sensitive content that may be legitimate</td></tr>
+<tr><td><span class="badge">Log</span></td><td>Silently records the match without any intervention</td><td>Monitoring and baseline measurement</td></tr>
+</tbody>
+</table>
+
+<h3>Severity Levels</h3>
+<table>
+<thead><tr><th>Severity</th><th>Color</th><th>Typical Use</th></tr></thead>
+<tbody>
+<tr><td><strong>Critical</strong></td><td>Red</td><td>Production database passwords, master API keys, encryption keys</td></tr>
+<tr><td><strong>High</strong></td><td>Orange</td><td>API keys, access tokens, credit card numbers</td></tr>
+<tr><td><strong>Medium</strong></td><td>Blue</td><td>Email addresses, phone numbers, internal URLs</td></tr>
+<tr><td><strong>Low</strong></td><td>Gray</td><td>Names, general keywords, non-critical metadata</td></tr>
+</tbody>
+</table>
+
+<h2 id="rules">Creating Rules</h2>
+<p>Click <strong>"Add Rule"</strong> to create a new DLP rule. Fill in:</p>
+<ul>
+<li><strong>Name</strong> — descriptive identifier (e.g., "Block OpenAI API Keys")</li>
+<li><strong>Pattern Type</strong> — regex, keyword, or pii_type</li>
+<li><strong>Pattern</strong> — the actual pattern or PII type name</li>
+<li><strong>Action</strong> — block, redact, warn, or log</li>
+<li><strong>Severity</strong> — critical, high, medium, or low</li>
+</ul>
+
+<div class="tip">
+<strong>Tip:</strong> Start with "log" action to measure how often a pattern matches before switching to "block" or "redact." This avoids disrupting agent workflows with false positives.
+</div>
+
+<h3>Example Rules</h3>
+<pre><code>// Block AWS access keys
+Name: "Block AWS Keys"
+Type: regex
+Pattern: AKIA[0-9A-Z]{16}
+Action: block
+Severity: critical
+
+// Redact credit card numbers
+Name: "Redact Credit Cards"
+Type: pii_type
+Pattern: credit_card
+Action: redact
+Severity: high
+
+// Log email address mentions
+Name: "Log Email Mentions"
+Type: pii_type
+Pattern: email
+Action: log
+Severity: medium</code></pre>
+
+<h2 id="violations">Violation Tracking</h2>
+<p>The <strong>Violations</strong> tab shows every DLP match across all agents. Each violation record includes:</p>
+<table>
+<thead><tr><th>Field</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>Time</strong></td><td>When the violation was detected</td></tr>
+<tr><td><strong>Agent</strong></td><td>Which agent triggered the match</td></tr>
+<tr><td><strong>Tool</strong></td><td>The tool or channel that contained the content (e.g., email send, web fetch)</td></tr>
+<tr><td><strong>Action</strong></td><td>What action was taken (blocked, redacted, warned, logged)</td></tr>
+<tr><td><strong>Direction</strong></td><td>Whether the content was inbound or outbound</td></tr>
+<tr><td><strong>Match</strong></td><td>Context around the matched pattern</td></tr>
+</tbody>
+</table>
+
+<div class="warning">
+<strong>Warning:</strong> Violations are limited to the most recent 100 entries in the UI. For full audit history, use the Compliance reporting feature or query the API directly.
+</div>
+
+<h2 id="testing">Testing Rules</h2>
+<p>The <strong>Test</strong> tab lets you validate rules against sample content before deploying them:</p>
+<ol>
+<li>Switch to the "Test" tab</li>
+<li>Paste sample content into the text area</li>
+<li>Click "Run Scan"</li>
+<li>Review results — shows which rules matched and how many times</li>
+</ol>
+
+<div class="tip">
+<strong>Tip:</strong> Test with realistic data samples before deploying new rules. Include both positive cases (should match) and negative cases (should NOT match) to verify accuracy and avoid false positives.
+</div>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>API Endpoints</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/dlp/rules?orgId=</code></td><td>List all DLP rules</td></tr>
+<tr><td>POST</td><td><code>/dlp/rules</code></td><td>Create a new rule</td></tr>
+<tr><td>DELETE</td><td><code>/dlp/rules/:id</code></td><td>Delete a rule</td></tr>
+<tr><td>GET</td><td><code>/dlp/violations?orgId=&amp;limit=</code></td><td>List violations</td></tr>
+<tr><td>POST</td><td><code>/dlp/scan</code></td><td>Test content against all active rules</td></tr>
+</tbody>
+</table>
+
+<h3>Rule Schema</h3>
+<pre><code>{
+  "name": "Block API Keys",
+  "orgId": "org-123",
+  "patternType": "regex",       // "regex" | "keyword" | "pii_type"
+  "pattern": "sk-[a-zA-Z0-9]{48}",
+  "action": "block",            // "block" | "redact" | "warn" | "log"
+  "appliesTo": "both",          // "inbound" | "outbound" | "both"
+  "severity": "high",           // "critical" | "high" | "medium" | "low"
+  "enabled": true
+}</code></pre>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Start with logging</strong> — deploy rules in "log" mode first to understand match frequency before blocking.</li>
+<li><strong>Layer your rules</strong> — combine PII type detectors (broad) with regex rules (specific) for comprehensive coverage.</li>
+<li><strong>Test before deploying</strong> — always use the Test tab with realistic content to verify patterns.</li>
+<li><strong>Monitor violations regularly</strong> — review the Violations tab weekly to identify trends and false positives.</li>
+<li><strong>Use severity appropriately</strong> — reserve "critical" for production credentials; overusing it causes alert fatigue.</li>
+<li><strong>Cover both directions</strong> — set <code>appliesTo: "both"</code> unless you have a specific reason to scan only inbound or outbound.</li>
+<li><strong>Keep patterns specific</strong> — overly broad regex patterns generate false positives. <code>sk-[a-zA-Z0-9]{48}</code> is better than <code>sk-.*</code>.</li>
+<li><strong>Combine with Vault</strong> — store credentials in the Vault rather than relying solely on DLP to catch leaks.</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+<h3>Rule not matching expected content</h3>
+<p>Use the Test tab to debug. Common issues: regex missing anchors, case sensitivity, or PII type not covering the exact format. Try your regex at <a href="https://regex101.com">regex101.com</a> first.</p>
+
+<h3>Too many false positives</h3>
+<p>Make your patterns more specific. For example, use <code>\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b</code> for credit cards instead of just <code>\d{16}</code>. Consider switching to "warn" or "log" action while tuning.</p>
+
+<h3>Violations not appearing</h3>
+<p>Check that the rule is enabled and that <code>orgId</code> matches. Violations are scoped per organization. Also verify the <code>appliesTo</code> field matches the direction of the content.</p>
+
+<h3>Agent blocked but content seems safe</h3>
+<p>This is a false positive. Review the violation's match context, adjust the rule pattern, and consider switching to "warn" action. You can delete and recreate the rule with a refined pattern.</p>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+<a href="/docs/vault.html">Vault</a> — Store credentials securely so agents don't need to handle raw secrets.
+<a href="/docs/compliance.html">Compliance</a> — Generate reports that include DLP violation summaries.
+<a href="/docs/users.html">Users</a> — Manage who can create and edit DLP rules.
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

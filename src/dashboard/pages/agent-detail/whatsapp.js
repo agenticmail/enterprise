@@ -1,4 +1,5 @@
-import { h, useState, useEffect, Fragment, useApp, engineCall } from '../../components/utils.js';
+import { h, useState, useEffect, Fragment, useApp, engineCall, apiCall } from '../../components/utils.js';
+import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { HelpButton } from '../../components/help-button.js';
 
@@ -563,7 +564,7 @@ function ConversationsCard(props) {
     !loading && convos.length > 0 && h('div', null,
       convos.map(function(c) {
         var initial = (c.name || c.contactId || '?').charAt(0).toUpperCase();
-        var colors = ['#6366f1', '#9d174d', '#f59e0b', '#15803d', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
+        var colors = ['#6366f1', '#9d174d', '#991b1b', '#15803d', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
         var colorIdx = (initial.charCodeAt(0) || 0) % colors.length;
         return h('div', { key: c.contactId,
           style: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '10px', cursor: 'pointer', transition: 'background 0.15s', marginBottom: '2px' },
@@ -754,6 +755,19 @@ export function WhatsAppSection(props) {
   var setTab = props.setTab;
   var toast = useApp().toast;
 
+  var _orgInfo = useState(null);
+  var orgInfo = _orgInfo[0]; var setOrgInfo = _orgInfo[1];
+
+  useEffect(function() {
+    if (engineAgent?.client_org_id) {
+      apiCall('/organizations/' + engineAgent.client_org_id)
+        .then(function(org) { setOrgInfo(org); })
+        .catch(function() {});
+    }
+  }, [engineAgent?.client_org_id]);
+
+  var orgName = orgInfo ? (orgInfo.name || orgInfo.display_name || 'Organization') : null;
+
   var agentConfig = engineAgent?.config || {};
   var channels = agentConfig.messagingChannels || {};
   var waConfig = channels.whatsapp || {};
@@ -787,6 +801,14 @@ export function WhatsAppSection(props) {
           h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with same-number mode for simplicity. Switch to a separate number when you need clear separation between personal and business messages.')
         )),
         h('p', { style: { margin: 0, fontSize: '13px', color: 'var(--text-secondary)' } }, 'Connect a dedicated business number for customer support \u2014 separate from your personal WhatsApp')
+      )
+    ),
+
+    engineAgent?.client_org_id && orgName && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft)', borderRadius: '8px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 } },
+      I.building(),
+      h('div', null,
+        h('div', { style: { fontSize: 13, fontWeight: 600 } }, 'This agent serves ', h('strong', null, orgName), ' customers.'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 } }, 'The business WhatsApp number operates as ', orgName, '\'s business line. Customer pairing requests will be associated with this organization.')
       )
     ),
 

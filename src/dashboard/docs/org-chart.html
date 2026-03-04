@@ -1,0 +1,239 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organization Chart — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Organization Chart</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Visual hierarchy of all agents — reporting structure, status indicators, and interactive tree layout on a zoomable canvas.</p>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#canvas-interactions">Canvas Interactions</a></li>
+    <li><a href="#node-cards">Node Cards</a></li>
+    <li><a href="#summary-metrics">Summary Metrics</a></li>
+    <li><a href="#hover-tooltip">Hover Tooltip</a></li>
+    <li><a href="#external-managers">External Managers</a></li>
+    <li><a href="#configuration">Configuration &amp; Setup</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+
+<div class="tip">
+  <strong>Non-technical summary:</strong> This page shows your AI agents organized like a company org chart — who reports to whom, who's online, and who's busy. Hover over any agent to see their details, and drag/zoom to explore large teams.
+</div>
+
+<p>The Organization Chart renders a top-down tree layout of all agents in your organization. Each agent is a card node showing name, role, state, and activity badges. Edges (SVG curved paths) connect agents to their managers, forming a visual reporting hierarchy.</p>
+
+<p>Key features:</p>
+<ul>
+  <li>Automatic tree layout with top-down hierarchy</li>
+  <li>Color-coded state indicators (running, stopped, error, paused)</li>
+  <li>External (human) manager support with purple styling</li>
+  <li>Interactive zoom, pan, and hover highlighting</li>
+  <li>Summary metrics bar</li>
+  <li>Rich hover tooltips with agent details</li>
+</ul>
+
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Fetch data</strong> — Two API calls: <code>/hierarchy/org-chart</code> for hierarchy data, and <code>/agents</code> for avatars and metadata.</li>
+  <li><strong>Build tree</strong> — Agents are grouped by <code>managerId</code>. Agents without a manager (or with an unresolvable manager) become root nodes.</li>
+  <li><strong>External managers</strong> — Agents with <code>managerType: 'external'</code> are grouped under synthetic purple nodes representing human managers.</li>
+  <li><strong>Compute layout</strong> — A recursive algorithm calculates subtree widths, then positions nodes top-down with even spacing (220×72px nodes, 40px horizontal gap, 80px vertical gap).</li>
+  <li><strong>Render</strong> — SVG cubic Bézier curves for edges, HTML div cards for nodes, all on a zoomable/pannable canvas.</li>
+  <li><strong>Auto-fit</strong> — On first render, the canvas auto-zooms to fit all nodes in view.</li>
+</ol>
+
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Agent States</h3>
+<table>
+  <thead><tr><th>State</th><th>Color</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Running</td><td><span class="badge" style="background:#15803d22;color:#15803d">Green</span></td><td>Agent is active and processing</td></tr>
+    <tr><td>Stopped</td><td><span class="badge" style="background:#6b739422;color:#6b7394">Gray</span></td><td>Agent is not running</td></tr>
+    <tr><td>Error</td><td><span class="badge" style="background:#ef444422;color:#ef4444">Red</span></td><td>Agent encountered an error</td></tr>
+    <tr><td>Paused</td><td><span class="badge" style="background:#991b1b22;color:#991b1b">Amber</span></td><td>Agent is temporarily paused</td></tr>
+    <tr><td>Deploying</td><td><span class="badge" style="background:#06b6d422;color:#06b6d4">Cyan</span></td><td>Agent is being deployed</td></tr>
+    <tr><td>External</td><td><span class="badge" style="background:#8b5cf622;color:#8b5cf6">Purple</span></td><td>Human/external manager node</td></tr>
+  </tbody>
+</table>
+
+<h3>Manager Types</h3>
+<ul>
+  <li><strong>Internal</strong> — Reports to another AI agent in the system</li>
+  <li><strong>External</strong> — Reports to a human manager (shown as a purple node)</li>
+  <li><strong>None</strong> — Root-level agent with no manager</li>
+</ul>
+
+<h2 id="canvas-interactions">Canvas Interactions</h2>
+
+<table>
+  <thead><tr><th>Action</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Hover</strong> on a node</td><td>Highlights the full chain (ancestors + descendants), dims everything else. Shows detail tooltip.</td></tr>
+    <tr><td><strong>Scroll wheel</strong></td><td>Zoom in/out (15%–300%)</td></tr>
+    <tr><td><strong>Click + drag</strong> background</td><td>Pan the canvas</td></tr>
+    <tr><td><strong>Fit button</strong></td><td>Auto-zoom to fit all nodes</td></tr>
+    <tr><td><strong>Refresh button</strong></td><td>Reload hierarchy data</td></tr>
+  </tbody>
+</table>
+
+<h2 id="node-cards">Node Cards</h2>
+
+<p>Each agent node (220×72px) displays:</p>
+<ul>
+  <li><strong>Avatar</strong> — Agent avatar image or colored initial circle with state-colored border</li>
+  <li><strong>State dot</strong> — Small circle at bottom-right of avatar showing current state</li>
+  <li><strong>Name</strong> — Agent name (truncated with ellipsis if too long)</li>
+  <li><strong>Role</strong> — Agent role description</li>
+  <li><strong>Badges:</strong>
+    <ul>
+      <li><span class="badge" style="background:#6366f122;color:#6366f1">MGR</span> — Agent is a manager (has subordinates)</li>
+      <li><span class="badge" style="background:#991b1b22;color:#991b1b">N tasks</span> — Count of active tasks</li>
+      <li><span class="badge" style="background:#ef444422;color:#ef4444">N err</span> — Errors today</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="summary-metrics">Summary Metrics</h2>
+
+<p>Below the toolbar, a compact metrics bar shows:</p>
+<ul>
+  <li><strong>Agents</strong> — Total count (excluding external managers)</li>
+  <li><strong>Running</strong> — Active agents (green)</li>
+  <li><strong>Stopped</strong> — Inactive agents (gray, shown only if &gt; 0)</li>
+  <li><strong>Error</strong> — Agents in error state (red, shown only if &gt; 0)</li>
+  <li><strong>Paused</strong> — Paused agents (amber, shown only if &gt; 0)</li>
+  <li><strong>Human</strong> — External manager nodes (purple, shown only if &gt; 0)</li>
+  <li><strong>Managers</strong> — Agents with subordinates</li>
+  <li><strong>Active Tasks</strong> — Total across all agents</li>
+  <li><strong>Errors Today</strong> — Total errors across all agents</li>
+</ul>
+
+<h2 id="hover-tooltip">Hover Tooltip</h2>
+
+<p>Hovering over any node shows a fixed-position tooltip with:</p>
+<ul>
+  <li>Agent avatar, name, and role</li>
+  <li>Current state</li>
+  <li>Clocked-in status (Yes/No)</li>
+  <li>Type (Internal AI / External Human)</li>
+  <li>Reports to (manager name)</li>
+  <li>Direct reports count</li>
+  <li>Active tasks count</li>
+  <li>Errors today count</li>
+  <li>Last active timestamp (relative, e.g., "5m ago")</li>
+</ul>
+
+<h2 id="external-managers">External Managers</h2>
+
+<p>When agents have <code>managerType: 'external'</code> with a <code>managerName</code> and/or <code>managerEmail</code>, the system creates synthetic purple nodes representing human managers. These nodes:</p>
+<ul>
+  <li>Use a purple gradient avatar</li>
+  <li>Show "External Manager" as role</li>
+  <li>Group all agents reporting to that human under a single node</li>
+  <li>Are always shown as the root of their subtree</li>
+</ul>
+
+<div class="tip">
+  <strong>Tip:</strong> External manager nodes let you visualize the complete reporting structure including human oversight, not just the AI-to-AI hierarchy.
+</div>
+
+<h2 id="configuration">Configuration &amp; Setup</h2>
+
+<h3>Setting Up the Hierarchy</h3>
+<p>The org chart automatically reflects agent configurations. To create hierarchy:</p>
+<ol>
+  <li>Set <code>managerId</code> on agent config to point to another agent's ID for internal reporting</li>
+  <li>Or set <code>managerType: 'external'</code> with <code>externalManagerName</code> and <code>externalManagerEmail</code> for human managers</li>
+  <li>Agents without a manager appear as root nodes</li>
+</ol>
+
+<h3>Agent Avatars</h3>
+<p>Avatars are resolved from (in priority order):</p>
+<ol>
+  <li><code>config.identity.avatar</code></li>
+  <li><code>config.avatar</code></li>
+  <li><code>config.persona.avatar</code></li>
+</ol>
+<p>If none is set, a colored circle with the first letter of the agent's name is shown.</p>
+
+<h2 id="api-reference">API Reference</h2>
+
+<table>
+  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>/hierarchy/org-chart</code></td><td>GET</td><td>Full hierarchy with nodes (agentId, name, role, state, managerId, subordinates, etc.)</td></tr>
+    <tr><td><code>/agents</code></td><td>GET</td><td>Agent list with config (for avatar resolution)</td></tr>
+  </tbody>
+</table>
+
+<h3>Org Chart Node Fields</h3>
+<table>
+  <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>agentId</code></td><td>string</td><td>Unique agent identifier</td></tr>
+    <tr><td><code>name</code></td><td>string</td><td>Display name</td></tr>
+    <tr><td><code>role</code></td><td>string</td><td>Agent role description</td></tr>
+    <tr><td><code>state</code></td><td>string</td><td>running, stopped, error, paused, deploying</td></tr>
+    <tr><td><code>managerId</code></td><td>string?</td><td>ID of parent agent</td></tr>
+    <tr><td><code>managerType</code></td><td>string</td><td>internal, external, or none</td></tr>
+    <tr><td><code>subordinateCount</code></td><td>number</td><td>Number of direct reports</td></tr>
+    <tr><td><code>isManager</code></td><td>boolean</td><td>Whether this agent manages others</td></tr>
+    <tr><td><code>activeTasks</code></td><td>number</td><td>Current active tasks</td></tr>
+    <tr><td><code>errorsToday</code></td><td>number</td><td>Errors in the last 24h</td></tr>
+    <tr><td><code>clockedIn</code></td><td>boolean</td><td>Workforce clock status</td></tr>
+  </tbody>
+</table>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<ul>
+  <li><strong>Define clear reporting lines:</strong> Set <code>managerId</code> on every agent to create a clean hierarchy. Orphan agents cluster at the root level.</li>
+  <li><strong>Use external managers:</strong> If humans oversee AI agents, set them as external managers for a complete picture.</li>
+  <li><strong>Monitor error badges:</strong> Red error badges on nodes indicate agents needing attention — investigate promptly.</li>
+  <li><strong>Keep teams balanced:</strong> If one manager agent has 20+ direct reports, consider adding intermediate management layers.</li>
+  <li><strong>Set avatars:</strong> Custom avatars make the chart much easier to scan visually, especially with large teams.</li>
+  <li><strong>Use Fit to View:</strong> After making hierarchy changes, click "Fit" to re-center the chart.</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<table>
+  <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+  <tbody>
+    <tr><td>Chart shows "No Organization Hierarchy Yet"</td><td>Add agents and set <code>managerId</code> to create reporting relationships. If agents exist but hierarchy endpoint returns null, the chart falls back to a flat list from <code>/agents</code>.</td></tr>
+    <tr><td>All agents at root level</td><td>No <code>managerId</code> set on any agent. Configure manager relationships in agent settings.</td></tr>
+    <tr><td>External manager not showing</td><td>Set <code>managerType: 'external'</code> with <code>externalManagerName</code> on the agent config. The email is optional but helps deduplicate.</td></tr>
+    <tr><td>Avatars not showing</td><td>Set <code>config.identity.avatar</code> to a valid image URL on the agent.</td></tr>
+    <tr><td>Canvas blank after loading</td><td>Click "Fit" to auto-zoom. The nodes may be outside the visible area.</td></tr>
+    <tr><td>Nodes overlapping</td><td>The tree layout should prevent this. If it happens, check for circular manager references (Agent A manages B, B manages A).</td></tr>
+  </tbody>
+</table>
+
+<h2 id="related">Related Pages</h2>
+
+<div class="nav">
+  <a href="/docs/workforce.html">Workforce Management</a> — Agent schedules and clock management
+  <a href="/docs/task-pipeline.html">Task Pipeline</a> — Task flow and delegation chains
+  <a href="/docs/messages.html">Agent Messages</a> — Inter-agent communications
+  <a href="/docs/activity.html">Activity Log</a> — Event and tool call history
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

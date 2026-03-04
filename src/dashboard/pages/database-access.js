@@ -3,6 +3,8 @@ import { I } from '../components/icons.js?v=2';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
 import { BrandLogo } from '../assets/brand-logos.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 var DATABASE_TYPES = [
   { section: 'Relational (SQL)', items: [
@@ -115,6 +117,7 @@ Object.keys(_s).forEach(function(k) { s[k] = css(_s[k]); });
 
 export function DatabaseAccessPage() {
   var app = useApp();
+  var orgCtx = useOrgContext();
   var [tab, setTab] = useState('connections');
   var [connections, setConnections] = useState([]);
   var [agents, setAgents] = useState([]);
@@ -166,12 +169,16 @@ export function DatabaseAccessPage() {
       h('div', { style: s.title },
         I.database(),
         'Database Access',
+        h(KnowledgeLink, { page: 'database-access' }),
         h(HelpButton, { label: 'Database Access' },
           h('p', null, 'Connect your agents to external databases. Each agent can be granted granular permissions (read, write, delete) on specific database connections.'),
           h('p', null, 'Credentials are encrypted in the vault. All queries are sanitized, rate-limited, and logged for audit.'),
         ),
       ),
-      h('button', { style: s.btnPrimary, onClick: function() { setShowAdd(true); } }, '+ Add Connection'),
+      h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+        h(orgCtx.Switcher),
+        h('button', { style: s.btnPrimary, onClick: function() { setShowAdd(true); } }, '+ Add Connection')
+      ),
     ),
 
     // Tabs
@@ -185,7 +192,7 @@ export function DatabaseAccessPage() {
     ),
 
     // Content
-    tab === 'connections' && h(ConnectionsTab, { connections: connections, agents: agents, onDelete: deleteConn, onTest: testConn, onEdit: setEditConn, onGrant: setShowGrant, onRefresh: loadData }),
+    tab === 'connections' && h(ConnectionsTab, { connections: orgCtx.selectedOrgId ? connections.filter(function(c) { return c.orgId === orgCtx.selectedOrgId; }) : connections, agents: agents, onDelete: deleteConn, onTest: testConn, onEdit: setEditConn, onGrant: setShowGrant, onRefresh: loadData }),
     tab === 'agents' && h(AgentAccessTab, { connections: connections, agents: agents, onRefresh: loadData }),
     tab === 'audit' && h(AuditTab, { auditLog: auditLog, onRefresh: loadAudit }),
 

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Permissions — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Agent Permissions</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Control risk levels, blocked actions, approval workflows, rate limits, constraints, and organization policies — the full security profile for this agent.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#role-templates">Role Templates (Souls)</a></li>
+        <li><a href="#permission-presets">Permission Presets</a></li>
+        <li><a href="#risk-levels">Maximum Risk Level</a></li>
+        <li><a href="#side-effects">Blocked Side Effects</a></li>
+        <li><a href="#approval">Approval Settings</a></li>
+        <li><a href="#rate-limits">Rate Limits</a></li>
+        <li><a href="#constraints">Constraints &amp; Sandbox Mode</a></li>
+        <li><a href="#tool-overrides">Tool Overrides</a></li>
+        <li><a href="#policies">Applicable Policies</a></li>
+        <li><a href="#org-policies">Organization Policies</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Permissions define the boundaries of what your agent is allowed to do. They answer questions like: Can this agent send emails without approval? How many actions can it perform per hour? Is it allowed to delete data or run code?</p>
+  <p>There are three ways to set permissions:</p>
+  <ol>
+    <li><strong>Role Templates</strong> — One-click personas that set identity, personality, skills, and permissions together (e.g., "Customer Support Agent" or "Research Analyst").</li>
+    <li><strong>Permission Presets</strong> — Quick profiles focused just on permissions (Restrictive, Standard, Permissive).</li>
+    <li><strong>Custom Profile</strong> — Full manual control over every setting.</li>
+  </ol>
+  <p>Organization-wide policies also apply automatically and are shown at the bottom of this page.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>The permission system uses several endpoints:</p>
+  <ul>
+    <li><code>GET /policies/agent/:id?orgId=…</code> — Fetch applicable org policies</li>
+    <li><code>GET /profiles/presets</code> — List available preset profiles</li>
+    <li><code>GET /souls/by-category</code> — List role templates grouped by category with metadata</li>
+    <li><code>POST /profiles/:id/apply-preset</code> — Apply a named preset to the agent</li>
+    <li><code>PUT /profiles/:id</code> — Save a custom permission profile</li>
+  </ul>
+  <p>Role templates also update agent config (identity, personality, description) via hot-update or config patch, and optionally apply a suggested permission preset. The profile object contains: <code>maxRiskLevel</code>, <code>blockedSideEffects</code>, <code>sandboxMode</code>, <code>requireApproval</code>, <code>rateLimits</code>, and <code>constraints</code>.</p>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Open the Permissions tab</strong> on the agent detail page. You'll see the current permission profile (or an empty state prompting you to create one).</li>
+  <li><strong>Choose a starting point:</strong>
+    <ul>
+      <li><em>Role Template</em> — Expand the templates section, search or browse, and click to apply. This sets identity + permissions in one action.</li>
+      <li><em>Permission Preset</em> — Click a preset card (Restrictive, Standard, Permissive) to apply it immediately.</li>
+      <li><em>Custom</em> — Click "Edit" on the current profile card to manually configure every setting.</li>
+    </ul>
+  </li>
+  <li><strong>In edit mode</strong>, configure: maximum risk level, blocked side effects, approval requirements, rate limits, and constraints.</li>
+  <li><strong>Save</strong> — Changes are persisted via <code>PUT /profiles/:id</code> and take effect on the next agent action.</li>
+  <li><strong>Review policies</strong> — The Applicable Policies table shows organization-level rules that apply regardless of the agent's profile.</li>
+</ol>
+
+<div class="tip">
+  <strong>Tip:</strong> Role templates are the fastest way to get started. Apply one, then use "Edit" to fine-tune individual settings.
+</div>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="role-templates">Role Templates (Souls)</h3>
+
+<p>Role templates are pre-configured agent personas that bundle together:</p>
+<ul>
+  <li><strong>Identity</strong> — Role name, personality, and description</li>
+  <li><strong>Suggested Preset</strong> — An optional permission preset to apply alongside</li>
+</ul>
+
+<p>Templates are organized by category (e.g., "Customer Facing," "Internal Operations," "Creative"). Each category has metadata including an icon and display name. Applying a template:</p>
+<ol>
+  <li>Updates the agent's <code>config.identity</code> (role, personality, description) via hot-update or config patch</li>
+  <li>If the template has a <code>suggestedPreset</code>, applies that permission preset as well</li>
+</ol>
+
+<p>The template gallery supports search (by name, description, and tags) and can be collapsed/expanded.</p>
+
+<h3 id="permission-presets">Permission Presets</h3>
+
+<p>Presets are quick permission profiles that replace the entire current profile. They configure risk levels, blocked actions, rate limits, and approval requirements in one click. The currently active preset is highlighted with a checkmark and accent border.</p>
+
+<p>Common presets:</p>
+<ul>
+  <li><strong>Restrictive</strong> — Low max risk, many blocked side effects, approval required for most actions</li>
+  <li><strong>Standard</strong> — Medium risk, balanced defaults suitable for most agents</li>
+  <li><strong>Permissive</strong> — High autonomy, fewer restrictions, minimal approval requirements</li>
+</ul>
+
+<h3 id="risk-levels">Maximum Risk Level</h3>
+
+<p>Defines the highest risk tier of tools the agent can use. Four levels:</p>
+<ul>
+  <li><span class="badge badge-easy">low</span> — Safe, read-only operations</li>
+  <li><span class="badge badge-medium">medium</span> — Standard operations with moderate impact</li>
+  <li><span class="badge badge-advanced">high</span> — Actions with significant consequences (sending emails, modifying data)</li>
+  <li><span class="badge" style="background:var(--danger);color:#fff">critical</span> — Destructive or irreversible operations (deleting data, financial transactions)</li>
+</ul>
+<p>Tools above the maximum risk level are blocked entirely, regardless of other settings.</p>
+
+<h3 id="side-effects">Blocked Side Effects</h3>
+
+<p>Side effects are categories of real-world impact. You can block specific types entirely:</p>
+<ul>
+  <li><code>sends-email</code> — Sending outbound emails</li>
+  <li><code>sends-message</code> — Sending chat messages</li>
+  <li><code>sends-sms</code> — Sending text messages</li>
+  <li><code>posts-social</code> — Publishing to social media</li>
+  <li><code>runs-code</code> — Executing shell commands or scripts</li>
+  <li><code>modifies-files</code> — Creating, editing, or moving files</li>
+  <li><code>deletes-data</code> — Permanently removing data</li>
+  <li><code>controls-device</code> — Interacting with hardware or IoT devices</li>
+  <li><code>financial</code> — Making purchases or financial transactions</li>
+</ul>
+<p>Blocked side effects are shown as red badges. Any tool that produces a blocked side effect will be denied.</p>
+
+<h3 id="approval">Approval Settings</h3>
+
+<p>When enabled, the agent must get human approval before performing certain actions. You configure:</p>
+<ul>
+  <li><strong>Risk levels requiring approval</strong> — Select which risk tiers trigger the approval flow (e.g., high and critical)</li>
+  <li><strong>Side effects requiring approval</strong> — Select which side effect types need approval (e.g., sends-email, financial)</li>
+  <li><strong>Timeout</strong> — How many minutes to wait for approval before the action is auto-denied (default: 30)</li>
+</ul>
+
+<div class="warning">
+  <strong>Note:</strong> Approval is different from blocking. Blocked side effects are denied outright. Approval-required actions are paused and wait for human confirmation.
+</div>
+
+<h3 id="rate-limits">Rate Limits</h3>
+
+<p>Rate limits prevent runaway behavior and control costs. Four configurable limits:</p>
+<ul>
+  <li><strong>Calls per Minute</strong> — Maximum tool invocations per minute (default: 30)</li>
+  <li><strong>Calls per Hour</strong> — Maximum per hour (default: 500)</li>
+  <li><strong>Calls per Day</strong> — Maximum per day (default: 5,000)</li>
+  <li><strong>External Actions per Hour</strong> — Separate limit for actions with external impact like email and messaging (default: 50)</li>
+</ul>
+<p>When a limit is reached, subsequent tool calls are denied until the window resets. Set to 0 for unlimited (not recommended for production).</p>
+
+<h3 id="constraints">Constraints &amp; Sandbox Mode</h3>
+
+<p>Operational limits that govern the agent's resources:</p>
+<ul>
+  <li><strong>Max Concurrent Tasks</strong> — How many tasks the agent can work on simultaneously (default: 5)</li>
+  <li><strong>Max Session Duration</strong> — Maximum minutes a single session can run before being terminated (default: 480 / 8 hours)</li>
+  <li><strong>Sandbox Mode</strong> — When enabled, restricts the agent to safe, read-only tools only. All write operations and external actions are blocked. Useful for testing or untrusted agents.</li>
+  <li><strong>Allowed IPs</strong> — IP allowlist for API access (shown in view mode; configured elsewhere)</li>
+</ul>
+
+<h3 id="tool-overrides">Tool Overrides</h3>
+
+<p>The permission profile can include explicit tool-level overrides:</p>
+<ul>
+  <li><strong>Blocked Tools</strong> — Specific tools that are denied regardless of category or risk level (shown as red badges)</li>
+  <li><strong>Allowed Tools</strong> — Specific tools that are permitted even if their category or risk level would normally block them (shown as green badges)</li>
+</ul>
+<p>This section only appears when overrides are configured.</p>
+
+<h3 id="policies">Applicable Policies</h3>
+
+<p>Organization-level policies that apply to this agent. Policies are rules defined at the org level — they're not per-agent but apply to agents based on scope. The table shows:</p>
+<ul>
+  <li><strong>Name</strong> — Policy title</li>
+  <li><strong>Category</strong> — Type of policy: code of conduct, communication, data handling, brand voice, security, escalation, or custom</li>
+  <li><strong>Enforcement</strong> — How strictly it's applied:
+    <ul>
+      <li><span class="badge" style="background:#ef4444;color:#fff">mandatory</span> — Must be followed; violations are blocked</li>
+      <li><span class="badge" style="background:#991b1b;color:#fff">recommended</span> — Should be followed; violations generate warnings</li>
+      <li><span class="badge" style="background:#0ea5e9;color:#fff">informational</span> — Advisory only; no enforcement</li>
+    </ul>
+  </li>
+  <li><strong>Status</strong> — Whether the policy is currently enabled or disabled</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <h3>Start with a Preset, Then Customize</h3>
+  <p>Pick the preset closest to your needs (usually "Standard"), then use "Edit" to adjust specific settings. This avoids starting from a blank slate.</p>
+</div>
+
+<div class="card">
+  <h3>Enable Approval for External Actions</h3>
+  <p>At minimum, require approval for <code>sends-email</code> and <code>financial</code> side effects. This prevents the agent from sending messages or spending money without human confirmation — especially important during initial deployment.</p>
+</div>
+
+<div class="card">
+  <h3>Set Reasonable Rate Limits</h3>
+  <p>The defaults (30/min, 500/hr, 5000/day) work for most agents. Lower them for agents with external actions to prevent spam. Raise them for batch-processing agents that need high throughput.</p>
+</div>
+
+<div class="card">
+  <h3>Use Sandbox Mode for Testing</h3>
+  <p>When developing or testing a new agent, enable sandbox mode. The agent can read data and plan actions but can't execute anything with real-world impact. Disable it once you're confident in the agent's behavior.</p>
+</div>
+
+<div class="card">
+  <h3>Review Organization Policies</h3>
+  <p>Check the Applicable Policies table to understand what org-level rules affect this agent. Mandatory policies can block actions even if the agent's own profile allows them.</p>
+</div>
+
+<div class="card">
+  <h3>Role Templates for New Agents</h3>
+  <p>When creating a new agent, apply a role template first. It sets identity, personality, and permissions in one click — a much faster starting point than configuring everything manually.</p>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Agent can't perform an action it should be able to</h3>
+  <p>Check in order: (1) Is the tool's category enabled in the Tools tab? (2) Is the tool's risk level within <code>maxRiskLevel</code>? (3) Is the side effect type blocked? (4) Is there a mandatory org policy blocking it? (5) Has a rate limit been hit?</p>
+</div>
+
+<div class="card">
+  <h3>"No permission profile assigned" message</h3>
+  <p>The agent has no profile yet. Apply a role template, select a preset, or create a custom profile. Without a profile, the agent may use system defaults which vary by deployment.</p>
+</div>
+
+<div class="card">
+  <h3>Preset doesn't seem to apply</h3>
+  <p>Presets replace the entire profile. If you see stale values, refresh the page — the profile is re-fetched from the server. Also check the browser console for errors from <code>POST /profiles/:id/apply-preset</code>.</p>
+</div>
+
+<div class="card">
+  <h3>Role template only changes identity, not permissions</h3>
+  <p>Not all role templates have a <code>suggestedPreset</code>. If the template doesn't include one, only the agent's identity (role, personality, description) is updated. Apply a permission preset separately if needed.</p>
+</div>
+
+<div class="card">
+  <h3>Approval requests timing out</h3>
+  <p>The default timeout is 30 minutes. If approvers consistently miss the window, increase the timeout in the approval settings. Also consider reducing which actions require approval to only the most critical ones.</p>
+</div>
+
+<div class="card">
+  <h3>Policies show as "Disabled" but should be active</h3>
+  <p>Policies are managed at the organization level, not per-agent. If a policy appears disabled here, it was disabled org-wide. Contact your organization admin to re-enable it.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+
+<h2 id="org-policies">Organization Policies</h2>
+<p>When an agent belongs to a <strong>client organization</strong>, permissions are governed by that organization's policies:</p>
+<ul>
+  <li>A prominent <strong>info banner</strong> shows which organization's policies apply to this agent.</li>
+  <li>Organization-level <strong>permission overrides</strong> may enforce stricter risk levels, additional blocked side effects, or mandatory approval requirements.</li>
+  <li>The <strong>Applicable Policies</strong> table includes org-level policies alongside global ones.</li>
+  <li>Rate limits and constraints may be capped by the organization — individual agent settings cannot exceed org-level maximums.</li>
+  <li>Permission presets available may be filtered to those approved by the organization.</li>
+</ul>
+<div class="tip">
+  <strong>Tip:</strong> If you cannot raise the risk level or remove a blocked side effect, the organization may have enforced a ceiling. Check with your org administrator.
+</div>
+
+<div class="nav">
+  <a href="/docs/agent-tools.html">Tools</a> — Enable/disable tool categories (works alongside permission risk levels)
+  <br>
+  <a href="/docs/agent-skills.html">Skills</a> — High-level capability packages that role templates may configure
+  <br>
+  <a href="/docs/agent-manager.html">Manager &amp; Catch-Up</a> — Who the agent escalates to when approval is needed
+  <br>
+  <a href="/docs/agent-activity.html">Activity Log</a> — See which actions were approved, denied, or rate-limited
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

@@ -13,6 +13,8 @@ var ALL_RISK_LEVELS = ['low', 'medium', 'high', 'critical'];
 export function PermissionsSection(props) {
   var initialProfile = props.profile;
   var agentId = props.agentId;
+  var engineAgent = props.engineAgent || {};
+  var clientOrgId = engineAgent.client_org_id;
   var reload = props.reload;
 
   var app = useApp();
@@ -42,9 +44,25 @@ export function PermissionsSection(props) {
   var form = _form[0]; var setForm = _form[1];
   var _applyingSoul = useState(null);
   var applyingSoul = _applyingSoul[0]; var setApplyingSoul = _applyingSoul[1];
+  var _previewTpl = useState(null);
+  var previewTpl = _previewTpl[0]; var setPreviewTpl = _previewTpl[1];
+  var _confirmStep = useState(0); // 0=preview, 1=impact, 2=type-confirm, 3=applying
+  var confirmStep = _confirmStep[0]; var setConfirmStep = _confirmStep[1];
+  var _confirmText = useState('');
+  var confirmText = _confirmText[0]; var setConfirmText = _confirmText[1];
+  var _orgName = useState(null);
+  var orgName = _orgName[0]; var setOrgName = _orgName[1];
 
   // Sync when parent passes new profile
   useEffect(function() { setProfile(initialProfile); }, [initialProfile]);
+
+  // Fetch org name if agent belongs to a client org
+  useEffect(function() {
+    if (!clientOrgId) return;
+    apiCall('/admin/client-orgs/' + clientOrgId).then(function(org) {
+      setOrgName(org.name || org.org_name || 'Organization');
+    }).catch(function() {});
+  }, [clientOrgId]);
 
   // Load policies + presets + soul templates
   useEffect(function() {
@@ -83,20 +101,47 @@ export function PermissionsSection(props) {
 
   // ─── Apply Soul Template ────────────────────────────────
 
-  var applySoulTemplate = function(tpl) {
+  // ─── Role Preview & Confirmation Flow ────────────────────
+  var openRolePreview = function(tpl) {
+    setPreviewTpl(tpl);
+    setConfirmStep(0);
+    setConfirmText('');
+  };
+
+  var closeRolePreview = function() {
+    setPreviewTpl(null);
+    setConfirmStep(0);
+    setConfirmText('');
+  };
+
+  var currentRole = (engineAgent.config && engineAgent.config.identity && engineAgent.config.identity.role) || engineAgent.role || 'Unknown';
+  var isRunning = props.engineAgent && (props.engineAgent.state === 'running' || props.engineAgent.state === 'active');
+
+  var executeRoleChange = function(tpl) {
+    setConfirmStep(3);
     setApplyingSoul(tpl.id);
+
+    var newRole = tpl.identity && tpl.identity.role || tpl.name || 'agent';
 
     // 1. Update agent config with role, personality, description from soul
     var configUpdates = {
       identity: {
-        role: tpl.identity && tpl.identity.role || tpl.name || 'agent',
+        role: newRole,
         personality: tpl.personality || '',
         description: tpl.description || '',
       },
       description: tpl.description || '',
+      // Store role transition history
+      roleTransition: {
+        previousRole: currentRole,
+        newRole: newRole,
+        transitionedAt: new Date().toISOString(),
+        transitionedBy: 'dashboard',
+        templateId: tpl.id,
+        templateName: tpl.name,
+      },
     };
 
-    var isRunning = props.engineAgent && (props.engineAgent.state === 'running' || props.engineAgent.state === 'active');
     var configEndpoint = isRunning ? '/agents/' + agentId + '/hot-update' : '/agents/' + agentId + '/config';
     var configMethod = isRunning ? 'POST' : 'PATCH';
 
@@ -113,17 +158,42 @@ export function PermissionsSection(props) {
             method: 'POST',
             body: JSON.stringify({ presetName: presetName })
           }).catch(function(err) { return { error: err.message }; })
+        : Promise.resolve(null),
+      // 3. If agent is running, inject a role transition awareness message
+      isRunning
+        ? engineCall('/agents/' + agentId + '/inject-message', {
+            method: 'POST',
+            body: JSON.stringify({
+              role: 'system',
+              content: '[ROLE TRANSITION NOTICE]\n\n' +
+                'Your role has been changed by your administrator.\n\n' +
+                'Previous Role: ' + currentRole + '\n' +
+                'New Role: ' + newRole + ' (' + tpl.name + ')\n\n' +
+                'What this means:\n' +
+                '- Your personality, approach, and expertise have been updated to match your new role.\n' +
+                '- Your permissions and available tools may have changed.\n' +
+                '- Your memory and knowledge from your previous role are still intact.\n' +
+                '- Treat this like a human changing departments — you carry your experience forward but your responsibilities and approach shift.\n\n' +
+                'Action required:\n' +
+                '- Acknowledge this transition in your next response.\n' +
+                '- Review your new role description and adjust your behavior accordingly.\n' +
+                '- Continue to leverage relevant knowledge from your previous role where applicable.\n' +
+                '- If you were in the middle of tasks from your old role, flag them to your administrator for reassignment or completion guidance.'
+            })
+          }).catch(function() { return null; })
         : Promise.resolve(null)
     ]).then(function(results) {
       if (results[1] && results[1].profile) {
         setProfile(results[1].profile);
       }
-      toast('Role template "' + tpl.name + '" applied', 'success');
+      toast('Role changed: ' + currentRole + ' → ' + tpl.name, 'success');
       setApplyingSoul(null);
+      closeRolePreview();
       reload();
     }).catch(function(err) {
       toast('Failed: ' + err.message, 'error');
       setApplyingSoul(null);
+      setConfirmStep(2);
     });
   };
 
@@ -221,10 +291,10 @@ export function PermissionsSection(props) {
   // ─── Shared styles ─────────────────────────────────────
 
   var CATEGORY_COLORS = {
-    code_of_conduct: '#6366f1', communication: '#0ea5e9', data_handling: '#f59e0b',
+    code_of_conduct: '#6366f1', communication: '#0ea5e9', data_handling: '#991b1b',
     brand_voice: '#9d174d', security: '#ef4444', escalation: '#8b5cf6', custom: '#64748b'
   };
-  var ENFORCEMENT_COLORS = { mandatory: '#ef4444', recommended: '#f59e0b', informational: '#0ea5e9' };
+  var ENFORCEMENT_COLORS = { mandatory: '#ef4444', recommended: '#991b1b', informational: '#0ea5e9' };
   var inputStyle = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, width: '100%' };
   var labelStyle = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 };
 
@@ -379,7 +449,7 @@ export function PermissionsSection(props) {
               h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 } },
                 templates.map(function(tpl) {
                   var isApplying = applyingSoul === tpl.id;
-                  return h('div', { key: tpl.id, className: 'preset-card', style: { padding: '10px 14px', cursor: isApplying ? 'wait' : 'pointer', opacity: isApplying ? 0.6 : 1 }, onClick: function() { if (!isApplying && !applyingSoul) applySoulTemplate(tpl); } },
+                  return h('div', { key: tpl.id, className: 'preset-card', style: { padding: '10px 14px', cursor: isApplying ? 'wait' : 'pointer', opacity: isApplying ? 0.6 : 1 }, onClick: function() { if (!isApplying && !applyingSoul) openRolePreview(tpl); } },
                     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
                       h('h4', { style: { fontSize: 13, fontWeight: 600, margin: 0 } }, tpl.name),
                       isApplying && h('span', { style: { fontSize: 11, color: 'var(--accent)' } }, 'Applying...')
@@ -427,6 +497,11 @@ export function PermissionsSection(props) {
 
   if (!profile) {
     return h(Fragment, null,
+      clientOrgId && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--info, #0ea5e9)' } },
+        I.building(),
+        h('span', null, h('strong', null, 'Organization Policies: '), 'Permissions for this agent are governed by ', h('strong', null, orgName || 'organization'), ' policies.'),
+        h('span', { className: 'badge', style: { fontSize: 10, padding: '1px 8px', background: 'var(--info, #0ea5e9)', color: '#fff', marginLeft: 'auto', flexShrink: 0 } }, orgName || 'Org')
+      ),
       soulCard,
       presetCard,
       h(EmptyState, { icon: I.shield(), message: 'No permission profile assigned to this agent. Select a role template or preset above, or create a custom profile.' }),
@@ -459,7 +534,169 @@ export function PermissionsSection(props) {
   var blockedTools = skills.blocked || [];
   var allowedTools = skills.allowed || [];
 
+  // ─── Role Change Preview & Confirmation Modal ────────────
+  var roleChangeModal = previewTpl && h('div', { style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }, onClick: function(e) { if (e.target === e.currentTarget) closeRolePreview(); } },
+    h('div', { style: { background: 'var(--bg-card)', borderRadius: 'var(--radius)', maxWidth: 640, width: '100%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' } },
+
+      // Header
+      h('div', { style: { padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('div', null,
+          h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 700 } }, confirmStep === 0 ? 'Role Preview' : confirmStep === 1 ? 'Impact Assessment' : confirmStep === 2 ? 'Final Confirmation' : 'Applying...'),
+          h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'Step ' + (confirmStep + 1) + ' of 3')
+        ),
+        h('button', { className: 'btn btn-ghost btn-sm', onClick: closeRolePreview, style: { fontSize: 18 } }, I.x())
+      ),
+
+      // Step 0: Preview
+      confirmStep === 0 && h('div', { style: { padding: 20 } },
+        // Role comparison
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, marginBottom: 20, alignItems: 'center' } },
+          h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', textAlign: 'center' } },
+            h('div', { style: { fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 } }, 'Current Role'),
+            h('div', { style: { fontSize: 14, fontWeight: 700 } }, currentRole)
+          ),
+          h('div', { style: { fontSize: 18, color: 'var(--text-muted)' } }, '\u2192'),
+          h('div', { style: { padding: 12, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 'var(--radius)', textAlign: 'center' } },
+            h('div', { style: { fontSize: 10, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 } }, 'New Role'),
+            h('div', { style: { fontSize: 14, fontWeight: 700 } }, previewTpl.identity && previewTpl.identity.role || previewTpl.name)
+          )
+        ),
+
+        // Description
+        h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Description'),
+          h('div', { style: { fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 } }, previewTpl.description || 'No description')
+        ),
+
+        // Personality preview (collapsed)
+        previewTpl.personality && h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Personality & Approach'),
+          h('div', { style: { fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, maxHeight: 120, overflow: 'auto', padding: 10, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', whiteSpace: 'pre-wrap' } },
+            previewTpl.personality.length > 500 ? previewTpl.personality.slice(0, 500) + '...' : previewTpl.personality
+          )
+        ),
+
+        // Suggested skills
+        previewTpl.suggestedSkills && previewTpl.suggestedSkills.length > 0 && h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Suggested Skills'),
+          h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
+            previewTpl.suggestedSkills.map(function(sk) { return h('span', { key: sk, className: 'badge badge-neutral', style: { fontSize: 10 } }, sk); })
+          )
+        ),
+
+        // Permission preset
+        previewTpl.suggestedPreset && h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Permission Preset'),
+          h('span', { className: 'badge badge-info', style: { fontSize: 11 } }, previewTpl.suggestedPreset)
+        ),
+
+        // Tags
+        previewTpl.tags && previewTpl.tags.length > 0 && h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Tags'),
+          h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
+            previewTpl.tags.map(function(t) { return h('span', { key: t, className: 'badge badge-neutral', style: { fontSize: 10 } }, t); })
+          )
+        ),
+
+        // Footer
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--border)' } },
+          h('button', { className: 'btn btn-secondary', onClick: closeRolePreview }, 'Cancel'),
+          h('button', { className: 'btn btn-primary', onClick: function() { setConfirmStep(1); } }, 'Continue to Impact Assessment')
+        )
+      ),
+
+      // Step 1: Impact Assessment
+      confirmStep === 1 && h('div', { style: { padding: 20 } },
+        // Warning banner
+        h('div', { style: { padding: 14, background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.25)', borderRadius: 'var(--radius)', marginBottom: 16 } },
+          h('div', { style: { fontWeight: 700, fontSize: 13, color: 'var(--warning)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 } }, I.warning(), ' Changing an agent\'s role is a significant action'),
+          h('div', { style: { fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 } },
+            'This is equivalent to moving an employee to a completely different department. The agent\'s entire personality, approach, expertise, and permissions will be rewritten.'
+          )
+        ),
+
+        // What will change
+        h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontSize: 13, fontWeight: 700, marginBottom: 8 } }, 'What will change:'),
+          h('ul', { style: { margin: 0, paddingLeft: 20, fontSize: 12, lineHeight: 2, color: 'var(--text-secondary)' } },
+            h('li', null, h('strong', null, 'Identity & Personality'), ' \u2014 The agent\'s entire persona, tone, and approach will be replaced'),
+            h('li', null, h('strong', null, 'Skills & Tools'), ' \u2014 Available tools may change based on the new role\'s requirements'),
+            previewTpl.suggestedPreset && h('li', null, h('strong', null, 'Permissions'), ' \u2014 Permission profile will be replaced with "', previewTpl.suggestedPreset, '"'),
+            h('li', null, h('strong', null, 'System Prompt'), ' \u2014 The agent\'s core instructions will be completely rewritten'),
+            isRunning && h('li', { style: { color: 'var(--warning)' } }, h('strong', null, 'Active Sessions'), ' \u2014 The agent is currently running. Active sessions will be notified of the role change.')
+          )
+        ),
+
+        // What will NOT change
+        h('div', { style: { marginBottom: 16 } },
+          h('div', { style: { fontSize: 13, fontWeight: 700, marginBottom: 8 } }, 'What will be preserved:'),
+          h('ul', { style: { margin: 0, paddingLeft: 20, fontSize: 12, lineHeight: 2, color: 'var(--text-secondary)' } },
+            h('li', null, h('strong', null, 'Memory'), ' \u2014 All past conversations, knowledge, and memory files remain intact'),
+            h('li', null, h('strong', null, 'Email & Integrations'), ' \u2014 Email config, connected accounts stay unchanged'),
+            h('li', null, h('strong', null, 'Organization'), ' \u2014 Client org assignment and credentials are unaffected'),
+            h('li', null, h('strong', null, 'Channels'), ' \u2014 Connected messaging channels (WhatsApp, Telegram, etc.) stay active')
+          )
+        ),
+
+        // Recommendation
+        h('div', { style: { padding: 14, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' } },
+          h('strong', null, 'Recommendation: '), 'If this agent has been operating in its current role for a significant time and has built up specialized knowledge, consider ',
+          h('strong', null, 'creating a new agent'), ' for the new role instead. This preserves the original agent\'s expertise and avoids confusion in its memory. You can always transfer relevant knowledge bases between agents.'
+        ),
+
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid var(--border)' } },
+          h('button', { className: 'btn btn-secondary', onClick: function() { setConfirmStep(0); } }, 'Back'),
+          h('button', { className: 'btn btn-danger', onClick: function() { setConfirmStep(2); } }, 'I understand, proceed')
+        )
+      ),
+
+      // Step 2: Type confirmation
+      confirmStep === 2 && h('div', { style: { padding: 20 } },
+        h('div', { style: { textAlign: 'center', marginBottom: 20 } },
+          h('div', { style: { marginBottom: 8 } }, I.warning()),
+          h('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 4 } }, 'Final Confirmation'),
+          h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } },
+            'Type ', h('code', { style: { padding: '2px 6px', background: 'var(--bg-tertiary)', borderRadius: 4, fontWeight: 700 } }, 'CHANGE ROLE'),
+            ' to confirm changing this agent from ', h('strong', null, currentRole), ' to ', h('strong', null, previewTpl.identity && previewTpl.identity.role || previewTpl.name), '.'
+          )
+        ),
+        h('input', {
+          className: 'input', type: 'text', value: confirmText, autoFocus: true,
+          placeholder: 'Type CHANGE ROLE...',
+          onInput: function(e) { setConfirmText(e.target.value); },
+          onKeyDown: function(e) { if (e.key === 'Enter' && confirmText.trim().toUpperCase() === 'CHANGE ROLE') executeRoleChange(previewTpl); },
+          style: { textAlign: 'center', fontSize: 16, letterSpacing: '0.05em', fontFamily: 'var(--font-mono)', marginBottom: 16, borderColor: confirmText.trim().toUpperCase() === 'CHANGE ROLE' ? 'var(--danger)' : 'var(--border)' }
+        }),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+          h('button', { className: 'btn btn-secondary', onClick: function() { setConfirmStep(1); setConfirmText(''); } }, 'Back'),
+          h('button', { className: 'btn btn-danger', disabled: confirmText.trim().toUpperCase() !== 'CHANGE ROLE', onClick: function() { executeRoleChange(previewTpl); } }, 'Change Role')
+        )
+      ),
+
+      // Step 3: Applying
+      confirmStep === 3 && h('div', { style: { padding: 40, textAlign: 'center' } },
+        h('div', { style: { fontSize: 14, fontWeight: 600, marginBottom: 8 } }, 'Applying role change...'),
+        h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Updating personality, permissions, and notifying active sessions.')
+      )
+    )
+  );
+
   return h(Fragment, null,
+
+    // Role change modal
+    roleChangeModal,
+
+    // Org policies banner
+    clientOrgId && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--info, #0ea5e9)' } },
+      I.building(),
+      h('span', null,
+        h('strong', null, 'Organization Policies: '),
+        'Permissions for this agent are governed by ',
+        h('strong', null, orgName || 'organization'),
+        ' policies. Organization-level overrides may apply to risk levels, rate limits, and approval requirements.'
+      ),
+      h('span', { className: 'badge', style: { fontSize: 10, padding: '1px 8px', background: 'var(--info, #0ea5e9)', color: '#fff', marginLeft: 'auto', flexShrink: 0 } }, orgName || 'Org')
+    ),
 
     // Role template selector
     soulCard,

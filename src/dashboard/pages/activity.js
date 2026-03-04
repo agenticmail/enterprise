@@ -1,6 +1,7 @@
 import { h, useState, useEffect, useCallback, Fragment, engineCall, buildAgentDataMap, renderAgentBadge, getOrgId } from '../components/utils.js';
 import { DetailModal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
+import { KnowledgeLink } from '../components/knowledge-link.js';
 
 const PAGE_SIZE = 25;
 
@@ -92,7 +93,7 @@ export function ActivityPage() {
 
   return h(Fragment, null,
     h('div', { style: { marginBottom: 20 } },
-      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Activity', h(HelpButton, { label: 'Activity' },
+      h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Activity', h(KnowledgeLink, { page: 'activity' }), h(HelpButton, { label: 'Activity' },
         h('p', null, 'A real-time feed of everything your agents are doing — events they generate and tools they call.'),
         h('h4', { style: _h4 }, 'Two views'),
         h('ul', { style: _ul },

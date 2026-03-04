@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-easy { background: rgba(21,128,61,0.2); color: var(--success); }
+  .badge-medium { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .badge-advanced { background: rgba(239,68,68,0.2); color: var(--danger); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/settings">&#8592; Back to Dashboard</a>
+
+<h1>Settings</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Configure your organization, branding, authentication, models, security, and deployment options.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#general">General &amp; Branding</a></li>
+    <li><a href="#models">Models &amp; Providers</a></li>
+    <li><a href="#api-keys">API Keys</a></li>
+    <li><a href="#authentication">Authentication &amp; SSO</a></li>
+    <li><a href="#email">Email &amp; Domain</a></li>
+    <li><a href="#deployments">Deployments</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#tool-security">Tool Security</a></li>
+    <li><a href="#network">Network &amp; Firewall</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>The Settings page is organized into tabs, each controlling a different aspect of your AgenticMail Enterprise instance. Changes in most tabs are saved immediately when you click the save button.</p>
+
+<table>
+  <tr><th>Tab</th><th>What It Controls</th></tr>
+  <tr><td><strong>General</strong></td><td>Company name, domain, branding (logo, favicon, colors), email signatures</td></tr>
+  <tr><td><strong>Models</strong></td><td>LLM providers, model pricing, API key management for AI services</td></tr>
+  <tr><td><strong>API Keys</strong></td><td>Create and revoke API keys for programmatic access to your instance</td></tr>
+  <tr><td><strong>Authentication</strong></td><td>SSO (SAML 2.0, OIDC), two-factor authentication</td></tr>
+  <tr><td><strong>Platform</strong></td><td>Platform-level configuration</td></tr>
+  <tr><td><strong>Email &amp; Domain</strong></td><td>Organization-wide OAuth email config (Google Workspace / Microsoft 365)</td></tr>
+  <tr><td><strong>Deployments</strong></td><td>Deploy credentials for Docker, Kubernetes, cloud platforms</td></tr>
+  <tr><td><strong>Security</strong></td><td>Security system configuration, event monitoring, port scanning</td></tr>
+  <tr><td><strong>Tool Security</strong></td><td>Path sandboxing, SSRF protection, command sanitization</td></tr>
+  <tr><td><strong>Network &amp; Firewall</strong></td><td>IP allowlists/blocklists, rate limiting, geo-blocking</td></tr>
+</table>
+
+<h2 id="general">General &amp; Branding</h2>
+
+<h3>Organization Settings</h3>
+<p>Set your company name, domain, subdomain, and plan tier. The plan tier controls agent limits:</p>
+<table>
+  <tr><th>Plan</th><th>Agent Limit</th></tr>
+  <tr><td>Self-Hosted</td><td>Unlimited</td></tr>
+  <tr><td>Enterprise</td><td>Unlimited + Support</td></tr>
+  <tr><td>Team</td><td>25 agents</td></tr>
+  <tr><td>Free</td><td>3 agents</td></tr>
+</table>
+
+<h3>White-Label Branding</h3>
+<p>Customize the dashboard to match your brand:</p>
+<div class="card">
+  <ul>
+    <li><strong>Company Logo:</strong> Used in the sidebar, emails, and auto-generates favicon + app icons. Upload a square PNG (512×512 or larger) for best results.</li>
+    <li><strong>Login Page Logo:</strong> Separate logo for the login screen. Falls back to company logo if not set.</li>
+    <li><strong>Login Background:</strong> Custom background image for the login page (max 10MB).</li>
+    <li><strong>Custom Favicon:</strong> Override the auto-generated favicon with your own .ico or .png.</li>
+    <li><strong>Primary Brand Color:</strong> Used throughout the dashboard for accents, buttons, and highlights. Applies instantly.</li>
+    <li><strong>Page Title:</strong> Displayed in the browser tab (appended with "by AgenticMail").</li>
+  </ul>
+</div>
+<div class="tip"><strong>Auto-generation:</strong> When you upload a logo, the system automatically creates favicon.ico and all required app icon sizes (16px, 32px, 48px, 180px, 192px, 512px). No manual conversion needed.</div>
+
+<h3>Email Signature Template</h3>
+<p>Define a shared HTML signature that all agents use in outgoing emails. Use template variables that get replaced per agent:</p>
+<table>
+  <tr><th>Variable</th><th>Replaced With</th></tr>
+  <tr><td><code>{{name}}</code></td><td>Agent's display name</td></tr>
+  <tr><td><code>{{role}}</code></td><td>Agent's role</td></tr>
+  <tr><td><code>{{email}}</code></td><td>Agent's email address</td></tr>
+  <tr><td><code>{{phone}}</code></td><td>Agent's phone number</td></tr>
+  <tr><td><code>{{company}}</code></td><td>Your organization name</td></tr>
+  <tr><td><code>{{logo}}</code></td><td>Your company logo URL</td></tr>
+</table>
+
+<h2 id="models">Models &amp; Providers</h2>
+<p>Configure which LLM providers your agents can use and set token pricing for billing calculations.</p>
+
+<h3>LLM Providers</h3>
+<p>Add and manage API keys for AI model providers (Anthropic, OpenAI, Google, etc.). Each provider can be tested to verify connectivity.</p>
+
+<h3>Model Pricing</h3>
+<p>Define input and output costs per million tokens for each model. This data is used to calculate agent token costs in billing reports (see <a href="/docs/multi-tenant">Multi-Tenant Guide</a>).</p>
+
+<h2 id="api-keys">API Keys</h2>
+<p>Create API keys for programmatic access to your AgenticMail instance. Keys support read, write, and admin scopes.</p>
+<div class="danger"><strong>API keys are shown only once.</strong> Copy the key immediately after creation. If you lose it, revoke the old key and create a new one.</div>
+
+<h2 id="authentication">Authentication &amp; SSO</h2>
+
+<h3>Two-Factor Authentication</h3>
+<p>Enable 2FA for additional account security.</p>
+
+<h3>SAML 2.0</h3>
+<p>Enterprise SSO standard. Works with Okta, OneLogin, Azure AD, and any SAML 2.0 identity provider. You'll need:</p>
+<ul>
+  <li>Entity ID / Issuer URL from your IdP</li>
+  <li>SSO URL</li>
+  <li>X.509 Certificate (PEM format)</li>
+</ul>
+
+<h3>OpenID Connect (OIDC)</h3>
+<p>Modern alternative to SAML. Works with Google Workspace, Microsoft Entra, Auth0, and any OIDC provider. Quick setup buttons are available for common providers.</p>
+
+<h2 id="email">Email &amp; Domain</h2>
+
+<h3>Organization Email</h3>
+<p>Set up a shared OAuth application (Google or Microsoft) that all agents use for email. This centralizes OAuth app registration — each agent still authorizes individually, but they share the same Client ID and Secret.</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Google Workspace Setup</h3>
+  <ol>
+    <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console → Credentials</a></li>
+    <li>Create an OAuth 2.0 Client ID (Web application)</li>
+    <li>Add redirect URI: <code>https://your-domain.com/api/engine/oauth/callback</code></li>
+    <li>Enable the Gmail API in your project</li>
+    <li>Copy Client ID and Secret into the dashboard</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Microsoft 365 Setup</h3>
+  <ol>
+    <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank">Azure Portal → App Registrations</a></li>
+    <li>Click "New Registration"</li>
+    <li>Set redirect URI to: <code>https://your-domain.com/api/engine/oauth/callback</code></li>
+    <li>Copy Client ID and create a Client Secret</li>
+    <li>Set Tenant ID (use "common" for multi-tenant)</li>
+  </ol>
+</div>
+
+<h2 id="deployments">Deployments</h2>
+<p>Manage deployment credentials for pushing agents to different environments (Docker, Kubernetes, cloud VMs). Create credentials with target-specific configuration.</p>
+
+<h2 id="security">Security</h2>
+<p>The Security tab provides system-level security configuration, event monitoring, and port scanning to check your instance's exposure.</p>
+
+<h3>Transport Encryption</h3>
+<p>Encrypt API data in transit between the dashboard and server using AES-256-CBC. Choose to encrypt all API calls or select specific endpoint groups (API keys, database credentials, OAuth tokens, etc.). See the <a href="/docs/transport-encryption">Transport Encryption documentation</a> for full details.</p>
+<ul>
+<li><strong>Encrypt All:</strong> Every dashboard API call is encrypted</li>
+<li><strong>Sensitive Only:</strong> Pre-selected groups handling credentials and secrets</li>
+<li><strong>Custom:</strong> Toggle individual endpoint groups and add custom patterns</li>
+</ul>
+
+<h2 id="tool-security">Tool Security</h2>
+<p>Fine-grained control over what agents' tools can access:</p>
+<div class="card">
+  <table>
+    <tr><th>Control</th><th>What It Does</th></tr>
+    <tr><td><strong>Path Sandbox</strong></td><td>Restrict file system access to allowed directories. Block sensitive paths.</td></tr>
+    <tr><td><strong>SSRF Protection</strong></td><td>Block agents from making requests to internal network IPs. Allowlist specific internal hosts.</td></tr>
+    <tr><td><strong>Command Sanitizer</strong></td><td>Control which shell commands agents can execute. Blocklist or allowlist mode.</td></tr>
+    <tr><td><strong>Audit Logging</strong></td><td>Log all tool usage with optional key redaction.</td></tr>
+    <tr><td><strong>Rate Limiting</strong></td><td>Limit how frequently agents can use tools.</td></tr>
+    <tr><td><strong>Circuit Breaker</strong></td><td>Auto-disable tools that are failing repeatedly.</td></tr>
+  </table>
+</div>
+
+<h2 id="network">Network &amp; Firewall</h2>
+<p>Configure network-level security:</p>
+<ul>
+  <li><strong>IP Allowlist:</strong> Only allow access from specific IPs or CIDR ranges</li>
+  <li><strong>IP Blocklist:</strong> Block specific IPs</li>
+  <li><strong>Rate Limiting:</strong> Limit requests per minute per IP</li>
+  <li><strong>Geo-blocking:</strong> Restrict access by country</li>
+  <li><strong>Test IP:</strong> Check if a specific IP would be allowed or blocked</li>
+</ul>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+  <tr><th>Issue</th><th>Solution</th></tr>
+  <tr><td>Logo not appearing after upload</td><td>Refresh the page. Favicon changes may require clearing browser cache.</td></tr>
+  <tr><td>SSO login fails</td><td>Verify redirect URI matches exactly. Check Entity ID and certificate. Use the OIDC test button to validate discovery.</td></tr>
+  <tr><td>Brand color not applying</td><td>Ensure the hex code is valid (#RRGGBB format). The color applies instantly — no save needed for preview.</td></tr>
+  <tr><td>API key not working</td><td>Check scopes — the key may not have the required permission. Also verify it hasn't been revoked.</td></tr>
+  <tr><td>Org email "redirect_uri_mismatch"</td><td>The redirect URI in your OAuth app must exactly match what's shown in the setup instructions, including protocol and path.</td></tr>
+</table>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/audit">Audit Log</a> — Track all settings changes</li>
+    <li><a href="/docs/skills">Skills &amp; Integrations</a> — Connect external services</li>
+    <li><a href="/docs/multi-tenant">Multi-Tenant Guide</a> — Organization and billing configuration</li>
+  </ul>
+</div>
+
+<p style="margin-top: 32px; color: var(--text-muted); font-size: 12px; text-align: center;">
+  AgenticMail Enterprise — Settings Documentation
+</p>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

@@ -15,6 +15,7 @@ import type { AgentConfig, AgentMessage, RuntimeHooks, SessionState, StreamEvent
 import { callLLM, toolsToDefinitions, estimateMessageTokens, type LLMResponse } from './llm-client.js';
 import { ToolRegistry, executeTool } from './tool-executor.js';
 import { compactContext, needsCompaction, COMPACTION_THRESHOLD } from './compaction.js';
+import { buildModelChain, withModelFallback, type ModelFallbackConfig } from '../engine/model-fallback.js';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -275,6 +276,7 @@ export async function runAgentLoop(
     var llmCallStart = Date.now();
     var llmResponse: LLMResponse = undefined as any;
     var llmRetryMax = 3;
+    var llmRetryMaxRateLimit = 5; // More retries for rate limits (with longer backoff)
     var llmRetryDelay = 2000; // start at 2s, doubles each retry
     for (var llmAttempt = 0; llmAttempt <= llmRetryMax; llmAttempt++) {
       try {
@@ -322,17 +324,63 @@ export async function runAgentLoop(
           }
           continue;
         }
-        var isTransient = /premature close|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed|network|502|503|529/i.test(err.message);
-        if (isTransient && llmAttempt < llmRetryMax) {
-          var delay = llmRetryDelay * Math.pow(2, llmAttempt);
+        var isRateLimit = /429|rate.limit|rate_limit/i.test(err.message);
+        var isTransient = isRateLimit || /premature close|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed|network|502|503|529|overloaded/i.test(err.message);
+        var effectiveMax = isRateLimit ? llmRetryMaxRateLimit : llmRetryMax;
+        if (isTransient && llmAttempt < effectiveMax) {
+          // Rate limits get longer backoff (30s base) vs transient errors (normal backoff)
+          var delay = isRateLimit ? Math.min(30000 * Math.pow(2, llmAttempt), 120000) : llmRetryDelay * Math.pow(2, llmAttempt);
           console.warn(`[agent-loop] LLM call failed (attempt ${llmAttempt + 1}/${llmRetryMax + 1}): ${err.message} — retrying in ${delay}ms`);
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        console.error(`[agent-loop] LLM call failed after ${llmAttempt + 1} attempts: ${err.message}`);
-        var errorEvent: StreamEvent = { type: 'error', message: err.message, retryable: isTransient };
-        options.onEvent?.(errorEvent);
-        return buildResult(messages, 'failed', turnCount, totalTextContent, 'error', cumulativeUsage);
+        // ─── Model Fallback: Try backup models before giving up ───
+        var fallbackModels = (options as any).fallbackModels as string[] | undefined;
+        if (fallbackModels && fallbackModels.length > 0) {
+          var primaryModel = config.model.provider + '/' + config.model.modelId;
+          var remainingFallbacks = fallbackModels.filter(function(m) { return m !== primaryModel; });
+          for (var fi = 0; fi < remainingFallbacks.length; fi++) {
+            var fbModel = remainingFallbacks[fi];
+            var fbParts = fbModel.split('/');
+            var fbProvider = fbParts[0];
+            var fbModelId = fbParts.slice(1).join('/');
+            console.log(`[agent-loop] Primary model failed — trying fallback ${fi + 1}/${remainingFallbacks.length}: ${fbModel}`);
+            try {
+              var fbApiKey = options.apiKey;
+              // Resolve API key for fallback provider if different
+              if (fbProvider !== config.model.provider && (options as any).resolveApiKey) {
+                var resolved = await (options as any).resolveApiKey(fbProvider);
+                if (resolved) fbApiKey = resolved;
+              }
+              llmResponse = await callLLM(
+                { provider: fbProvider, modelId: fbModelId, apiKey: fbApiKey, thinkingLevel: config.model.thinkingLevel },
+                messages, toolDefs,
+                { maxTokens, temperature, signal: options.signal },
+                options.onEvent,
+                options.retryConfig,
+              );
+              console.log(`[agent-loop] Fallback model ${fbModel} succeeded in ${Date.now() - llmCallStart}ms`);
+              break;
+            } catch (fbErr: any) {
+              console.warn(`[agent-loop] Fallback model ${fbModel} also failed: ${fbErr.message}`);
+              if (fi === remainingFallbacks.length - 1) {
+                // All fallbacks exhausted
+                console.error(`[agent-loop] All models failed (primary + ${remainingFallbacks.length} fallbacks): ${err.message}`);
+                var errorEvent: StreamEvent = { type: 'error', message: `All models failed. Primary: ${err.message}`, retryable: false };
+                options.onEvent?.(errorEvent);
+                return buildResult(messages, 'failed', turnCount, totalTextContent, 'error', cumulativeUsage);
+              }
+            }
+          }
+          if (llmResponse) break; // fallback succeeded, exit retry loop
+        }
+
+        if (!llmResponse) {
+          console.error(`[agent-loop] LLM call failed after ${llmAttempt + 1} attempts: ${err.message}`);
+          var errorEvent2: StreamEvent = { type: 'error', message: err.message, retryable: isTransient };
+          options.onEvent?.(errorEvent2);
+          return buildResult(messages, 'failed', turnCount, totalTextContent, 'error', cumulativeUsage);
+        }
       }
     }
 

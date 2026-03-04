@@ -1,0 +1,195 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Roles — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Agent Roles</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Create and manage agent role templates that appear in the Create Agent wizard — defining personality, skills, tone, and expertise for each agent type.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#how-it-works">How It Works</a></li>
+<li><a href="#key-concepts">Key Concepts</a></li>
+<li><a href="#built-in-roles">Built-in Roles</a></li>
+<li><a href="#custom-roles">Creating Custom Roles</a></li>
+<li><a href="#personality">Personality / SOUL.md</a></li>
+<li><a href="#skills">Skills &amp; Presets</a></li>
+<li><a href="#org-scoping">Organization Scoping</a></li>
+<li><a href="#preview">Role Preview</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#related">Related Pages</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p><strong>For everyone:</strong> The Roles page manages the role templates that appear when creating a new AI agent. Each role template is like a job description — it defines who the agent is, how it communicates, what tools it uses, and what it's an expert in. When you select a role in the Create Agent wizard, all of this gets auto-configured, saving you from building each agent from scratch.</p>
+<p><strong>For technical users:</strong> Role templates are stored in two places: 51 built-in templates in <code>soul-templates.json</code> and custom templates in the <code>custom_roles</code> database table (migration v32). Custom roles can be org-scoped via <code>org_id</code>. The <code>/souls/by-category</code> API merges both sources, so custom roles appear alongside built-in ones in the Create Agent wizard. Each template contains a full SOUL.md personality prompt, identity metadata (role title, tone, language), suggested skills, and tags for search.</p>
+</div>
+
+<h2 id="how-it-works">How It Works</h2>
+<div class="card">
+<ol>
+<li><strong>Admin creates a role template</strong> via the Roles page — defining name, category, personality, skills, and tone.</li>
+<li><strong>Template appears in Create Agent wizard</strong> — Step 1 "Choose a Role Template" shows all built-in and custom templates grouped by category.</li>
+<li><strong>User selects the role</strong> — the wizard auto-fills the agent's personality (SOUL.md), job title, communication tone, suggested skills, and permission preset.</li>
+<li><strong>User customizes</strong> — all auto-filled fields can be edited before creating the agent.</li>
+</ol>
+<p>Custom role templates are merged with built-in templates in real-time. When the wizard loads, it queries <code>/api/engine/souls/by-category</code> which returns both sources combined.</p>
+</div>
+
+<h2 id="key-concepts">Key Concepts</h2>
+<div class="card">
+<table>
+<tr><th>Concept</th><th>Description</th></tr>
+<tr><td><strong>Role Template</strong></td><td>A complete agent identity definition — personality, skills, tone, tags. Used as a starting point when creating new agents.</td></tr>
+<tr><td><strong>Category</strong></td><td>One of 14 departments: Support, Sales, Engineering, Operations, HR, Finance, Marketing, Legal, Research, Creative, Executive, Data, Security, Education.</td></tr>
+<tr><td><strong>Personality</strong></td><td>The full SOUL.md prompt that defines the agent's identity, approach, communication style, expertise, principles, and boundaries. This is the core of what makes each role unique.</td></tr>
+<tr><td><strong>Identity</strong></td><td>Metadata: job title (e.g., "Customer Support Lead"), tone (formal/casual/professional/friendly), and language code.</td></tr>
+<tr><td><strong>Suggested Skills</strong></td><td>Tools auto-enabled when this role is selected — like agenticmail, web-search, memory, etc.</td></tr>
+<tr><td><strong>Suggested Preset</strong></td><td>Permission preset auto-applied when this role is selected (e.g., "Customer Support Agent").</td></tr>
+<tr><td><strong>Tags</strong></td><td>Searchable keywords (e.g., "support", "triage", "sla", "empathy") that help users find the right role.</td></tr>
+</table>
+</div>
+
+<h2 id="built-in-roles">Built-in Roles</h2>
+<div class="card">
+<p>AgenticMail ships with <strong>51 built-in role templates</strong> across 14 categories. These cover common enterprise agent roles from Customer Support Lead to Security Operations Analyst. Built-in roles:</p>
+<ul>
+<li>Cannot be edited or deleted (they're part of the core platform)</li>
+<li>Can be <strong>duplicated</strong> as a starting point for custom roles</li>
+<li>Are shown to all users regardless of organization</li>
+<li>Each has a comprehensive personality prompt with sections for Identity, Approach, Mental Models, Decision Framework, Communication Style, Expertise, Principles, and Boundaries</li>
+</ul>
+</div>
+
+<h2 id="custom-roles">Creating Custom Roles</h2>
+<div class="card">
+<p>Click <strong>"Create Role"</strong> to open the role form with four tabs:</p>
+<h4>General Tab</h4>
+<ul>
+<li><strong>Role Name</strong> — e.g., "Customer Onboarding Specialist". Auto-generates a slug ID.</li>
+<li><strong>Category</strong> — Which department this role belongs to (determines grouping in the wizard).</li>
+<li><strong>Description</strong> — Brief summary shown in the role card.</li>
+<li><strong>Job Title</strong> — The role title that appears in the agent's identity badges.</li>
+<li><strong>Tone</strong> — Formal, Casual, Professional, or Friendly.</li>
+<li><strong>Language</strong> — Language code (default: en).</li>
+<li><strong>Organization Scope</strong> — Global or restricted to a specific client org.</li>
+<li><strong>Tags</strong> — Keywords for searchability in the wizard.</li>
+</ul>
+<h4>Personality Tab</h4>
+<p>A large text editor for the full SOUL.md personality prompt. Aim for 500+ characters for a well-defined role. See <a href="#personality">Personality section</a>.</p>
+<h4>Skills &amp; Preset Tab</h4>
+<p>Select skills from the full catalog and optionally set a permission preset. See <a href="#skills">Skills section</a>.</p>
+<h4>Preview Tab</h4>
+<p>See exactly how the role will appear in the Create Agent wizard — the "resume card" with badges, skills, and personality excerpt.</p>
+</div>
+
+<h2 id="personality">Personality / SOUL.md</h2>
+<div class="card">
+<p>The personality is the most important part of a role template. It's a comprehensive prompt (typically 1000-5000 characters) that uses Markdown headings to define sections:</p>
+<pre><code># Role Name
+
+## Identity
+You are the... (who this agent is, their core mission)
+
+## Approach
+You... (how they work, their methodology)
+
+## Mental Models
+... (frameworks they use to think about problems)
+
+## Decision Framework
+... (how they prioritize and make decisions)
+
+## Communication Style
+... (how they write, their tone in practice)
+
+## Expertise
+... (comma-separated areas of knowledge)
+
+## Principles
+- ... (operating rules they follow)
+
+## Boundaries
+- ... (what they won't do, limitations)</code></pre>
+<p>The Create Agent wizard parses these sections to display a rich "resume card" preview when the role is selected.</p>
+</div>
+
+<h2 id="skills">Skills &amp; Presets</h2>
+<div class="card">
+<p>Each role template can suggest:</p>
+<ul>
+<li><strong>Skills</strong> — Tools auto-enabled when the role is selected. Browse the full skill catalog organized by category and check the ones relevant to this role. Common skills include <code>agenticmail</code>, <code>web-search</code>, <code>web-fetch</code>, <code>memory</code>, <code>summarize</code>.</li>
+<li><strong>Permission Preset</strong> — A named preset (e.g., "Customer Support Agent") that auto-configures tool permissions, rate limits, and risk levels.</li>
+</ul>
+<p>These are suggestions — users can always modify skills and permissions after selecting the role template.</p>
+</div>
+
+<h2 id="org-scoping">Organization Scoping</h2>
+<div class="card">
+<p>Custom roles can be scoped to control who sees them:</p>
+<ul>
+<li><strong>Global</strong> (no org selected) — Visible to all users across all organizations in the Create Agent wizard.</li>
+<li><strong>Org-scoped</strong> — Only visible to users who belong to that specific client organization.</li>
+</ul>
+<p>Use org-scoping when different clients need different agent templates. For example, a law firm client might need a "Legal Intake Specialist" role that isn't relevant to your other clients.</p>
+<p>The org switcher in the Roles page header lets you filter custom roles by organization.</p>
+</div>
+
+<h2 id="preview">Role Preview</h2>
+<div class="card">
+<p>The Preview tab shows the exact "resume card" that appears in the Create Agent wizard when a user selects this role. It includes:</p>
+<ul>
+<li>Role avatar (first letter), name, and description</li>
+<li>Identity badges: job title, tone, language, suggested preset</li>
+<li>Org-scoped indicator (if applicable)</li>
+<li>Suggested skills as colored pills</li>
+<li>Tags</li>
+<li>Personality excerpt (first 800 characters)</li>
+</ul>
+<p>Use this preview to verify the role looks polished before saving.</p>
+</div>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Duplicate built-in roles to customize.</strong> Start from a built-in template that's close to what you need, then modify the personality and skills.</li>
+<li><strong>Write detailed personalities.</strong> The personality prompt is what makes each agent unique. Aim for 1000+ characters covering identity, approach, communication style, expertise, and boundaries.</li>
+<li><strong>Use structured Markdown headings.</strong> The wizard parses ## Identity, ## Approach, ## Expertise etc. to create the rich preview card.</li>
+<li><strong>Add relevant tags.</strong> Tags power the search in the Create Agent wizard. Add synonyms and related terms.</li>
+<li><strong>Scope org-specific roles.</strong> Don't clutter the global role list — if a role is only for one client, scope it to their org.</li>
+<li><strong>Select minimal skills.</strong> Only suggest skills the role actually needs. Users can always add more later.</li>
+<li><strong>Review in Preview tab.</strong> Always check the preview before saving to ensure it looks professional.</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<div class="card">
+<table>
+<tr><th>Issue</th><th>Solution</th></tr>
+<tr><td>Custom role doesn't appear in Create Agent wizard</td><td>Check that the role is active and either global or scoped to the user's org. The wizard calls <code>/api/engine/souls/by-category</code> which merges both sources.</td></tr>
+<tr><td>Role preview looks empty</td><td>Ensure the personality field has content. The preview card is built from the personality text.</td></tr>
+<tr><td>"Role with this name already exists"</td><td>Slug must be unique within the same org scope. Use a different name or different org.</td></tr>
+<tr><td>Skills list is empty in the form</td><td>Skills are loaded from <code>/api/engine/skills/by-category</code>. Ensure the engine is running and skills are registered.</td></tr>
+<tr><td>Built-in role can't be edited</td><td>By design. Use the "Duplicate" button to create an editable copy.</td></tr>
+</table>
+</div>
+
+<h2 id="related">Related Pages</h2>
+<div class="related">
+<a href="/docs/agents.html">Agents</a> — Create agents using role templates.
+<a href="/docs/skills.html">Skills</a> — Manage the skill catalog that roles reference.
+<a href="/docs/organizations.html">Organizations</a> — Client orgs that roles can be scoped to.
+<a href="/docs/agent-permissions.html">Agent Permissions</a> — Permission presets that roles can suggest.
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body></html>

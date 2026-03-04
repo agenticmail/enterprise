@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tool Security — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">← Back to Agent</a>
+
+<h1>Tool Security</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Configure security sandboxes, rate limiting, circuit breakers, and observability for this agent's tool usage.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a>
+      <ul>
+        <li><a href="#override-model">Override Model</a></li>
+        <li><a href="#path-sandbox">Path Sandbox</a></li>
+        <li><a href="#ssrf">SSRF Protection</a></li>
+        <li><a href="#command-sanitizer">Command Sanitizer</a></li>
+        <li><a href="#audit-logging">Audit Logging</a></li>
+        <li><a href="#rate-limiting">Rate Limiting</a></li>
+        <li><a href="#circuit-breaker">Circuit Breaker</a></li>
+        <li><a href="#telemetry">Telemetry</a></li>
+      </ul>
+    </li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+
+<div class="card">
+  <h3>For Everyone</h3>
+  <p>Agents use tools to interact with the world — reading files, browsing the web, running commands, calling APIs. Tool Security controls what each agent is allowed to do with its tools. It's like giving an employee a key card that only opens certain doors: you define which directories they can access, which websites they can visit, which commands they can run, and how fast they can work.</p>
+</div>
+
+<div class="card">
+  <h3>For Developers</h3>
+  <p>A single endpoint provides the merged view:</p>
+  <ul>
+    <li><code>GET /agents/:id/tool-security</code> — Returns <code>{ orgDefaults, agentOverrides, toolSecurity }</code> where <code>toolSecurity</code> is the merged result.</li>
+    <li><code>PATCH /agents/:id/tool-security</code> — Saves overrides as <code>{ toolSecurity: overrides, updatedBy: 'dashboard' }</code>.</li>
+  </ul>
+  <p>The save process computes a diff between the current merged config and org defaults — only changed sections are stored as overrides. The "Reset to Org Defaults" action sends an empty <code>{}</code> as overrides.</p>
+  <p>Tool security is split into two domains:</p>
+  <ul>
+    <li><strong>Security</strong> — <code>pathSandbox</code>, <code>ssrf</code>, <code>commandSanitizer</code></li>
+    <li><strong>Middleware</strong> — <code>audit</code>, <code>rateLimit</code>, <code>circuitBreaker</code>, <code>telemetry</code></li>
+  </ul>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+
+<ol>
+  <li><strong>Load</strong> — Org defaults, agent overrides, and the merged config are fetched from a single endpoint.</li>
+  <li><strong>View</strong> — Each section shows an "ORG DEFAULT" badge for inherited settings. If agent overrides exist, an indicator banner lists which sections are customized.</li>
+  <li><strong>Configure</strong> — Modify any setting. Changes are tracked in the merged config.</li>
+  <li><strong>Save</strong> — Only the diff from org defaults is saved as agent overrides. A sticky save bar appears at the bottom when changes exist.</li>
+  <li><strong>Reset</strong> — "Reset to Org Defaults" removes all agent-level overrides, reverting everything to org defaults.</li>
+</ol>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3 id="override-model">Override Model</h3>
+<p>Tool security follows a layered inheritance model:</p>
+<ol>
+  <li><strong>Org Defaults</strong> — Base settings that apply to all agents.</li>
+  <li><strong>Agent Overrides</strong> — Per-agent modifications that take precedence.</li>
+  <li><strong>Merged Config</strong> — The effective configuration (org defaults + agent overrides).</li>
+</ol>
+<p>When you modify a setting, it becomes an agent-level override. Fields labeled "ORG DEFAULT" are inherited and not stored at the agent level.</p>
+
+<h3 id="path-sandbox">Path Sandbox</h3>
+<p>Restricts file system access. Prevents agents from reading sensitive files like <code>.env</code>, SSH keys, or system configs.</p>
+<ul>
+  <li><strong>Enable path sandboxing</strong> — Master toggle.</li>
+  <li><strong>Allowed Directories</strong> — List of paths the agent can access (e.g., <code>/home/user/project</code>). Tag input for easy management.</li>
+  <li><strong>Blocked Patterns</strong> — Regex patterns for files to block (e.g., <code>\.env$</code>, <code>\.ssh/</code>). Applied even within allowed directories.</li>
+</ul>
+
+<h3 id="ssrf">SSRF Protection</h3>
+<p>Server-Side Request Forgery protection prevents agents from accessing internal infrastructure.</p>
+<ul>
+  <li><strong>Allowed Hosts</strong> — Whitelist of external hosts the agent can access (e.g., <code>api.example.com</code>).</li>
+  <li><strong>Blocked CIDRs</strong> — IP ranges to block (e.g., <code>10.0.0.0/8</code>, <code>169.254.0.0/16</code> for cloud metadata).</li>
+</ul>
+
+<h3 id="command-sanitizer">Command Sanitizer</h3>
+<p>Controls shell command execution. Full-width card because command security deserves extra attention.</p>
+<ul>
+  <li><strong>Mode</strong>:
+    <ul>
+      <li><em>Blocklist</em> — Block specific dangerous patterns. Easier to configure — just block what's dangerous.</li>
+      <li><em>Allowlist</em> — Only permit specific safe commands. More secure but requires listing every allowed command.</li>
+    </ul>
+  </li>
+  <li><strong>Allowed Commands</strong> — Commands permitted in allowlist mode (e.g., <code>git</code>, <code>npm</code>, <code>node</code>).</li>
+  <li><strong>Blocked Patterns</strong> — Regex patterns to block in blocklist mode (e.g., <code>curl.*\|.*sh</code>, <code>rm -rf</code>).</li>
+</ul>
+
+<h3 id="audit-logging">Audit Logging</h3>
+<p>Records every tool invocation for compliance and debugging.</p>
+<ul>
+  <li><strong>Keys to Redact</strong> — Sensitive parameter names to redact from logs (e.g., <code>password</code>, <code>api_key</code>, <code>custom_secret</code>).</li>
+</ul>
+
+<h3 id="rate-limiting">Rate Limiting</h3>
+<p>Per-tool call limits using a token bucket algorithm. Each tool has:</p>
+<ul>
+  <li><strong>Max/min</strong> — Maximum calls allowed in the bucket.</li>
+  <li><strong>Refill/min</strong> — How many calls are replenished per minute.</li>
+</ul>
+<p>Default limits vary by tool type:</p>
+<table>
+  <thead><tr><th>Tool</th><th>Default Max</th><th>Default Refill</th></tr></thead>
+  <tbody>
+    <tr><td><code>bash</code></td><td>10/min</td><td>10/min</td></tr>
+    <tr><td><code>browser</code></td><td>20/min</td><td>20/min</td></tr>
+    <tr><td><code>web_fetch</code>, <code>web_search</code></td><td>30/min</td><td>30/min</td></tr>
+    <tr><td><code>read</code>, <code>write</code>, <code>edit</code>, <code>glob</code>, <code>grep</code>, <code>memory</code></td><td>60/min</td><td>60/min</td></tr>
+  </tbody>
+</table>
+
+<h3 id="circuit-breaker">Circuit Breaker</h3>
+<p>Automatically stops calling a tool after consecutive failures. Prevents wasting tokens on broken integrations.</p>
+<ul>
+  <li>After N consecutive failures, the circuit "opens" (tool disabled).</li>
+  <li>After a cooldown period, the circuit "closes" (tool re-enabled for testing).</li>
+</ul>
+
+<h3 id="telemetry">Telemetry</h3>
+<p>Collects execution timing, success rates, and usage patterns. Useful for identifying slow tools, optimizing workflows, and capacity planning.</p>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <ul>
+    <li><strong>Always enable path sandboxing</strong> — No agent should have unrestricted file system access. Whitelist only the directories it needs.</li>
+    <li><strong>Block cloud metadata endpoints</strong> — Add <code>169.254.0.0/16</code> to blocked CIDRs to prevent credential theft via cloud metadata.</li>
+    <li><strong>Use blocklist mode for commands</strong> — It's practical. Block dangerous patterns like <code>rm -rf /</code>, <code>curl | sh</code>, and <code>chmod 777</code>.</li>
+    <li><strong>Set lower rate limits for expensive tools</strong> — Browser and bash are resource-intensive. Keep their limits conservative.</li>
+    <li><strong>Enable circuit breakers</strong> — They prevent cascading failures and token waste when external services go down.</li>
+    <li><strong>Only override what you need</strong> — Use "Reset to Org Defaults" to clean up unnecessary overrides. Fewer overrides = easier maintenance.</li>
+    <li><strong>Enable telemetry for optimization</strong> — The data helps you understand which tools the agent uses most and which are slowest.</li>
+  </ul>
+</div>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<div class="card">
+  <h3>Agent can't read a file it should access</h3>
+  <p>Check the Path Sandbox allowed directories. The file's parent directory must be in the whitelist. Also check blocked patterns — a broad regex like <code>\.json$</code> could block needed config files.</p>
+</div>
+
+<div class="card">
+  <h3>Tool being rate limited</h3>
+  <p>The agent is calling the tool faster than the configured rate. Increase the max/refill values for that tool, or investigate why the agent is making so many rapid calls.</p>
+</div>
+
+<div class="card">
+  <h3>Circuit breaker keeps opening</h3>
+  <p>The underlying tool or API is failing repeatedly. Fix the root cause (API down, wrong credentials, etc.) rather than disabling the circuit breaker.</p>
+</div>
+
+<div class="card">
+  <h3>Reset to Org Defaults didn't work</h3>
+  <p>The reset sends empty overrides to the server. If values still appear customized, refresh the page. The merged view may be showing org defaults that look different from what you expected.</p>
+</div>
+
+<div class="card">
+  <h3>Sticky save bar won't appear</h3>
+  <p>The save bar only appears when the merged config differs from what was loaded. If you changed a value back to its original, the dirty state clears. Make a definitive change to trigger it.</p>
+</div>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<div class="nav">
+  <a href="agent-security.html">Agent Security</a>
+  <a href="agent-guardrails.html">Agent Guardrails</a>
+  <a href="agent-activity.html">Agent Activity Log</a>
+  <a href="agent-deployment.html">Agent Deployment</a>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

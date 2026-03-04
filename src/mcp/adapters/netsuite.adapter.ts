@@ -223,7 +223,7 @@ const createRecord: ToolHandler = {
       },
       fields: {
         type: 'object',
-        description: 'Field values for the new record (e.g. { "companyName": "Acme Corp", "subsidiary": { "id": "1" } })',
+        description: 'Field values for the new record (e.g. { "companyName": "AgenticMail", "subsidiary": { "id": "1" } })',
       },
     },
     required: ['record_type', 'fields'],

@@ -3,6 +3,7 @@ import { I } from '../../components/icons.js';
 import { E } from '../../assets/icons/emoji-icons.js';
 import { Badge, EmptyState } from './shared.js?v=4';
 import { HelpButton } from '../../components/help-button.js';
+import { mapEmojiToIcon } from './tools.js';
 
 // ════════════════════════════════════════════════════════════
 // SKILLS SECTION — View and manage agent skills
@@ -15,8 +16,10 @@ export function SkillsSection(props) {
   var toast = useApp().toast;
 
   var ea = engineAgent || {};
+  var clientOrgId = ea.client_org_id;
   var config = ea.config || {};
   var currentSkills = Array.isArray(config.skills) ? config.skills : [];
+  var _orgName = useState(null); var orgName = _orgName[0]; var setOrgName = _orgName[1];
 
   var _editing = useState(false);
   var editing = _editing[0]; var setEditing = _editing[1];
@@ -35,6 +38,14 @@ export function SkillsSection(props) {
     engineCall('/skills/by-category').then(function(d) { setAllSkills(d.categories || {}); }).catch(function() {});
     engineCall('/skills/suites').then(function(d) { setSuites(d.suites || []); }).catch(function() {});
   }, []);
+
+  // Fetch org name if agent belongs to a client org
+  useEffect(function() {
+    if (!clientOrgId) return;
+    apiCall('/admin/client-orgs/' + clientOrgId).then(function(org) {
+      setOrgName(org.name || org.org_name || 'Organization');
+    }).catch(function() {});
+  }, [clientOrgId]);
 
   // Reset selected skills when entering edit mode
   var startEdit = function() {
@@ -89,7 +100,7 @@ export function SkillsSection(props) {
           var someIn = s.skills.some(function(id) { return selectedSkills.includes(id); });
           return h('div', { key: s.id, className: 'suite-card' + (allIn ? ' selected' : someIn ? ' partial' : ''), onClick: function() { toggleSuite(s); }, style: { cursor: 'pointer' } },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 } },
-              h('span', { style: { fontSize: 20 } }, s.icon),
+              h('span', { style: { fontSize: 20, display: 'inline-flex' } }, mapEmojiToIcon(s.icon, 20)),
               allIn && h('span', { style: { color: 'var(--accent)' } }, I.check())
             ),
             h('div', { className: 'suite-name' }, s.name),
@@ -114,7 +125,7 @@ export function SkillsSection(props) {
             var isSelected = selectedSkills.includes(s.id);
             return h('div', { key: s.id, className: 'skill-card' + (isSelected ? ' selected' : ''), onClick: function() { toggleSkill(s.id); }, style: { cursor: 'pointer' } },
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                h('span', { className: 'skill-name' }, (s.icon || '') + ' ' + s.name),
+                h('span', { className: 'skill-name', style: { display: 'inline-flex', alignItems: 'center', gap: 4 } }, s.icon ? mapEmojiToIcon(s.icon, 14) : null, ' ', s.name),
                 isSelected && h('span', { style: { color: 'var(--accent)' } }, I.check())
               ),
               h('div', { className: 'skill-desc' }, s.description)
@@ -127,6 +138,17 @@ export function SkillsSection(props) {
 
   // View mode
   return h(Fragment, null,
+    // Org context banner
+    clientOrgId && h('div', { style: { padding: '12px 16px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--info, #0ea5e9)' } },
+      I.building(),
+      h('span', null,
+        h('strong', null, 'Organization Context: '),
+        'Skills available to this agent are scoped to ',
+        h('strong', null, orgName || 'organization'),
+        ' policies. Some skills may be restricted or pre-configured by the organization.'
+      ),
+      h('span', { className: 'badge', style: { fontSize: 10, padding: '1px 8px', background: 'var(--info, #0ea5e9)', color: '#fff', marginLeft: 'auto', flexShrink: 0 } }, orgName || 'Org')
+    ),
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center' } }, 'Skills & Capabilities', h(HelpButton, { label: 'Skills & Capabilities' },
         h('p', null, 'Skills are packages of tools and capabilities that an agent can use. Each skill unlocks specific functionality like email management, web browsing, or calendar access.'),

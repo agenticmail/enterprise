@@ -146,6 +146,8 @@ export interface RuntimeConfig {
   knowledgeEngine?: any;
   /** Real-time agent status tracker */
   agentStatusTracker?: import('../engine/agent-status.js').AgentStatusTracker;
+  /** Resolve org-scoped LLM API key (provider → key). Called before system-wide fallback. */
+  resolveOrgApiKey?: (agentId: string, provider: string) => Promise<string | null>;
   /** Resume active sessions on startup (default: true) */
   resumeOnStartup?: boolean;
   /** Heartbeat interval in ms (default: 30000 = 30s) */

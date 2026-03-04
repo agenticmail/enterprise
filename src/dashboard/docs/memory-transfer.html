@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Transfer — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="back">&larr; Back to Dashboard</a>
+
+<h1>Memory Transfer</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Transfer, copy, and synchronize memories between agents — with granular filtering, conflict resolution, and scheduling.</p>
+
+<!-- Table of Contents -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#key-concepts">Key Concepts</a></li>
+    <li><a href="#transfer-tab">Transfer Tab</a></li>
+    <li><a href="#filters">Filters</a></li>
+    <li><a href="#conflict-resolution">Conflict Resolution</a></li>
+    <li><a href="#history-tab">History Tab</a></li>
+    <li><a href="#schedules-tab">Schedules Tab</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#api-reference">API Reference</a></li>
+    <li><a href="#related">Related Pages</a></li>
+  </ul>
+</div>
+
+<!-- Overview -->
+<h2 id="overview">Overview</h2>
+<p>
+  The Memory Transfer page allows administrators to move or copy memories from one agent to another.
+  This is essential when onboarding new agents, consolidating knowledge, replicating expertise,
+  or decommissioning agents while preserving their learned knowledge.
+</p>
+<p>
+  Memory Transfer supports both one-to-one and one-to-many transfers, with full control over
+  which memories are included, how conflicts are handled, and whether metadata is preserved.
+</p>
+
+<div class="callout callout-info">
+  <strong>When to use Memory Transfer:</strong>
+  <ul>
+    <li>Onboarding a new agent with knowledge from an experienced one</li>
+    <li>Consolidating memories from multiple agents into a single source of truth</li>
+    <li>Migrating an agent to a new identity while keeping its knowledge</li>
+    <li>Creating specialized agents by copying relevant memory subsets</li>
+    <li>Backing up critical memories before decommissioning an agent</li>
+  </ul>
+</div>
+
+<!-- How It Works -->
+<h2 id="how-it-works">How It Works</h2>
+<p>The transfer process follows these steps:</p>
+<ol>
+  <li><strong>Select Source Agent</strong> — Choose the agent whose memories you want to transfer. The system displays memory statistics to help you understand what's available.</li>
+  <li><strong>Apply Filters</strong> — Narrow down which memories to include by category, date range, importance level, search query, or tags.</li>
+  <li><strong>Preview</strong> — See exactly how many memories match your filters and their breakdown by category before committing.</li>
+  <li><strong>Select Target(s)</strong> — Choose one or more agents to receive the memories. You can also select all agents in the organization.</li>
+  <li><strong>Configure Options</strong> — Set the transfer mode (copy vs. move), conflict resolution strategy, and metadata preferences.</li>
+  <li><strong>Execute</strong> — Confirm and run the transfer. A detailed result summary shows how many memories were transferred, skipped, or had conflicts.</li>
+</ol>
+
+<div class="callout callout-warning">
+  <strong>Move mode is destructive.</strong> When using "Move" mode, source memories are permanently deleted after successful transfer. Use "Copy" mode if you want to keep the original memories intact.
+</div>
+
+<!-- Key Concepts -->
+<h2 id="key-concepts">Key Concepts</h2>
+
+<h3>Transfer Modes</h3>
+<table>
+  <tr><th>Mode</th><th>Description</th><th>Source After Transfer</th></tr>
+  <tr><td><strong>Copy</strong></td><td>Duplicates memories to target agent(s)</td><td>Unchanged — all memories remain</td></tr>
+  <tr><td><strong>Move</strong></td><td>Transfers memories and removes from source</td><td>Matched memories are deleted</td></tr>
+</table>
+
+<h3>Conflict Detection</h3>
+<p>
+  A conflict occurs when a memory with the <strong>same title and category</strong> already exists
+  in the target agent. The system detects this automatically and applies your chosen conflict strategy.
+</p>
+
+<h3>Metadata Preservation</h3>
+<p>
+  When "Preserve metadata" is enabled, the original memory's metadata fields (timestamps, custom data,
+  source information) are carried over to the target. A <code>transferredFrom</code> field is always
+  added to track the memory's provenance, along with a unique <code>transferId</code>.
+</p>
+
+<h3>Memory Categories</h3>
+<p>Memories are organized into these categories:</p>
+<ul>
+  <li><strong>org_knowledge</strong> — Organizational facts and procedures</li>
+  <li><strong>interaction_pattern</strong> — How the agent interacts with users</li>
+  <li><strong>preference</strong> — User or system preferences</li>
+  <li><strong>correction</strong> — Corrections to previous behavior</li>
+  <li><strong>skill</strong> — Learned capabilities and techniques</li>
+  <li><strong>context</strong> — Background context and environment info</li>
+  <li><strong>reflection</strong> — Self-assessment and improvement notes</li>
+  <li><strong>session_learning</strong> — Insights from specific sessions</li>
+  <li><strong>system_notice</strong> — System-generated notifications</li>
+</ul>
+
+<!-- Transfer Tab -->
+<h2 id="transfer-tab">Transfer Tab</h2>
+<p>
+  The main Transfer tab is where you configure and execute transfers. It's organized into
+  sequential sections: Source, Filters, Preview, Targets, Options, and Execute.
+</p>
+
+<h3>Source Agent Selection</h3>
+<p>
+  Select an agent from the dropdown to see their memory statistics, including total memory count
+  and number of active categories. If an agent has no memories, the transfer options will be disabled.
+</p>
+
+<h3>Target Selection</h3>
+<p>
+  Choose one or more target agents individually, or check "All agents in organization" to transfer
+  to every agent except the source. The system automatically prevents self-transfer.
+</p>
+
+<!-- Filters -->
+<h2 id="filters">Filters</h2>
+<p>Filters let you precisely control which memories are included in the transfer:</p>
+
+<table>
+  <tr><th>Filter</th><th>Description</th></tr>
+  <tr><td><strong>Categories</strong></td><td>Select specific memory categories to include. Use "Select All" or "Clear" for quick toggling.</td></tr>
+  <tr><td><strong>Date Range</strong></td><td>Only include memories created within a specific time period.</td></tr>
+  <tr><td><strong>Importance</strong></td><td>Filter by importance level: low, medium, high, or critical.</td></tr>
+  <tr><td><strong>Search</strong></td><td>Full-text search across memory titles and content.</td></tr>
+  <tr><td><strong>Tags</strong></td><td>Comma-separated list of tags. Memories must have at least one matching tag.</td></tr>
+</table>
+
+<p>
+  Filters are cumulative — all active filters must match for a memory to be included.
+  Use the <strong>Preview</strong> button to verify your filter results before executing.
+</p>
+
+<!-- Conflict Resolution -->
+<h2 id="conflict-resolution">Conflict Resolution</h2>
+<p>When a target agent already has a memory with the same title and category, the conflict strategy determines what happens:</p>
+
+<table>
+  <tr><th>Strategy</th><th>Behavior</th><th>Best For</th></tr>
+  <tr><td><strong>Skip</strong></td><td>Keep the target's existing memory, don't transfer</td><td>Preserving the target's established knowledge</td></tr>
+  <tr><td><strong>Overwrite</strong></td><td>Replace target's memory with the source version</td><td>Ensuring latest knowledge is propagated</td></tr>
+  <tr><td><strong>Merge</strong></td><td>Combine content from both versions, merge tags</td><td>Building comprehensive knowledge from multiple sources</td></tr>
+  <tr><td><strong>Append</strong></td><td>Create a new memory with "(transferred)" suffix</td><td>Keeping both versions for comparison</td></tr>
+</table>
+
+<div class="callout callout-info">
+  The <strong>Merge</strong> strategy joins content with a separator line and combines all tags from
+  both versions. This creates a single comprehensive memory entry.
+</div>
+
+<!-- History Tab -->
+<h2 id="history-tab">History Tab</h2>
+<p>
+  The History tab provides a complete audit trail of all past transfers. Each entry shows:
+</p>
+<ul>
+  <li>Date and time of the transfer</li>
+  <li>Source agent name</li>
+  <li>Target agent(s)</li>
+  <li>Transfer mode (copy/move)</li>
+  <li>Number of memories transferred, skipped, and conflicts encountered</li>
+</ul>
+<p>
+  History is paginated with 20 entries per page. Use the Previous/Next buttons to navigate through
+  older transfer records.
+</p>
+
+<!-- Schedules Tab -->
+<h2 id="schedules-tab">Schedules Tab</h2>
+<p>
+  Automated transfer schedules allow you to set up recurring memory synchronization between agents.
+  This is useful for maintaining knowledge consistency across teams of agents.
+</p>
+
+<h3>Schedule Types</h3>
+<table>
+  <tr><th>Type</th><th>Description</th></tr>
+  <tr><td><strong>Daily</strong></td><td>Runs once per day at the specified time</td></tr>
+  <tr><td><strong>Weekly</strong></td><td>Runs once per week on the specified day and time</td></tr>
+  <tr><td><strong>On Change</strong></td><td>Triggers whenever the source agent's memories change</td></tr>
+</table>
+
+<h3>Creating a Schedule</h3>
+<ol>
+  <li>Click "New Schedule" in the Schedules tab</li>
+  <li>Select source and target agents</li>
+  <li>Choose transfer mode and conflict strategy</li>
+  <li>Set the schedule type, time, and day (if weekly)</li>
+  <li>Click "Create" to activate the schedule</li>
+</ol>
+
+<h3>Managing Schedules</h3>
+<p>
+  Active schedules are listed in a table showing source, targets, schedule details, mode, and
+  conflict strategy. Use the delete button to remove a schedule. Deleted schedules stop immediately.
+</p>
+
+<!-- Configuration -->
+<h2 id="configuration">Configuration</h2>
+<p>Memory Transfer works with the default configuration for most use cases. Advanced options include:</p>
+<ul>
+  <li><strong>Org Scope</strong> — Transfers automatically use the current organization context. Memories are tagged with the active org ID.</li>
+  <li><strong>Metadata Fields</strong> — The <code>transferredFrom</code> and <code>transferId</code> fields are always added to transferred memories for traceability.</li>
+  <li><strong>Batch Size</strong> — Large transfers are processed sequentially to avoid overloading the system. Each memory is transferred individually with conflict checking.</li>
+</ul>
+
+<!-- Best Practices -->
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="callout callout-success">
+  <strong>Recommended workflow:</strong>
+  <ol>
+    <li>Always preview before executing</li>
+    <li>Start with "Copy" mode until you're confident in the process</li>
+    <li>Use "Skip" conflict strategy for initial transfers</li>
+    <li>Review the transfer results before doing more</li>
+  </ol>
+</div>
+
+<h3>Do</h3>
+<ul>
+  <li>Preview first — always check the memory count and category breakdown</li>
+  <li>Use filters to transfer only relevant memories (e.g., only "skill" memories to a new specialist)</li>
+  <li>Keep metadata preserved for audit trails and provenance tracking</li>
+  <li>Use schedules for ongoing synchronization instead of repeated manual transfers</li>
+  <li>Check the History tab to avoid duplicate transfers</li>
+</ul>
+
+<h3>Don't</h3>
+<ul>
+  <li>Don't use "Move" mode unless you're decommissioning the source agent</li>
+  <li>Don't transfer system_notice memories — they're agent-specific</li>
+  <li>Don't transfer all categories blindly — interaction_pattern and preference may not apply to other agents</li>
+  <li>Don't create overlapping schedules for the same source-target pair</li>
+</ul>
+
+<!-- Troubleshooting -->
+<h2 id="troubleshooting">Troubleshooting</h2>
+
+<h3>"No memories match the given filters"</h3>
+<p>
+  The source agent has no memories matching your current filter combination.
+  Try broadening the filters: select all categories, remove date range restrictions,
+  or clear the search query.
+</p>
+
+<h3>"Cannot transfer memories to the same agent"</h3>
+<p>
+  Self-transfer is not allowed. Make sure the source and target agents are different.
+  If using "All in org", the source is automatically excluded.
+</p>
+
+<h3>Transfer shows 0 transferred, all skipped</h3>
+<p>
+  This means every source memory already exists in the target (by title+category match)
+  and your conflict strategy is "Skip". Try "Overwrite" or "Append" to force the transfer.
+</p>
+
+<h3>Memories not appearing after transfer</h3>
+<p>
+  Refresh the target agent's memory page. If using org context, make sure you're viewing
+  the correct organization. Check the transfer history for error details.
+</p>
+
+<h3>Large transfer is slow</h3>
+<p>
+  Transfers process memories sequentially for safety. For very large transfers (1000+ memories),
+  consider using filters to break the transfer into smaller category-based batches.
+</p>
+
+<!-- API Reference -->
+<h2 id="api-reference">API Reference</h2>
+<p>The Memory Transfer feature exposes these API endpoints under <code>/api/engine/memory-transfer/</code>:</p>
+
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+  <tr><td>POST</td><td>/preview</td><td>Preview matching memories before transfer</td></tr>
+  <tr><td>POST</td><td>/execute</td><td>Execute a memory transfer</td></tr>
+  <tr><td>GET</td><td>/history</td><td>List transfer history with pagination</td></tr>
+  <tr><td>POST</td><td>/schedule</td><td>Create an automated transfer schedule</td></tr>
+  <tr><td>GET</td><td>/schedules</td><td>List active schedules</td></tr>
+  <tr><td>DELETE</td><td>/schedules/:id</td><td>Remove a schedule</td></tr>
+</table>
+
+<!-- Related Pages -->
+<h2 id="related">Related Pages</h2>
+<ul>
+  <li><a href="/docs/agent-memory">Agent Memory</a> — Managing individual agent memories</li>
+  <li><a href="/docs/knowledge">Knowledge Bases</a> — Shared knowledge across the organization</li>
+  <li><a href="/docs/agent-overview">Agent Overview</a> — Agent configuration and management</li>
+  <li><a href="/docs/audit">Audit Log</a> — System-wide audit trail including transfers</li>
+</ul>
+
+</body>
+</html>

@@ -23,32 +23,223 @@ export var CULTURES = [
 ];
 
 export var LANGUAGES = [
-  { id: 'en-us', name: 'English (American)' },
-  { id: 'en-gb', name: 'English (British)' },
-  { id: 'en-au', name: 'English (Australian)' },
-  { id: 'es', name: 'Spanish' },
-  { id: 'pt', name: 'Portuguese' },
-  { id: 'fr', name: 'French' },
-  { id: 'de', name: 'German' },
-  { id: 'ja', name: 'Japanese' },
-  { id: 'ko', name: 'Korean' },
-  { id: 'zh', name: 'Mandarin' },
-  { id: 'hi', name: 'Hindi' },
-  { id: 'ar', name: 'Arabic' },
-  { id: 'yo', name: 'Yoruba' },
-  { id: 'ig', name: 'Igbo' },
-  { id: 'sw', name: 'Swahili' },
-  { id: 'it', name: 'Italian' },
-  { id: 'nl', name: 'Dutch' },
-  { id: 'ru', name: 'Russian' },
-  { id: 'tr', name: 'Turkish' },
-  { id: 'pl', name: 'Polish' },
-  { id: 'th', name: 'Thai' },
-  { id: 'vi', name: 'Vietnamese' },
-  { id: 'id', name: 'Indonesian' },
-  { id: 'ms', name: 'Malay' },
-  { id: 'tl', name: 'Filipino (Tagalog)' },
+  // English Variants
+  { id: 'en-us', name: 'English (American)', group: 'English' },
+  { id: 'en-gb', name: 'English (British)', group: 'English' },
+  { id: 'en-au', name: 'English (Australian)', group: 'English' },
+  { id: 'en-ca', name: 'English (Canadian)', group: 'English' },
+  { id: 'en-in', name: 'English (Indian)', group: 'English' },
+  { id: 'en-za', name: 'English (South African)', group: 'English' },
+  { id: 'en-ie', name: 'English (Irish)', group: 'English' },
+  { id: 'en-ng', name: 'English (Nigerian)', group: 'English' },
+  // Spanish Variants
+  { id: 'es', name: 'Spanish (Spain)', group: 'Spanish' },
+  { id: 'es-mx', name: 'Spanish (Mexican)', group: 'Spanish' },
+  { id: 'es-ar', name: 'Spanish (Argentine)', group: 'Spanish' },
+  { id: 'es-co', name: 'Spanish (Colombian)', group: 'Spanish' },
+  { id: 'es-latam', name: 'Spanish (Latin American)', group: 'Spanish' },
+  // Portuguese Variants
+  { id: 'pt', name: 'Portuguese (Portugal)', group: 'Portuguese' },
+  { id: 'pt-br', name: 'Portuguese (Brazilian)', group: 'Portuguese' },
+  // French Variants
+  { id: 'fr', name: 'French (France)', group: 'French' },
+  { id: 'fr-ca', name: 'French (Canadian)', group: 'French' },
+  { id: 'fr-be', name: 'French (Belgian)', group: 'French' },
+  { id: 'fr-ch', name: 'French (Swiss)', group: 'French' },
+  { id: 'fr-af', name: 'French (African)', group: 'French' },
+  // Chinese Variants
+  { id: 'zh', name: 'Chinese (Mandarin Simplified)', group: 'Chinese' },
+  { id: 'zh-tw', name: 'Chinese (Mandarin Traditional)', group: 'Chinese' },
+  { id: 'zh-yue', name: 'Chinese (Cantonese)', group: 'Chinese' },
+  // Arabic Variants
+  { id: 'ar', name: 'Arabic (Modern Standard)', group: 'Arabic' },
+  { id: 'ar-eg', name: 'Arabic (Egyptian)', group: 'Arabic' },
+  { id: 'ar-sa', name: 'Arabic (Saudi)', group: 'Arabic' },
+  { id: 'ar-ma', name: 'Arabic (Moroccan)', group: 'Arabic' },
+  // European
+  { id: 'de', name: 'German', group: 'European' },
+  { id: 'de-at', name: 'German (Austrian)', group: 'European' },
+  { id: 'de-ch', name: 'German (Swiss)', group: 'European' },
+  { id: 'it', name: 'Italian', group: 'European' },
+  { id: 'nl', name: 'Dutch', group: 'European' },
+  { id: 'nl-be', name: 'Dutch (Belgian/Flemish)', group: 'European' },
+  { id: 'ru', name: 'Russian', group: 'European' },
+  { id: 'pl', name: 'Polish', group: 'European' },
+  { id: 'uk', name: 'Ukrainian', group: 'European' },
+  { id: 'cs', name: 'Czech', group: 'European' },
+  { id: 'sk', name: 'Slovak', group: 'European' },
+  { id: 'ro', name: 'Romanian', group: 'European' },
+  { id: 'hu', name: 'Hungarian', group: 'European' },
+  { id: 'bg', name: 'Bulgarian', group: 'European' },
+  { id: 'hr', name: 'Croatian', group: 'European' },
+  { id: 'sr', name: 'Serbian', group: 'European' },
+  { id: 'sl', name: 'Slovenian', group: 'European' },
+  { id: 'el', name: 'Greek', group: 'European' },
+  { id: 'sv', name: 'Swedish', group: 'Nordic' },
+  { id: 'no', name: 'Norwegian', group: 'Nordic' },
+  { id: 'da', name: 'Danish', group: 'Nordic' },
+  { id: 'fi', name: 'Finnish', group: 'Nordic' },
+  { id: 'is', name: 'Icelandic', group: 'Nordic' },
+  // Turkic & Central Asian
+  { id: 'tr', name: 'Turkish', group: 'Turkic' },
+  { id: 'az', name: 'Azerbaijani', group: 'Turkic' },
+  { id: 'kk', name: 'Kazakh', group: 'Turkic' },
+  { id: 'uz', name: 'Uzbek', group: 'Turkic' },
+  // South Asian
+  { id: 'hi', name: 'Hindi', group: 'South Asian' },
+  { id: 'bn', name: 'Bengali', group: 'South Asian' },
+  { id: 'ur', name: 'Urdu', group: 'South Asian' },
+  { id: 'ta', name: 'Tamil', group: 'South Asian' },
+  { id: 'te', name: 'Telugu', group: 'South Asian' },
+  { id: 'mr', name: 'Marathi', group: 'South Asian' },
+  { id: 'gu', name: 'Gujarati', group: 'South Asian' },
+  { id: 'kn', name: 'Kannada', group: 'South Asian' },
+  { id: 'ml', name: 'Malayalam', group: 'South Asian' },
+  { id: 'pa', name: 'Punjabi', group: 'South Asian' },
+  { id: 'si', name: 'Sinhala', group: 'South Asian' },
+  { id: 'ne', name: 'Nepali', group: 'South Asian' },
+  // East Asian
+  { id: 'ja', name: 'Japanese', group: 'East Asian' },
+  { id: 'ko', name: 'Korean', group: 'East Asian' },
+  { id: 'mn', name: 'Mongolian', group: 'East Asian' },
+  // Southeast Asian
+  { id: 'th', name: 'Thai', group: 'Southeast Asian' },
+  { id: 'vi', name: 'Vietnamese', group: 'Southeast Asian' },
+  { id: 'id', name: 'Indonesian', group: 'Southeast Asian' },
+  { id: 'ms', name: 'Malay', group: 'Southeast Asian' },
+  { id: 'tl', name: 'Filipino (Tagalog)', group: 'Southeast Asian' },
+  { id: 'my', name: 'Burmese', group: 'Southeast Asian' },
+  { id: 'km', name: 'Khmer', group: 'Southeast Asian' },
+  // African
+  { id: 'yo', name: 'Yoruba', group: 'African' },
+  { id: 'ig', name: 'Igbo', group: 'African' },
+  { id: 'ha', name: 'Hausa', group: 'African' },
+  { id: 'sw', name: 'Swahili', group: 'African' },
+  { id: 'am', name: 'Amharic', group: 'African' },
+  { id: 'zu', name: 'Zulu', group: 'African' },
+  { id: 'xh', name: 'Xhosa', group: 'African' },
+  { id: 'rw', name: 'Kinyarwanda', group: 'African' },
+  { id: 'so', name: 'Somali', group: 'African' },
+  { id: 'wo', name: 'Wolof', group: 'African' },
+  // Other
+  { id: 'he', name: 'Hebrew', group: 'Other' },
+  { id: 'fa', name: 'Persian (Farsi)', group: 'Other' },
+  { id: 'ka', name: 'Georgian', group: 'Other' },
+  { id: 'hy', name: 'Armenian', group: 'Other' },
+  { id: 'et', name: 'Estonian', group: 'Other' },
+  { id: 'lv', name: 'Latvian', group: 'Other' },
+  { id: 'lt', name: 'Lithuanian', group: 'Other' },
+  { id: 'mt', name: 'Maltese', group: 'Other' },
+  { id: 'cy', name: 'Welsh', group: 'Other' },
+  { id: 'ga', name: 'Irish (Gaeilge)', group: 'Other' },
+  { id: 'eu', name: 'Basque', group: 'Other' },
+  { id: 'ca', name: 'Catalan', group: 'Other' },
+  { id: 'gl', name: 'Galician', group: 'Other' },
+  { id: 'af', name: 'Afrikaans', group: 'Other' },
 ];
+
+/** Get language display name by ID */
+export function getLanguageName(id) {
+  if (!id || id === '—') return '—';
+  var lang = LANGUAGES.find(function(l) { return l.id === id; });
+  return lang ? lang.name : id;
+}
+
+/** Get unique language groups in order */
+export function getLanguageGroups() {
+  var seen = {};
+  var groups = [];
+  LANGUAGES.forEach(function(l) {
+    if (!seen[l.group]) { seen[l.group] = true; groups.push(l.group); }
+  });
+  return groups;
+}
+
+/** Comprehensive preset tags for agent role templates */
+export var ROLE_TAGS = [
+  // Function
+  'customer-support', 'technical-support', 'sales', 'lead-generation', 'account-management',
+  'onboarding', 'billing', 'scheduling', 'recruitment', 'hr',
+  'legal', 'compliance', 'finance', 'accounting', 'procurement',
+  'marketing', 'content-creation', 'social-media', 'seo', 'analytics',
+  'engineering', 'devops', 'qa', 'security', 'architecture',
+  'product-management', 'project-management', 'scrum-master', 'ux-research',
+  'data-analysis', 'reporting', 'business-intelligence', 'forecasting',
+  // Capability
+  'email-handler', 'chat-agent', 'voice-agent', 'workflow-automation',
+  'document-processing', 'data-entry', 'research', 'summarization',
+  'translation', 'writing', 'editing', 'proofreading', 'copywriting',
+  'code-review', 'debugging', 'api-integration', 'database-management',
+  // Industry
+  'healthcare', 'fintech', 'ecommerce', 'saas', 'real-estate',
+  'education', 'nonprofit', 'government', 'logistics', 'hospitality',
+  'insurance', 'banking', 'manufacturing', 'retail', 'media',
+  'telecom', 'automotive', 'energy', 'agriculture', 'legal-services',
+  // Trait
+  'multilingual', 'empathetic', 'technical', 'creative', 'analytical',
+  'concise', 'detail-oriented', 'fast-responder', 'escalation-handler',
+  '24-7', 'high-volume', 'enterprise', 'smb', 'b2b', 'b2c',
+];
+
+/** Reusable language <select> with optgroups */
+export function LanguageSelect(props) {
+  var value = props.value || 'en-us';
+  var onChange = props.onChange;
+  var style = props.style || {};
+  var groups = getLanguageGroups();
+  return h('select', { className: props.className || 'input', value: value, onChange: onChange, style: style },
+    groups.map(function(g) {
+      var langs = LANGUAGES.filter(function(l) { return l.group === g; });
+      return h('optgroup', { key: g, label: g },
+        langs.map(function(l) { return h('option', { key: l.id, value: l.id }, l.name); })
+      );
+    })
+  );
+}
+
+/** Reusable tag picker with preset suggestions + custom input */
+export function TagPicker(props) {
+  var tags = props.value || [];
+  var onChange = props.onChange; // receives new array
+  var presets = props.presets || ROLE_TAGS;
+  var placeholder = props.placeholder || 'Add custom tag...';
+  var _ref = useState(''); var input = _ref[0]; var setInput = _ref[1];
+  var _ref2 = useState(false); var showSuggest = _ref2[0]; var setShowSuggest = _ref2[1];
+
+  var addTag = function(t) {
+    t = t.trim().toLowerCase().replace(/\s+/g, '-');
+    if (t && tags.indexOf(t) < 0) onChange(tags.concat([t]));
+  };
+  var removeTag = function(t) { onChange(tags.filter(function(x) { return x !== t; })); };
+
+  var filtered = presets.filter(function(p) {
+    return tags.indexOf(p) < 0 && (!input || p.indexOf(input.toLowerCase()) >= 0);
+  }).slice(0, 20);
+
+  return h('div', null,
+    // Selected tags
+    tags.length > 0 && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 } },
+      tags.map(function(t) {
+        return h('span', { key: t, style: { padding: '3px 10px', fontSize: 11, background: 'var(--accent-soft)', borderRadius: 20, color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }, onClick: function() { removeTag(t); }, title: 'Click to remove' },
+          t.replace(/-/g, ' '), ' \u00d7'
+        );
+      })
+    ),
+    // Input row
+    h('div', { style: { display: 'flex', gap: 6, position: 'relative' } },
+      h('input', { className: 'input', value: input, onChange: function(e) { setInput(e.target.value); setShowSuggest(true); }, onFocus: function() { setShowSuggest(true); }, onKeyDown: function(e) { if (e.key === 'Enter') { e.preventDefault(); addTag(input); setInput(''); } }, placeholder: placeholder, style: { flex: 1, fontSize: 12 } }),
+      h('button', { className: 'btn btn-secondary btn-sm', type: 'button', onClick: function() { setShowSuggest(!showSuggest); } }, showSuggest ? 'Hide' : 'Browse')
+    ),
+    // Suggestions dropdown
+    showSuggest && filtered.length > 0 && h('div', { style: { marginTop: 4, maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)' } },
+      filtered.map(function(p) {
+        return h('div', { key: p, style: { padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }, onClick: function() { addTag(p); }, onMouseEnter: function(e) { e.target.style.background = 'var(--bg-tertiary)'; }, onMouseLeave: function(e) { e.target.style.background = 'transparent'; } },
+          p.replace(/-/g, ' ')
+        );
+      })
+    )
+  );
+}
 
 export var GENDER_OPTIONS = [
   { id: 'male', label: 'Male' },
@@ -247,9 +438,7 @@ export function PersonaForm(props) {
     // ─── Language ────────────────────────────────────
     h('div', { className: 'form-group', style: { marginBottom: 20 } },
       h('label', { className: 'form-label' }, 'Language & Dialect'),
-      h('select', { className: 'input', value: form.language || 'en-us', onChange: function(e) { set('language', e.target.value); }, style: { maxWidth: 300 } },
-        LANGUAGES.map(function(l) { return h('option', { key: l.id, value: l.id }, l.name); })
-      )
+      h(LanguageSelect, { value: form.language || 'en-us', onChange: function(e) { set('language', e.target.value); }, style: { maxWidth: 300 } })
     ),
 
     // ─── Personality Traits ──────────────────────────
