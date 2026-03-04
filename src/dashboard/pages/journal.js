@@ -24,7 +24,7 @@ export function JournalPage() {
 
   const load = () => {
     engineCall('/journal?orgId=' + effectiveOrgId + '&limit=500').then(d => { setEntries(d.entries || []); setTotal(d.total || 0); }).catch(() => {});
-    engineCall('/journal/stats/default').then(d => setStats(d)).catch(() => {});
+    engineCall('/journal/stats/' + effectiveOrgId).then(d => setStats(d)).catch(() => {});
     apiCall('/agents' + (orgCtx.selectedOrgId ? '?clientOrgId=' + orgCtx.selectedOrgId : '')).then(d => setAgents(d.agents || [])).catch(() => {});
   };
   useEffect(load, [effectiveOrgId]);
