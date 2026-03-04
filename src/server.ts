@@ -432,10 +432,19 @@ export function createServer(config: ServerConfig): ServerInstance {
       if (userEmail) headers.set('X-User-Email', String(userEmail));
       if (authType) headers.set('X-Auth-Type', String(authType));
       if (requestId) headers.set('X-Request-Id', String(requestId));
+      // If transport encryption consumed the body, use the decrypted version
+      let subBody: any = undefined;
+      if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+        if ((c as any)._decryptedBody !== undefined) {
+          subBody = JSON.stringify((c as any)._decryptedBody);
+        } else {
+          subBody = c.req.raw.body;
+        }
+      }
       const subReq = new Request(new URL(subPath, 'http://localhost'), {
         method: c.req.method,
         headers,
-        body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+        body: subBody,
       });
       return engineRoutes.fetch(subReq);
     } catch (e: any) {
