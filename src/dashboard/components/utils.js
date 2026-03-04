@@ -91,10 +91,14 @@ export function apiCall(path, opts = {}) {
         const resBody = await r.json();
         if (resBody && resBody._enc) {
           const decrypted = await te.decryptPayload(resBody._enc);
+          if (!r.ok) throw new Error(decrypted?.error || r.statusText);
           if (decrypted) return decrypted;
         }
+        if (!r.ok) throw new Error(resBody?.error || r.statusText);
         return resBody;
-      } catch {}
+      } catch (e) {
+        if (e.message) throw e;
+      }
     }
 
     const d = await r.json().catch(() => ({}));
@@ -136,7 +140,7 @@ export function buildAgentEmailMap(agents) {
     if (email && !_uuidRe.test(email)) {
       map[a.id] = email;
     } else {
-      map[a.id] = ((identity.name || a.config?.name || a.name || a.id).toLowerCase().replace(/\s+/g, '-') + '@agenticmail.local');
+      map[a.id] = ((identity.name || a.config?.name || a.name || a.id || 'unknown').toLowerCase().replace(/\s+/g, '-') + '@agenticmail.local');
     }
   });
   return map;
