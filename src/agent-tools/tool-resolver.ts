@@ -444,6 +444,7 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   // ── Messaging: Telegram (4) ──
   telegram_send: 'msg_telegram',
   telegram_send_media: 'msg_telegram',
+  telegram_download_file: 'msg_telegram',
   telegram_get_me: 'msg_telegram',
   telegram_get_chat: 'msg_telegram',
 
@@ -511,16 +512,22 @@ const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
     'ent_knowledge',
   ],
 
-  // WhatsApp: lean — only WhatsApp tools + browser
+  // WhatsApp: messaging + essential file/shell tools for media processing
   whatsapp: [
     'msg_whatsapp',
     'browser',
+    'local_shell',
+    'filesystem',
+    'web',
   ],
 
-  // Telegram: lean — only Telegram tools + browser
+  // Telegram: messaging + essential file/shell tools for media processing
   telegram: [
     'msg_telegram',
     'browser',
+    'local_shell',
+    'filesystem',
+    'web',
   ],
 
   // Email handler: focused email + lookups
@@ -809,7 +816,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   local_filesystem: 'File read/write/edit/move/delete/search (7 tools)',
   local_shell: 'Shell exec, PTY sessions, sudo, package install (7 tools)',
   msg_whatsapp: 'WhatsApp messaging, media, groups (16 tools)',
-  msg_telegram: 'Telegram messaging and media (4 tools)',
+  msg_telegram: 'Telegram messaging, media, and file download (5 tools)',
   management: 'Team management — delegate tasks, escalate, org chart (10 tools)',
   mcp_bridge: 'MCP integration adapters',
 };
