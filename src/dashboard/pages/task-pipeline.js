@@ -626,26 +626,18 @@ export function TaskPipelinePage() {
   }, [dragging, handleMouseMove, handleMouseUp]);
 
   var fitToView = useCallback(function() {
-    if (!containerRef.current || !treeW || !treeH) return;
-    var rect = containerRef.current.getBoundingClientRect();
-    var scaleX = (rect.width - 40) / treeW;
-    var scaleY = (rect.height - 40) / treeH;
-    var scale = Math.min(scaleX, scaleY, 1.5);
-    setZoom(scale);
-    setPan({ x: 16, y: 16 });
-  }, [treeW, treeH]);
+    // No auto-zoom — keep nodes at full size, use scroll instead
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
   useEffect(function() { if (nodes.length > 0) fitToView(); }, [nodes.length]);
 
-  // Auto-pan to first active (in_progress) task so it's always visible
-  useEffect(function() {
-    if (!containerRef.current || !nodes.length) return;
-    var activeNode = nodes.find(function(n) { return n.task && n.task.status === 'in_progress'; });
-    if (!activeNode) return;
-    var rect = containerRef.current.getBoundingClientRect();
-    var targetX = -(activeNode.x * zoom) + rect.width * 0.3;
-    var targetY = -(activeNode.y * zoom) + rect.height * 0.4;
-    setPan({ x: Math.min(targetX, 16), y: Math.min(targetY, 16) });
-  }, [nodes.length, zoom]);
+  var scrollLeft = useCallback(function() {
+    if (containerRef.current) containerRef.current.scrollBy({ left: -400, behavior: 'smooth' });
+  }, []);
+  var scrollRight = useCallback(function() {
+    if (containerRef.current) containerRef.current.scrollBy({ left: 400, behavior: 'smooth' });
+  }, []);
 
   // Highlight connected chain on hover
   var hoveredChainId = null;
@@ -699,10 +691,8 @@ export function TaskPipelinePage() {
     legendDot(STATUS_COLORS.completed, 'Done'),
     legendDot(STATUS_COLORS.failed, 'Failed'),
     h('div', { style: { width: 1, height: 14, background: 'rgba(255,255,255,0.12)' } }),
-    h('button', { onClick: function() { setZoom(function(z) { return Math.min(3, z + 0.2); }); }, style: toolbarBtnStyle }, '+'),
-    h('div', { style: { color: 'var(--tp-text-dim)', fontSize: 11, minWidth: 36, textAlign: 'center' } }, Math.round(zoom * 100) + '%'),
-    h('button', { onClick: function() { setZoom(function(z) { return Math.max(0.15, z - 0.2); }); }, style: toolbarBtnStyle }, '\u2212'),
-    h('button', { onClick: fitToView, style: toolbarBtnStyle }, 'Fit'),
+    h('button', { onClick: scrollLeft, style: toolbarBtnStyle, title: 'Scroll left' }, '\u2190'),
+    h('button', { onClick: scrollRight, style: toolbarBtnStyle, title: 'Scroll right' }, '\u2192'),
     h('button', { onClick: loadData, style: toolbarBtnStyle }, 'Refresh'),
   );
 
@@ -734,14 +724,12 @@ export function TaskPipelinePage() {
     toolbar,
     // Metrics bar
     h(MetricsBar, { stats: stats }),
-    // Canvas
+    // Canvas — native scroll, no zoom transform
     h('div', {
       ref: containerRef,
-      style: { flex: 1, overflow: 'auto', cursor: dragging ? 'grabbing' : 'grab', position: 'relative' },
-      onMouseDown: handleMouseDown,
-      onWheel: handleWheel,
+      style: { flex: 1, overflow: 'auto', position: 'relative' },
     },
-      h('div', { style: { transform: 'translate(' + pan.x + 'px, ' + pan.y + 'px) scale(' + zoom + ')', transformOrigin: '0 0', position: 'relative', width: treeW + PAD * 2, height: treeH + PAD * 2 } },
+      h('div', { style: { position: 'relative', width: treeW + PAD * 2, minHeight: treeH + PAD * 2 } },
 
         // Chain labels (left side)
         chainInfos.map(function(ci, i) {
