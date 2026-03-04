@@ -157,24 +157,25 @@ function App() {
     }
     // Only call /auth/me if a session cookie exists, to avoid unnecessary 401s
     if (document.cookie.match(/em_session|em_csrf/)) {
-      authCall('/me').then(d => { setUser(d.user || d); setAuthed(true); setAuthChecked(true); }).catch(() => setAuthChecked(true));
+      authCall('/me').then(async d => {
+        setUser(d.user || d);
+        // Init transport encryption BEFORE setting authed — ensures all subsequent
+        // API calls from child components are encrypted
+        try {
+          var sec = await apiCall('/settings/security');
+          var te = sec?.securityConfig?.transportEncryption;
+          if (te && te.enabled) {
+            setTransportEncConfig(te);
+            if (window.__transportEncryption) await window.__transportEncryption.waitForReady();
+          }
+        } catch {}
+        setAuthed(true);
+        setAuthChecked(true);
+      }).catch(() => setAuthChecked(true));
     } else {
       setAuthChecked(true);
     }
   }, []);
-
-  // Init transport encryption from security settings — must complete before other API calls
-  const [encryptionReady, setEncryptionReady] = useState(false);
-  useEffect(() => {
-    if (!authed) return;
-    apiCall('/settings/security').then(async d => {
-      var te = d?.securityConfig?.transportEncryption;
-      if (te && te.enabled) {
-        setTransportEncConfig(te);
-        if (window.__transportEncryption) await window.__transportEncryption.waitForReady();
-      }
-    }).catch(() => {}).finally(() => setEncryptionReady(true));
-  }, [authed]);
 
   const toast = useCallback((message, type = 'info') => {
     const id = ++toastId;
@@ -251,10 +252,19 @@ function App() {
 
   if (!authChecked) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Loading...');
   if (needsSetup === true && !authed) return h(OnboardingWizard, { onComplete: () => { setNeedsSetup(false); setAuthed(true); authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {}); } });
-  if (!authed) return h(LoginPage, { onLogin: (d) => {
-    setAuthed(true);
+  if (!authed) return h(LoginPage, { onLogin: async (d) => {
     if (d?.user) { setUser(d.user); if (!d.user.totpEnabled) setShow2faReminder(true); }
     if (d?.mustResetPassword) setMustResetPassword(true);
+    // Init encryption before enabling dashboard
+    try {
+      var sec = await apiCall('/settings/security');
+      var te = sec?.securityConfig?.transportEncryption;
+      if (te && te.enabled) {
+        setTransportEncConfig(te);
+        if (window.__transportEncryption) await window.__transportEncryption.waitForReady();
+      }
+    } catch {}
+    setAuthed(true);
   } });
 
   // Force password reset modal
@@ -271,8 +281,6 @@ function App() {
   };
 
   // Wait for transport encryption to initialize before rendering the dashboard
-  if (authed && !encryptionReady) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Initializing secure connection...');
-
   if (mustResetPassword) {
     return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 20 } },
       h('div', { style: { maxWidth: 420, width: '100%', background: 'var(--bg-secondary)', borderRadius: 12, padding: 32, border: '1px solid var(--border)' } },
