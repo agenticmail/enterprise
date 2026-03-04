@@ -62,7 +62,7 @@ export function DashboardPage() {
   useEffect(() => {
     var agentUrl = clientOrgFilter ? '/agents?clientOrgId=' + clientOrgFilter : '/agents';
     apiCall('/stats').then(setStats).catch(() => {});
-    apiCall(agentUrl).then(d => setAgents(d.agents || d || [])).catch(() => {});
+    apiCall(agentUrl).then(d => { var a = d?.agents || d; setAgents(Array.isArray(a) ? a : []); }).catch(() => {});
     engineCall('/agents?orgId=' + getOrgId()).then(d => setEngineAgents(d.agents || [])).catch(() => {});
     engineCall('/activity/events?limit=10').then(d => setEvents(d.events || [])).catch(() => {});
   }, [clientOrgFilter]);

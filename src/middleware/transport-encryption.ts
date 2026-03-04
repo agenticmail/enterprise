@@ -351,15 +351,20 @@ export function transportEncryptionMiddleware() {
 
         const encrypted = encryptPayload(jsonData, _config.key);
 
+        // Preserve original headers and add encryption marker
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('content-type', 'application/json');
+        newHeaders.set('x-transport-encrypted', '1');
+
         c.res = new Response(JSON.stringify({ _enc: encrypted }), {
           status: response.status,
-          headers: {
-            'content-type': 'application/json',
-            'x-transport-encrypted': '1',
-          },
+          headers: newHeaders,
         });
       } catch (e: any) {
-        // Don't fail — send plaintext as fallback
+        // Encryption failed — reconstruct plaintext response from parsed data
+        if (originalBody) {
+          c.res = new Response(originalBody, { status: response.status, headers: response.headers });
+        }
       }
     }
   };
