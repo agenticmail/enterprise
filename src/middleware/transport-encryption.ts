@@ -73,13 +73,34 @@ const ENDPOINT_GROUPS: Record<string, string[]> = {
 };
 
 /** Build effective endpoint patterns from config */
+// Endpoints that must NEVER be encrypted (streams, high-frequency, health)
+const NEVER_ENCRYPT: string[] = [
+  '/api/engine/agents/*/status',   // SSE stream
+  '/api/engine/agents/*/logs',     // SSE stream
+  '/api/engine/events',            // SSE stream
+  '/api/health',
+  '/api/ping',
+  '/api/providers/*/models',       // high-frequency, non-sensitive
+  '/api/engine/approvals/pending', // polled frequently
+];
+
+function isNeverEncrypt(path: string): boolean {
+  return NEVER_ENCRYPT.some(p => matchesPattern(path, p));
+}
+
+function matchesPattern(path: string, pattern: string): boolean {
+  if (pattern === path) return true;
+  const re = new RegExp('^' + pattern.replace(/\*/g, '[^/]+') + '$');
+  return re.test(path);
+}
+
 function buildActivePatterns(config: TransportEncryptionConfig): string[] {
   // Legacy: if sensitiveEndpoints is set directly, use those
   if (config.sensitiveEndpoints?.length) return config.sensitiveEndpoints;
 
-  // encryptAll: ALL API endpoints, not just listed groups
+  // encryptAll: enable ALL groups (not a raw wildcard — too dangerous for streams)
   if (config.encryptAll) {
-    const all: string[] = ['/api/*', '/auth/*'];
+    const all: string[] = Object.values(ENDPOINT_GROUPS).flat();
     if (config.customEndpoints?.length) all.push(...config.customEndpoints);
     return all;
   }
@@ -273,7 +294,7 @@ export function transportEncryptionMiddleware() {
     const path = fullUrl.replace(/^https?:\/\/[^/]+/, '').split('?')[0] || c.req.path;
     const endpoints = buildActivePatterns(_config);
 
-    if (endpoints.length === 0 || !matchesEndpoint(path, endpoints)) {
+    if (endpoints.length === 0 || !matchesEndpoint(path, endpoints) || isNeverEncrypt(path)) {
       await next();
       return;
     }
@@ -329,8 +350,10 @@ export function transportEncryptionMiddleware() {
         if (response.headers.get('x-transport-encrypted') === '1') return;
         const resContentType = response.headers.get('content-type') || '';
 
-        // Only encrypt JSON responses (skip SSE, streams, etc.)
+        // Skip SSE, streams, and non-JSON responses
         if (!resContentType.includes('application/json')) return;
+        if (resContentType.includes('text/event-stream')) return;
+        if (response.headers.get('transfer-encoding') === 'chunked' && !resContentType.includes('application/json')) return;
         if (!response.body || response.bodyUsed) return;
 
         // Read body text safely
