@@ -665,8 +665,8 @@ export function createBrowserTool(options?: ToolCreationOptions & {
         switch (action) {
           case 'navigate': {
             var url = readStringParam(params, 'url', { required: true });
-            // SSRF guard on navigation URL
-            if (ssrfGuard) {
+            // SSRF guard on navigation URL (skip for file:// — browser can open local files)
+            if (ssrfGuard && !url.startsWith('file://') && !url.startsWith('file:///')) {
               try {
                 await ssrfGuard.validateUrl(url);
               } catch (err: any) {
