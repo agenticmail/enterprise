@@ -85,23 +85,19 @@ export function apiCall(path, opts = {}) {
       catch { if (window.__emLogout) window.__emLogout(); throw new Error('Session expired'); }
     }
 
-    // Decrypt response if encrypted
-    if (sensitive && r.headers.get('x-transport-encrypted') === '1') {
+    const d = await r.json().catch(() => ({}));
+
+    // Decrypt response if encrypted (check header OR body shape)
+    if (sensitive && (r.headers.get('x-transport-encrypted') === '1' || (d && d._enc && typeof d._enc === 'string'))) {
       try {
-        const resBody = await r.json();
-        if (resBody && resBody._enc) {
-          const decrypted = await te.decryptPayload(resBody._enc);
-          if (!r.ok) throw new Error(decrypted?.error || r.statusText);
-          if (decrypted) return decrypted;
-        }
-        if (!r.ok) throw new Error(resBody?.error || r.statusText);
-        return resBody;
+        const decrypted = await te.decryptPayload(d._enc);
+        if (!r.ok) throw new Error(decrypted?.error || r.statusText);
+        if (decrypted) return decrypted;
       } catch (e) {
         if (e.message) throw e;
       }
     }
 
-    const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || r.statusText);
     return d;
   };

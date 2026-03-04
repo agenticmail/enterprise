@@ -162,7 +162,7 @@ export function createServer(config: ServerConfig): ServerInstance {
     },
     credentials: true,
     allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-Id', 'X-CSRF-Token'],
-    exposeHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'Retry-After'],
+    exposeHeaders: ['X-Request-Id', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'Retry-After', 'X-Transport-Encrypted'],
   }));
 
   // Rate limiting

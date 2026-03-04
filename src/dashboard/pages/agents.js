@@ -1137,7 +1137,8 @@ export function AgentsPage({ onSelectAgent }) {
   const allowedAgents = perms === '*' ? '*' : (perms._allowedAgents || '*');
 
   const load = () => apiCall('/agents').then(d => {
-    var all = d.agents || d || [];
+    console.log('[agents] response type:', typeof d, 'keys:', d ? Object.keys(d) : 'null', 'agents type:', typeof d?.agents);
+    var all = Array.isArray(d?.agents) ? d.agents : Array.isArray(d) ? d : [];
     if (allowedAgents !== '*' && Array.isArray(allowedAgents)) {
       all = all.filter(a => allowedAgents.indexOf(a.id) >= 0);
     }
