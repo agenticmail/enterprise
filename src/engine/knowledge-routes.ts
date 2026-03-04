@@ -207,14 +207,13 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
         (kb as any).agentIds = agentIds;
         (kb as any).updatedAt = new Date().toISOString();
 
-        // Persist
-        if ((knowledgeBase as any).db) {
+        // Persist to DB via the engine's upsert method
+        if ((knowledgeBase as any).engineDb) {
           try {
-            await (knowledgeBase as any).db.execute(
-              'UPDATE knowledge_bases SET agent_ids = $1, updated_at = $2 WHERE id = $3',
-              [JSON.stringify(agentIds), (kb as any).updatedAt, kb.id]
-            );
-          } catch { /* in-memory fallback */ }
+            await (knowledgeBase as any).engineDb.upsertKnowledgeBase(kb);
+          } catch (err: any) {
+            console.error('[knowledge] auto-assign persist failed:', err.message);
+          }
         }
         assigned.push(kb.id);
       }

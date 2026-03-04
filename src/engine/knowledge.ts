@@ -111,10 +111,12 @@ export class KnowledgeBaseEngine {
     if (!this.engineDb) return;
     try {
       const rows = await this.engineDb.query<any>('SELECT id FROM knowledge_bases');
+      console.log(`[knowledge] loadFromDb: found ${rows.length} knowledge bases in DB`);
       for (const row of rows) {
         const kb = await this.engineDb.getKnowledgeBase(row.id);
         if (kb) {
           this.knowledgeBases.set(kb.id, kb);
+          console.log(`[knowledge] Loaded KB "${kb.name}" (${kb.id}) with ${kb.documents.length} docs`);
           // Load embeddings into memory
           for (const doc of kb.documents) {
             for (const chunk of doc.chunks) {
@@ -125,8 +127,8 @@ export class KnowledgeBaseEngine {
           }
         }
       }
-    } catch {
-      // Table may not exist yet
+    } catch (err: any) {
+      console.error('[knowledge] loadFromDb error:', err.message);
     }
   }
 
