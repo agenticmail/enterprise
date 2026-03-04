@@ -69,10 +69,10 @@ export function WorkforcePage() {
     setLoading(true);
     try {
       const [statusRes, schedulesRes, budgetRes, recordsRes] = await Promise.all([
-        engineCall('/workforce/status'),
-        engineCall('/workforce/schedules'),
-        engineCall('/workforce/budget-overview'),
-        engineCall('/workforce/clock-records?limit=50'),
+        engineCall('/workforce/status?orgId=' + (orgCtx.selectedOrgId || getOrgId())),
+        engineCall('/workforce/schedules?orgId=' + (orgCtx.selectedOrgId || getOrgId())),
+        engineCall('/workforce/budget-overview?orgId=' + (orgCtx.selectedOrgId || getOrgId())),
+        engineCall('/workforce/clock-records?limit=50&orgId=' + (orgCtx.selectedOrgId || getOrgId())),
       ]);
       setStatus(statusRes);
       setSchedules(schedulesRes.schedules || []);
