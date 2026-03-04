@@ -27,10 +27,15 @@ async function sha256(input) {
 async function deriveKeys() {
   if (_keyReady) return;
 
-  // Fetch the encryption config from server (includes a one-time key token)
-  var resp = await fetch('/api/engine/transport-encryption/client-key', {
-    headers: { 'x-transport-encryption': '1' },
-    credentials: 'include',
+  // Fetch the encryption config from server — use XMLHttpRequest to bypass
+  // the fetch interceptor (we can't encrypt/decrypt without keys yet)
+  var resp = await new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/engine/transport-encryption/client-key');
+    xhr.withCredentials = true;
+    xhr.onload = function() { resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: function() { return Promise.resolve(JSON.parse(xhr.responseText)); } }); };
+    xhr.onerror = function() { reject(new Error('XHR failed')); };
+    xhr.send();
   });
   if (!resp.ok) { _enabled = false; return; }
   var cfg = await resp.json();

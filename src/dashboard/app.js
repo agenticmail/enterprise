@@ -171,7 +171,6 @@ function App() {
       var te = d?.securityConfig?.transportEncryption;
       if (te && te.enabled) {
         setTransportEncConfig(te);
-        // Wait for keys to be derived before allowing other API calls
         if (window.__transportEncryption) await window.__transportEncryption.waitForReady();
       }
     }).catch(() => {}).finally(() => setEncryptionReady(true));
