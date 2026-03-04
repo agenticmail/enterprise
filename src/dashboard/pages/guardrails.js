@@ -279,6 +279,8 @@ function OverviewTab(props) {
 
 function PoliciesTab() {
   var app = useApp();
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var toast = app.toast;
   var _pol = useState([]);
   var policies = _pol[0]; var setPolicies = _pol[1];
@@ -432,6 +434,8 @@ function PoliciesTab() {
 // ─── Tab 3: Onboarding ─────────────────────────────────
 
 function OnboardingTab(props) {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var agents = props.agents || [];
   var emailMap = buildAgentEmailMap(agents);
   var agentData = buildAgentDataMap(agents);
@@ -542,6 +546,8 @@ function OnboardingTab(props) {
 // ─── Tab 4: Agent Memory ────────────────────────────────
 
 function MemoryTab(props) {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var agents = props.agents || [];
   var emailMap = buildAgentEmailMap(agents);
   var agentData = buildAgentDataMap(agents);
@@ -750,6 +756,8 @@ function MemoryTab(props) {
 // ─── Tab 5: Rules & Interventions ───────────────────────
 
 function RulesTab(props) {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var agents = props.agents || [];
   var emailMap = buildAgentEmailMap(agents);
   var agentData = buildAgentDataMap(agents);
