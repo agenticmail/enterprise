@@ -12,6 +12,76 @@ One command. Interactive setup wizard. Full platform in under 2 minutes.
 
 ---
 
+## Getting Started (5 Minutes)
+
+### What You Need
+
+| Requirement | Details |
+|------------|---------|
+| **Node.js** | v18 or higher ([download](https://nodejs.org)) |
+| **Database** | SQLite (built-in, zero config) or Postgres (recommended for production) |
+| **LLM API Key** | At least one: [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com), or [xAI](https://console.x.ai) |
+
+### Step 1: Run the Setup Wizard
+
+```bash
+npx @agenticmail/enterprise
+```
+
+This launches an interactive wizard that walks you through everything. No config files to edit manually.
+
+### Step 2: Choose Your Database
+
+**Option A: SQLite (Easiest — great for trying it out)**
+- Select "SQLite" in the wizard
+- Data stored locally in a file — zero configuration
+- Perfect for development, demos, and small deployments
+
+**Option B: Free Supabase Postgres (Recommended for production)**
+1. Go to [supabase.com](https://supabase.com) and create a free account
+2. Create a new project (free tier gives you a full Postgres database)
+3. Go to **Settings → Database → Connection string → URI**
+4. Select **"Transaction mode"** (port 6543) — this is important!
+5. Copy the connection string and paste it in the wizard
+
+> **The wizard auto-optimizes your connection string** — it detects Supabase URLs, switches to the right pooler mode, adds the correct parameters, and generates a direct URL for migrations. You don't need to configure anything manually.
+
+**Option C: Any Postgres, MySQL, MongoDB, or other database**
+- We support 10 database backends — see [Database Backends](#database-backends)
+- Just paste your connection string and the wizard handles the rest
+
+### Step 3: Create Your Admin Account
+
+- Enter your name, email, and password
+- This becomes the owner account with full access
+
+### Step 4: Open the Dashboard
+
+The wizard gives you a URL (default: `http://localhost:3000`). Open it and you'll see:
+- **Setup Checklist** — guided steps to configure email, create agents, etc.
+- **Create Agent** — pick from 51 personality templates or build your own
+- **Full Admin Dashboard** — 28 pages covering every aspect of agent management
+
+### Step 5: Create Your First Agent
+
+1. Click **"Create Agent"** in the dashboard
+2. Choose a soul template (e.g., "Executive Assistant", "Sales Rep", "Developer")
+3. Add your LLM API key in **Settings → API Keys** (or in the agent's config)
+4. Start the agent — it'll get its own email, tools, and identity
+
+### What's Next?
+
+- **Connect Gmail** — Give your agent real email access via OAuth (Agent Detail → Email tab)
+- **Add Telegram/WhatsApp** — Connect messaging channels (Agent Detail → Channels tab)
+- **Set up DLP** — Apply pre-built rule packs to protect sensitive data (DLP page → Rule Packs)
+- **Configure Shifts** — Set work hours and on-call schedules (Workforce page)
+- **Run Standalone** — For production, run each agent as its own process:
+  ```bash
+  node dist/cli.js agent --env-file=.env.my-agent
+  ```
+
+---
+
 ## Table of Contents
 
 - [Why AgenticMail Enterprise](#why-agenticmail-enterprise)
