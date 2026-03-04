@@ -1496,22 +1496,22 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     if (id === 'ollama' || (provider && provider.apiType === 'ollama')) {
       var ollamaHost = process.env.OLLAMA_HOST || (provider ? provider.baseUrl : 'http://localhost:11434');
       try {
-        var resp = await fetch(ollamaHost + '/api/tags');
+        var resp = await fetch(ollamaHost + '/api/tags', { signal: AbortSignal.timeout(3000) });
         var data = await resp.json() as any;
         return c.json({ models: (data.models || []).map(function(m: any) { return { id: m.name, name: m.name, size: m.size }; }) });
       } catch (err: any) {
-        return c.json({ error: 'Cannot connect to Ollama: ' + err.message }, 502);
+        return c.json({ models: [], error: 'Cannot connect to Ollama: ' + err.message });
       }
     }
 
     // OpenAI-compatible local auto-discovery (vLLM, LM Studio, LiteLLM)
     if (provider && provider.isLocal && provider.apiType === 'openai-compatible') {
       try {
-        var resp = await fetch(provider.baseUrl + '/models');
+        var resp = await fetch(provider.baseUrl + '/models', { signal: AbortSignal.timeout(3000) });
         var data = await resp.json() as any;
         return c.json({ models: (data.data || []).map(function(m: any) { return { id: m.id, name: m.id }; }) });
       } catch (err: any) {
-        return c.json({ error: 'Cannot connect to ' + provider.name + ': ' + err.message }, 502);
+        return c.json({ models: [], error: 'Cannot connect to ' + provider.name + ': ' + err.message });
       }
     }
 
