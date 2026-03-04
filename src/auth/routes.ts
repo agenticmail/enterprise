@@ -697,7 +697,7 @@ export function createAuthRoutes(
       if (!target) return c.json({ error: 'User not found' }, 404);
 
       // Generate a short-lived token (1 hour) for the target user with impersonation flag
-      const impersonateToken = await new SignJWT({ sub: target.id, role: target.role, impersonatedBy: caller.id })
+      const impersonateToken = await new SignJWT({ sub: target.id, role: target.role, impersonatedBy: caller.id, clientOrgId: target.clientOrgId || undefined, orgId: target.clientOrgId || (target as any).org_id || undefined })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
         .setExpirationTime('1h')

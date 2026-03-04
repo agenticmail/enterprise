@@ -35,6 +35,7 @@ interface AgentEndpoint {
   displayName: string;
   host: string;
   port: number;
+  dataDir?: string;
 }
 
 export class MessagingPoller {
@@ -108,7 +109,8 @@ export class MessagingPoller {
           var agTgToken = chanCfg?.telegram?.botToken;
           if (agTgToken) {
             tgToken = agTgToken;
-            defaultAgent = { id: ag2.id, displayName: ag2.displayName || ag2.name || 'Agent', host: ag2.host || 'localhost', port: ag2.port || 3100 };
+            var _dataDir2 = process.env.DATA_DIR || '/tmp/agenticmail-data';
+            defaultAgent = { id: ag2.id, displayName: ag2.displayName || ag2.name || 'Agent', host: ag2.host || 'localhost', port: ag2.port || 3100, dataDir: `${_dataDir2}/agents/${ag2.id}` };
             break;
           }
         }
@@ -302,16 +304,134 @@ export class MessagingPoller {
 
   private handleTelegramUpdate(update: any, agent: AgentEndpoint) {
     var msg = update.message;
-    if (!msg?.text) return;
-    this.dispatch(agent, {
-      source: 'telegram',
-      senderName: [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') || 'Unknown',
-      senderId: String(msg.from?.id || ''),
-      messageText: msg.text,
-      isGroup: msg.chat?.type === 'group' || msg.chat?.type === 'supergroup',
-      chatId: String(msg.chat?.id),
-      messageId: String(msg.message_id),
-    });
+    if (!msg) return;
+
+    // Extract text — could be text, caption, or empty (media-only)
+    var text = msg.text || msg.caption || '';
+
+    // Detect media
+    var mediaType: string | undefined;
+    var fileId: string | undefined;
+    var fileName: string | undefined;
+    var mimeType: string | undefined;
+
+    if (msg.photo && msg.photo.length > 0) {
+      // photo is an array of PhotoSize, pick the largest
+      mediaType = 'photo';
+      fileId = msg.photo[msg.photo.length - 1].file_id;
+    } else if (msg.video) {
+      mediaType = 'video';
+      fileId = msg.video.file_id;
+      fileName = msg.video.file_name;
+      mimeType = msg.video.mime_type;
+    } else if (msg.document) {
+      mediaType = 'document';
+      fileId = msg.document.file_id;
+      fileName = msg.document.file_name;
+      mimeType = msg.document.mime_type;
+    } else if (msg.audio) {
+      mediaType = 'audio';
+      fileId = msg.audio.file_id;
+      fileName = msg.audio.file_name;
+      mimeType = msg.audio.mime_type;
+    } else if (msg.voice) {
+      mediaType = 'voice';
+      fileId = msg.voice.file_id;
+      mimeType = msg.voice.mime_type;
+    } else if (msg.video_note) {
+      mediaType = 'video_note';
+      fileId = msg.video_note.file_id;
+    } else if (msg.sticker) {
+      mediaType = 'sticker';
+      fileId = msg.sticker.file_id;
+      text = text || `[Sticker: ${msg.sticker.emoji || ''}]`;
+    }
+
+    // Skip if no text AND no media
+    if (!text && !fileId) return;
+
+    // If we have media, download it asynchronously and build a description
+    if (fileId) {
+      this.downloadTelegramMedia(agent, fileId, mediaType!, fileName, mimeType).then((mediaInfo) => {
+        var mediaText = text;
+        if (mediaInfo?.localPath) {
+          var desc = `[${mediaType}${fileName ? ': ' + fileName : ''}] saved to: ${mediaInfo.localPath}`;
+          mediaText = text ? `${text}\n\n${desc}` : desc;
+        } else if (!text) {
+          mediaText = `[${mediaType} received${fileName ? ': ' + fileName : ''}]`;
+        }
+        this.dispatch(agent, {
+          source: 'telegram',
+          senderName: [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') || 'Unknown',
+          senderId: String(msg.from?.id || ''),
+          messageText: mediaText,
+          isGroup: msg.chat?.type === 'group' || msg.chat?.type === 'supergroup',
+          chatId: String(msg.chat?.id),
+          messageId: String(msg.message_id),
+        });
+      }).catch(() => {
+        // Fallback: dispatch with just text description
+        this.dispatch(agent, {
+          source: 'telegram',
+          senderName: [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') || 'Unknown',
+          senderId: String(msg.from?.id || ''),
+          messageText: text || `[${mediaType} received]`,
+          isGroup: msg.chat?.type === 'group' || msg.chat?.type === 'supergroup',
+          chatId: String(msg.chat?.id),
+          messageId: String(msg.message_id),
+        });
+      });
+    } else {
+      // Text-only message
+      this.dispatch(agent, {
+        source: 'telegram',
+        senderName: [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') || 'Unknown',
+        senderId: String(msg.from?.id || ''),
+        messageText: text,
+        isGroup: msg.chat?.type === 'group' || msg.chat?.type === 'supergroup',
+        chatId: String(msg.chat?.id),
+        messageId: String(msg.message_id),
+      });
+    }
+  }
+
+  private async downloadTelegramMedia(agent: AgentEndpoint, fileId: string, mediaType: string, fileName?: string, mimeType?: string): Promise<{ localPath: string } | null> {
+    try {
+      var channelConfig = this.config.getAgentChannelConfig(agent.id);
+      var botToken = channelConfig?.telegram?.botToken;
+      if (!botToken) return null;
+
+      // Get file path from Telegram
+      var fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
+      if (!fileRes.ok) return null;
+      var fileData = await fileRes.json() as any;
+      var filePath = fileData.result?.file_path;
+      if (!filePath) return null;
+
+      // Download the file
+      var downloadUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+      var response = await fetch(downloadUrl);
+      if (!response.ok) return null;
+
+      // Determine local path
+      var { join, dirname } = await import('path');
+      var { mkdirSync, writeFileSync } = await import('fs');
+      var mediaDir = join(agent.dataDir || `/tmp/agents/${agent.id}`, 'media');
+      try { mkdirSync(mediaDir, { recursive: true }); } catch {}
+
+      var ext = filePath.split('.').pop() || (mediaType === 'photo' ? 'jpg' : 'bin');
+      var localName = fileName || `${mediaType}-${Date.now()}.${ext}`;
+      var localPath = join(mediaDir, localName);
+
+      var buffer = Buffer.from(await response.arrayBuffer());
+      writeFileSync(localPath, buffer);
+
+      console.log(`[messaging] Telegram media downloaded: ${localPath} (${buffer.length} bytes)`);
+      return { localPath };
+    } catch (err: any) {
+      console.error(`[messaging] Telegram media download failed: ${err.message}`);
+      return null;
+    }
   }
 
   // ─── Trust / Authorization ─────────────────────────

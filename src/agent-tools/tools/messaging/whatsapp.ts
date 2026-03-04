@@ -155,22 +155,77 @@ export async function getOrCreateConnection(config: WhatsAppConfig): Promise<Wha
             if (!isSelfChat) continue;
           }
 
-          if (!text) continue;
+          // Detect media
+          var mediaMessage = msg.message?.imageMessage || msg.message?.videoMessage ||
+            msg.message?.documentMessage || msg.message?.audioMessage ||
+            msg.message?.stickerMessage || null;
+          var hasMedia = !!mediaMessage;
+
+          // For media messages, caption may be the text
+          if (!text && mediaMessage) {
+            text = mediaMessage.caption || '';
+          }
+
+          // Skip if no text AND no media
+          if (!text && !hasMedia) continue;
 
           var senderJid = isGroup ? msg.key.participant : remoteJid;
-          console.log(`[wa:${config.agentId.slice(0,8)}] Incoming from=${senderJid} group=${isGroup} selfChat=${!!isSelfChat} text="${text.slice(0,50)}"`);
+          console.log(`[wa:${config.agentId.slice(0,8)}] Incoming from=${senderJid} group=${isGroup} selfChat=${!!isSelfChat} hasMedia=${hasMedia} text="${(text||'').slice(0,50)}"`);
 
           // Show typing indicator while agent processes
           try { await sock.sendPresenceUpdate('composing', remoteJid); } catch {}
+
+          // Download media if present
+          var mediaPath: string | undefined;
+          var mediaType: string | undefined;
+          if (hasMedia && mediaMessage) {
+            try {
+              var { downloadMediaMessage } = await import('@whiskeysockets/baileys');
+              var buffer = await downloadMediaMessage(msg, 'buffer', {});
+              if (buffer && buffer.length > 0) {
+                var { join } = await import('path');
+                var { mkdirSync, writeFileSync } = await import('fs');
+                var mediaDir = join(config.dataDir || `/tmp/agents/${config.agentId}`, 'media');
+                try { mkdirSync(mediaDir, { recursive: true }); } catch {}
+
+                mediaType = msg.message?.imageMessage ? 'photo'
+                  : msg.message?.videoMessage ? 'video'
+                  : msg.message?.audioMessage ? 'audio'
+                  : msg.message?.documentMessage ? 'document'
+                  : msg.message?.stickerMessage ? 'sticker' : 'file';
+
+                var ext = mediaType === 'photo' ? 'jpg' : mediaType === 'video' ? 'mp4'
+                  : mediaType === 'audio' ? 'ogg' : mediaType === 'sticker' ? 'webp'
+                  : (mediaMessage.fileName?.split('.').pop() || 'bin');
+                var localName = mediaMessage.fileName || `${mediaType}-${Date.now()}.${ext}`;
+                mediaPath = join(mediaDir, localName);
+                writeFileSync(mediaPath, buffer);
+                console.log(`[wa:${config.agentId.slice(0,8)}] Media downloaded: ${mediaPath} (${buffer.length} bytes)`);
+              }
+            } catch (dlErr: any) {
+              console.error(`[wa:${config.agentId.slice(0,8)}] Media download failed: ${dlErr.message}`);
+            }
+          }
+
+          // Build text with media info
+          var finalText = text || '';
+          if (mediaPath) {
+            var desc = `[${mediaType}${mediaMessage?.fileName ? ': ' + mediaMessage.fileName : ''}] saved to: ${mediaPath}`;
+            finalText = text ? `${text}\n\n${desc}` : desc;
+          } else if (hasMedia && !text) {
+            finalText = `[${mediaType || 'media'} received but download failed]`;
+          }
 
           conn.lastMessageAt = Date.now();
           conn.events.emit('message', {
             from: remoteJid,
             senderJid,
             pushName: msg.pushName,
-            text,
+            text: finalText,
             timestamp: msg.messageTimestamp,
-            hasMedia: !!(msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage || msg.message?.audioMessage),
+            hasMedia,
+            mediaPath,
+            mediaType,
             messageId: msg.key.id,
             isGroup,
             isSelfChat: !!isSelfChat,

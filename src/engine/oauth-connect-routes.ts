@@ -51,7 +51,7 @@ async function findVaultEntryByName(
 
 // ─── Route Factory ──────────────────────────────────────
 
-export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any) {
+export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any, getAdminDb?: () => any) {
   const router = new Hono();
 
   // ─── GET /authorize/:skillId — Start OAuth flow ─────
@@ -211,7 +211,7 @@ export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any) {
           const managed = lifecycle.getAgent(state);
           console.log(`[OAuth callback] state=${state}, lifecycle exists=${!!lifecycle}, agent found=${!!managed}, emailStatus=${managed?.config?.emailConfig?.status}`);
           if (managed?.config?.emailConfig?.status === 'awaiting_oauth' || managed?.config?.emailConfig?.status === 'connected') {
-            return await handleAgentEmailOAuthCallback(c, state, code, managed, lifecycle);
+            return await handleAgentEmailOAuthCallback(c, state, code, managed, lifecycle, getAdminDb);
           }
         } else {
           console.log(`[OAuth callback] state=${state}, lifecycle is null/undefined`);
@@ -436,8 +436,28 @@ export function createOAuthConnectRoutes(vault: SecureVault, lifecycle?: any) {
 
 // ─── Agent Email OAuth Callback Handler ─────────────────
 
-async function handleAgentEmailOAuthCallback(c: any, agentId: string, code: string, managed: any, lifecycle: any) {
+async function handleAgentEmailOAuthCallback(c: any, agentId: string, code: string, managed: any, lifecycle: any, _getAdminDb?: () => any) {
   const emailConfig = managed.config.emailConfig;
+
+  // If client secret is missing, try to inherit from org-level email config
+  if (!emailConfig.oauthClientSecret && _getAdminDb) {
+    try {
+      const adminDb = _getAdminDb();
+      if (adminDb?.getSettings) {
+        const settings = await adminDb.getSettings();
+        if (settings?.orgEmailConfig?.oauthClientSecret && settings.orgEmailConfig.provider === emailConfig.oauthProvider) {
+          emailConfig.oauthClientSecret = settings.orgEmailConfig.oauthClientSecret;
+          if (!emailConfig.oauthClientId && settings.orgEmailConfig.oauthClientId) {
+            emailConfig.oauthClientId = settings.orgEmailConfig.oauthClientId;
+          }
+          console.log('[OAuth callback] Inherited org-level client credentials for agent', agentId);
+        }
+      }
+    } catch (e) {
+      console.error('[OAuth callback] Failed to inherit org email config:', e);
+    }
+  }
+
   try {
     if (emailConfig.oauthProvider === 'microsoft') {
       const tokenRes = await fetch(`https://login.microsoftonline.com/${emailConfig.oauthTenantId || 'common'}/oauth2/v2.0/token`, {

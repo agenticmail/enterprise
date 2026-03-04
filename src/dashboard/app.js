@@ -237,10 +237,15 @@ function App() {
         if (d.user.permissions) setPermissions(d.user.permissions);
         if (d.user.clientOrgId) {
           localStorage.setItem('em_client_org_id', d.user.clientOrgId);
+          // Auto-select the client org so all pages filter by it
+          onOrgChange(d.user.clientOrgId, null);
           apiCall('/organizations/' + d.user.clientOrgId).then(function(o) {
-            if (o && o.name) setImpersonating(function(prev) { return prev ? Object.assign({}, prev, { user: Object.assign({}, prev.user, { clientOrgName: o.name }) }) : prev; });
+            if (o && o.name) {
+              setImpersonating(function(prev) { return prev ? Object.assign({}, prev, { user: Object.assign({}, prev.user, { clientOrgName: o.name }) }) : prev; });
+              onOrgChange(d.user.clientOrgId, o);
+            }
           }).catch(function() {});
-        } else localStorage.removeItem('em_client_org_id');
+        } else { localStorage.removeItem('em_client_org_id'); onOrgChange('', null); }
         toast('Now viewing as ' + d.user.name, 'info');
         setPage('dashboard');
       }
@@ -255,6 +260,7 @@ function App() {
       return null;
     });
     localStorage.removeItem('em_client_org_id');
+    onOrgChange('', null); // Reset org selection back to platform org
     authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {});
     apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
     toast('Stopped impersonation', 'success');

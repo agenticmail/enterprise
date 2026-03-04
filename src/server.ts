@@ -299,6 +299,13 @@ export function createServer(config: ServerConfig): ServerInstance {
       return c.json({ error: 'Access denied: you can only access your assigned organization' }, 403);
     }
 
+    // INJECT clientOrgId when no orgId is specified — ensures downstream queries are always scoped
+    // Store for downstream handlers; also override userOrgId so audit/filtering uses client org
+    if (!requestedOrg) {
+      c.set('enforcedOrgId', clientOrgId);
+      c.set('userOrgId', clientOrgId);
+    }
+
     // Block org listing — only return their own org
     const path = c.req.path;
     if (path === '/api/organizations' && c.req.method === 'GET') {
@@ -469,7 +476,12 @@ export function createServer(config: ServerConfig): ServerInstance {
         if ((c as any)._decryptedBody !== undefined) {
           subBody = JSON.stringify((c as any)._decryptedBody);
         } else {
-          subBody = c.req.raw.body;
+          try {
+            // Clone the body to avoid "disturbed or locked" errors
+            subBody = c.req.raw.bodyUsed ? null : c.req.raw.body;
+          } catch {
+            subBody = null;
+          }
         }
       }
       const subReq = new Request(new URL(subPath, 'http://localhost'), {

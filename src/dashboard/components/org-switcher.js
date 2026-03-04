@@ -136,7 +136,11 @@ export function OrgContextSwitcher(props) {
  */
 export function useOrgContext() {
   var app = useApp();
-  var selectedOrgId = app.selectedOrgId || '';
+  var user = app.user || {};
+  var userClientOrgId = user.clientOrgId || null;
+  var isLocked = !!userClientOrgId && user.role !== 'owner' && user.role !== 'admin';
+  // If user is org-bound (locked), always use their clientOrgId regardless of selectedOrgId
+  var selectedOrgId = isLocked ? userClientOrgId : (app.selectedOrgId || '');
   var selectedOrg = app.selectedOrg || null;
   var onOrgChange = app.onOrgChange || function() {};
 

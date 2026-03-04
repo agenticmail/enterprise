@@ -323,7 +323,7 @@ engine.route('/policies', createPolicyImportRoutes(policyImporter));
 engine.route('/knowledge-contribution', createKnowledgeContributionRoutes(knowledgeContribution, { lifecycle }));
 engine.route('/knowledge-import', createKnowledgeImportRoutes(knowledgeImport));
 engine.route('/skill-updates', createSkillUpdaterRoutes(skillUpdater));
-engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle));
+engine.route('/oauth', createOAuthConnectRoutes(vault, lifecycle, () => _adminDb));
 engine.route('/org-integrations', createOrgIntegrationRoutes(orgIntegrations));
 
 // Database Access system
