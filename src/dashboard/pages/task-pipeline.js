@@ -706,9 +706,9 @@ export function TaskPipelinePage() {
     h('button', { onClick: loadData, style: toolbarBtnStyle }, 'Refresh'),
   );
 
-  if (loading) return h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading task pipeline...');
+  if (loading) return h(Fragment, null, h(orgCtx.Switcher), h('div', { style: { padding: 40, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading task pipeline...'));
 
-  if (nodes.length === 0) return h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--tp-bg)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' } },
+  if (nodes.length === 0) return h(Fragment, null, h(orgCtx.Switcher), h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--tp-bg)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' } },
     toolbar,
     h(MetricsBar, { stats: stats }),
     h('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' } },
@@ -716,7 +716,7 @@ export function TaskPipelinePage() {
       h('div', { style: { fontSize: 16, fontWeight: 600, marginBottom: 6, color: 'var(--tp-text)' } }, 'No Tasks in Pipeline'),
       h('div', { style: { color: 'var(--tp-text-dim)', fontSize: 13 } }, 'Tasks will appear here as agents are assigned work.')
     )
-  );
+  ));
 
   // Build expanded chain for inline flowchart
   var expandedChain = null;
@@ -730,7 +730,7 @@ export function TaskPipelinePage() {
     }
   }
 
-  return h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--tp-bg)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' } },
+  return h(Fragment, null, h(orgCtx.Switcher), h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--tp-bg)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' } },
     toolbar,
     // Metrics bar
     h(MetricsBar, { stats: stats }),
@@ -1017,7 +1017,7 @@ export function TaskPipelinePage() {
 
     // Detail modal (double-click)
     selectedTask && h(TaskDetail, { task: selectedTask, chain: selectedChain, onClose: function() { setSelectedTask(null); setSelectedChain(null); }, onCancel: cancelTask })
-  );
+  ));
 }
 
 // ─── Agent Task Pipeline (reusable mini for agent-detail workforce tab) ─
