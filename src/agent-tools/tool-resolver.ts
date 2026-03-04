@@ -422,6 +422,10 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   shell_session_list: 'local_shell',
   shell_session_kill: 'local_shell',
   system_info: 'local_shell',
+  check_dependency: 'local_shell',
+  install_dependency: 'local_shell',
+  check_environment: 'local_shell',
+  cleanup_installed: 'local_shell',
 
   // ── Messaging: WhatsApp (16) ──
   whatsapp_connect: 'msg_whatsapp',
@@ -814,7 +818,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   ent_knowledge: 'Knowledge base + hub search (3 tools)',
   agenticmail: 'Full email management (40 tools)',
   local_filesystem: 'File read/write/edit/move/delete/search (7 tools)',
-  local_shell: 'Shell exec, PTY sessions, sudo, package install (7 tools)',
+  local_shell: 'Shell exec, PTY sessions, sudo, package install, dependency management (11 tools)',
   msg_whatsapp: 'WhatsApp messaging, media, groups (16 tools)',
   msg_telegram: 'Telegram messaging, media, and file download (5 tools)',
   management: 'Team management — delegate tasks, escalate, org chart (10 tools)',

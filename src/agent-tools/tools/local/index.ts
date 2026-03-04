@@ -11,6 +11,7 @@ import { createFileListTool } from './file-list.js';
 import { createFileSearchTool } from './file-search.js';
 import { createFileMoveTool, createFileDeleteTool } from './file-ops.js';
 import { createShellTools } from './shell.js';
+import { createDependencyManagerTools } from './dependency-manager.js';
 import { createSystemInfoTool } from './system-info.js';
 import { createCodingTools } from './coding.js';
 import type { ToolDefinition } from '../../types.js';
@@ -36,6 +37,7 @@ export function createLocalSystemTools(config?: LocalToolsConfig): ToolDefinitio
     createFileMoveTool(sandbox),
     createFileDeleteTool(sandbox),
     ...createShellTools({ cwd: config?.shellCwd, timeout: config?.shellTimeout }),
+    ...createDependencyManagerTools(),
     createSystemInfoTool(),
     ...createCodingTools({ cwd: config?.shellCwd, sandbox }),
   ];
@@ -50,3 +52,4 @@ export { createFileMoveTool, createFileDeleteTool } from './file-ops.js';
 export { createShellTools, createShellExecTool } from './shell.js';
 export { createSystemInfoTool } from './system-info.js';
 export { createCodingTools } from './coding.js';
+export { createDependencyManagerTools } from './dependency-manager.js';
