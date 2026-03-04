@@ -198,6 +198,8 @@ function isSensitive(url) {
  * Call this once at app startup.
  */
 export function installFetchInterceptor() {
+  if (window.__teInstalled) return;
+  window.__teInstalled = true;
   var originalFetch = window.fetch;
 
   window.fetch = async function(input, init) {
@@ -261,3 +263,7 @@ export function installFetchInterceptor() {
 
 export function isEnabled() { return _enabled; }
 export function isReady() { return _keyReady; }
+
+// Auto-install interceptor at module load — _enabled is false until setConfig,
+// so this is a no-op until the app enables transport encryption.
+installFetchInterceptor();

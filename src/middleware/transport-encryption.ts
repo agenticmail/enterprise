@@ -320,6 +320,7 @@ export function transportEncryptionMiddleware() {
         if (resContentType.includes('application/json') && response.body) {
           // Check if client supports encryption (via header)
           const clientSupports = c.req.header('x-transport-encryption') === '1';
+          if (_config.debugLog) console.log(`[transport-encryption] Response encrypt: clientSupports=${clientSupports}, path=${c.req.path}`);
           if (!clientSupports) {
             // Client doesn't support encryption — send plaintext
             return;
@@ -338,6 +339,7 @@ export function transportEncryptionMiddleware() {
               'x-transport-encrypted': '1',
             },
           });
+          if (_config.debugLog) console.log(`[transport-encryption] Response encrypted for ${c.req.path}`);
         }
       } catch (e: any) {
         if (_config.debugLog) console.warn('[transport-encryption] Response encrypt failed:', e.message);
