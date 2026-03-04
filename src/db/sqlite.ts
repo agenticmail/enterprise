@@ -163,6 +163,10 @@ export class SqliteAdapter extends DatabaseAdapter {
       sets.push('model_pricing_config = ?');
       vals.push(JSON.stringify(updates.modelPricingConfig));
     }
+    if (updates.securityConfig !== undefined) {
+      sets.push('security_config = ?');
+      vals.push(JSON.stringify(updates.securityConfig));
+    }
     sets.push("updated_at = datetime('now')");
     vals.push('default');
     this.db.prepare(`UPDATE company_settings SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
@@ -476,6 +480,7 @@ export class SqliteAdapter extends DatabaseAdapter {
       toolSecurityConfig: r.tool_security_config ? (typeof r.tool_security_config === 'string' ? JSON.parse(r.tool_security_config) : r.tool_security_config) : {},
       firewallConfig: r.firewall_config ? (typeof r.firewall_config === 'string' ? JSON.parse(r.firewall_config) : r.firewall_config) : {},
       modelPricingConfig: r.model_pricing_config ? (typeof r.model_pricing_config === 'string' ? JSON.parse(r.model_pricing_config) : r.model_pricing_config) : {},
+      securityConfig: r.security_config ? (typeof r.security_config === 'string' ? JSON.parse(r.security_config) : r.security_config) : {},
       plan: r.plan, createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
       deploymentKeyHash: r.deployment_key_hash,
       domainRegistrationId: r.domain_registration_id,

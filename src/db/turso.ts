@@ -139,6 +139,10 @@ export class TursoAdapter extends DatabaseAdapter {
       sets.push('model_pricing_config = ?');
       vals.push(JSON.stringify(updates.modelPricingConfig));
     }
+    if (updates.securityConfig !== undefined) {
+      sets.push('security_config = ?');
+      vals.push(JSON.stringify(updates.securityConfig));
+    }
     sets.push("updated_at = datetime('now')");
     vals.push('default');
     await this.run(`UPDATE company_settings SET ${sets.join(', ')} WHERE id = ?`, vals);
@@ -451,6 +455,7 @@ export class TursoAdapter extends DatabaseAdapter {
       dkimPrivateKey: r.dkim_private_key, logoUrl: r.logo_url, primaryColor: r.primary_color,
       ssoConfig: r.sso_config ? (typeof r.sso_config === 'string' ? JSON.parse(r.sso_config) : r.sso_config) : undefined,
       toolSecurityConfig: r.tool_security_config ? (typeof r.tool_security_config === 'string' ? JSON.parse(r.tool_security_config) : r.tool_security_config) : {},
+      securityConfig: r.security_config ? (typeof r.security_config === 'string' ? JSON.parse(r.security_config) : r.security_config) : {},
       firewallConfig: r.firewall_config ? (typeof r.firewall_config === 'string' ? JSON.parse(r.firewall_config) : r.firewall_config) : {},
       modelPricingConfig: r.model_pricing_config ? (typeof r.model_pricing_config === 'string' ? JSON.parse(r.model_pricing_config) : r.model_pricing_config) : {},
       plan: r.plan, createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at),
