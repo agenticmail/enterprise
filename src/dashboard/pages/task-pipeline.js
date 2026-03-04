@@ -231,6 +231,7 @@ var ACTIVITY_TYPE_COLORS = {
   created: '#6366f1', assigned: '#991b1b', started: '#06b6d4', in_progress: '#06b6d4',
   completed: '#15803d', failed: '#ef4444', cancelled: '#6b7394', delegated: '#a855f7',
   compaction: '#8b5cf6', error: '#ef4444',
+  crash: '#dc2626', recovery: '#f59e0b', note: '#3b82f6',
 };
 
 function ActivityLog(props) {
@@ -1084,7 +1085,6 @@ export function AgentTaskPipeline(props) {
   }
 
   return h(Fragment, null,
-    h(orgCtx.Switcher),
     active.length > 0 && h('div', { style: { marginBottom: 12 } },
       h('div', { style: { fontSize: 11, fontWeight: 600, color: STATUS_COLORS.in_progress, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 } },
         h('div', { style: { width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS.in_progress, animation: 'flowPulse 2s infinite' } }),

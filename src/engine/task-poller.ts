@@ -107,6 +107,15 @@ export class TaskPoller {
 
     try {
       const now = Date.now();
+
+      // Sync from database first — ensures we catch tasks that were reset, added externally,
+      // or survived a process restart. This is the enterprise-grade approach.
+      try {
+        await this.deps.taskQueue.syncFromDb?.();
+      } catch (syncErr: any) {
+        this.log('DB sync warning (non-fatal):', syncErr.message);
+      }
+
       const activeTasks = this.deps.taskQueue.getActiveTasks();
       checked = activeTasks.length;
 
@@ -256,6 +265,27 @@ export class TaskPoller {
       }
     }
 
+    // Session not found or gone — this means a crash/restart happened
+    if (task.sessionId) {
+      this.log(`Task ${task.id.slice(0, 8)}: session ${task.sessionId} is DEAD (agent crash/restart)`);
+      await taskQueue.updateTask(task.id, {
+        status: 'assigned',
+        sessionId: null as any,
+        activityLog: [
+          ...task.activityLog,
+          {
+            ts: new Date().toISOString(),
+            type: 'crash',
+            agent: 'task-poller',
+            detail: `Session ${task.sessionId} died (agent crash/restart). Reason: ${reason}. Recovering...`,
+            previousStatus: task.status,
+            retryCount: (this.retries.get(task.id)?.count ?? 0) + 1,
+            nextRetryAt: new Date(Date.now() + 5000).toISOString(),
+          },
+        ],
+      });
+    }
+
     // Strategy 2: Check if agent has ANY active session to route to
     const activeSessions = sessionRouter.getActiveSessions(agentId);
     const chatSession = activeSessions.find(s => s.type === 'chat' || s.type === 'task');
@@ -278,22 +308,43 @@ export class TaskPoller {
     }
 
     // Strategy 3: Spawn a new session
-    this.log(`Task ${task.id}: spawning new session`);
+    this.log(`Task ${task.id.slice(0, 8)}: spawning new session`);
     try {
       const sessionId = await spawnForTask(task);
       if (sessionId) {
+        const retryCount = (this.retries.get(task.id)?.count ?? 0) + 1;
         await taskQueue.updateTask(task.id, {
           status: 'in_progress',
           sessionId,
+          startedAt: new Date().toISOString(),
           activityLog: [
             ...task.activityLog,
-            { ts: new Date().toISOString(), type: 'note', agent: 'task-poller', detail: `Spawned recovery session ${sessionId}: ${reason}` },
+            {
+              ts: new Date().toISOString(),
+              type: 'recovery',
+              agent: 'task-poller',
+              detail: `Recovery session spawned (attempt ${retryCount}/${this.maxRetries}): ${reason}`,
+              sessionId,
+              retryCount,
+            },
           ],
         });
         return true;
       }
     } catch (e: any) {
-      this.log(`Failed to spawn session for task ${task.id}:`, e.message);
+      this.log(`Failed to spawn session for task ${task.id.slice(0, 8)}:`, e.message);
+      // Log the failure
+      await taskQueue.updateTask(task.id, {
+        activityLog: [
+          ...task.activityLog,
+          {
+            ts: new Date().toISOString(),
+            type: 'error',
+            agent: 'task-poller',
+            detail: `Recovery spawn failed: ${e.message}. Will retry in ~${Math.round(this.intervalMs / 1000)}s.`,
+          },
+        ],
+      }).catch(() => {});
     }
 
     return false;
