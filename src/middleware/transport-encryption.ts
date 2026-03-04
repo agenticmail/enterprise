@@ -109,10 +109,11 @@ function deriveKeys(configKey?: string): { encKey: Buffer; hmacKey: Buffer } {
   const baseKey = configKey || process.env.TRANSPORT_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || 'agenticmail-transport-default-key';
   const salt = 'agenticmail-transport-v1';
 
-  // Derive 32-byte encryption key
-  _derivedKey = createHash('sha256').update(`${baseKey}:${salt}:enc`).digest();
-  // Derive separate 32-byte HMAC key
-  _hmacKey = createHash('sha256').update(`${baseKey}:${salt}:hmac`).digest();
+  // First compute keyToken (same as /client-key endpoint sends to the browser)
+  const keyToken = createHash('sha256').update(`${baseKey}:${salt}`).digest('hex');
+  // Then derive enc/hmac keys from keyToken (matches client-side derivation)
+  _derivedKey = createHash('sha256').update(`${keyToken}:${salt}:enc`).digest();
+  _hmacKey = createHash('sha256').update(`${keyToken}:${salt}:hmac`).digest();
 
   return { encKey: _derivedKey, hmacKey: _hmacKey };
 }
@@ -285,20 +286,23 @@ export function transportEncryptionMiddleware() {
         const contentType = c.req.header('content-type') || '';
         if (contentType.includes('application/json')) {
           const body = await c.req.json();
+          // Always store the parsed body first (json() consumes the stream)
+          (c as any)._decryptedBody = body;
           if (body && body._enc && typeof body._enc === 'string') {
-            const decrypted = decryptPayload(body._enc, _config.key, _config.maxAgeMs || 300_000);
-            // Replace the request body with decrypted data
-            (c as any)._decryptedBody = decrypted;
-          } else {
-            // Body was already consumed by json() — store it for downstream handlers
-            (c as any)._decryptedBody = body;
+            try {
+              const decrypted = decryptPayload(body._enc, _config.key, _config.maxAgeMs || 300_000);
+              (c as any)._decryptedBody = decrypted;
+            } catch (decErr: any) {
+              if (_config.debugLog) console.warn('[transport-encryption] Decrypt failed:', decErr.message);
+              // Keep the raw body as fallback (graceful degradation)
+            }
           }
           // Override c.req.json() so downstream handlers can read the body
           c.req.json = async () => (c as any)._decryptedBody;
         }
       } catch (e: any) {
-        if (_config.debugLog) console.warn('[transport-encryption] Request decrypt failed:', e.message);
-        // Don't fail — the body might not be encrypted (graceful degradation)
+        if (_config.debugLog) console.warn('[transport-encryption] Body parse failed:', e.message);
+        // Don't fail — body might not be JSON
       }
     }
 

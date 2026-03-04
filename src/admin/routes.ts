@@ -1574,6 +1574,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const { securityConfig } = body;
 
       if (!securityConfig || typeof securityConfig !== 'object') {
+        console.error('[settings/security] PUT 400 — body keys:', Object.keys(body || {}), 'securityConfig type:', typeof securityConfig, 'body sample:', JSON.stringify(body).slice(0, 200));
         return c.json({ error: 'securityConfig is required and must be an object' }, 400);
       }
 
