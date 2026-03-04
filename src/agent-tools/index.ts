@@ -219,9 +219,12 @@ export interface AllToolsOptions extends ToolCreationOptions {
  */
 export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgentTool[]> {
   // Create security primitives
+  // Default allowed dirs: workspace + /tmp + home (agents need temp file access for media processing, etc.)
+  var defaultAllowedDirs = ['/tmp', '/var/tmp', process.env.HOME || '/root'];
+  var configuredDirs = options?.security?.pathSandbox?.allowedDirs || [];
   var pathSandbox = options?.workspaceDir && options?.security?.pathSandbox?.enabled !== false
     ? createPathSandbox(options.workspaceDir, {
-        allowedDirs: options.security?.pathSandbox?.allowedDirs,
+        allowedDirs: [...defaultAllowedDirs, ...configuredDirs],
         blockedPatterns: options.security?.pathSandbox?.blockedPatterns,
       })
     : undefined;
