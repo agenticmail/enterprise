@@ -278,11 +278,41 @@ export function createServer(config: ServerConfig): ServerInstance {
       c.set('userRole', (payload.role as string) || '');
       c.set('userEmail', (payload.email as string) || '');
       c.set('userOrgId', (payload.orgId as string) || '');
+      c.set('clientOrgId', (payload.clientOrgId as string) || '');
       c.set('authType', cookieToken ? 'cookie' : 'jwt');
       return next();
     } catch {
       return c.json({ error: 'Invalid or expired token' }, 401);
     }
+  });
+
+  // ─── Org-scoping enforcement for client-bound users ───
+  // Users with clientOrgId in JWT can ONLY access their bound org's data
+  api.use('*', async (c: any, next: any) => {
+    const clientOrgId = c.get('clientOrgId');
+    if (!clientOrgId) return next(); // Not org-bound, full access
+
+    // Override orgId in query params to enforce scoping
+    const url = new URL(c.req.url);
+    const requestedOrg = url.searchParams.get('orgId');
+    if (requestedOrg && requestedOrg !== clientOrgId) {
+      return c.json({ error: 'Access denied: you can only access your assigned organization' }, 403);
+    }
+
+    // Block org listing — only return their own org
+    const path = c.req.path;
+    if (path === '/api/organizations' && c.req.method === 'GET') {
+      // Let it through but we'll filter in the response
+      // Store the clientOrgId for downstream filtering
+    }
+
+    // Block access to other orgs' data via path params (e.g., /api/engine/stats/:orgId)
+    const orgIdMatch = path.match(/\/stats\/([^/]+)/);
+    if (orgIdMatch && orgIdMatch[1] !== clientOrgId) {
+      return c.json({ error: 'Access denied: you can only access your assigned organization' }, 403);
+    }
+
+    return next();
   });
 
   // Audit logging on all API mutations

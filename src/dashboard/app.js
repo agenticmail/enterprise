@@ -163,6 +163,12 @@ function App() {
     if (document.cookie.match(/em_session|em_csrf/)) {
       authCall('/me').then(async d => {
         setUser(d.user || d);
+        // If user is org-bound, lock org context immediately
+        var u = d.user || d;
+        if (u.clientOrgId) {
+          setSelectedOrgId(u.clientOrgId);
+          localStorage.setItem('em_client_org_id', u.clientOrgId);
+        }
         // Init transport encryption BEFORE setting authed — ensures all subsequent
         // API calls from child components are encrypted
         try {
@@ -202,9 +208,10 @@ function App() {
     apiCall('/settings').then(d => { const s = d.settings || d || {}; if (s.primaryColor) applyBrandColor(s.primaryColor); if (s.orgId) setOrgId(s.orgId); }).catch(() => {});
     apiCall('/me/permissions').then(d => {
       if (d && d.permissions) setPermissions(d.permissions);
-      // If user is assigned to a client org, auto-set org context
+      // If user is assigned to a client org, auto-set org context and lock switcher
       if (d && d.clientOrgId) {
         localStorage.setItem('em_client_org_id', d.clientOrgId);
+        setSelectedOrgId(d.clientOrgId);
       } else {
         localStorage.removeItem('em_client_org_id');
       }

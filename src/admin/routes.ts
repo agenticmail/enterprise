@@ -757,13 +757,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     const userRole = c.get('userRole' as any);
     if (!userId) return c.json({ error: 'Not authenticated' }, 401);
 
+    const user = await db.getUser(userId);
+    const clientOrgId = user?.clientOrgId || c.get('clientOrgId' as any) || null;
+
     // Owner and admin always get full access
     if (userRole === 'owner' || userRole === 'admin') {
-      return c.json({ permissions: '*', role: userRole });
+      return c.json({ permissions: '*', role: userRole, clientOrgId });
     }
 
-    const user = await db.getUser(userId);
-    return c.json({ permissions: user?.permissions ?? '*', role: userRole, clientOrgId: user?.clientOrgId || null });
+    return c.json({ permissions: user?.permissions ?? '*', role: userRole, clientOrgId });
   });
 
   // ─── Platform Capabilities ──────────────────────────
@@ -2195,8 +2197,26 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
   // ─── Client Organizations ─────────────────────────────
 
-  api.get('/organizations', requireRole('admin'), async (c) => {
+  api.get('/organizations', async (c) => {
     try {
+      // Org-bound users can only see their own organization
+      const clientOrgId = c.get('clientOrgId' as any);
+      if (clientOrgId) {
+        const isPostgres = (db as any).pool;
+        if (isPostgres) {
+          const { rows } = await (db as any)._query(
+            `SELECT o.*, COUNT(a.id) as agent_count FROM client_organizations o LEFT JOIN agents a ON a.client_org_id = o.id WHERE o.id = $1 GROUP BY o.id`, [clientOrgId]);
+          return c.json({ organizations: rows });
+        }
+        return c.json({ organizations: [] });
+      }
+
+      // Full access for admins/owners
+      const userRole = c.get('userRole' as any);
+      if (userRole !== 'admin' && userRole !== 'owner') {
+        return c.json({ error: 'Insufficient permissions' }, 403);
+      }
+
       const isPostgres = (db as any).pool;
       if (isPostgres) {
         const { rows } = await (db as any)._query(`

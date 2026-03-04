@@ -73,11 +73,14 @@ export function createAuthRoutes(
     return process.env.NODE_ENV === 'production' || process.env.SECURE_COOKIES === '1';
   };
 
-  async function issueTokens(userId: string, email: string, role: string) {
+  async function issueTokens(userId: string, email: string, role: string, clientOrgId?: string | null) {
     const { SignJWT } = await import('jose');
     const secret = new TextEncoder().encode(jwtSecret);
 
-    const token = await new SignJWT({ sub: userId, email, role })
+    const payload: Record<string, any> = { sub: userId, email, role };
+    if (clientOrgId) payload.clientOrgId = clientOrgId;
+
+    const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime(TOKEN_TTL)
@@ -93,8 +96,8 @@ export function createAuthRoutes(
   }
 
   /** Set session cookies and return token info */
-  async function setSessionCookies(c: any, userId: string, email: string, role: string, method: string) {
-    const { token, refreshToken } = await issueTokens(userId, email, role);
+  async function setSessionCookies(c: any, userId: string, email: string, role: string, method: string, clientOrgId?: string | null) {
+    const { token, refreshToken } = await issueTokens(userId, email, role, clientOrgId);
     const csrf = generateCsrf();
     const secure = isSecure();
 
@@ -301,7 +304,7 @@ export function createAuthRoutes(
       });
     }
 
-    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'password');
+    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'password', user.clientOrgId);
 
     return c.json({
       token,
@@ -360,7 +363,7 @@ export function createAuthRoutes(
 
     pending2fa.delete(challengeToken);
 
-    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'password+2fa');
+    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'password+2fa', user.clientOrgId);
 
     return c.json({
       token,
@@ -614,7 +617,7 @@ export function createAuthRoutes(
     const user = await db.getUser(key.createdBy);
     if (!user) return c.json({ error: 'API key owner not found' }, 401);
 
-    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'api-key');
+    const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'api-key', user.clientOrgId);
 
     return c.json({
       token,
@@ -643,7 +646,7 @@ export function createAuthRoutes(
       const user = await db.getUser(payload.sub as string);
       if (!user) return c.json({ error: 'User not found' }, 401);
 
-      const { token, refreshToken } = await issueTokens(user.id, user.email, user.role);
+      const { token, refreshToken } = await issueTokens(user.id, user.email, user.role, user.clientOrgId);
       const csrf = generateCsrf();
       const secure = isSecure();
 
@@ -890,7 +893,7 @@ export function createAuthRoutes(
         ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
       });
 
-      const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'bootstrap');
+      const { token, refreshToken, csrf } = await setSessionCookies(c, user.id, user.email, user.role, 'bootstrap', user.clientOrgId);
 
       // Notify server that setup is complete (flips the dashboard latch)
       opts?.onBootstrap?.();
@@ -1214,7 +1217,7 @@ export function createAuthRoutes(
     }
 
     // Issue session
-    await setSessionCookies(c, result.user.id, result.user.email, result.user.role, 'oidc');
+    await setSessionCookies(c, result.user.id, result.user.email, result.user.role, 'oidc', result.user.clientOrgId);
 
     // Redirect to dashboard
     return c.redirect('/dashboard');
@@ -1363,7 +1366,7 @@ export function createAuthRoutes(
     }
 
     // Issue session
-    await setSessionCookies(c, result.user.id, result.user.email, result.user.role, 'saml');
+    await setSessionCookies(c, result.user.id, result.user.email, result.user.role, 'saml', result.user.clientOrgId);
 
     // Redirect to dashboard (or RelayState)
     return c.redirect('/dashboard');
