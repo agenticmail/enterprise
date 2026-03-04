@@ -77,10 +77,9 @@ function buildActivePatterns(config: TransportEncryptionConfig): string[] {
   // Legacy: if sensitiveEndpoints is set directly, use those
   if (config.sensitiveEndpoints?.length) return config.sensitiveEndpoints;
 
-  // encryptAll: every group
+  // encryptAll: ALL API endpoints, not just listed groups
   if (config.encryptAll) {
-    const all: string[] = [];
-    for (const paths of Object.values(ENDPOINT_GROUPS)) all.push(...paths);
+    const all: string[] = ['/api/*', '/auth/*'];
     if (config.customEndpoints?.length) all.push(...config.customEndpoints);
     return all;
   }
