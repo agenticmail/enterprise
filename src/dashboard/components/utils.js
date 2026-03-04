@@ -60,13 +60,15 @@ export function apiCall(path, opts = {}) {
   if (apiKey) headers['X-API-Key'] = apiKey;
   const url = '/api' + (path.startsWith('/') ? '' : '/') + path;
 
-  // Transport encryption integration
-  const te = window.__transportEncryption;
-  const sensitive = te && te.isEnabled() && te.isSensitive(url);
-  if (sensitive) headers['x-transport-encryption'] = '1';
-
   const doFetch = async () => {
-    let fetchOpts = { ...opts, credentials: 'same-origin', headers: { ...headers, ...opts.headers } };
+    // Wait for transport encryption to be ready if enabled
+    const te = window.__transportEncryption;
+    if (te && te.isEnabled()) await te.waitForReady();
+    const sensitive = te && te.isReady() && te.isSensitive(url);
+    const fetchHeaders = { ...headers, ...opts.headers };
+    if (sensitive) fetchHeaders['x-transport-encryption'] = '1';
+
+    let fetchOpts = { ...opts, credentials: 'same-origin', headers: fetchHeaders };
 
     // Encrypt request body for sensitive endpoints
     if (sensitive && fetchOpts.body && (fetchOpts.method === 'PUT' || fetchOpts.method === 'POST' || fetchOpts.method === 'PATCH')) {

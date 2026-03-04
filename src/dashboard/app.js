@@ -163,16 +163,18 @@ function App() {
     }
   }, []);
 
-  // Init transport encryption from security settings
+  // Init transport encryption from security settings — must complete before other API calls
+  const [encryptionReady, setEncryptionReady] = useState(false);
   useEffect(() => {
     if (!authed) return;
-    apiCall('/settings/security').then(d => {
+    apiCall('/settings/security').then(async d => {
       var te = d?.securityConfig?.transportEncryption;
       if (te && te.enabled) {
         setTransportEncConfig(te);
-        installFetchInterceptor();
+        // Wait for keys to be derived before allowing other API calls
+        if (window.__transportEncryption) await window.__transportEncryption.waitForReady();
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setEncryptionReady(true));
   }, [authed]);
 
   const toast = useCallback((message, type = 'info') => {
@@ -268,6 +270,9 @@ function App() {
     } catch (e) { setForceResetError(e.message); }
     setForceResetLoading(false);
   };
+
+  // Wait for transport encryption to initialize before rendering the dashboard
+  if (authed && !encryptionReady) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Initializing secure connection...');
 
   if (mustResetPassword) {
     return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', padding: 20 } },

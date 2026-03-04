@@ -13,6 +13,8 @@ var _enabled = false;
 var _encKey = null;   // CryptoKey for AES
 var _hmacKey = null;  // CryptoKey for HMAC
 var _keyReady = false;
+var _keyReadyPromise = null;  // Resolves when keys are derived
+var _keyReadyResolve = null;
 
 // ─── Key derivation (must match server) ───────────────────
 
@@ -181,7 +183,11 @@ export function setConfig(config) {
     return new RegExp('^' + p.replace(/\*/g, '[^/]+') + '(/.*)?$');
   });
   if (_enabled && !_keyReady) {
-    deriveKeys().catch(function() { _enabled = false; });
+    // Create a promise that apiCall can await
+    _keyReadyPromise = new Promise(function(resolve) { _keyReadyResolve = resolve; });
+    deriveKeys().then(function() {
+      if (_keyReadyResolve) _keyReadyResolve();
+    }).catch(function() { _enabled = false; if (_keyReadyResolve) _keyReadyResolve(); });
   }
 }
 
@@ -266,8 +272,10 @@ export function isReady() { return _keyReady; }
 
 // Expose for apiCall integration (avoids fetch interceptor timing issues)
 window.__transportEncryption = {
-  isEnabled: function() { return _enabled && _keyReady; },
+  isEnabled: function() { return _enabled; },
+  isReady: function() { return _enabled && _keyReady; },
   isSensitive: isSensitive,
   encryptPayload: encryptPayload,
   decryptPayload: decryptPayload,
+  waitForReady: function() { return _keyReadyPromise || Promise.resolve(); },
 };
