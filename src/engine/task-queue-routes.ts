@@ -42,6 +42,36 @@ export function createTaskQueueRoutes(taskQueue: TaskQueueManager) {
     return c.json({ tasks });
   });
 
+  // GET /task-pipeline/stream — SSE stream (must be before /:id to avoid catch-all)
+  router.get('/stream', (c) => {
+    let alive = true;
+    const stream = new ReadableStream({
+      start(controller) {
+        const enc = new TextEncoder();
+        const send = (data: string) => {
+          if (!alive) return;
+          try { controller.enqueue(enc.encode(data)); } catch { alive = false; }
+        };
+        const active = taskQueue.getActiveTasks();
+        const stats = taskQueue.getPipelineStats();
+        send(`data: ${JSON.stringify({ type: 'init', tasks: active, stats })}\n\n`);
+        const unsub = taskQueue.subscribe((event) => {
+          send(`data: ${JSON.stringify(event)}\n\n`);
+        });
+        const hb = setInterval(() => { send(': heartbeat\n\n'); }, 30_000);
+        c.req.raw.signal?.addEventListener('abort', () => {
+          alive = false;
+          unsub();
+          clearInterval(hb);
+          try { controller.close(); } catch {}
+        });
+      },
+    });
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+    });
+  });
+
   // GET /task-pipeline/:id — single task detail
   router.get('/:id', (c) => {
     const task = taskQueue.getTask(c.req.param('id'));
@@ -109,47 +139,5 @@ export function createTaskQueueRoutes(taskQueue: TaskQueueManager) {
   });
 
   // ─── SSE Stream ────────────────────────────────────────
-  router.get('/stream', (c) => {
-    let alive = true;
-    const stream = new ReadableStream({
-      start(controller) {
-        const enc = new TextEncoder();
-        const send = (data: string) => {
-          if (!alive) return;
-          try { controller.enqueue(enc.encode(data)); } catch { alive = false; }
-        };
-
-        // Send initial state
-        const active = taskQueue.getActiveTasks();
-        const stats = taskQueue.getPipelineStats();
-        send(`data: ${JSON.stringify({ type: 'init', tasks: active, stats })}\n\n`);
-
-        // Subscribe to real-time events
-        const unsub = taskQueue.subscribe((event) => {
-          send(`data: ${JSON.stringify(event)}\n\n`);
-        });
-
-        // Heartbeat every 30s
-        const hb = setInterval(() => { send(': heartbeat\n\n'); }, 30_000);
-
-        // Cleanup on close
-        c.req.raw.signal?.addEventListener('abort', () => {
-          alive = false;
-          unsub();
-          clearInterval(hb);
-          try { controller.close(); } catch { /* ignore */ }
-        });
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-  });
-
   return router;
 }
