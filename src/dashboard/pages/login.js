@@ -382,6 +382,118 @@ export function OnboardingWizard({ onComplete }) {
 
   var set = function(k, v) { setForm(function(f) { return Object.assign({}, f, { [k]: v }); }); };
 
+  // ─── Smart DB URL Analysis & Auto-Optimization ─────
+
+  var analyzeDbUrl = function(url) {
+    if (!url) return null;
+    try {
+      var u = new URL(url);
+      var port = u.port || '5432';
+      var host = u.hostname || '';
+      var info = {
+        host: host, port: port, provider: null, isPooler: false, poolerMode: null,
+        directUrl: null, optimizedUrl: null, warnings: [], tips: [], autoFixed: []
+      };
+
+      // ── Supabase Detection ──────────────────────────
+      if (host.includes('.supabase.co') || host.includes('pooler.supabase.com')) {
+        info.provider = 'supabase';
+        var projectRef = u.username.replace('postgres.', '');
+
+        if (host.includes('pooler.supabase.com')) {
+          info.isPooler = true;
+          info.poolerMode = port === '6543' ? 'transaction' : port === '5432' ? 'session' : 'unknown';
+
+          // Build direct URL: db.{ref}.supabase.co:5432
+          var directU = new URL(url);
+          directU.hostname = 'db.' + projectRef + '.supabase.co';
+          directU.port = '5432';
+          directU.searchParams.delete('pgbouncer');
+          info.directUrl = directU.toString();
+
+          if (port === '5432') {
+            // Auto-fix: switch from session mode (5432) to transaction mode (6543)
+            var fixedU = new URL(url);
+            fixedU.port = '6543';
+            fixedU.searchParams.set('pgbouncer', 'true');
+            info.optimizedUrl = fixedU.toString();
+            info.autoFixed.push('Switched from session mode (port 5432) to transaction mode (port 6543) — higher connection limits and better for multi-process setups.');
+            info.autoFixed.push('Added ?pgbouncer=true for proper connection pooling.');
+          } else if (port === '6543') {
+            // Already on transaction mode — ensure pgbouncer param is set
+            if (!u.searchParams.get('pgbouncer')) {
+              var optU = new URL(url);
+              optU.searchParams.set('pgbouncer', 'true');
+              info.optimizedUrl = optU.toString();
+              info.autoFixed.push('Added ?pgbouncer=true parameter for proper PgBouncer transaction mode handling.');
+            }
+            info.tips.push('Transaction mode pooler detected — optimal for production.');
+          }
+          info.tips.push('Direct URL auto-generated for migrations (bypasses pooler for DDL operations).');
+
+        } else if (host.startsWith('db.') || host.includes('.supabase.co')) {
+          // Direct connection — build pooler URL for them
+          info.directUrl = url;
+          var region = host.match(/db\.([^.]+)\.supabase\.co/)?.[1] || projectRef;
+          // Try to detect region from hostname pattern
+          var poolerU = new URL(url);
+          // Supabase pooler format: aws-0-{region}.pooler.supabase.com
+          poolerU.hostname = 'aws-0-us-east-1.pooler.supabase.com'; // default, user may need to adjust
+          poolerU.port = '6543';
+          poolerU.username = 'postgres.' + region;
+          poolerU.searchParams.set('pgbouncer', 'true');
+          info.warnings.push('Direct connection detected. For production with multiple agents, use the Supabase connection pooler.');
+          info.tips.push('Go to Supabase Dashboard > Settings > Database > Connection string > URI, and select "Transaction mode" to get the correct pooler URL.');
+        }
+      }
+      // ── Neon Detection ──────────────────────────────
+      else if (host.includes('.neon.tech')) {
+        info.provider = 'neon';
+        info.isPooler = host.includes('-pooler');
+        if (!info.isPooler) {
+          // Auto-fix: add -pooler to hostname
+          var neonFixedU = new URL(url);
+          var parts = neonFixedU.hostname.split('.');
+          if (parts[0] && !parts[0].endsWith('-pooler')) {
+            parts[0] = parts[0] + '-pooler';
+            neonFixedU.hostname = parts.join('.');
+            info.optimizedUrl = neonFixedU.toString();
+            info.autoFixed.push('Added connection pooler endpoint (-pooler) for better connection handling.');
+          }
+          // Direct URL is the original
+          info.directUrl = url;
+          info.tips.push('Direct URL saved for migrations.');
+        } else {
+          // Already pooled — generate direct URL
+          var neonDirectU = new URL(url);
+          var neonParts = neonDirectU.hostname.split('.');
+          if (neonParts[0]) {
+            neonParts[0] = neonParts[0].replace(/-pooler$/, '');
+            neonDirectU.hostname = neonParts.join('.');
+          }
+          info.directUrl = neonDirectU.toString();
+          info.tips.push('Neon pooler detected — optimal for production. Direct URL auto-generated for migrations.');
+        }
+      }
+      // ── Generic Postgres ────────────────────────────
+      else {
+        info.provider = 'postgres';
+        // Check for common PgBouncer indicators
+        if (port === '6432' || port === '6543' || u.searchParams.get('pgbouncer') === 'true') {
+          info.isPooler = true;
+          info.poolerMode = 'transaction';
+          info.tips.push('PgBouncer detected. Connection pooling will be configured automatically.');
+        }
+      }
+
+      return info;
+    } catch { return null; }
+  };
+
+  var dbUrlInfo = useMemo(function() {
+    return analyzeDbUrl(form.dbConnectionString);
+  }, [form.dbConnectionString]);
+
   // ─── DB Config Builder ──────────────────────────────
 
   var buildDbConfig = function() {
@@ -389,7 +501,17 @@ export function OnboardingWizard({ onComplete }) {
     if (t === 'sqlite') return { type: 'sqlite' };
     if (t === 'turso') return { type: 'turso', connectionString: form.dbConnectionString, authToken: form.dbAuthToken };
     if (t === 'dynamodb') return { type: 'dynamodb', region: form.dbRegion, accessKeyId: form.dbAccessKey, secretAccessKey: form.dbSecretKey };
-    return { type: t, connectionString: form.dbConnectionString };
+    // Use optimized URL if available (auto-fixed pooler mode, pgbouncer param, etc.)
+    var connStr = (dbUrlInfo && dbUrlInfo.optimizedUrl) ? dbUrlInfo.optimizedUrl : form.dbConnectionString;
+    var config = { type: t, connectionString: connStr };
+    // Auto-attach smart DB metadata for Postgres-family databases
+    if (dbUrlInfo) {
+      config.poolerDetected = dbUrlInfo.isPooler || !!dbUrlInfo.optimizedUrl;
+      config.poolerMode = dbUrlInfo.poolerMode || (dbUrlInfo.optimizedUrl ? 'transaction' : null);
+      config.directUrl = dbUrlInfo.directUrl;
+      config.provider = dbUrlInfo.provider;
+    }
+    return config;
   };
 
   // ─── Actions ────────────────────────────────────────
@@ -528,9 +650,43 @@ export function OnboardingWizard({ onComplete }) {
       );
     }
     // Connection string types: postgres, mysql, mongodb, supabase, neon, planetscale, cockroachdb
-    return h('div', { className: 'form-group' },
-      h('label', { className: 'form-label' }, 'Connection String'),
-      h('input', { className: 'input', value: form.dbConnectionString, onChange: function(e) { set('dbConnectionString', e.target.value); }, placeholder: currentDbType ? currentDbType.placeholder : '' })
+    var urlHints = dbUrlInfo && form.dbConnectionString.length > 10;
+    return h(Fragment, null,
+      h('div', { className: 'form-group' },
+        h('label', { className: 'form-label' }, 'Connection String'),
+        h('input', { className: 'input', value: form.dbConnectionString, onChange: function(e) { set('dbConnectionString', e.target.value); }, placeholder: currentDbType ? currentDbType.placeholder : '' })
+      ),
+      // Smart URL analysis hints
+      urlHints && h('div', { style: { margin: '-8px 0 12px', fontSize: 12, lineHeight: 1.6 } },
+        dbUrlInfo.provider && dbUrlInfo.provider !== 'postgres' && h('div', { style: { color: 'var(--accent)', fontWeight: 500, marginBottom: 4 } },
+          dbUrlInfo.provider === 'supabase' ? '\uD83D\uDFE2 Supabase' : dbUrlInfo.provider === 'neon' ? '\uD83D\uDFE2 Neon' : dbUrlInfo.provider,
+          ' detected',
+          dbUrlInfo.isPooler || dbUrlInfo.optimizedUrl ? ' \u2014 connection will be auto-optimized' : ' (direct connection)'
+        ),
+        // Auto-fix notifications (green — things we fixed for them)
+        dbUrlInfo.autoFixed && dbUrlInfo.autoFixed.map(function(f, i) {
+          return h('div', { key: 'f' + i, style: { color: '#10b981', padding: '4px 8px', background: 'rgba(16,185,129,0.08)', borderRadius: 6, marginBottom: 4 } },
+            '\u2728 Auto-configured: ', f
+          );
+        }),
+        // Warnings (yellow — things they need to act on)
+        dbUrlInfo.warnings.map(function(w, i) {
+          return h('div', { key: 'w' + i, style: { color: 'var(--warning, #f59e0b)', padding: '4px 8px', background: 'rgba(245,158,11,0.1)', borderRadius: 6, marginBottom: 4 } },
+            '\u26A0\uFE0F ', w
+          );
+        }),
+        // Tips (informational)
+        dbUrlInfo.tips.map(function(t, i) {
+          return h('div', { key: 't' + i, style: { color: 'var(--text-secondary)', padding: '2px 0' } },
+            '\u2714\uFE0F ', t
+          );
+        }),
+        // Summary of what will be sent
+        (dbUrlInfo.directUrl || dbUrlInfo.optimizedUrl) && h('div', { style: { color: 'var(--text-secondary)', padding: '6px 8px', background: 'var(--bg-secondary)', borderRadius: 6, marginTop: 4, fontSize: 11 } },
+          dbUrlInfo.optimizedUrl && h('div', null, '\uD83D\uDD17 Pooler URL: ', h('code', { style: { fontSize: 10 } }, dbUrlInfo.optimizedUrl.substring(0, 60) + '...')),
+          dbUrlInfo.directUrl && h('div', null, '\uD83D\uDD17 Direct URL (migrations): ', h('code', { style: { fontSize: 10 } }, dbUrlInfo.directUrl.substring(0, 60) + '...'))
+        )
+      )
     );
   };
 

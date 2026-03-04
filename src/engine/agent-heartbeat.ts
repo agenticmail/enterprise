@@ -693,7 +693,7 @@ export class AgentHeartbeatManager {
 ${summaries}
 
 For each item, take the appropriate action:
-- For unread emails: Check your inbox with gmail_list and respond to any urgent ones.
+- For unread emails: Check your inbox with gmail_search and respond to any urgent ones.
 - For upcoming events: Check google_calendar_list for the next 2 hours and prepare.
 - For stale sessions: Review and close any stuck sessions.
 - For unanswered chats: Check Google Chat and respond.

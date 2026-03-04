@@ -22,7 +22,7 @@ Good morning! Here's what accumulated while you were off:
 - ${ctx.failedChats} chat message(s) may be unanswered
 
 Your morning routine:
-1. Check your inbox with gmail_list (unread only) — scan subjects and senders
+1. Check your inbox with gmail_search (unread only) — scan subjects and senders
 2. For each important email, create a Google Task: google_tasks_create with title, notes, and priority
 3. Check Google Chat for any unanswered messages: google_chat_list_messages
 4. For any failed sessions that look important, add them as tasks too

@@ -393,11 +393,8 @@ export async function runAgent(_args: string[]) {
   console.log('   Connecting to database...');
 
   // 1. Connect to shared enterprise DB
-  const { createAdapter } = await import('./db/factory.js');
-  const db = await createAdapter({
-    type: DATABASE_URL.startsWith('postgres') ? 'postgres' : 'sqlite',
-    connectionString: DATABASE_URL,
-  });
+  const { createAdapter, smartDbConfig } = await import('./db/factory.js');
+  const db = await createAdapter(smartDbConfig(DATABASE_URL));
   await db.migrate();
 
   // 2. Initialize engine DB

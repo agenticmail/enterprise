@@ -28,6 +28,8 @@ export interface DatabaseConfig {
   secretAccessKey?: string;
   /** Turso-specific */
   authToken?: string;
+  /** Direct connection URL (bypasses PgBouncer) — used for migrations */
+  directUrl?: string;
   /** Extra driver options */
   options?: Record<string, unknown>;
 }

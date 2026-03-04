@@ -31,16 +31,27 @@ export class PostgresAdapter extends DatabaseAdapter {
   readonly type = 'postgres' as const;
   private pool: any = null;
   private ended = false;
+  private _directUrl?: string;
+  private _connectionString?: string;
+  private _isPgBouncer = false;
 
   async connect(config: DatabaseConfig): Promise<void> {
     this.ended = false;
     const { Pool } = await getPg();
 
     // ── Smart pool sizing ──────────────────────────────
-    // Detect if using PgBouncer/Supabase pooler (port 6543) vs direct (5432)
-    // and auto-configure pool size accordingly.
-    const port = config.port || (config.connectionString ? new URL(config.connectionString).port : '5432');
-    const isPgBouncer = String(port) === '6543' || String(port) === '5433';
+    // Detect if using PgBouncer/Supabase pooler from port, hostname, or query params
+    const connUrl = config.connectionString ? new URL(config.connectionString) : null;
+    const port = config.port || (connUrl ? connUrl.port : '5432');
+    const hostname = connUrl?.hostname || config.host || '';
+    const isPgBouncer = String(port) === '6543' || String(port) === '5433'
+      || hostname.includes('.pooler.supabase.') || hostname.includes('.pooler.')
+      || connUrl?.searchParams.get('pgbouncer') === 'true';
+
+    // Store for migrations and reconnection
+    this._directUrl = config.directUrl || undefined;
+    this._connectionString = config.connectionString;
+    this._isPgBouncer = isPgBouncer;
 
     // Pool size logic:
     // - PgBouncer (Supabase pooler): conservative — shared across processes
@@ -49,11 +60,11 @@ export class PostgresAdapter extends DatabaseAdapter {
     // - Direct connection: more generous
     // - Override via DB_POOL_MAX env var
     const envMax = process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : 0;
-    const defaultMax = isPgBouncer ? 4 : 10;
+    const defaultMax = isPgBouncer ? 3 : 10;
     const poolMax = envMax || defaultMax;
 
     // PgBouncer transaction mode: short idle timeout to release connections fast
-    const idleTimeout = isPgBouncer ? 5000 : 30000;
+    const idleTimeout = isPgBouncer ? 2000 : 30000;
 
     this.pool = new Pool({
       connectionString: config.connectionString,
@@ -105,16 +116,21 @@ export class PostgresAdapter extends DatabaseAdapter {
    * admin shutdown (57P01), connection refused, client already released.
    */
   private async _query(sql: string, params?: any[]): Promise<any> {
-    const RETRYABLE = new Set(['XX000', '53300', '57P01', 'ECONNREFUSED', 'ECONNRESET', '57P03']);
-    for (let attempt = 0; attempt < 2; attempt++) {
+    const RETRYABLE = new Set(['XX000', '53300', '57P01', 'ECONNREFUSED', 'ECONNRESET', '57P03', '25P02']);
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         return await this.pool.query(sql, params);
       } catch (err: any) {
         const code = err.code || '';
         const msg = err.message || '';
-        const isRetryable = RETRYABLE.has(code) || msg.includes('remaining connection') || msg.includes('terminating connection') || msg.includes('Connection terminated');
-        if (isRetryable && attempt === 0) {
-          await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+        const isAbortedTx = code === '25P02' || msg.includes('current transaction is aborted');
+        const isRetryable = RETRYABLE.has(code) || msg.includes('remaining connection') || msg.includes('terminating connection') || msg.includes('Connection terminated') || msg.includes('MaxClientsInSessionMode');
+        if ((isRetryable || isAbortedTx) && attempt < 2) {
+          // For aborted transaction state, try to reset the connection by issuing ROLLBACK
+          if (isAbortedTx) {
+            try { await this.pool.query('ROLLBACK'); } catch {}
+          }
+          await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
           continue;
         }
         throw err;
@@ -154,7 +170,33 @@ export class PostgresAdapter extends DatabaseAdapter {
 
   async migrate(): Promise<void> {
     const stmts = getAllCreateStatements();
-    const client = await this.pool.connect();
+
+    // For PgBouncer setups, try direct URL for migrations (DDL needs real transactions)
+    // Falls back to pooler connection if direct URL is unreachable
+    let directPool: any = null;
+    let client: any;
+    if (this._isPgBouncer && this._directUrl) {
+      try {
+        const { Pool } = await getPg();
+        directPool = new Pool({
+          connectionString: this._directUrl,
+          ssl: { rejectUnauthorized: false },
+          max: 1,
+          idleTimeoutMillis: 5000,
+          connectionTimeoutMillis: 8000,
+        });
+        directPool.on('error', () => {}); // Suppress stderr noise during fallback
+        client = await directPool.connect();
+        console.log('[postgres] Using direct connection for migrations (bypassing PgBouncer)');
+      } catch (err: any) {
+        console.warn(`[postgres] Direct connection unavailable (${err.message?.slice(0, 80)}), using pooler for migrations`);
+        if (directPool) { try { await directPool.end(); } catch {} }
+        directPool = null;
+        client = await this.pool.connect();
+      }
+    } else {
+      client = await this.pool.connect();
+    }
     try {
       await client.query('BEGIN');
       for (const stmt of stmts) {
@@ -247,6 +289,9 @@ export class PostgresAdapter extends DatabaseAdapter {
       throw err;
     } finally {
       client.release();
+      if (directPool) {
+        try { await directPool.end(); } catch {}
+      }
     }
   }
 

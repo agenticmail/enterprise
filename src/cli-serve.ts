@@ -121,13 +121,10 @@ export async function runServe(_args: string[]) {
     process.exit(1);
   }
 
-  const { createAdapter } = await import('./db/factory.js');
+  const { createAdapter, smartDbConfig } = await import('./db/factory.js');
   const { createServer } = await import('./server.js');
 
-  const db = await createAdapter({
-    type: DATABASE_URL.startsWith('postgres') ? 'postgres' : 'sqlite',
-    connectionString: DATABASE_URL,
-  });
+  const db = await createAdapter(smartDbConfig(DATABASE_URL));
 
   await db.migrate();
 
