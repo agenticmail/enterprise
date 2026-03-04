@@ -264,6 +264,10 @@ export function installFetchInterceptor() {
 export function isEnabled() { return _enabled; }
 export function isReady() { return _keyReady; }
 
-// Auto-install interceptor at module load — _enabled is false until setConfig,
-// so this is a no-op until the app enables transport encryption.
-installFetchInterceptor();
+// Expose for apiCall integration (avoids fetch interceptor timing issues)
+window.__transportEncryption = {
+  isEnabled: function() { return _enabled && _keyReady; },
+  isSensitive: isSensitive,
+  encryptPayload: encryptPayload,
+  decryptPayload: decryptPayload,
+};

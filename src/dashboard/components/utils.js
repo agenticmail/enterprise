@@ -59,16 +59,48 @@ export function apiCall(path, opts = {}) {
   const apiKey = localStorage.getItem('em_api_key');
   if (apiKey) headers['X-API-Key'] = apiKey;
   const url = '/api' + (path.startsWith('/') ? '' : '/') + path;
-  return fetch(url, { ...opts, credentials: 'same-origin', headers: { ...headers, ...opts.headers } })
-    .then(async r => {
-      if (r.status === 401 && !opts._retried) {
-        try { await tryRefreshToken(); return apiCall(path, { ...opts, _retried: true }); }
-        catch { if (window.__emLogout) window.__emLogout(); throw new Error('Session expired'); }
-      }
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || r.statusText);
-      return d;
-    });
+
+  // Transport encryption integration
+  const te = window.__transportEncryption;
+  const sensitive = te && te.isEnabled() && te.isSensitive(url);
+  if (sensitive) headers['x-transport-encryption'] = '1';
+
+  const doFetch = async () => {
+    let fetchOpts = { ...opts, credentials: 'same-origin', headers: { ...headers, ...opts.headers } };
+
+    // Encrypt request body for sensitive endpoints
+    if (sensitive && fetchOpts.body && (fetchOpts.method === 'PUT' || fetchOpts.method === 'POST' || fetchOpts.method === 'PATCH')) {
+      try {
+        const bodyData = typeof fetchOpts.body === 'string' ? JSON.parse(fetchOpts.body) : fetchOpts.body;
+        const encrypted = await te.encryptPayload(bodyData);
+        if (encrypted) fetchOpts.body = JSON.stringify({ _enc: encrypted });
+      } catch {}
+    }
+
+    const r = await fetch(url, fetchOpts);
+    if (r.status === 401 && !opts._retried) {
+      try { await tryRefreshToken(); return apiCall(path, { ...opts, _retried: true }); }
+      catch { if (window.__emLogout) window.__emLogout(); throw new Error('Session expired'); }
+    }
+
+    // Decrypt response if encrypted
+    if (sensitive && r.headers.get('x-transport-encrypted') === '1') {
+      try {
+        const resBody = await r.json();
+        if (resBody && resBody._enc) {
+          const decrypted = await te.decryptPayload(resBody._enc);
+          if (decrypted) return decrypted;
+        }
+        return resBody;
+      } catch {}
+    }
+
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    return d;
+  };
+
+  return doFetch();
 }
 export function authCall(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrf() };
