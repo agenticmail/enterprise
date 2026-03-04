@@ -140,11 +140,13 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
   /** List clock records with optional filters */
   router.get('/clock-records', async (c) => {
     try {
+      const orgId = resolveOrgId(c);
       const agentId = c.req.query('agentId') || undefined;
       const limit = parseInt(c.req.query('limit') || '50');
       const since = c.req.query('since') || undefined;
 
       const records = await workforce.getClockRecords({
+        orgId,
         agentId,
         limit,
         since,
