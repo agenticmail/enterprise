@@ -705,7 +705,7 @@ export class ComplianceReporter {
         timeline.push({ timestamp: v.created_at, source: 'vault_access', category: 'access', agentId: v.agent_id, detail: `Vault ${v.action}: ${v.key}`, data: { action: v.action, key: v.key } });
       }
 
-      timeline.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      timeline.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
       data.timeline = timeline;
 
       // Summary statistics
@@ -720,7 +720,7 @@ export class ComplianceReporter {
         data.summary.bySource[e.source] = (data.summary.bySource[e.source] || 0) + 1;
         data.summary.byCategory[e.category] = (data.summary.byCategory[e.category] || 0) + 1;
         data.summary.byAgent[e.agentId] = (data.summary.byAgent[e.agentId] || 0) + 1;
-        const day = e.timestamp?.substring(0, 10);
+        const day = String(e.timestamp || '').substring(0, 10);
         if (day) data.summary.byDay[day] = (data.summary.byDay[day] || 0) + 1;
       }
 
