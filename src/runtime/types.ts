@@ -230,6 +230,8 @@ export interface SpawnOptions {
   agentId: string;
   orgId?: string;
   message: string;
+  /** Multimodal content blocks (images + text). When provided, overrides `message` for the initial user turn. */
+  messageContent?: any[];
   model?: ModelConfig;
   systemPrompt?: string;
   tools?: AnyAgentTool[];

@@ -188,6 +188,12 @@ export class MessagingPoller {
     try {
       var { onWhatsAppMessage } = await import('../agent-tools/tools/messaging/whatsapp.js');
       var unsub = onWhatsAppMessage(agent.id, (msg) => {
+        // Build mediaFiles array for multimodal processing
+        var waMediaFiles: Array<{ path: string; type: string; mimeType?: string }> | undefined;
+        if (msg.mediaPath && msg.mediaType) {
+          var waMime = msg.mediaType === 'photo' ? 'image/jpeg' : msg.mediaType === 'video' ? 'video/mp4' : msg.mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream';
+          waMediaFiles = [{ path: msg.mediaPath, type: msg.mediaType, mimeType: waMime }];
+        }
         this.dispatch(agent, {
           source: 'whatsapp',
           senderName: msg.pushName || (msg.from?.includes('@') ? msg.from.split('@')[0] : msg.from) || 'Unknown',
@@ -196,6 +202,7 @@ export class MessagingPoller {
           isGroup: msg.isGroup,
           messageId: msg.messageId,
           isSelfChat: msg.isSelfChat,
+          mediaFiles: waMediaFiles,
         });
       });
       this.cleanups.push(unsub);
@@ -354,9 +361,13 @@ export class MessagingPoller {
     if (fileId) {
       this.downloadTelegramMedia(agent, fileId, mediaType!, fileName, mimeType).then((mediaInfo) => {
         var mediaText = text;
+        var mediaFiles: Array<{ path: string; type: string; mimeType?: string }> | undefined;
         if (mediaInfo?.localPath) {
           var desc = `[${mediaType}${fileName ? ': ' + fileName : ''}] saved to: ${mediaInfo.localPath}`;
           mediaText = text ? `${text}\n\n${desc}` : desc;
+          // Include media files for multimodal processing
+          var detectedMime = mimeType || (mediaType === 'photo' ? 'image/jpeg' : mediaType === 'video' ? 'video/mp4' : 'application/octet-stream');
+          mediaFiles = [{ path: mediaInfo.localPath, type: mediaType!, mimeType: detectedMime }];
         } else if (!text) {
           mediaText = `[${mediaType} received${fileName ? ': ' + fileName : ''}]`;
         }
@@ -368,14 +379,16 @@ export class MessagingPoller {
           isGroup: msg.chat?.type === 'group' || msg.chat?.type === 'supergroup',
           chatId: String(msg.chat?.id),
           messageId: String(msg.message_id),
+          mediaFiles,
         });
-      }).catch(() => {
+      }).catch((dlErr) => {
+        console.error(`[messaging] Telegram media download failed:`, dlErr?.message || dlErr);
         // Fallback: dispatch with just text description
         this.dispatch(agent, {
           source: 'telegram',
           senderName: [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') || 'Unknown',
           senderId: String(msg.from?.id || ''),
-          messageText: text || `[${mediaType} received]`,
+          messageText: text || `[${mediaType} received — download failed]`,
           isGroup: msg.chat?.type === 'group' || msg.chat?.type === 'supergroup',
           chatId: String(msg.chat?.id),
           messageId: String(msg.message_id),
@@ -489,6 +502,7 @@ export class MessagingPoller {
     source: string; senderName: string; senderId: string;
     messageText: string; isGroup?: boolean; chatId?: string; messageId?: string;
     isSelfChat?: boolean;
+    mediaFiles?: Array<{ path: string; type: string; mimeType?: string }>;
   }) {
     // Self-chat is always trusted (owner messaging themselves to talk to agent)
     if (ctx.isSelfChat) {
@@ -590,6 +604,7 @@ export class MessagingPoller {
           isCustomer: isCustomer,
           customerSystemPrompt: isCustomer ? bizCfg.customerSystemPrompt : undefined,
           restrictTools: isCustomer && bizCfg.restrictCustomerTools !== false,
+          ...(ctx.mediaFiles && ctx.mediaFiles.length > 0 ? { mediaFiles: ctx.mediaFiles } : {}),
         }),
         signal: AbortSignal.timeout(trust.isManager ? 30000 : 10000), // Manager gets longer timeout
       });

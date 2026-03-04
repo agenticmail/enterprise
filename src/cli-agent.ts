@@ -902,6 +902,7 @@ export async function runAgent(_args: string[]) {
         isDM: boolean;
         messageText: string;
         isManager?: boolean;
+        mediaFiles?: Array<{ path: string; type: string; mimeType?: string }>;
       }>();
 
       const isMessagingSource = ['whatsapp', 'telegram'].includes(ctx.source);
@@ -1118,11 +1119,37 @@ export async function runAgent(_args: string[]) {
         });
       } catch (e: any) { /* non-fatal */ }
 
+      // Build multimodal message content if media files are present
+      let chatMessageContent: string = ctx.messageText;
+      let mediaContentBlocks: any[] | undefined;
+      if ((ctx as any).mediaFiles && (ctx as any).mediaFiles.length > 0) {
+        const { readFileSync } = await import('fs');
+        const blocks: any[] = [];
+        if (ctx.messageText) blocks.push({ type: 'text', text: ctx.messageText });
+        for (const media of (ctx as any).mediaFiles) {
+          try {
+            const buf = readFileSync(media.path);
+            const b64 = buf.toString('base64');
+            const mime = media.mimeType || (media.type === 'photo' ? 'image/jpeg' : 'application/octet-stream');
+            if (mime.startsWith('image/')) {
+              blocks.push({ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } });
+              blocks.push({ type: 'text', text: `[Image saved at: ${media.path}]` });
+            } else {
+              blocks.push({ type: 'text', text: `[File received: ${media.path} (${mime}). Use tools to read/process this file.]` });
+            }
+          } catch (fileErr: any) {
+            blocks.push({ type: 'text', text: `[Media file: ${media.path} — could not read: ${fileErr.message}]` });
+          }
+        }
+        if (blocks.length > 0) mediaContentBlocks = blocks;
+      }
+
       const session = await runtime.spawnSession({
         agentId: agentId,
-        message: ctx.messageText,
+        message: chatMessageContent,
         systemPrompt,
         ...(sessionContext ? { sessionContext } : {}),
+        ...(mediaContentBlocks ? { messageContent: mediaContentBlocks } : {}),
       });
 
       // Mark task as in progress

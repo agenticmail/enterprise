@@ -413,7 +413,8 @@ export class AgentRuntime {
       }
     }
 
-    this.runSessionLoop(session.id, agentConfig, [{ role: 'user', content: opts.message }], apiKey);
+    const initialContent = opts.messageContent || opts.message;
+    this.runSessionLoop(session.id, agentConfig, [{ role: 'user', content: initialContent }], apiKey);
 
     return session;
   }

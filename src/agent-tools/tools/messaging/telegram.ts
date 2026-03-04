@@ -91,6 +91,35 @@ export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
       execute: async (_id: string) => tgApi(botToken, 'getMe'),
     },
     {
+      name: 'telegram_download_file',
+      description: 'Download a file from Telegram by file_id (from media messages). Returns the local path.',
+      input_schema: {
+        type: 'object' as const,
+        properties: {
+          fileId: { type: 'string', description: 'Telegram file_id from the message' },
+          fileName: { type: 'string', description: 'Optional output filename' },
+        },
+        required: ['fileId'],
+      },
+      execute: async (_id: string, input: any) => {
+        var fileData = await tgApi(botToken, 'getFile', { file_id: input.fileId });
+        if (!fileData.file_path) return { error: 'No file_path returned' };
+        var downloadUrl = `https://api.telegram.org/file/bot${botToken}/${fileData.file_path}`;
+        var resp = await fetch(downloadUrl);
+        if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+        var { join } = await import('path');
+        var { mkdirSync, writeFileSync } = await import('fs');
+        var mediaDir = join('/tmp/agents/media');
+        try { mkdirSync(mediaDir, { recursive: true }); } catch {}
+        var ext = fileData.file_path.split('.').pop() || 'bin';
+        var localName = input.fileName || `telegram-${Date.now()}.${ext}`;
+        var localPath = join(mediaDir, localName);
+        var buffer = Buffer.from(await resp.arrayBuffer());
+        writeFileSync(localPath, buffer);
+        return { ok: true, localPath, size: buffer.length, originalPath: fileData.file_path };
+      },
+    },
+    {
       name: 'telegram_get_chat',
       description: 'Get chat/group details.',
       input_schema: {
