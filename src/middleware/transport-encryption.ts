@@ -312,36 +312,36 @@ export function transportEncryptionMiddleware() {
 
     // ─── Encrypt outgoing response ───
     if ((c as any)._shouldEncryptResponse) {
+      // Only encrypt if client explicitly supports it
+      const clientSupports = c.req.header('x-transport-encryption') === '1';
+      if (!clientSupports) return;
+
       try {
         const response = c.res;
         const resContentType = response.headers.get('content-type') || '';
 
-        if (resContentType.includes('application/json') && response.body) {
-          // Check if client supports encryption (via header)
-          const clientSupports = c.req.header('x-transport-encryption') === '1';
-          if (_config.debugLog) console.log(`[transport-encryption] Response encrypt: clientSupports=${clientSupports}, path=${c.req.path}`);
-          if (!clientSupports) {
-            // Client doesn't support encryption — send plaintext
-            return;
-          }
+        // Only encrypt JSON responses (skip SSE, streams, etc.)
+        if (!resContentType.includes('application/json') || !response.body) return;
 
-          const originalBody = await response.text();
-          let jsonData: any;
-          try { jsonData = JSON.parse(originalBody); } catch { return; }
+        // Check if body is already locked/disturbed (streaming responses)
+        if (response.bodyUsed) return;
 
-          const encrypted = encryptPayload(jsonData, _config.key);
+        // Clone before reading to avoid "body disturbed" errors
+        const cloned = response.clone();
+        const originalBody = await cloned.text();
+        let jsonData: any;
+        try { jsonData = JSON.parse(originalBody); } catch { return; }
 
-          c.res = new Response(JSON.stringify({ _enc: encrypted }), {
-            status: response.status,
-            headers: {
-              'content-type': 'application/json',
-              'x-transport-encrypted': '1',
-            },
-          });
-          if (_config.debugLog) console.log(`[transport-encryption] Response encrypted for ${c.req.path}`);
-        }
+        const encrypted = encryptPayload(jsonData, _config.key);
+
+        c.res = new Response(JSON.stringify({ _enc: encrypted }), {
+          status: response.status,
+          headers: {
+            'content-type': 'application/json',
+            'x-transport-encrypted': '1',
+          },
+        });
       } catch (e: any) {
-        if (_config.debugLog) console.warn('[transport-encryption] Response encrypt failed:', e.message);
         // Don't fail — send plaintext as fallback
       }
     }
