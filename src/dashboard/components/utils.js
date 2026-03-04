@@ -87,8 +87,8 @@ export function apiCall(path, opts = {}) {
 
     const d = await r.json().catch(() => ({}));
 
-    // Decrypt response if encrypted (check header OR body shape)
-    if (sensitive && (r.headers.get('x-transport-encrypted') === '1' || (d && d._enc && typeof d._enc === 'string'))) {
+    // Decrypt response if it contains encrypted payload
+    if (d && d._enc && typeof d._enc === 'string' && te && te.isReady()) {
       try {
         const decrypted = await te.decryptPayload(d._enc);
         if (!r.ok) throw new Error(decrypted?.error || r.statusText);

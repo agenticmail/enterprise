@@ -209,6 +209,8 @@ function isSensitive(url) {
  * Call this once at app startup.
  */
 export function installFetchInterceptor() {
+  // No-op — encryption is now handled directly in apiCall
+  return;
   if (window.__teInstalled) return;
   window.__teInstalled = true;
   var originalFetch = window.fetch;
