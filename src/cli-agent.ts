@@ -575,7 +575,7 @@ export async function runAgent(_args: string[]) {
       try {
         const secretName = `skill:${skillId}:access_token`;
         // Try specified org first, then all orgs as fallback
-        const orgsToTry = orgId ? [orgId, 'default'] : ['default'];
+        const orgsToTry = orgId ? [orgId, agent.org_id || 'AMXK7W9P3E'] : [agent.org_id || 'AMXK7W9P3E'];
         for (const oid of orgsToTry) {
           const entries = await vault.getSecretsByOrg(oid, 'skill_credential');
           const entry = entries.find(e => e.name === secretName);
@@ -613,7 +613,7 @@ export async function runAgent(_args: string[]) {
   // Manages external MCP servers registered via Dashboard → Integrations & MCP
   try {
     const { McpProcessManager } = await import('./engine/mcp-process-manager.js');
-    const mcpManager = new McpProcessManager({ engineDb, orgId: 'default' });
+    const mcpManager = new McpProcessManager({ engineDb, orgId: agent.org_id || 'AMXK7W9P3E' });
     await mcpManager.start();
     (runtime as any).config.mcpProcessManager = mcpManager;
     console.log(`[agent] MCP Process Manager started`);
