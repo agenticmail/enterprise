@@ -278,6 +278,13 @@ export function transportEncryptionMiddleware() {
       return;
     }
 
+    // Skip internal server-to-server calls (no encryption header = not from dashboard)
+    const hasEncHeader = c.req.header('x-transport-encryption') === '1';
+    if (!hasEncHeader) {
+      await next();
+      return;
+    }
+
     // ─── Decrypt incoming request body ───
     const method = c.req.method;
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
@@ -321,16 +328,26 @@ export function transportEncryptionMiddleware() {
         const resContentType = response.headers.get('content-type') || '';
 
         // Only encrypt JSON responses (skip SSE, streams, etc.)
-        if (!resContentType.includes('application/json') || !response.body) return;
+        if (!resContentType.includes('application/json')) return;
+        if (!response.body || response.bodyUsed) return;
 
-        // Check if body is already locked/disturbed (streaming responses)
-        if (response.bodyUsed) return;
+        // Read body text safely
+        let originalBody: string;
+        try {
+          originalBody = await response.text();
+        } catch {
+          return; // Body not readable — skip
+        }
 
-        // Clone before reading to avoid "body disturbed" errors
-        const cloned = response.clone();
-        const originalBody = await cloned.text();
         let jsonData: any;
-        try { jsonData = JSON.parse(originalBody); } catch { return; }
+        try { jsonData = JSON.parse(originalBody); } catch { 
+          // Not valid JSON — send original as plaintext
+          c.res = new Response(originalBody, {
+            status: response.status,
+            headers: response.headers,
+          });
+          return; 
+        }
 
         const encrypted = encryptPayload(jsonData, _config.key);
 
