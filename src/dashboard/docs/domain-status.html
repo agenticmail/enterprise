@@ -236,8 +236,14 @@
 <tr><td><code>JWT_SECRET</code></td><td>Keeps login sessions valid across restarts</td></tr>
 <tr><td><code>AGENTICMAIL_VAULT_KEY</code></td><td>Decrypts stored credentials</td></tr>
 <tr><td><code>PORT</code></td><td>Server port (default: 3200)</td></tr>
+<tr><td><code>TRANSPORT_ENCRYPTION_KEY</code></td><td>Custom key for API transport encryption. If not set, falls back to <code>ENCRYPTION_KEY</code>, then <code>JWT_SECRET</code>. Used to encrypt all API responses in transit (dashboard ↔ server).</td></tr>
+<tr><td><code>ENCRYPTION_KEY</code></td><td>General-purpose encryption key. Used as fallback for transport encryption if <code>TRANSPORT_ENCRYPTION_KEY</code> is not set.</td></tr>
 </tbody>
 </table>
+
+<div class="tip">
+<strong>Transport Encryption:</strong> When enabled in Settings → Security, all API responses are encrypted client-side before transit. The encryption key is derived from <code>TRANSPORT_ENCRYPTION_KEY</code> → <code>ENCRYPTION_KEY</code> → <code>JWT_SECRET</code> (in order of priority). SSE/EventSource streams are excluded automatically since they cannot send custom headers.
+</div>
 
 <h2 id="best-practices">Best Practices</h2>
 <div class="card">

@@ -2,10 +2,13 @@ import { h, useState, useEffect, useCallback, Fragment, engineCall, buildAgentDa
 import { DetailModal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
 import { KnowledgeLink } from '../components/knowledge-link.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 const PAGE_SIZE = 25;
 
 export function ActivityPage() {
+  const orgCtx = useOrgContext();
+  const effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   const [tab, setTab] = useState('events');
   const [agents, setAgents] = useState([]);
 
@@ -32,8 +35,8 @@ export function ActivityPage() {
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
-    engineCall('/agents?orgId=' + getOrgId()).then(d => setAgents(d.agents || [])).catch(() => {});
-  }, []);
+    engineCall('/agents?orgId=' + effectiveOrgId).then(d => setAgents(d.agents || [])).catch(() => {});
+  }, [effectiveOrgId]);
 
   const agentData = buildAgentDataMap(agents);
 
@@ -43,6 +46,7 @@ export function ActivityPage() {
     const params = new URLSearchParams({
       limit: String(PAGE_SIZE),
       offset: String(eventsPage * PAGE_SIZE),
+      orgId: effectiveOrgId,
     });
     if (eventsSearch) params.set('search', eventsSearch);
     if (eventsAgent) params.set('agentId', eventsAgent);
@@ -56,7 +60,7 @@ export function ActivityPage() {
         if (types.length > eventTypes.length) setEventTypes(types);
       }
     }).catch(() => {}).finally(() => setEventsLoading(false));
-  }, [eventsPage, eventsSearch, eventsAgent, eventsType]);
+  }, [eventsPage, eventsSearch, eventsAgent, eventsType, effectiveOrgId]);
 
   // Fetch tool calls
   const fetchTools = useCallback(() => {
@@ -64,6 +68,7 @@ export function ActivityPage() {
     const params = new URLSearchParams({
       limit: String(PAGE_SIZE),
       offset: String(toolsPage * PAGE_SIZE),
+      orgId: effectiveOrgId,
     });
     if (toolsSearch) params.set('search', toolsSearch);
     if (toolsAgent) params.set('agentId', toolsAgent);
@@ -71,18 +76,18 @@ export function ActivityPage() {
       setToolCalls(d.toolCalls || []);
       setToolsTotal(d.total || 0);
     }).catch(() => {}).finally(() => setToolsLoading(false));
-  }, [toolsPage, toolsSearch, toolsAgent]);
+  }, [toolsPage, toolsSearch, toolsAgent, effectiveOrgId]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
   useEffect(() => { fetchTools(); }, [fetchTools]);
 
-  // Also fetch all event types on mount for filter
+  // Also fetch all event types on mount/org change for filter
   useEffect(() => {
-    engineCall('/activity/events?limit=500').then(d => {
+    engineCall('/activity/events?limit=500&orgId=' + effectiveOrgId).then(d => {
       const types = [...new Set((d.events || []).map(e => e.type).filter(Boolean))];
       setEventTypes(types.sort());
     }).catch(() => {});
-  }, []);
+  }, [effectiveOrgId]);
 
   const eventsPages = Math.ceil(eventsTotal / PAGE_SIZE);
   const toolsPages = Math.ceil(toolsTotal / PAGE_SIZE);
@@ -92,6 +97,7 @@ export function ActivityPage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h(Fragment, null,
+    h(orgCtx.Switcher),
     h('div', { style: { marginBottom: 20 } },
       h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Activity', h(KnowledgeLink, { page: 'activity' }), h(HelpButton, { label: 'Activity' },
         h('p', null, 'A real-time feed of everything your agents are doing — events they generate and tools they call.'),

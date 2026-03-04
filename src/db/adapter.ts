@@ -92,12 +92,14 @@ export interface AuditEvent {
   resource: string;    // e.g. 'agent:abc123'
   details?: Record<string, unknown>;
   ip?: string;
+  orgId?: string;
 }
 
 export interface AuditFilters {
   actor?: string;
   action?: string;
   resource?: string;
+  orgId?: string;
   from?: Date;
   to?: Date;
   limit?: number;

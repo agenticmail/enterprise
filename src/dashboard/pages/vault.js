@@ -1,4 +1,5 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
+import { useOrgContext } from '../components/org-switcher.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
@@ -159,6 +160,8 @@ function SearchBar(props) {
 export function VaultPage() {
   var app = useApp();
   var toast = app.toast;
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var _tab = useState('secrets');
   var tab = _tab[0]; var setTab = _tab[1];
 
@@ -215,7 +218,7 @@ export function VaultPage() {
   // ── Load functions ──
   var loadSecrets = useCallback(function() {
     setLoading(true);
-    engineCall('/vault/secrets?orgId=' + getOrgId())
+    engineCall('/vault/secrets?orgId=' + effectiveOrgId)
       .then(function(d) { setSecrets(d.secrets || d.entries || []); })
       .catch(function(e) { toast(e.message || 'Failed to load secrets', 'error'); })
       .finally(function() { setLoading(false); });
@@ -223,7 +226,7 @@ export function VaultPage() {
 
   var loadAudit = useCallback(function() {
     setAuditLoading(true);
-    var params = 'orgId=' + getOrgId() + '&limit=' + PAGE_SIZE + '&offset=' + (auditPage * PAGE_SIZE);
+    var params = 'orgId=' + effectiveOrgId + '&limit=' + PAGE_SIZE + '&offset=' + (auditPage * PAGE_SIZE);
     if (auditSearch) params += '&search=' + encodeURIComponent(auditSearch);
     if (auditActionFilter) params += '&action=' + encodeURIComponent(auditActionFilter);
     engineCall('/vault/audit-log?' + params)
@@ -236,11 +239,11 @@ export function VaultPage() {
   }, [toast, auditPage, auditSearch, auditActionFilter]);
 
   var loadStatus = useCallback(function() {
-    engineCall('/vault/status').then(function(d) { setStatus(d); }).catch(function() {});
+    engineCall('/vault/status?orgId=' + effectiveOrgId).then(function(d) { setStatus(d); }).catch(function() {});
   }, []);
 
-  useEffect(function() { loadSecrets(); loadStatus(); }, [loadSecrets, loadStatus]);
-  useEffect(function() { if (tab === 'audit') loadAudit(); }, [tab, loadAudit]);
+  useEffect(function() { loadSecrets(); loadStatus(); }, [loadSecrets, loadStatus, effectiveOrgId]);
+  useEffect(function() { if (tab === 'audit') loadAudit(); }, [tab, loadAudit, effectiveOrgId]);
 
   // ── Secret actions ──
   var addSecret = async function() {
@@ -259,7 +262,7 @@ export function VaultPage() {
         if (!addFields.customName) { toast('Secret name is required', 'error'); setAddSaving(false); return; }
         await engineCall('/vault/secrets', {
           method: 'POST',
-          body: JSON.stringify({ orgId: getOrgId(), name: addFields.customName, value: addFields.value, category: 'custom' })
+          body: JSON.stringify({ orgId: effectiveOrgId, name: addFields.customName, value: addFields.value, category: 'custom' })
         });
         saved = 1;
       } else {
@@ -269,7 +272,7 @@ export function VaultPage() {
           await engineCall('/vault/secrets', {
             method: 'POST',
             body: JSON.stringify({
-              orgId: getOrgId(),
+              orgId: effectiveOrgId,
               name: 'skill:' + addPlatform + ':' + f.key,
               value: addFields[f.key],
               category: preset.category
@@ -326,7 +329,7 @@ export function VaultPage() {
     });
     if (!ok) return;
     try {
-      var d = await engineCall('/vault/rotate-all', { method: 'POST', body: JSON.stringify({ orgId: getOrgId() }) });
+      var d = await engineCall('/vault/rotate-all', { method: 'POST', body: JSON.stringify({ orgId: effectiveOrgId }) });
       toast('Rotated ' + (d.rotated || 0) + ' secrets', 'success'); loadSecrets();
     } catch (e) { toast(e.message || 'Bulk rotation failed', 'error'); }
   };
@@ -587,6 +590,7 @@ export function VaultPage() {
         )),
         h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, 'Encrypted secrets management with AES-256-GCM')
       ),
+      h(orgCtx.Switcher),
       h('button', { className: 'btn btn-secondary', onClick: function() { loadSecrets(); loadStatus(); if (tab === 'audit') loadAudit(); } }, I.refresh(), ' Refresh')
     ),
 

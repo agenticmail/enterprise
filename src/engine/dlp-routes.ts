@@ -4,7 +4,7 @@
  */
 
 import { Hono } from 'hono';
-import type { DLPEngine } from './dlp.js';
+import { DLPEngine, DLP_RULE_PACKS } from './dlp.js';
 
 export function createDlpRoutes(dlp: DLPEngine) {
   const router = new Hono();
@@ -29,6 +29,16 @@ export function createDlpRoutes(dlp: DLPEngine) {
     return c.json({ rule });
   });
 
+  router.put('/rules/:id', async (c) => {
+    const id = c.req.param('id');
+    const existing = dlp.getRule(id);
+    if (!existing) return c.json({ error: 'Rule not found' }, 404);
+    const body = await c.req.json();
+    const updated = { ...existing, ...body, id, updatedAt: new Date().toISOString() };
+    await dlp.addRule(updated);
+    return c.json({ success: true, rule: updated });
+  });
+
   router.delete('/rules/:id', (c) => {
     dlp.removeRule(c.req.param('id'));
     return c.json({ success: true });
@@ -45,6 +55,38 @@ export function createDlpRoutes(dlp: DLPEngine) {
     if (!orgId || !agentId || !toolId) return c.json({ error: 'orgId, agentId, toolId required' }, 400);
     return c.json(dlp.scanParameters(orgId, agentId, toolId, parameters || {}));
   });
+
+  // ─── Rule Packs ─────────────────────────────────────
+
+  router.get('/rule-packs', (c) => {
+    return c.json({ packs: DLPEngine.getRulePacks() });
+  });
+
+  router.get('/rule-packs/:id', (c) => {
+    const packId = c.req.param('id');
+    const pack = DLP_RULE_PACKS[packId];
+    if (!pack) return c.json({ error: 'Unknown rule pack' }, 404);
+    return c.json({ id: packId, ...pack });
+  });
+
+  router.post('/rule-packs/apply', async (c) => {
+    const { orgId, packIds, overwrite } = await c.req.json();
+    if (!orgId || !packIds?.length) return c.json({ error: 'orgId and packIds[] required' }, 400);
+    try {
+      const result = await dlp.applyRulePacks(orgId, packIds, { overwrite });
+      return c.json({ success: true, ...result });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400);
+    }
+  });
+
+  router.post('/reload', async (c) => {
+    await dlp.reloadRules();
+    const rules = dlp.getRules();
+    return c.json({ success: true, totalRules: rules.length });
+  });
+
+  // ─── Violations ─────────────────────────────────────
 
   router.get('/violations', (c) => {
     const violations = dlp.getViolations({

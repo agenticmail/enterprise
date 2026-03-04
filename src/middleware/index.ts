@@ -338,6 +338,7 @@ export function auditLogger(db: DatabaseAdapter): MiddlewareHandler {
           method,
         },
         ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip'),
+        orgId: c.get('userOrgId' as any) || undefined,
       });
     } catch {
       // Never let audit logging break the request

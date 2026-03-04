@@ -582,16 +582,19 @@ export class SecureVault {
   /**
    * Returns a summary of the vault state — safe for dashboard display.
    */
-  getStatus(): { configured: boolean; totalEntries: number; entriesByCategory: Record<string, number> } {
+  getStatus(orgId?: string): { configured: boolean; totalEntries: number; entriesByCategory: Record<string, number> } {
     const entriesByCategory: Record<string, number> = {};
+    let total = 0;
 
     for (const entry of this.entries.values()) {
+      if (orgId && entry.orgId !== orgId) continue;
       entriesByCategory[entry.category] = (entriesByCategory[entry.category] || 0) + 1;
+      total++;
     }
 
     return {
       configured: this.isConfigured(),
-      totalEntries: this.entries.size,
+      totalEntries: total,
       entriesByCategory,
     };
   }

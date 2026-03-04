@@ -124,7 +124,8 @@ export function createVaultRoutes(vault: SecureVault, dlp?: DLPEngine) {
   // GET /status — Vault health
   router.get('/status', (c) => {
     try {
-      const status = vault.getStatus();
+      const orgId = c.req.query('orgId') || undefined;
+      const status = vault.getStatus(orgId);
       return c.json(status);
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });

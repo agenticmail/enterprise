@@ -599,6 +599,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       resource: `user:${c.req.param('id')}`,
       details: { targetEmail: existing.email, resetBy: 'admin' },
       ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip'),
+      orgId: c.get('userOrgId' as any) || undefined,
     }).catch(() => {});
 
     return c.json({ ok: true, message: 'Password reset successfully' });
@@ -623,6 +624,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       actor: c.get('userId') || 'system', actorType: 'user', action: 'user.deactivated',
       resource: `user:${c.req.param('id')}`, details: { targetEmail: existing.email },
       ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+      orgId: c.get('userOrgId' as any) || undefined,
     }).catch(() => {});
 
     return c.json({ ok: true, message: 'User deactivated' });
@@ -643,6 +645,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       actor: c.get('userId') || 'system', actorType: 'user', action: 'user.reactivated',
       resource: `user:${c.req.param('id')}`, details: { targetEmail: existing.email },
       ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+      orgId: c.get('userOrgId' as any) || undefined,
     }).catch(() => {});
 
     return c.json({ ok: true, message: 'User reactivated' });
@@ -669,6 +672,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       actor: c.get('userId') || 'system', actorType: 'user', action: 'user.deleted',
       resource: `user:${c.req.param('id')}`, details: { targetEmail: existing.email },
       ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+      orgId: c.get('userOrgId' as any) || undefined,
     }).catch(() => {});
 
     return c.json({ ok: true });
@@ -740,6 +744,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       resource: `user:${c.req.param('id')}`,
       details: { permissions, targetEmail: user.email },
       ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim(),
+      orgId: c.get('userOrgId' as any) || undefined,
     }).catch(() => {});
 
     return c.json({ ok: true, permissions });
@@ -795,6 +800,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       resource: 'company_settings',
       details: capabilities,
       ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip'),
+      orgId: c.get('userOrgId' as any) || undefined,
     }).catch(() => {});
 
     return c.json({ ok: true, capabilities });
@@ -826,6 +832,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       actor: c.req.query('actor') || undefined,
       action: c.req.query('action') || undefined,
       resource: c.req.query('resource') || undefined,
+      orgId: c.req.query('orgId') || undefined,
       from: c.req.query('from') ? new Date(c.req.query('from')!) : undefined,
       to: c.req.query('to') ? new Date(c.req.query('to')!) : undefined,
       limit: Math.min(parseInt(c.req.query('limit') || '50'), 500),

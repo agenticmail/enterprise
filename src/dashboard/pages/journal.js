@@ -113,7 +113,7 @@ export function JournalPage() {
             h('thead', null, h('tr', null, h('th', null, 'Time'), h('th', null, 'Agent'), h('th', null, 'Tool'), h('th', null, 'Type'), h('th', null, 'Reversible'), h('th', null, 'Status'), h('th', null, 'Actions'))),
             h('tbody', null, paged.length === 0
               ? h('tr', null, h('td', { colSpan: 7, style: { textAlign: 'center', color: 'var(--text-muted)', padding: 40 } }, searchQ || filterAgent || filterType || filterStatus ? 'No matching entries' : 'No journal entries'))
-              : paged.map(e => h('tr', { key: e.id, onClick: () => setSelectedEntry(selectedEntry && selectedEntry.id === e.id ? null : e), style: { cursor: 'pointer', background: selectedEntry && selectedEntry.id === e.id ? 'var(--bg-secondary)' : undefined } },
+              : paged.map(e => h('tr', { key: e.id, onClick: () => setSelectedEntry(e), style: { cursor: 'pointer' } },
                 h('td', null, new Date(e.createdAt).toLocaleString()),
                 h('td', null, renderAgentBadge(e.agentId, agentData)),
                 h('td', null, e.toolName || e.toolId),
@@ -125,31 +125,35 @@ export function JournalPage() {
             )
           )
         ),
-        selectedEntry && h('div', { className: 'card', style: { marginTop: 12, padding: 20 } },
-          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
-            h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600 } }, 'Action Details'),
-            h('button', { className: 'btn btn-ghost btn-sm', onClick: () => setSelectedEntry(null) }, '\u2715 Close')
-          ),
-          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', fontSize: 13, marginBottom: 16 } },
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'ID'), h('code', { style: { fontSize: 12 } }, selectedEntry.id)),
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Time'), selectedEntry.createdAt ? new Date(selectedEntry.createdAt).toLocaleString() : '-'),
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Agent'), renderAgentBadge(selectedEntry.agentId, agentData)),
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Tool'), selectedEntry.toolName || selectedEntry.toolId || '-'),
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Action Type'), h('span', { className: 'badge-tag' }, selectedEntry.actionType || '-')),
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Status'), selectedEntry.reversed ? h('span', { className: 'status-badge status-warning' }, 'Rolled Back') : h('span', { className: 'status-badge status-success' }, 'Active')),
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Reversible'), selectedEntry.reversible ? 'Yes' : 'No'),
-            h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Session'), h('code', { style: { fontSize: 12 } }, selectedEntry.sessionId || '-'))
-          ),
-          selectedEntry.reversed && h('div', { style: { marginBottom: 16, padding: 10, background: 'rgba(234,179,8,0.1)', borderRadius: 8, fontSize: 13 } },
-            h('strong', null, 'Rolled back'), ' at ', selectedEntry.reversedAt ? new Date(selectedEntry.reversedAt).toLocaleString() : 'unknown', ' by ', selectedEntry.reversedBy || 'unknown'
-          ),
-          selectedEntry.forwardData && Object.keys(selectedEntry.forwardData).length > 0 && h('div', { style: { marginBottom: 12 } },
-            h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 } }, 'Parameters'),
-            h('pre', { style: { background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 300, margin: 0 } }, JSON.stringify(selectedEntry.forwardData, null, 2))
-          ),
-          selectedEntry.reverseData && Object.keys(selectedEntry.reverseData).length > 0 && h('div', null,
-            h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 } }, 'Reverse Data'),
-            h('pre', { style: { background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 300, margin: 0 } }, JSON.stringify(selectedEntry.reverseData, null, 2))
+        selectedEntry && h('div', { className: 'modal-overlay', onClick: () => setSelectedEntry(null) },
+          h('div', { className: 'modal', style: { maxWidth: 600 }, onClick: e => e.stopPropagation() },
+            h('div', { className: 'modal-header' },
+              h('h2', null, 'Action Details'),
+              h('button', { className: 'btn btn-ghost btn-icon', onClick: () => setSelectedEntry(null) }, '\u2715')
+            ),
+            h('div', { className: 'modal-body' },
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', fontSize: 13, marginBottom: 16 } },
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'ID'), h('code', { style: { fontSize: 12 } }, selectedEntry.id)),
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Time'), selectedEntry.createdAt ? new Date(selectedEntry.createdAt).toLocaleString() : '-'),
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Agent'), renderAgentBadge(selectedEntry.agentId, agentData)),
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Tool'), selectedEntry.toolName || selectedEntry.toolId || '-'),
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Action Type'), h('span', { className: 'badge-tag' }, selectedEntry.actionType || '-')),
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Status'), selectedEntry.reversed ? h('span', { className: 'status-badge status-warning' }, 'Rolled Back') : h('span', { className: 'status-badge status-success' }, 'Active')),
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Reversible'), selectedEntry.reversible ? 'Yes' : 'No'),
+                h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Session'), h('code', { style: { fontSize: 12 } }, selectedEntry.sessionId || '-'))
+              ),
+              selectedEntry.reversed && h('div', { style: { marginBottom: 16, padding: 10, background: 'rgba(234,179,8,0.1)', borderRadius: 8, fontSize: 13 } },
+                h('strong', null, 'Rolled back'), ' at ', selectedEntry.reversedAt ? new Date(selectedEntry.reversedAt).toLocaleString() : 'unknown', ' by ', selectedEntry.reversedBy || 'unknown'
+              ),
+              selectedEntry.forwardData && Object.keys(selectedEntry.forwardData).length > 0 && h('div', { style: { marginBottom: 12 } },
+                h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 } }, 'Parameters'),
+                h('pre', { style: { background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 300, margin: 0 } }, JSON.stringify(selectedEntry.forwardData, null, 2))
+              ),
+              selectedEntry.reverseData && Object.keys(selectedEntry.reverseData).length > 0 && h('div', null,
+                h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 } }, 'Reverse Data'),
+                h('pre', { style: { background: 'var(--bg-secondary)', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 300, margin: 0 } }, JSON.stringify(selectedEntry.reverseData, null, 2))
+              )
+            )
           )
         ),
         totalPages > 1 && h('div', {

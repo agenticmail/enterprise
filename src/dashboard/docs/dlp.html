@@ -13,7 +13,8 @@
 <li><a href="#overview">Overview</a></li>
 <li><a href="#how-it-works">How It Works</a></li>
 <li><a href="#key-concepts">Key Concepts</a></li>
-<li><a href="#rules">Creating Rules</a></li>
+<li><a href="#rules">Creating &amp; Editing Rules</a></li>
+<li><a href="#rule-packs">Enterprise Rule Packs</a></li>
 <li><a href="#violations">Violation Tracking</a></li>
 <li><a href="#testing">Testing Rules</a></li>
 <li><a href="#configuration">Configuration &amp; Setup</a></li>
@@ -83,15 +84,21 @@
 </tbody>
 </table>
 
-<h2 id="rules">Creating Rules</h2>
-<p>Click <strong>"Add Rule"</strong> to create a new DLP rule. Fill in:</p>
+<h2 id="rules">Creating &amp; Editing Rules</h2>
+<p>Click <strong>"Add Rule"</strong> to create a new DLP rule. Click any rule row to <strong>view its details</strong> in a modal, or use the pencil icon to <strong>edit</strong> an existing rule. Fill in:</p>
 <ul>
 <li><strong>Name</strong> — descriptive identifier (e.g., "Block OpenAI API Keys")</li>
 <li><strong>Pattern Type</strong> — regex, keyword, or pii_type</li>
 <li><strong>Pattern</strong> — the actual pattern or PII type name</li>
 <li><strong>Action</strong> — block, redact, warn, or log</li>
 <li><strong>Severity</strong> — critical, high, medium, or low</li>
+<li><strong>Applies To</strong> — inbound, outbound, or both</li>
+<li><strong>Enabled</strong> — toggle rules on/off without deleting them</li>
 </ul>
+
+<div class="tip">
+<strong>Organization Scoping:</strong> Use the <strong>org switcher</strong> in the page header to view and manage DLP rules per organization. Rules are scoped — each organization has its own set.
+</div>
 
 <div class="tip">
 <strong>Tip:</strong> Start with "log" action to measure how often a pattern matches before switching to "block" or "redact." This avoids disrupting agent workflows with false positives.
@@ -118,6 +125,46 @@ Type: pii_type
 Pattern: email
 Action: log
 Severity: medium</code></pre>
+
+<h2 id="rule-packs">Enterprise Rule Packs</h2>
+<p>The <strong>Rule Packs</strong> tab provides pre-built enterprise-grade rule sets that can be applied to any organization with one click. Rules are instantly active — no restart needed.</p>
+
+<h3>Available Packs</h3>
+<table>
+<thead><tr><th>Pack</th><th>Rules</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><strong>PII Protection</strong></td><td>10</td><td>Email, SSN, credit card, phone, passport, DOB, driver license, tax ID, IBAN, IP addresses</td></tr>
+<tr><td><strong>Credentials &amp; Secrets</strong></td><td>14</td><td>API keys, AWS/GitHub/Slack/Stripe/Google/OpenAI tokens, private keys, passwords, DB connection strings, JWTs</td></tr>
+<tr><td><strong>Financial Data</strong></td><td>5</td><td>Bank accounts, routing numbers, SWIFT codes, salary data, tax returns</td></tr>
+<tr><td><strong>Healthcare / HIPAA</strong></td><td>5</td><td>Medical records, insurance IDs, ICD/CPT codes, prescriptions, DEA numbers</td></tr>
+<tr><td><strong>GDPR / EU Compliance</strong></td><td>4</td><td>EU national IDs, DSAR keywords, consent withdrawal, cross-border transfer markers</td></tr>
+<tr><td><strong>Intellectual Property</strong></td><td>4</td><td>Confidentiality markers, source code blocks, patent references, internal URLs</td></tr>
+<tr><td><strong>Agent Safety</strong></td><td>5</td><td>Prompt injection (ignore instructions, role override, system prompt extraction), base64 payloads, shell injection</td></tr>
+</tbody>
+</table>
+
+<h3>Applying Packs</h3>
+<ol>
+<li>Go to the <strong>Rule Packs</strong> tab</li>
+<li>Select one or more packs (or "Select All")</li>
+<li>Optionally check <strong>"Overwrite existing rules with same name"</strong> to update rules you've previously applied</li>
+<li>Click <strong>"Apply Selected Packs"</strong></li>
+</ol>
+
+<div class="tip">
+<strong>Tip:</strong> Click the expand arrow on any pack to preview all its rules before applying. Rules that already exist (same name) are skipped by default unless overwrite is enabled.
+</div>
+
+<h3>API Endpoints</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/dlp/rule-packs</code></td><td>List available rule packs with metadata</td></tr>
+<tr><td>GET</td><td><code>/dlp/rule-packs/:id</code></td><td>Get pack details including all rule definitions</td></tr>
+<tr><td>POST</td><td><code>/dlp/rule-packs/apply</code></td><td>Apply packs to an org: <code>{ orgId, packIds[], overwrite? }</code></td></tr>
+<tr><td>POST</td><td><code>/dlp/reload</code></td><td>Hot-reload all rules from database</td></tr>
+</tbody>
+</table>
 
 <h2 id="violations">Violation Tracking</h2>
 <p>The <strong>Violations</strong> tab shows every DLP match across all agents. Each violation record includes:</p>
@@ -158,6 +205,7 @@ Severity: medium</code></pre>
 <tbody>
 <tr><td>GET</td><td><code>/dlp/rules?orgId=</code></td><td>List all DLP rules</td></tr>
 <tr><td>POST</td><td><code>/dlp/rules</code></td><td>Create a new rule</td></tr>
+<tr><td>PUT</td><td><code>/dlp/rules/:id</code></td><td>Update an existing rule</td></tr>
 <tr><td>DELETE</td><td><code>/dlp/rules/:id</code></td><td>Delete a rule</td></tr>
 <tr><td>GET</td><td><code>/dlp/violations?orgId=&amp;limit=</code></td><td>List violations</td></tr>
 <tr><td>POST</td><td><code>/dlp/scan</code></td><td>Test content against all active rules</td></tr>

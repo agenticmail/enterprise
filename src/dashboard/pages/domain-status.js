@@ -491,6 +491,8 @@ export function DomainStatusPage() {
         '\u2022 ', h('strong', null, 'JWT_SECRET'), ' — keeps login sessions valid across restarts', h('br'),
         '\u2022 ', h('strong', null, 'AGENTICMAIL_VAULT_KEY'), ' — decrypts stored credentials (email passwords, API keys)', h('br'),
         '\u2022 ', h('strong', null, 'PORT'), ' — the port your server runs on', h('br'),
+        '\u2022 ', h('strong', null, 'TRANSPORT_ENCRYPTION_KEY'), ' — custom key for API transport encryption (optional, falls back to ENCRYPTION_KEY or JWT_SECRET)', h('br'),
+        '\u2022 ', h('strong', null, 'ENCRYPTION_KEY'), ' — general-purpose encryption key (optional)', h('br'),
         h('br'),
         h('strong', { style: { color: 'var(--text-secondary)' } }, 'Branding assets:'), h('br'),
         'Company branding files (logo, favicon, login background) are stored on disk at ', h('code', { style: { fontSize: 11, color: 'var(--accent)' } }, '~/.agenticmail/branding/'),
@@ -687,7 +689,7 @@ function DeployToProduction({ toast, isLocalhost }) {
     expanded && h('div', { style: { marginTop: 20 } },
       // Method cards
       h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 } },
-        methodCard('cloudflare', E.cloud(20), 'Cloudflare Tunnel', 'Keep running locally, expose via your domain. No server needed.', 'Easy', true),
+        methodCard('cloudflare', E.cloud(20), 'Cloudflare Tunnel', 'Keep running locally, expose via your domain or get one for free thru agenticmail.io. No server needed.', 'Easy', true),
         methodCard('vps', E.computer(20), 'VPS / Server', 'Deploy to any Linux server (DigitalOcean, Hetzner, AWS, etc.)', 'Easy'),
         methodCard('docker', E.package(20), 'Docker', 'Run as a Docker container on any host', 'Medium'),
         methodCard('railway', E.rocket(20), 'Railway', 'One-click deploy to Railway.app', 'Easy'),

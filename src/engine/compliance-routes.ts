@@ -11,10 +11,10 @@ export function createComplianceRoutes(compliance: ComplianceReporter) {
 
   router.post('/reports/soc2', async (c) => {
     try {
-      const { orgId, dateRange } = await c.req.json();
+      const { orgId, dateRange, agentIds } = await c.req.json();
       if (!orgId || !dateRange?.from || !dateRange?.to) return c.json({ error: 'orgId and dateRange.from/to required' }, 400);
       const generatedBy = c.req.header('X-User-Id') || 'admin';
-      const report = await compliance.generateSOC2(orgId, dateRange, generatedBy);
+      const report = await compliance.generateSOC2(orgId, dateRange, generatedBy, agentIds);
       return c.json({ report }, 201);
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
@@ -45,6 +45,30 @@ export function createComplianceRoutes(compliance: ComplianceReporter) {
     }
   });
 
+  router.post('/reports/incident', async (c) => {
+    try {
+      const { orgId, dateRange } = await c.req.json();
+      if (!orgId || !dateRange?.from || !dateRange?.to) return c.json({ error: 'orgId and dateRange.from/to required' }, 400);
+      const generatedBy = c.req.header('X-User-Id') || 'admin';
+      const report = await compliance.generateIncident(orgId, dateRange, generatedBy);
+      return c.json({ report }, 201);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  router.post('/reports/access-review', async (c) => {
+    try {
+      const { orgId } = await c.req.json();
+      if (!orgId) return c.json({ error: 'orgId required' }, 400);
+      const generatedBy = c.req.header('X-User-Id') || 'admin';
+      const report = await compliance.generateAccessReview(orgId, generatedBy);
+      return c.json({ report }, 201);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   router.get('/reports', (c) => {
     try {
       const reports = compliance.getReports({
@@ -68,21 +92,37 @@ export function createComplianceRoutes(compliance: ComplianceReporter) {
     }
   });
 
+  router.delete('/reports/:id', (c) => {
+    const deleted = compliance.deleteReport(c.req.param('id'));
+    if (!deleted) return c.json({ error: 'Report not found' }, 404);
+    return c.json({ success: true });
+  });
+
   router.get('/reports/:id/download', (c) => {
     try {
       const report = compliance.getReport(c.req.param('id'));
       if (!report) return c.json({ error: 'Report not found' }, 404);
 
       const format = c.req.query('format') || report.format;
+      const ts = report.createdAt?.split('T')[0] || 'report';
+      const fname = `${report.type}-${ts}-${report.id.substring(0, 8)}`;
+
       if (format === 'csv') {
         const csv = compliance.toCSV(report);
-        c.header('Content-Type', 'text/csv');
-        c.header('Content-Disposition', `attachment; filename="${report.type}-${report.id}.csv"`);
+        c.header('Content-Type', 'text/csv; charset=utf-8');
+        c.header('Content-Disposition', `attachment; filename="${fname}.csv"`);
         return c.body(csv);
       }
 
+      if (format === 'html') {
+        const html = compliance.toHTML(report);
+        c.header('Content-Type', 'text/html; charset=utf-8');
+        c.header('Content-Disposition', `attachment; filename="${fname}.html"`);
+        return c.body(html);
+      }
+
       c.header('Content-Type', 'application/json');
-      c.header('Content-Disposition', `attachment; filename="${report.type}-${report.id}.json"`);
+      c.header('Content-Disposition', `attachment; filename="${fname}.json"`);
       return c.body(JSON.stringify(report.data, null, 2));
     } catch (err: any) {
       return c.json({ error: err.message }, 500);

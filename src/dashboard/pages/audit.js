@@ -1,12 +1,15 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { DetailModal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
 import { KnowledgeLink } from '../components/knowledge-link.js';
+import { useOrgContext } from '../components/org-switcher.js';
 
 var PAGE_SIZE = 50;
 
 export function AuditPage() {
+  var orgCtx = useOrgContext();
+  var effectiveOrgId = orgCtx.selectedOrgId || getOrgId();
   var [logs, setLogs] = useState([]);
   var [loading, setLoading] = useState(true);
   var [selected, setSelected] = useState(null);
@@ -18,7 +21,7 @@ export function AuditPage() {
   var loadPage = useCallback(function(p) {
     setLoading(true);
     var offset = p * PAGE_SIZE;
-    apiCall('/audit?limit=' + PAGE_SIZE + '&offset=' + offset)
+    apiCall('/audit?limit=' + PAGE_SIZE + '&offset=' + offset + '&orgId=' + effectiveOrgId)
       .then(function(d) {
         var arr = d.events || d.entries || d.logs || d;
         arr = Array.isArray(arr) ? arr : [];
@@ -28,9 +31,9 @@ export function AuditPage() {
         setLoading(false);
       })
       .catch(function() { setLoading(false); });
-  }, []);
+  }, [effectiveOrgId]);
 
-  useEffect(function() { loadPage(0); }, []);
+  useEffect(function() { setPage(0); loadPage(0); }, [effectiveOrgId]);
 
   var goPage = function(p) { setPage(p); loadPage(p); };
 
@@ -85,6 +88,7 @@ export function AuditPage() {
   var _tip = { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 };
 
   return h(Fragment, null,
+    h(orgCtx.Switcher),
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
       h('div', null,
         h('h1', { style: { fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center' } }, 'Audit Log', h(KnowledgeLink, { page: 'audit' }), h(HelpButton, { label: 'Audit Log' },

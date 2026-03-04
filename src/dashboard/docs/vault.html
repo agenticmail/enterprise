@@ -30,6 +30,9 @@
 <div class="card">
 <p><strong>For everyone:</strong> The Vault is a secure safe for all the passwords and API keys your AI agents need. Instead of putting credentials directly in agent configs (where they could be leaked), you store them in the Vault. The Vault encrypts everything so even if someone accesses the database, they can't read your secrets. Every time anyone looks at or changes a secret, it's logged.</p>
 <p><strong>For technical users:</strong> The Vault implements AES-256-GCM authenticated encryption with PBKDF2 key derivation (100,000 iterations). Each secret gets a unique random salt and initialization vector. The master encryption key is derived from <code>AGENTICMAIL_VAULT_KEY</code> in the .env file. Platform presets auto-name secrets as <code>skill:&lt;platform&gt;:&lt;key&gt;</code> for automatic discovery by agent tools. Full audit trail via <code>/vault/audit-log</code>.</p>
+<div class="tip">
+<strong>Organization Scoping:</strong> Use the <strong>org switcher</strong> in the page header to view and manage vault secrets per organization. Secrets are scoped — each organization has its own isolated vault.
+</div>
 </div>
 
 <h2 id="how-it-works">How It Works</h2>

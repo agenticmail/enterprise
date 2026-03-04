@@ -492,10 +492,10 @@ export class PostgresAdapter extends DatabaseAdapter {
 
   async logEvent(event: Omit<AuditEvent, 'id' | 'timestamp'>): Promise<void> {
     await this.pool.query(
-      `INSERT INTO audit_log (id, actor, actor_type, action, resource, details, ip)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO audit_log (id, actor, actor_type, action, resource, details, ip, org_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [randomUUID(), event.actor, event.actorType, event.action, event.resource,
-       JSON.stringify(event.details || {}), event.ip || null]
+       JSON.stringify(event.details || {}), event.ip || null, event.orgId || null]
     );
   }
 
@@ -506,6 +506,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     if (filters.actor) { where.push(`actor = $${i++}`); params.push(filters.actor); }
     if (filters.action) { where.push(`action = $${i++}`); params.push(filters.action); }
     if (filters.resource) { where.push(`resource LIKE $${i++}`); params.push(`%${filters.resource}%`); }
+    if (filters.orgId) { where.push(`org_id = $${i++}`); params.push(filters.orgId); }
     if (filters.from) { where.push(`timestamp >= $${i++}`); params.push(filters.from); }
     if (filters.to) { where.push(`timestamp <= $${i++}`); params.push(filters.to); }
 
