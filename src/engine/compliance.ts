@@ -1470,7 +1470,7 @@ export class ComplianceReporter {
 
     // Escalation chains + approval policies with notification
     const escalationChains = cc1.escalationChains?.total || 0;
-    const escalationViaApproval = d._escalationViaApprovalPolicies || 0;
+    const escalationViaApproval = data._escalationViaApprovalPolicies || 0;
     const totalEscalation = escalationChains + escalationViaApproval;
     if (totalEscalation > 0) {
       const parts: string[] = [];
