@@ -143,6 +143,10 @@ function App() {
   const [sidebarPinned, setSidebarPinned] = useState(() => localStorage.getItem('em_sidebar_pinned') === 'true');
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
+  const [selectedOrg, setSelectedOrg] = useState(null);
+  const [orgVersion, setOrgVersion] = useState(0);
+  const onOrgChange = useCallback((id, org) => { setSelectedOrgId(id); setSelectedOrg(org); setOrgVersion(v => v + 1); }, []);
 
   // Check if already authenticated via cookie on mount, and check setup state
   useEffect(() => {
@@ -388,7 +392,7 @@ function App() {
   const PageComponent = canAccessPage ? (pages[page] || DashboardPage) : null;
   const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '') + (mobileMenuOpen ? ' mobile-open' : '');
 
-  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions, impersonating, startImpersonation, stopImpersonation } },
+  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions, impersonating, startImpersonation, stopImpersonation, selectedOrgId, selectedOrg, onOrgChange } },
     h('div', { className: 'app-layout' },
       // Mobile hamburger
       h('button', { className: 'mobile-hamburger', onClick: () => setMobileMenuOpen(true) },
@@ -469,8 +473,8 @@ function App() {
           selectedAgentId
             ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { _setSelectedAgentId(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); } })
             : page === 'agents'
-              ? h(AgentsPage, { onSelectAgent: navigateToAgent })
-              : PageComponent ? h(PageComponent)
+              ? h(AgentsPage, { key: 'agents-' + orgVersion, onSelectAgent: navigateToAgent })
+              : PageComponent ? h(PageComponent, { key: page + '-' + orgVersion })
               : h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', padding: 40 } },
                   h('div', { style: { width: 64, height: 64, borderRadius: '50%', background: 'var(--danger-soft, rgba(220,38,38,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 } },
                     h('svg', { width: 32, height: 32, viewBox: '0 0 24 24', fill: 'none', stroke: 'var(--danger, #dc2626)', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' },

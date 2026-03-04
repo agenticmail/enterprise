@@ -136,25 +136,11 @@ export function OrgContextSwitcher(props) {
  */
 export function useOrgContext() {
   var app = useApp();
-  var user = app.user || {};
-  var userOrgId = user.clientOrgId || '';
+  var selectedOrgId = app.selectedOrgId || '';
+  var selectedOrg = app.selectedOrg || null;
+  var onOrgChange = app.onOrgChange || function() {};
 
-  var _sel = useState(userOrgId);
-  var selectedOrgId = _sel[0]; var setSelectedOrgId = _sel[1];
-  var _org = useState(null);
-  var selectedOrg = _org[0]; var setSelectedOrg = _org[1];
-
-  // If user changes (e.g. impersonation), update default
-  useEffect(function() {
-    if (userOrgId && !selectedOrgId) setSelectedOrgId(userOrgId);
-  }, [userOrgId]);
-
-  var onOrgChange = useCallback(function(id, org) {
-    setSelectedOrgId(id);
-    setSelectedOrg(org);
-  }, []);
-
-  // Stable Switcher reference — useCallback prevents re-creating on every render
+  // Stable Switcher reference
   var Switcher = useCallback(function(extraProps) {
     return h(OrgContextSwitcher, Object.assign({
       selectedOrgId: selectedOrgId,
