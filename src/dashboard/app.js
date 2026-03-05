@@ -253,7 +253,7 @@ function App() {
         setUser(d.user);
         // Immediately restrict permissions for client org users (before async fetch)
         if (d.user.clientOrgId) {
-          setPermissions({ dashboard: true, agents: true, roles: true, skills: true, 'community-skills': true, 'skill-connections': true, 'database-access': true, knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true, approvals: true, 'org-chart': true, 'task-pipeline': true, cluster: true, workforce: true, messages: true, guardrails: true, journal: true, activity: true, dlp: true, compliance: true, vault: true, audit: true, settings: true });
+          setPermissions({ dashboard: true, agents: true, roles: true, skills: true, 'community-skills': true, 'skill-connections': true, 'database-access': true, knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true, approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true, messages: true, guardrails: true, journal: true, activity: true, dlp: true, compliance: true, vault: true, audit: true, settings: true });
         }
         // Then fetch computed permissions for the definitive set
         apiCall('/me/permissions').then(function(p) { if (p && p.permissions) setPermissions(p.permissions); }).catch(function() {});

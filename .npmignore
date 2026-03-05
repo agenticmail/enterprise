@@ -15,6 +15,5 @@ enterprise-live-test.db
 *.txt
 ecosystem.config.cjs
 .github/
-src/agent-tools/tools/integrations/_seed-data.json
-src/agent-tools/tools/integrations/_seed-data.ts
+src/
 dist/_seed-data*
