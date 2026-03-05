@@ -1,4 +1,17 @@
 #!/usr/bin/env node
+
+// Node.js version check — must be >=20
+const [major] = process.versions.node.split('.').map(Number);
+if (major < 20) {
+  console.error(`\n  AgenticMail Enterprise requires Node.js 20 or higher.`);
+  console.error(`  You are running Node.js ${process.version}.`);
+  console.error(`\n  To upgrade:`);
+  console.error(`    brew install node@22     # macOS (Homebrew)`);
+  console.error(`    nvm install 22           # using nvm`);
+  console.error(`    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -  # Linux\n`);
+  process.exit(1);
+}
+
 /**
  * AgenticMail Enterprise CLI
  *
