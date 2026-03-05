@@ -167,6 +167,10 @@ export interface AgentLoopOptions {
   retryConfig?: { maxRetryDurationMs?: number; maxRetries?: number; baseDelayMs?: number; maxDelayMs?: number };
   /** Runtime reference for tool access */
   runtime?: any;
+  /** Fallback models to try if primary model fails */
+  fallbackModels?: string[];
+  /** Resolve API key for a provider dynamically */
+  resolveApiKey?: (provider: string) => Promise<string | undefined>;
 }
 
 export interface AgentLoopResult {

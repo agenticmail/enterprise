@@ -138,7 +138,8 @@ export var SETTINGS_HELP = {
           h('li', null, h('strong', null, 'Rate Limiting'), ' \u2014 Limits how many times each tool can be called per minute per agent. Prevents any single agent from overwhelming the system. Adjust limits per tool type in the table.'),
           h('li', null, h('strong', null, 'Circuit Breaker'), ' \u2014 Automatically pauses a tool that keeps failing (after 5 consecutive errors). Waits 30 seconds before retrying. Prevents error cascading when an external service is down.'),
           h('li', null, h('strong', null, 'Telemetry'), ' \u2014 Collects performance metrics: call duration, success rates, and output sizes. Useful for identifying slow tools or agents using resources inefficiently.')
-        )
+        ),
+        h('p', { style: { marginTop: 12 } }, h('a', { href: '/docs/settings-tool-security', style: { fontSize: 12 } }, 'View full Tool Security documentation \u2192'))
       );
     }
   },
@@ -163,7 +164,8 @@ export var SETTINGS_HELP = {
           h('li', null, h('strong', null, 'Rate Limiting'), ' \u2014 Limits API requests per IP per minute. Protects against abuse and denial-of-service. "Skip Paths" excludes health-check endpoints.'),
           h('li', null, h('strong', null, 'HTTPS Enforcement'), ' \u2014 Forces all connections to use encrypted HTTPS. Highly recommended for production.'),
           h('li', null, h('strong', null, 'Security Headers'), ' \u2014 Browser security policies: HSTS forces HTTPS, X-Frame-Options prevents clickjacking, Content-Type-Options prevents MIME sniffing. The defaults are recommended for most deployments.')
-        )
+        ),
+        h('p', { style: { marginTop: 12 } }, h('a', { href: '/docs/settings-network', style: { fontSize: 12 } }, 'View full Network & Firewall documentation \u2192'))
       );
     }
   },

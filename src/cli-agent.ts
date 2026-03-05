@@ -10,7 +10,7 @@
  *   AGENTICMAIL_AGENT_ID  — Agent UUID from the enterprise DB
  *
  * Optional env vars:
- *   PORT                  — Health check HTTP port (default: 3000)
+ *   PORT                  — Health check HTTP port (default: 4100)
  *   AGENTICMAIL_MODEL     — Override model (e.g. "anthropic/claude-sonnet-4-20250514")
  *   AGENTICMAIL_THINKING  — Thinking level (e.g. "low", "medium", "high")
  *   ANTHROPIC_API_KEY     — Anthropic API key
@@ -25,6 +25,30 @@ import { TaskQueueManager } from './engine/task-queue.js';
 import { beforeSpawn } from './engine/task-queue-before-spawn.js';
 import { afterSpawn, markInProgress } from './engine/task-queue-after-spawn.js';
 import { TaskPoller } from './engine/task-poller.js';
+
+// ─── Production Log Level Filter ─────────────────────────
+// Set LOG_LEVEL=warn to suppress info/debug console.log noise.
+// Levels: debug < info < warn < error (default: info)
+const _LOG_LEVEL = (process.env.LOG_LEVEL || 'info').toLowerCase();
+const _LOG_LEVELS: Record<string, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+const _LOG_THRESHOLD = _LOG_LEVELS[_LOG_LEVEL] ?? 1;
+const _origLog = console.log.bind(console);
+const _origWarn = console.warn.bind(console);
+if (_LOG_THRESHOLD > 1) {
+  // Suppress console.log (info level) — keep warn and error
+  console.log = function(...args: any[]) {
+    // Always allow critical prefixes through even at warn level
+    const first = typeof args[0] === 'string' ? args[0] : '';
+    if (first.includes('[error]') || first.includes('[fatal]') || first.includes('ERROR') || first.includes('FATAL')) {
+      _origLog(...args);
+    }
+    // Suppress everything else
+  };
+}
+if (_LOG_THRESHOLD > 2) {
+  // Suppress console.warn too — only errors
+  console.warn = function() {};
+}
 
 // ════════════════════════════════════════════════════════════
 // SYSTEM DEPENDENCY AUTO-INSTALLER
@@ -375,7 +399,7 @@ export async function runAgent(_args: string[]) {
   const DATABASE_URL = process.env.DATABASE_URL;
   const JWT_SECRET = process.env.JWT_SECRET;
   const AGENT_ID = process.env.AGENTICMAIL_AGENT_ID;
-  const PORT = parseInt(process.env.PORT || '3000', 10);
+  const PORT = parseInt(process.env.PORT || '4100', 10);
 
   if (!DATABASE_URL) { console.error('ERROR: DATABASE_URL is required'); process.exit(1); }
   if (!JWT_SECRET) { console.error('ERROR: JWT_SECRET is required'); process.exit(1); }
@@ -650,6 +674,9 @@ export async function runAgent(_args: string[]) {
   // ─── Real-Time Status Reporting ─────────────────────────
   // Report status to the enterprise server (separate process)
   const ENTERPRISE_URL = process.env.ENTERPRISE_URL || 'http://localhost:3100';
+
+  // Notify enterprise SSE subscribers when tasks change (standalone agent → enterprise webhook)
+  taskQueue.webhookUrl = `${ENTERPRISE_URL}/api/engine/task-pipeline/webhook`;
   const _reportStatus = (update: any) => {
     fetch(`${ENTERPRISE_URL}/api/engine/agent-status/${AGENT_ID}`, {
       method: 'POST',
@@ -739,7 +766,7 @@ export async function runAgent(_args: string[]) {
         const session = await runtime.spawnSession({
           agentId,
           message: `[System — Task Recovery] You have a stuck task to complete:\n\nTask: ${task.title}\nID: ${task.id}\nCategory: ${task.category}\nPriority: ${task.priority}\nDescription: ${task.description}\n\nPlease complete this task now.`,
-          model: task.model || undefined,
+          model: (task.model || undefined) as any,
         });
         if (session?.id) {
           sessionRouter.register({
@@ -891,6 +918,79 @@ export async function runAgent(_args: string[]) {
   }));
 
   app.get('/ready', (c) => c.json({ ready: true, agentId: AGENT_ID }));
+
+  // General config reload endpoint — called by enterprise server when ANY config changes
+  // Supports: db-access, permissions, config, guardrails, budget, all
+  app.post('/reload-db-access', async (c) => c.redirect('/reload?scope=db-access', 307));
+  app.post('/reload', async (c) => {
+    const scope = c.req.query('scope') || 'all';
+    const reloaded: string[] = [];
+
+    try {
+      // 1. Database connections
+      if (scope === 'all' || scope === 'db-access') {
+        const dbManager = (runtime as any).config?.databaseManager;
+        if (dbManager && engineDb) {
+          await dbManager.setDb(engineDb);
+          reloaded.push('db-access');
+        }
+      }
+
+      // 2. Permission profiles
+      if (scope === 'all' || scope === 'permissions') {
+        try {
+          const { permissionEngine } = await import('./engine/routes.js');
+          await permissionEngine.setDb(engineDb);
+          reloaded.push('permissions');
+        } catch { /* non-fatal */ }
+      }
+
+      // 3. Agent config (re-read from managed_agents table)
+      if (scope === 'all' || scope === 'config') {
+        try {
+          const row = await engineDb.get<any>('SELECT * FROM managed_agents WHERE id = $1', [agentId]);
+          if (row) {
+            const config = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+            const managed = routes.lifecycle.getAgent(agentId);
+            if (managed) {
+              Object.assign(managed.config, config);
+              managed.updatedAt = row.updated_at;
+              if (row.display_name) { managed.name = row.display_name; managed.displayName = row.display_name; }
+              reloaded.push('config');
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // 4. Budget config
+      if (scope === 'all' || scope === 'budget') {
+        try {
+          const row = await engineDb.get<any>('SELECT budget_config FROM managed_agents WHERE id = $1', [agentId]);
+          if (row?.budget_config) {
+            const managed = routes.lifecycle.getAgent(agentId);
+            if (managed) {
+              managed.budgetConfig = typeof row.budget_config === 'string' ? JSON.parse(row.budget_config) : row.budget_config;
+              reloaded.push('budget');
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // 5. Guardrails
+      if (scope === 'all' || scope === 'guardrails') {
+        try {
+          const { guardrails } = await import('./engine/routes.js');
+          await (guardrails as any).loadFromDb?.();
+          reloaded.push('guardrails');
+        } catch { /* non-fatal */ }
+      }
+
+      console.log(`[agent] Config reloaded: ${reloaded.join(', ') || 'nothing to reload'} (scope: ${scope})`);
+      return c.json({ ok: true, reloaded, scope });
+    } catch (e: any) {
+      return c.json({ ok: false, error: e.message, reloaded }, 500);
+    }
+  });
 
   // Mount runtime API if available
   if (runtimeApp) {
@@ -1105,7 +1205,7 @@ export async function runAgent(_args: string[]) {
 
       if (isMessagingSource) {
         // Build messaging-specific system prompt
-        const { buildScheduleInfo } = await import('./system-prompts/google/index.js');
+        const { buildScheduleInfo } = await import('./system-prompts/index.js');
         const sendToolName = ctx.source === 'whatsapp' ? 'whatsapp_send'
           : 'telegram_send';
         const platformName = ctx.source === 'whatsapp' ? 'WhatsApp'
@@ -1140,7 +1240,7 @@ export async function runAgent(_args: string[]) {
           `- "${sendToolName}" is ALREADY LOADED — do NOT call request_tools, do NOT search for tools, do NOT use grep. Just call ${sendToolName} directly.`,
           `- NEVER use google_chat_send_message — this is ${platformName}.`,
           `- Keep messages concise and conversational — this is a chat, not an email.`,
-          `- No markdown formatting — plain text only.`,
+          `- ABSOLUTELY NO MARKDOWN. No **, no ##, no *, no bullet lists, no code blocks. Plain text ONLY. Write like a human texting — short paragraphs separated by line breaks. This is non-negotiable.`,
           `- For simple greetings/questions, reply in ONE tool call. Do not overthink.`,
           '',
           `DEPENDENCY & TOOL MANAGEMENT:`,
@@ -1172,7 +1272,7 @@ export async function runAgent(_args: string[]) {
                 if (dp.sudoPassword) {
                   lines.push(`- You HAVE ${elevatedLabel} access. The system password is pre-configured — install_dependency handles it automatically. You do NOT need to ask the user for it.`);
                 } else {
-                  lines.push(`- You HAVE ${elevatedLabel} access. ${os === 'win32' ? 'Elevated commands should work if the agent process is running as admin.' : 'No password set — works if NOPASSWD is configured or credentials are cached.'}`);
+                  lines.push(`- You HAVE ${elevatedLabel} access. ${process.platform === 'win32' ? 'Elevated commands should work if the agent process is running as admin.' : 'No password set — works if NOPASSWD is configured or credentials are cached.'}`);
                 }
               } else {
                 lines.push('- You do NOT have elevated/admin access. Commands requiring admin privileges (sudo on Mac/Linux, admin on Windows) will fail.');
@@ -1199,7 +1299,7 @@ export async function runAgent(_args: string[]) {
         ].filter(Boolean).join('\n');
 
       } else {
-        const { buildGoogleChatPrompt, buildScheduleInfo } = await import('./system-prompts/google/index.js');
+        const { buildGoogleChatPrompt, buildScheduleInfo } = await import('./system-prompts/index.js');
         systemPrompt = buildGoogleChatPrompt({
           agent: { name: agentName, role: identity?.role || 'professional', personality: identity?.personality },
           schedule: buildScheduleInfo(agentSchedule, agentTimezone),
@@ -2143,7 +2243,7 @@ async function startCalendarPolling(
           const identity = config.identity || {};
 
           try {
-            const { buildMeetJoinPrompt, buildScheduleInfo } = await import('./system-prompts/google/index.js');
+            const { buildMeetJoinPrompt, buildScheduleInfo } = await import('./system-prompts/index.js');
 
             const managerEmail = (config as any)?.manager?.email || '';
             const agentEmail = config?.identity?.email || (config as any)?.email || '';

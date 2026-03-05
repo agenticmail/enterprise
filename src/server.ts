@@ -13,6 +13,19 @@ import { serve } from '@hono/node-server';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { fileURLToPath } from 'url';
+
+// ─── Production Log Level Filter ─────────────────────────
+const _LOG_LEVEL = (process.env.LOG_LEVEL || 'info').toLowerCase();
+const _LOG_LEVELS: Record<string, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+const _LOG_THRESHOLD = _LOG_LEVELS[_LOG_LEVEL] ?? 1;
+if (_LOG_THRESHOLD > 1) {
+  const _origLog = console.log.bind(console);
+  console.log = function(...args: any[]) {
+    const first = typeof args[0] === 'string' ? args[0] : '';
+    if (first.includes('[error]') || first.includes('[fatal]') || first.includes('ERROR')) _origLog(...args);
+  };
+}
+if (_LOG_THRESHOLD > 2) { console.warn = function() {}; }
 import { dirname, join } from 'path';
 import { createRequire } from 'module';
 
@@ -237,7 +250,7 @@ export function createServer(config: ServerConfig): ServerInstance {
 
     // Skip auth for agent status (internal communication + dashboard SSE)
     // Skip auth for internal service-to-service calls (localhost only)
-    if (c.req.path.includes('/engine/agent-status') || (c.req.path.includes('/whatsapp/proxy-send') && (c.req.header('host') || '').startsWith('localhost'))) {
+    if (c.req.path.includes('/engine/agent-status') || c.req.path.includes('/engine/task-pipeline/webhook') || (c.req.path.includes('/whatsapp/proxy-send') && (c.req.header('host') || '').startsWith('localhost'))) {
       return next();
     }
 

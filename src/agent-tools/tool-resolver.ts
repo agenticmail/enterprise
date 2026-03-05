@@ -81,7 +81,10 @@ export type ToolSet =
   // Management (hierarchy, delegation, escalation)
   | 'management'
   // Integrations
-  | 'mcp_bridge';
+  | 'mcp_bridge'
+  // Aliases (legacy/shorthand)
+  | 'filesystem'
+  | 'web';
 
 // ─── Tier Classification ─────────────────────────────────
 
@@ -131,6 +134,8 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   msg_whatsapp: 2,
   msg_telegram: 2,
   mcp_bridge: 3,
+  filesystem: 2,
+  web: 2,
 };
 
 // ─── Exhaustive Tool Registry ────────────────────────────
@@ -501,67 +506,28 @@ export function clearSessionToolState(sessionId: string): void {
 // Which Tier 2 sets get auto-loaded for each context.
 // Tier 1 is ALWAYS loaded. Tier 3 is NEVER auto-loaded (must be requested).
 
+const _ALL_SETS = Object.keys(TIER_MAP) as ToolSet[];
+
+// Tier 2 sets that are commonly needed — loaded for most contexts
+const _COMMON_T2: ToolSet[] = ['local_filesystem', 'local_shell', 'browser', 'system', 'ent_knowledge'];
+
 const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
-  // Meeting: voice + calendar (check schedule)
-  meeting: [
-    'meeting_voice',
-    'gws_calendar',
-  ],
+  // Meeting: voice + lifecycle essential, plus common tools
+  meeting: ['meeting_voice', 'meeting_lifecycle', ..._COMMON_T2],
 
-  // Chat (Google Chat): GWS chat tools + browser + calendar + knowledge
-  chat: [
-    'gws_chat',
-    'browser',
-    'gws_calendar',
-    'ent_knowledge',
-  ],
+  // Chat (webchat/generic): common tools only — rest loaded on demand via signals or request_tools
+  chat: _COMMON_T2,
 
-  // WhatsApp: messaging + essential file/shell tools for media processing
-  whatsapp: [
-    'msg_whatsapp',
-    'browser',
-    'local_shell',
-    'filesystem',
-    'web',
-  ],
+  // Messaging channels: load the relevant channel's tools + common tools
+  // The agent's OWN channel tools are essential (Tier 1-like for that session)
+  // Other channel tools and specialist tools load on demand
+  whatsapp: ['msg_whatsapp', ..._COMMON_T2],
+  telegram: ['msg_telegram', ..._COMMON_T2],
+  email: ['agenticmail', 'gws_gmail', ..._COMMON_T2],
 
-  // Telegram: messaging + essential file/shell tools for media processing
-  telegram: [
-    'msg_telegram',
-    'browser',
-    'local_shell',
-    'filesystem',
-    'web',
-  ],
-
-  // Email handler: focused email + lookups
-  email: [
-    'system',
-    'gws_gmail',
-    'gws_calendar',
-    'gws_contacts',
-    'gws_drive',
-    'gws_tasks',
-    'agenticmail',
-    'ent_documents',
-    'ent_knowledge',
-  ],
-
-  // Task: broad access for autonomous work
-  task: [
-    'browser', 'system',
-    'visual_memory',
-    'meeting_lifecycle',
-    'gws_gmail', 'gws_calendar', 'gws_drive',
-    'gws_docs', 'gws_sheets', 'gws_contacts',
-    'gws_tasks', 'gws_maps',
-    'ent_database', 'ent_spreadsheet', 'ent_documents',
-    'ent_http', 'ent_security', 'ent_code', 'ent_diff',
-    'agenticmail', 'mcp_bridge',
-  ],
-
-  // Full: everything
-  full: Object.keys(TIER_MAP) as ToolSet[],
+  // Task/full: broader set for agent-to-agent work
+  task: ['agenticmail', ..._COMMON_T2],
+  full: _ALL_SETS,
 };
 
 // ─── Conversation Signal Detection ───────────────────────
@@ -619,6 +585,27 @@ const SIGNAL_RULES: SignalRule[] = [
   // Knowledge base / hub
   { patterns: [/\bknowledge\s*base\b/i, /\bknowledge\s*hub\b/i, /\bfaq\b/i, /\bdocumentation\b/i, /\bwiki\b/i, /\bhow\s+do\s+(we|i)\b/i, /\bwhat.*(policy|process|procedure)\b/i, /\bcompany.*(guide|handbook)\b/i],
     sets: ['ent_knowledge'] },
+  // WhatsApp (cross-channel)
+  { patterns: [/\bwhatsapp\b/i, /\bsend.*whatsapp\b/i, /\bwa\s+message\b/i],
+    sets: ['msg_whatsapp'] },
+  // Telegram (cross-channel)
+  { patterns: [/\btelegram\b/i, /\bsend.*telegram\b/i, /\btg\s+message\b/i],
+    sets: ['msg_telegram'] },
+  // Spreadsheet / CSV
+  { patterns: [/\bcsv\b/i, /\bspreadsheet\b/i, /\btransform.*data\b/i, /\bpivot\b/i],
+    sets: ['ent_spreadsheet'] },
+  // Diff
+  { patterns: [/\bdiff\b/i, /\bcompare.*files?\b/i, /\bwhat.*changed\b/i],
+    sets: ['ent_diff'] },
+  // Tasks (Google)
+  { patterns: [/\bgoogle\s*tasks?\b/i, /\btask\s*list\b/i, /\btodo\b/i],
+    sets: ['gws_tasks'] },
+  // Visual memory
+  { patterns: [/\bscreenshot\b/i, /\bcapture\b/i, /\bvision\b/i, /\bwhat.*see\b/i, /\blook\s*at\b/i],
+    sets: ['visual_memory'] },
+  // AgenticMail (broader)
+  { patterns: [/\bsend.*email\b/i, /\bwrite.*email\b/i, /\bdraft\b/i, /\binbox\b/i, /\bcheck.*mail\b/i],
+    sets: ['agenticmail'] },
 ];
 
 /**
@@ -823,6 +810,8 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   msg_telegram: 'Telegram messaging, media, and file download (5 tools)',
   management: 'Team management — delegate tasks, escalate, org chart (10 tools)',
   mcp_bridge: 'MCP integration adapters',
+  filesystem: 'File system tools (alias)',
+  web: 'Web tools (alias)',
 };
 
 function createRequestToolsTool(

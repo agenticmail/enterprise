@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tool Security — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/settings">&#8592; Back to Settings</a>
+
+<h1>Tool Security</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Fine-grained controls over what agents' tools can access — file paths, network endpoints, and shell commands.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#path-sandbox">Path Sandbox</a></li>
+    <li><a href="#ssrf">SSRF Protection</a></li>
+    <li><a href="#command-sanitizer">Command Sanitizer</a></li>
+    <li><a href="#audit-logging">Audit Logging</a></li>
+    <li><a href="#rate-limiting">Rate Limiting</a></li>
+    <li><a href="#circuit-breaker">Circuit Breaker</a></li>
+    <li><a href="#telemetry">Telemetry</a></li>
+  </ul>
+</div>
+
+<h2 id="path-sandbox">Path Sandbox</h2>
+<p>Restricts which file system paths agents can read from and write to. Prevents agents from accessing sensitive system files or other users' data.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle path sandboxing</td></tr>
+    <tr><td><strong>Allowed Paths</strong></td><td>Directories agents can access (e.g., <code>/home/agent/workspace</code>, <code>/tmp</code>)</td></tr>
+    <tr><td><strong>Blocked Paths</strong></td><td>Directories that are always blocked (e.g., <code>/etc/shadow</code>, <code>~/.ssh</code>)</td></tr>
+  </table>
+</div>
+
+<div class="tip"><strong>Default behavior:</strong> When disabled, agents can access any file the server process has permissions for. Enable sandboxing in production to enforce least-privilege file access.</div>
+
+<h2 id="ssrf">SSRF Protection</h2>
+<p>Prevents Server-Side Request Forgery — agents making network requests to internal services, cloud metadata endpoints, or private IP ranges.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle SSRF protection</td></tr>
+    <tr><td><strong>Block Private IPs</strong></td><td>Block requests to <code>10.x.x.x</code>, <code>172.16.x.x</code>, <code>192.168.x.x</code>, <code>127.x.x.x</code></td></tr>
+    <tr><td><strong>Block Cloud Metadata</strong></td><td>Block requests to <code>169.254.169.254</code> (AWS/GCP metadata endpoint)</td></tr>
+    <tr><td><strong>Allowed Internal Hosts</strong></td><td>Internal hosts that agents ARE allowed to reach (exceptions to the block rules)</td></tr>
+  </table>
+</div>
+
+<div class="danger"><strong>Critical for cloud deployments:</strong> Without SSRF protection, a compromised agent could query the cloud metadata endpoint to steal IAM credentials, access tokens, and instance identity documents.</div>
+
+<h2 id="command-sanitizer">Command Sanitizer</h2>
+<p>Controls which shell commands agents can execute via the <code>exec</code> tool.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle command sanitization</td></tr>
+    <tr><td><strong>Mode</strong></td><td><strong>Blocklist</strong> (block specific commands) or <strong>Allowlist</strong> (only allow specific commands)</td></tr>
+    <tr><td><strong>Blocked Commands</strong></td><td>Commands agents cannot run: <code>rm -rf</code>, <code>shutdown</code>, <code>reboot</code>, <code>mkfs</code></td></tr>
+    <tr><td><strong>Allowed Commands</strong></td><td>In allowlist mode, only these commands can be executed</td></tr>
+  </table>
+</div>
+
+<h2 id="audit-logging">Audit Logging</h2>
+<p>Log all tool usage with optional API key redaction. Provides a trail of every tool invocation for forensics and compliance.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle tool audit logging</td></tr>
+    <tr><td><strong>Redact API Keys</strong></td><td>Automatically redact API keys, tokens, and passwords from log entries</td></tr>
+  </table>
+</div>
+
+<h2 id="rate-limiting">Rate Limiting</h2>
+<p>Limits how frequently agents can invoke tools. Prevents runaway loops and resource exhaustion.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle tool rate limiting</td></tr>
+    <tr><td><strong>Calls per Minute</strong></td><td>Max tool calls per agent per minute</td></tr>
+    <tr><td><strong>Calls per Hour</strong></td><td>Max tool calls per agent per hour</td></tr>
+  </table>
+</div>
+
+<h2 id="circuit-breaker">Circuit Breaker</h2>
+<p>Automatically disables tools that are failing repeatedly. Prevents agents from wasting tokens retrying broken operations.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle circuit breaker</td></tr>
+    <tr><td><strong>Failure Threshold</strong></td><td>Number of consecutive failures before a tool is disabled</td></tr>
+    <tr><td><strong>Recovery Time</strong></td><td>How long before the tool is re-enabled for retry</td></tr>
+  </table>
+</div>
+
+<h2 id="telemetry">Telemetry</h2>
+<p>Collect anonymous usage metrics for tool performance monitoring.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle telemetry collection</td></tr>
+    <tr><td><strong>Metrics</strong></td><td>Tool call counts, latency percentiles, error rates</td></tr>
+  </table>
+</div>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/settings-security">Security System</a> — Prompt injection, encryption, audit logging</li>
+    <li><a href="/docs/settings-network">Network &amp; Firewall</a> — IP filtering, egress, proxy</li>
+    <li><a href="/docs/agent-permissions">Agent Permissions</a> — Per-agent tool access controls</li>
+    <li><a href="/docs/agent-tools">Agent Tools</a> — Available tools and their capabilities</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

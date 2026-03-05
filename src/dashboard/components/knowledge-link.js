@@ -62,3 +62,18 @@ export var AGENT_TAB_DOCS = {
   deployment: 'agent-deployment',
   'memory-transfer': 'memory-transfer',
 };
+
+/** Map of settings tab IDs to doc filenames */
+export var SETTINGS_TAB_DOCS = {
+  general: 'settings',
+  models: 'settings',
+  'api-keys': 'settings',
+  authentication: 'settings',
+  platform: 'settings',
+  email: 'settings',
+  deployments: 'settings',
+  'security-system': 'settings-security',
+  'tool-security': 'settings-tool-security',
+  network: 'settings-network',
+  integrations: 'settings',
+};

@@ -237,6 +237,19 @@ export class EngineDatabase {
     return this.db.all<T>(sql, params);
   }
 
+  async get<T = any>(sql: string, params?: any[]): Promise<T | undefined> {
+    return this.db.get<T>(sql, params);
+  }
+
+  async getSettings(): Promise<Record<string, any>> {
+    const rows = await this.db.all<any>('SELECT key, value FROM engine_settings', []);
+    const result: Record<string, any> = {};
+    for (const row of rows) {
+      try { result[row.key] = JSON.parse(row.value); } catch { result[row.key] = row.value; }
+    }
+    return result;
+  }
+
   async execute(sql: string, params?: any[]): Promise<void> {
     return this.db.run(sql, params);
   }
@@ -1095,6 +1108,9 @@ export class EngineDatabase {
     const config = sj(row.config);
     const agent: ManagedAgent = {
       id: row.id,
+      name: row.display_name || row.name || config?.displayName || config?.name || row.id,
+      displayName: row.display_name || config?.displayName || config?.name,
+      display_name: row.display_name || config?.displayName || config?.name,
       orgId: row.org_id,
       config,
       state: row.state,

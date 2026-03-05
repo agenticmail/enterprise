@@ -426,8 +426,8 @@ export function createDependencyManagerTools(): ToolDefinition[] {
           else {
             // Try to figure out a manager
             var mgrs = await detectPackageManagers();
-            var fallback: PkgManager = IS_WINDOWS ? (mgrs.includes('choco') ? 'choco' : mgrs.includes('winget') ? 'winget' : 'npm') : IS_MAC ? 'brew' : (mgrs.includes('apt') ? 'apt' : 'npm');
-            resolved = { mgr: fallback, pkg: input.package, isLocal: fallback === 'npm' || fallback === 'pip' };
+            var fallback = (IS_WINDOWS ? (mgrs.includes('choco') ? 'choco' : mgrs.includes('winget') ? 'winget' : 'npm') : IS_MAC ? 'brew' : (mgrs.includes('apt') ? 'apt' : 'npm')) as PkgManager;
+            resolved = { mgr: fallback, pkg: input.package, isLocal: fallback === 'npm' || (fallback as string) === 'pip' };
           }
         }
         if (!resolved) {

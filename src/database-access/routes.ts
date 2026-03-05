@@ -9,6 +9,13 @@ import { Hono } from 'hono';
 import type { DatabaseConnectionManager } from './connection-manager.js';
 import type { DatabasePermission } from './types.js';
 
+async function notifyAgentReload(agentId: string) {
+  try {
+    const { notifyAgent } = await import('../engine/agent-notify.js');
+    await notifyAgent(agentId, 'db-access');
+  } catch { /* non-fatal */ }
+}
+
 export function createDatabaseAccessRoutes(manager: DatabaseConnectionManager) {
   const router = new Hono();
 
@@ -149,6 +156,9 @@ export function createDatabaseAccessRoutes(manager: DatabaseConnectionManager) {
       enabled: true,
     });
 
+    // Notify agent in real-time
+    notifyAgentReload(body.agentId).catch(() => {});
+
     return c.json(access, 201);
   });
 
@@ -162,7 +172,9 @@ export function createDatabaseAccessRoutes(manager: DatabaseConnectionManager) {
 
   /** Revoke agent access */
   router.delete('/connections/:connId/agents/:agentId', async (c) => {
-    await manager.revokeAccess(c.req.param('agentId'), c.req.param('connId'));
+    const agentId = c.req.param('agentId');
+    await manager.revokeAccess(agentId, c.req.param('connId'));
+    notifyAgentReload(agentId).catch(() => {});
     return c.json({ ok: true });
   });
 

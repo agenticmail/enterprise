@@ -32,6 +32,10 @@ export function DeploymentSection(props) {
   var installingPm2 = _installingPm2[0]; var setInstallingPm2 = _installingPm2[1];
   var _syncingKbs = useState(false);
   var syncingKbs = _syncingKbs[0]; var setSyncingKbs = _syncingKbs[1];
+  var _portCheck = useState(null); // { checking, available, error, process }
+  var portCheck = _portCheck[0]; var setPortCheck = _portCheck[1];
+  var _portCheckTimer = useState(null);
+  var portCheckTimer = _portCheckTimer[0]; var setPortCheckTimer = _portCheckTimer[1];
 
   var load = function() {
     setLoading(true);
@@ -106,7 +110,7 @@ export function DeploymentSection(props) {
       dockerTag: docker.tag || 'latest',
       dockerMemory: docker.memory || '512m',
       dockerCpu: docker.cpu || '0.5',
-      dockerPorts: (docker.ports || [3000]).join(', '),
+      dockerPorts: (docker.ports || [4100]).join(', '),
       dockerNetwork: docker.network || '',
       dockerRestart: docker.restart || 'unless-stopped',
       // VPS
@@ -170,13 +174,18 @@ export function DeploymentSection(props) {
   };
 
   var saveDeploy = function() {
+    // Block save if local port is in use
+    if (deployForm.target === 'local' && deployForm.localPort && portCheck && !portCheck.checking && !portCheck.available) {
+      toast('Port ' + deployForm.localPort + ' is already in use. Please choose a different port.', 'error');
+      return;
+    }
     setSavingDeploy(true);
     var t = deployForm.target;
     var deployConfig = {};
     if (t === 'fly') {
       deployConfig = { cloud: { provider: 'fly', region: deployForm.region || 'iad', apiToken: deployForm.flyApiToken || undefined, appName: deployForm.flyAppName || undefined, org: deployForm.flyOrg || 'personal', vmSize: deployForm.flyVmSize || 'shared-cpu-1x', vmMemory: deployForm.flyVmMemory || '256' } };
     } else if (t === 'docker') {
-      deployConfig = { docker: { image: deployForm.dockerImage || 'agenticmail/agent', tag: deployForm.dockerTag || 'latest', ports: (deployForm.dockerPorts || '3000').split(',').map(function(p) { return parseInt(p.trim()) || 3000; }), memory: deployForm.dockerMemory || '512m', cpu: deployForm.dockerCpu || '0.5', network: deployForm.dockerNetwork || undefined, restart: deployForm.dockerRestart || 'unless-stopped' } };
+      deployConfig = { docker: { image: deployForm.dockerImage || 'agenticmail/agent', tag: deployForm.dockerTag || 'latest', ports: (deployForm.dockerPorts || '4100').split(',').map(function(p) { return parseInt(p.trim()) || 4100; }), memory: deployForm.dockerMemory || '512m', cpu: deployForm.dockerCpu || '0.5', network: deployForm.dockerNetwork || undefined, restart: deployForm.dockerRestart || 'unless-stopped' } };
     } else if (t === 'vps') {
       deployConfig = { vps: { host: deployForm.vpsHost, port: parseInt(deployForm.vpsPort) || 22, user: deployForm.vpsUser || 'root', keyPath: deployForm.vpsKeyPath || '~/.ssh/id_rsa', workDir: deployForm.vpsWorkDir || '/opt/agenticmail' } };
     } else if (t === 'aws') {
@@ -209,7 +218,27 @@ export function DeploymentSection(props) {
       .catch(function(err) { toast('Failed to save: ' + err.message, 'error'); setSavingDeploy(false); });
   };
 
-  var setDf = function(k, v) { setDeployForm(function(f) { var n = Object.assign({}, f); n[k] = v; return n; }); };
+  var setDf = function(k, v) {
+    setDeployForm(function(f) { var n = Object.assign({}, f); n[k] = v; return n; });
+    // Auto-check port when localPort changes
+    if (k === 'localPort' && v) {
+      var p = parseInt(v);
+      if (p > 0 && p <= 65535) {
+        setPortCheck({ checking: true });
+        if (portCheckTimer) clearTimeout(portCheckTimer);
+        var timer = setTimeout(function() {
+          engineCall('/system/check-port', { method: 'POST', body: JSON.stringify({ port: p }) })
+            .then(function(d) { setPortCheck(d); })
+            .catch(function(e) { setPortCheck({ available: false, error: e.message }); });
+        }, 500); // debounce 500ms
+        setPortCheckTimer(timer);
+      } else if (v && (p <= 0 || p > 65535)) {
+        setPortCheck({ available: false, error: 'Port must be between 1 and 65535' });
+      } else {
+        setPortCheck(null);
+      }
+    }
+  };
 
   // ─── Actions ────────────────────────────────────────────
 
@@ -558,7 +587,8 @@ export function DeploymentSection(props) {
             ),
             h('div', { className: 'form-group' },
               h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Ports'),
-              h('input', { className: 'input', value: deployForm.dockerPorts, onChange: function(e) { setDf('dockerPorts', e.target.value); }, placeholder: '3000' })
+              h('input', { className: 'input', value: deployForm.dockerPorts, onChange: function(e) { setDf('dockerPorts', e.target.value); }, placeholder: '4100' }),
+              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'Comma-separated host:container ports')
             )
           ),
           h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginTop: 12 } },
@@ -618,8 +648,11 @@ export function DeploymentSection(props) {
           h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 } },
             h('div', { className: 'form-group' },
               h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Port'),
-              h('input', { className: 'input', type: 'number', value: deployForm.localPort, onChange: function(e) { setDf('localPort', e.target.value); }, placeholder: '3101' }),
-              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'HTTP port the agent listens on')
+              h('input', { className: 'input', type: 'number', value: deployForm.localPort, onChange: function(e) { setDf('localPort', e.target.value); }, placeholder: '4100', style: portCheck && !portCheck.checking && !portCheck.available ? { borderColor: 'var(--danger)' } : portCheck && portCheck.available ? { borderColor: 'var(--success)' } : {} }),
+              portCheck && portCheck.checking && h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 } }, '\u23F3', ' Checking port availability...'),
+              portCheck && !portCheck.checking && portCheck.available && h('div', { style: { fontSize: 11, color: 'var(--success)', marginTop: 2 } }, '\u2713 Port ' + deployForm.localPort + ' is available'),
+              portCheck && !portCheck.checking && !portCheck.available && h('div', { style: { fontSize: 11, color: 'var(--danger)', marginTop: 2 } }, '\u2717 Port ' + deployForm.localPort + ' is in use' + (portCheck.process ? ' by ' + portCheck.process : '') + (portCheck.error ? ': ' + portCheck.error : '') + ' \u2014 choose a different port'),
+              !portCheck && h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'HTTP port the agent listens on')
             ),
             h('div', { className: 'form-group' },
               h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Host'),

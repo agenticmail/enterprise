@@ -356,7 +356,10 @@ export class AgentRuntime {
     }
     var _agentCfg = this.config.getAgentConfig ? this.config.getAgentConfig(agentId) : null;
     var _agentIdentity = _agentCfg?.identity || null;
-    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext, hierarchyContext, _agentIdentity);
+    // Get database connections for this agent
+    var _dbConnections: string[] = [];
+    try { if (this.config.databaseManager) _dbConnections = this.config.databaseManager.getAgentConnectionSummary(agentId); } catch {}
+    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext, hierarchyContext, _agentIdentity, _dbConnections);
 
     // Detect session context for dynamic tool loading
     var sessionContext = detectSessionContext({
@@ -468,7 +471,9 @@ export class AgentRuntime {
       try { _hierarchyCtx = await this.config.hierarchyManager.buildManagerPrompt(session.agentId) || ''; } catch {}
     }
     var _aCfg2 = this.config.getAgentConfig ? this.config.getAgentConfig(session.agentId) : null;
-    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext, _hierarchyCtx, _aCfg2?.identity);
+    var _dbConns2: string[] = [];
+    try { if (this.config.databaseManager) _dbConns2 = this.config.databaseManager.getAgentConnectionSummary(session.agentId); } catch {}
+    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext, _hierarchyCtx, _aCfg2?.identity, _dbConns2);
 
     // Context-aware tool loading — reuses session tool state (preserves dynamically loaded sets)
     // Don't re-detect context for keep-alive sessions (meetings) — they stay in their original context
@@ -918,7 +923,9 @@ export class AgentRuntime {
             try { _hc = await this.config.hierarchyManager.buildManagerPrompt(session.agentId) || ''; } catch {}
           }
           var _rCfg = this.config.getAgentConfig ? this.config.getAgentConfig(session.agentId) : null;
-          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc, _hc, _rCfg?.identity);
+          var _dbC3: string[] = [];
+          try { if (this.config.databaseManager) _dbC3 = this.config.databaseManager.getAgentConnectionSummary(session.agentId); } catch {}
+          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc, _hc, _rCfg?.identity, _dbC3);
           var _resumeCtx = detectSessionContext({
             systemPrompt: _resumePrompt,
             isKeepAlive: this.keepAliveSessions.has(session.id),
@@ -1035,7 +1042,7 @@ export function createAgentRuntime(config: RuntimeConfig): AgentRuntime {
 
 // ─── Default System Prompt ───────────────────────────────
 
-function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string, agentIdentity?: any): string {
+function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string, agentIdentity?: any, dbConnections?: string[]): string {
   var base = `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
 
 You have access to a comprehensive set of tools for completing tasks. Use them effectively.
@@ -1053,8 +1060,10 @@ Guidelines:
 - Your memory persists across conversations — it's how you grow as an expert
 
 Database Tools:
-- ent_db_* tools (ent_db_query, ent_db_tables, ent_db_schema, ent_db_sample, ent_db_explain): For LOCAL databases — SQLite files in the workspace or registered local connections. Read-only.
-- db_* tools (db_query, db_list_connections, db_list_tables, db_describe_table): For CLOUD/ENTERPRISE databases — Postgres, MySQL, MongoDB, Redis, Supabase, etc. configured by your admin. Use db_list_connections first to see what databases you have access to. Supports read and write operations based on your granted permissions.
+- ent_db_* tools: For LOCAL databases — SQLite files in the workspace. Read-only inspection.
+- db_* tools (db_query, db_list_connections, db_list_tables, db_describe_table): For EXTERNAL databases granted to you by your admin.
+  IMPORTANT: When asked about any database by name, ALWAYS use db_* tools first. Start with db_list_connections.
+${dbConnections && dbConnections.length > 0 ? `\nYour External Database Access:\n${dbConnections.map(c => '  - ' + c).join('\n')}\nUse db_query with the connection name to query these databases.` : ''}
 
 Current time: ${new Date().toISOString()}`;
 

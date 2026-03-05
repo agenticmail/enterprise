@@ -20,5 +20,4 @@ export { buildGoogleTasksPrompt, type TasksContext } from './tasks.js';
 export { buildContactsPrompt, type ContactsContext } from './contacts.js';
 export { buildFormsPrompt, type FormsContext } from './forms.js';
 
-// Re-export shared utilities needed by consumers
-export { buildScheduleInfo, buildScheduleBlock, type ScheduleInfo, type AgentIdentity, type PromptContext } from '../index.js';
+// Shared utilities available from '../index.js' — not re-exported here to avoid circular imports

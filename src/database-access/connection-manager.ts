@@ -115,8 +115,8 @@ export class DatabaseConnectionManager {
   private async dbAll(sql: string, params?: any[]): Promise<any[]> {
     if (!this.engineDb) return [];
     if (this.engineDb.all) return this.engineDb.all(sql, params) as Promise<any[]>;
-    if (this.engineDb.query) {
-      const result = await this.engineDb.query(sql, params);
+    if ((this.engineDb as any).query) {
+      const result = await (this.engineDb as any).query(sql, params);
       return Array.isArray(result) ? result : (result?.rows || []);
     }
     // Fallback: execute returns rows for some adapters
@@ -341,6 +341,17 @@ export class DatabaseConnectionManager {
 
   getConnection(id: string): DatabaseConnectionConfig | undefined {
     return this.configs.get(id);
+  }
+
+  /** Get a human-readable summary of an agent's database connections for system prompts */
+  getAgentConnectionSummary(agentId: string): string[] {
+    const accesses = this.getAgentAccess(agentId).filter(a => a.enabled);
+    return accesses.map(a => {
+      const config = this.configs.get(a.connectionId);
+      if (!config) return '';
+      const perms = a.permissions?.join(', ') || 'read';
+      return `"${config.name}" (${config.type}) — permissions: ${perms}`;
+    }).filter(Boolean);
   }
 
   listConnections(orgId: string): DatabaseConnectionConfig[] {

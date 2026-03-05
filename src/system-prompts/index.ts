@@ -79,7 +79,7 @@ export function buildScheduleInfo(
 
 // Provider-specific prompts (partitioned by integration)
 export * from './google/index.js';
-// Future: export * from './microsoft/index.js';
+export * from './microsoft/index.js';
 
 // Generic prompts (provider-agnostic)
 export { buildTaskPrompt, type TaskContext } from './task.js';

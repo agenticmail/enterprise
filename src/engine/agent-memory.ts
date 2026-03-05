@@ -40,7 +40,8 @@ export type MemorySource =
   | 'correction'
   | 'system'
   | 'context_compaction'
-  | 'mcp_server_deletion';
+  | 'mcp_server_deletion'
+  | 'transfer';
 
 export const MEMORY_CATEGORIES: Record<MemoryCategory, { label: string; description: string }> = {
   org_knowledge: {

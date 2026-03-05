@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, applyBrandColor, showConfirm, setOrgId, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, useRef, Fragment, useApp, apiCall, engineCall, applyBrandColor, showConfirm, setOrgId, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { Modal } from '../components/modal.js';
@@ -6,12 +6,12 @@ import { TagInput } from '../components/tag-input.js';
 import { COUNTRIES } from '../data/countries.js?v=6';
 import { HelpButton } from '../components/help-button.js';
 import { SETTINGS_HELP } from '../components/settings-help.js';
-import { KnowledgeLink } from '../components/knowledge-link.js';
+import { KnowledgeLink, SETTINGS_TAB_DOCS } from '../components/knowledge-link.js';
 import { ProviderLogo } from '../assets/provider-logos.js';
 import { useOrgContext } from '../components/org-switcher.js';
 
 export function SettingsPage() {
-  const { toast } = useApp();
+  const { toast, setCompanyName } = useApp();
   var orgCtx = useOrgContext();
   var effectiveOrgId = orgCtx.selectedOrgId || '';
   const [tab, setTab] = useState('general');
@@ -280,6 +280,11 @@ export function SettingsPage() {
       })
     ),
 
+    // ─── Knowledge Link for current tab ─────────────────
+    SETTINGS_TAB_DOCS[tab] && h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8 } },
+      h(KnowledgeLink, { page: SETTINGS_TAB_DOCS[tab], label: (TAB_LABELS[tab] || tab) + ' Docs' })
+    ),
+
     tab === 'general' && h('div', null,
       h('div', { className: 'card', style: { marginBottom: 16 } },
         h('div', { className: 'card-header' }, h('h3', { style: { display: 'flex', alignItems: 'center' } }, 'Organization', h(HelpButton, { label: 'Organization Settings' },
@@ -326,7 +331,7 @@ export function SettingsPage() {
               h('input', { className: 'input', value: settings.primaryColor || '', onChange: e => { setSettings(s => ({ ...s, primaryColor: e.target.value })); if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) applyBrandColor(e.target.value); }, style: { maxWidth: 120, fontFamily: 'var(--font-mono)', fontSize: 12 } })
             )
           ),
-          h('button', { className: 'btn btn-primary', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ name: settings.name, domain: settings.domain, subdomain: settings.subdomain, logoUrl: settings.logoUrl, primaryColor: settings.primaryColor, plan: settings.plan }) }).then(d => { setSettings(d); toast('Settings saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Changes')
+          h('button', { className: 'btn btn-primary', onClick: () => apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ name: settings.name, domain: settings.domain, subdomain: settings.subdomain, logoUrl: settings.logoUrl, primaryColor: settings.primaryColor, plan: settings.plan }) }).then(d => { setSettings(d); if (d.name && setCompanyName) setCompanyName(d.name); toast('Settings saved', 'success'); }).catch(e => toast(e.message, 'error')) }, 'Save Changes')
         )
       ),
 
@@ -1603,24 +1608,61 @@ function ComprehensiveSecurityTab(props) {
     );
   }
 
+  // ── Per-section editing ──
+  var _editState = useState(null); // which section key is being edited
+  var editingSection = _editState[0]; var setEditingSection = _editState[1];
+  var _snapshot = useRef(null); // snapshot of securityConfig before editing
+
+  function startEdit(section) {
+    _snapshot.current = JSON.parse(JSON.stringify(securityConfig));
+    setEditingSection(section);
+  }
+  function cancelEdit() {
+    if (_snapshot.current) setSecurityConfig(_snapshot.current);
+    _snapshot.current = null;
+    setEditingSection(null);
+  }
+  function saveSection() {
+    onSave();
+    // onSave triggers async save; clear edit state optimistically
+    setTimeout(function() {
+      _snapshot.current = null;
+      setEditingSection(null);
+    }, 500);
+  }
+
+  function sectionHeader(icon, title, sectionKey) {
+    var isEditing = editingSection === sectionKey;
+    return h('div', { style: Object.assign({}, _cardTitleStyle, { justifyContent: 'space-between' }) },
+      h('span', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, icon, title),
+      isEditing
+        ? h('div', { style: { display: 'flex', gap: 6 } },
+            h('button', { className: 'btn btn-primary btn-sm', disabled: saving, onClick: saveSection }, saving ? 'Saving...' : 'Save'),
+            h('button', { className: 'btn btn-ghost btn-sm', onClick: cancelEdit }, 'Cancel')
+          )
+        : h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { startEdit(sectionKey); }, style: { fontSize: 12 } }, I.journal(), ' Edit')
+    );
+  }
+
+  // Helper: section content wrapper — dims + disables when not editing
+  function sectionBody(sectionKey, content) {
+    var isEditing = editingSection === sectionKey;
+    return h('div', { style: isEditing ? {} : { opacity: 0.7, pointerEvents: 'none' } }, content);
+  }
+
   return h('div', null,
     h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 } },
       h('div', null,
         h('h2', { style: { fontSize: 18, fontWeight: 700, margin: 0 } }, 'Security System'),
         h('p', { style: { fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' } }, 'Comprehensive security configuration for your AgenticMail deployment')
-      ),
-      h('button', {
-        className: 'btn btn-primary',
-        onClick: onSave,
-        disabled: !dirty || saving,
-        style: { minWidth: 80 }
-      }, saving ? 'Saving...' : 'Save Changes')
+      )
     ),
 
     // Prompt Injection Defense
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), 'Prompt Injection Defense'),
+      sectionHeader(I.shield(), 'Prompt Injection Defense', 'promptInjection'),
       h('p', { style: _cardDescStyle }, 'Multi-layer detection and prevention of prompt injection attacks'),
+      sectionBody('promptInjection', h(Fragment, null,
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
         h('span', { style: { fontWeight: 500 } }, 'Enable Protection'),
         h(ToggleSwitch, { checked: promptInjection.enabled, onChange: function(v) { updateSection('promptInjection', { enabled: v }); } })
@@ -1672,13 +1714,14 @@ function ComprehensiveSecurityTab(props) {
             rows: 2
           })
         )
-      )
+      )))
     ),
 
     // SQL Injection Prevention
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), 'SQL Injection Prevention'),
+      sectionHeader(I.shield(), 'SQL Injection Prevention', 'sqlInjection'),
       h('p', { style: _cardDescStyle }, 'Detect and block SQL injection attempts in tool inputs and API requests'),
+      sectionBody('sqlInjection', h(Fragment, null,
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
         h('span', { style: { fontWeight: 500 } }, 'Enable Protection'),
         h(ToggleSwitch, { checked: sqlInjection.enabled, onChange: function(v) { updateSection('sqlInjection', { enabled: v }); } })
@@ -1717,13 +1760,14 @@ function ComprehensiveSecurityTab(props) {
             )
           )
         )
-      )
+      )))
     ),
 
     // Input Validation
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), 'Input Validation'),
+      sectionHeader(I.shield(), 'Input Validation', 'inputValidation'),
       h('p', { style: _cardDescStyle }, 'Sanitize and validate all input data'),
+      sectionBody('inputValidation', h(Fragment, null,
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
         h('span', { style: { fontWeight: 500 } }, 'Enable Validation'),
         h(ToggleSwitch, { checked: inputValidation.enabled, onChange: function(v) { updateSection('inputValidation', { enabled: v }); } })
@@ -1782,13 +1826,14 @@ function ComprehensiveSecurityTab(props) {
             h('span', null, 'Sanitize Unicode')
           )
         )
-      )
+      )))
     ),
 
     // Output Filtering
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), 'Output Filtering'),
+      sectionHeader(I.shield(), 'Output Filtering', 'outputFiltering'),
       h('p', { style: _cardDescStyle }, 'Scan agent outputs for secrets and personal information'),
+      sectionBody('outputFiltering', h(Fragment, null,
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
         h('span', { style: { fontWeight: 500 } }, 'Enable Filtering'),
         h(ToggleSwitch, { checked: outputFiltering.enabled, onChange: function(v) { updateSection('outputFiltering', { enabled: v }); } })
@@ -1828,7 +1873,7 @@ function ComprehensiveSecurityTab(props) {
             )
           )
         )
-      )
+      )))
     ),
 
     // Transport Encryption
@@ -1907,8 +1952,9 @@ function ComprehensiveSecurityTab(props) {
       var groupCount = Object.keys(enabledGroups).filter(function(k) { return enabledGroups[k]; }).length;
 
       return h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.lock(), 'Transport Encryption'),
+        sectionHeader(I.lock(), 'Transport Encryption', 'transportEncryption'),
         h('p', { style: _cardDescStyle }, 'Encrypt API data in transit between the dashboard and server using AES-256-CBC with HMAC verification. Protects against network sniffing, MITM attacks, and compromised TLS proxies. Choose to encrypt all API calls or select specific endpoint groups.'),
+        sectionBody('transportEncryption', h(Fragment, null,
 
         // Master toggle
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 } },
@@ -2021,7 +2067,7 @@ function ComprehensiveSecurityTab(props) {
             ),
             h('p', { style: { marginTop: 8, color: 'var(--text-muted)' } }, 'HTTPS already encrypts all traffic at the transport layer. This adds application-layer encryption for defense-in-depth, protecting against compromised TLS proxies, corporate SSL inspection, or man-in-the-middle attacks.')
           )
-        )
+        )))
       );
     })(),
 
@@ -2035,8 +2081,9 @@ function ComprehensiveSecurityTab(props) {
       }
 
       return h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.settings(), 'Dependency & Package Management'),
+        sectionHeader(I.settings(), 'Dependency & Package Management', 'dependencyDefaults'),
         h('p', { style: _cardDescStyle }, 'Organization-wide defaults for agent package installation. Individual agents can override these in their Permissions tab.'),
+        sectionBody('dependencyDefaults', h(Fragment, null,
 
         // Mode
         h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 } },
@@ -2099,14 +2146,104 @@ function ComprehensiveSecurityTab(props) {
           h('label', { className: 'form-label' }, 'Blocked Packages'),
           h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 6px' } }, 'Package names that agents can never install, regardless of other settings.'),
           h(TagInput, { value: depDefaults.blockedPackages || [], onChange: function(v) { updateDep({ blockedPackages: v }); }, placeholder: 'e.g. nmap, metasploit', mono: true })
-        )
+        )))
+      );
+    })(),
+
+    // ── Screen Unlock & Machine Access ──
+    (function() {
+      var screenAccess = securityConfig.screenAccess || { enabled: false, systemPassword: '', autoUnlock: false, preventSleep: false };
+      function updateScreen(updates) {
+        updateSection('screenAccess', Object.assign({}, screenAccess, updates));
+      }
+      var _screenStatus = useState(null);
+      var screenStatus = _screenStatus[0]; var setScreenStatus = _screenStatus[1];
+      var _unlocking = useState(false);
+      var unlocking = _unlocking[0]; var setUnlocking = _unlocking[1];
+
+      return h('div', { style: _cardStyle },
+        sectionHeader(I.lock(), 'Screen Unlock & Machine Access', 'screenAccess'),
+        h('p', { style: _cardDescStyle }, 'Allow the system to automatically unlock the screen when agents need to work. Without this, agents cannot operate when the machine is locked.'),
+        sectionBody('screenAccess', h(Fragment, null,
+
+        h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 } },
+          h('div', null,
+            h('span', { style: { fontWeight: 600, fontSize: 14 } }, 'Enable Screen Auto-Unlock'),
+            h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' } }, 'When enabled, the system will automatically unlock the screen when agents need access (e.g., during heartbeat checks, browser automation, or scheduled tasks)')
+          ),
+          h(ToggleSwitch, { checked: screenAccess.enabled, onChange: function(v) { updateScreen({ enabled: v }); } })
+        ),
+
+        screenAccess.enabled && h(Fragment, null,
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 } },
+            h('div', null,
+              h('label', { className: 'form-label' }, 'System / Computer Password'),
+              h('input', { className: 'input', type: 'password', value: screenAccess.systemPassword || '', onChange: function(e) { updateScreen({ systemPassword: e.target.value }); }, placeholder: 'Your macOS/Linux login password' }),
+              h('p', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Stored encrypted. Used to unlock the screen when agents need to work. This is the password you use to log into your computer.')
+            ),
+            h('div', null,
+              h('label', { className: 'form-label' }, 'Screen Status'),
+              h('div', { style: { marginTop: 4 } },
+                h('button', { className: 'btn btn-secondary btn-sm', style: { marginBottom: 8 }, onClick: function() {
+                  engineCall('/system/screen-status').then(function(d) { setScreenStatus(d); }).catch(function(e) { setScreenStatus({ error: e.message }); });
+                } }, 'Check Screen Status'),
+                screenStatus && h('div', { style: { fontSize: 12, marginTop: 4 } },
+                  screenStatus.error ? h('span', { style: { color: 'var(--danger)' } }, screenStatus.error) :
+                  h('span', { style: { color: screenStatus.locked ? 'var(--warning-text, #b45309)' : 'var(--success)' } },
+                    screenStatus.locked ? 'Screen is LOCKED' + (screenStatus.displayAsleep ? ' (display asleep)' : '') : 'Screen is unlocked',
+                    ' \u2014 ', screenStatus.platform
+                  )
+                )
+              ),
+              screenStatus && screenStatus.locked && h('button', { className: 'btn btn-primary btn-sm', style: { marginTop: 8 }, disabled: unlocking || !screenAccess.systemPassword, onClick: function() {
+                setUnlocking(true);
+                engineCall('/system/unlock-screen', { method: 'POST', body: JSON.stringify({ password: screenAccess.systemPassword }) })
+                  .then(function(d) {
+                    if (d.success) { toast(d.message, 'success'); setScreenStatus(null); }
+                    else { toast(d.error || 'Unlock failed', 'error'); }
+                  })
+                  .catch(function(e) { toast(e.message, 'error'); })
+                  .finally(function() { setUnlocking(false); });
+              } }, unlocking ? 'Unlocking...' : 'Unlock Now')
+            )
+          ),
+
+          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+                h(ToggleSwitch, { checked: screenAccess.autoUnlock === true, onChange: function(v) { updateScreen({ autoUnlock: v }); } }),
+                h('span', { style: { fontWeight: 500 } }, 'Auto-Unlock on Agent Activity')
+              ),
+              h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: 0 } }, 'Automatically unlock the screen when an agent needs to use the browser, run desktop automation, or start a scheduled task.')
+            ),
+            h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+                h(ToggleSwitch, { checked: screenAccess.preventSleep === true, onChange: function(v) { updateScreen({ preventSleep: v }); } }),
+                h('span', { style: { fontWeight: 500 } }, 'Prevent System Sleep')
+              ),
+              h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: 0 } }, 'Keep the system awake using caffeinate (macOS) or systemd-inhibit (Linux). Prevents the machine from sleeping while agents are active.')
+            )
+          ),
+
+          h('div', { style: { marginTop: 16, padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)', border: '1px solid var(--border)' } },
+            h('strong', null, 'How it works: '),
+            'When an agent needs to interact with the system (browser automation, desktop tools, etc.) and detects the screen is locked, it will automatically: ',
+            h('br'), '1. Wake the display if asleep',
+            h('br'), '2. Type your password to unlock the screen',
+            h('br'), '3. Perform the required action',
+            h('br'), h('br'),
+            h('strong', null, 'Security note: '),
+            'The password is stored in the server\'s encrypted security config. Only the server process has access to it \u2014 agents never see the raw password.'
+          )
+        )))
       );
     })(),
 
     // Security Audit Log
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.journal(), 'Security Audit Log'),
+      sectionHeader(I.journal(), 'Security Audit Log', 'auditSecurity'),
       h('p', { style: _cardDescStyle }, 'Log and monitor security events'),
+      sectionBody('auditSecurity', h(Fragment, null,
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
         h('span', { style: { fontWeight: 500 } }, 'Enable Audit Logging'),
         h(ToggleSwitch, { checked: auditSecurity.enabled, onChange: function(v) { updateSection('auditSecurity', { enabled: v }); } })
@@ -2181,7 +2318,7 @@ function ComprehensiveSecurityTab(props) {
             )
           )
         )
-      )
+      )))
     )
   );
 }
@@ -2278,7 +2415,7 @@ function NetworkFirewallTab(props) {
     // ── IP ACCESS CONTROL ──
     h('div', { style: _sectionTitleStyle }, 'IP Access Control'),
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.shield(), ' Inbound IP Filtering'),
+      h('div', { style: _cardTitleStyle }, I.shield(), ' Inbound IP Filtering', h(HelpButton, { label: 'Inbound IP Filtering' }, h('div', null, h('p', null, 'Controls which IP addresses can reach your dashboard and API endpoints.'), h('p', null, h('strong', null, 'Allowlist mode:'), ' Only listed IPs can access. Everything else is blocked.'), h('p', null, h('strong', null, 'Blocklist mode:'), ' All IPs allowed except listed ones.'), h('p', null, 'Supports CIDR notation (e.g. 10.0.0.0/8). Bypass paths like /health are always accessible.')))),
       h('div', { style: _cardDescStyle }, 'Restrict which IP addresses can access the dashboard, APIs, and engine endpoints. Supports individual IPs and CIDR ranges.'),
       h(ToggleSwitch, { label: 'Enable IP access control', checked: ipAccess.enabled === true, onChange: function(v) { var next = Object.assign({}, ipAccess, { enabled: v }); if (!next.mode) next.mode = 'allowlist'; patchFw('ipAccess', next); } }),
       ipAccess.enabled && h(Fragment, null,
@@ -2310,7 +2447,7 @@ function NetworkFirewallTab(props) {
     // ── OUTBOUND EGRESS ──
     h('div', { style: _sectionTitleStyle }, 'Outbound Egress Rules'),
     h('div', { style: _cardStyle },
-      h('div', { style: _cardTitleStyle }, I.globe(), ' Egress Filtering'),
+      h('div', { style: _cardTitleStyle }, I.globe(), ' Egress Filtering', h(HelpButton, { label: 'Egress Filtering' }, h('div', null, h('p', null, 'Controls outbound network access for agents. Prevents agents from reaching unauthorized external services.'), h('p', null, h('strong', null, 'Allowlist:'), ' Agents can only connect to listed hosts/ports.'), h('p', null, h('strong', null, 'Blocklist:'), ' Agents can connect anywhere except listed hosts/ports.'), h('p', null, 'Wildcards supported (e.g. *.googleapis.com). Applies to web fetch, browser automation, and HTTP tools.')))),
       h('div', { style: _cardDescStyle }, 'Control which external hosts and ports agents can reach when using web fetch, browser, and other network tools.'),
       h(ToggleSwitch, { label: 'Enable egress filtering', checked: egress.enabled === true, onChange: function(v) { var next = Object.assign({}, egress, { enabled: v }); if (!next.mode) next.mode = 'blocklist'; patchFw('egress', next); } }),
       egress.enabled && h(Fragment, null,
@@ -2338,7 +2475,7 @@ function NetworkFirewallTab(props) {
 
       // Proxy config
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.link(), ' Proxy Configuration'),
+        h('div', { style: _cardTitleStyle }, I.link(), ' Proxy Configuration', h(HelpButton, { label: 'Proxy Configuration' }, h('div', null, h('p', null, 'Route agent outbound traffic through a corporate proxy. Required in air-gapped or restricted network environments.'), h('p', null, 'Set HTTP and HTTPS proxy URLs. Use No-Proxy to bypass the proxy for internal hosts (e.g. *.internal, localhost).')))),
         h('div', { style: _cardDescStyle }, 'Configure HTTP/HTTPS proxies for agent outbound traffic in air-gapped or restricted environments.'),
         h('div', { className: 'form-group', style: { marginBottom: 12 } },
           h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'HTTP Proxy'),
@@ -2353,7 +2490,7 @@ function NetworkFirewallTab(props) {
 
       // Trusted proxies
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.shield(), ' Trusted Proxies'),
+        h('div', { style: _cardTitleStyle }, I.shield(), ' Trusted Proxies', h(HelpButton, { label: 'Trusted Proxies' }, h('div', null, h('p', null, 'When behind a load balancer or reverse proxy (e.g. Cloudflare, nginx), the real client IP comes from X-Forwarded-For headers.'), h('p', null, 'List your proxy IPs/CIDRs here so the system extracts the correct client IP for IP access control and rate limiting.')))),
         h('div', { style: _cardDescStyle }, 'Specify which reverse proxies are trusted for X-Forwarded-For header extraction. Required for accurate IP-based access control behind load balancers.'),
         h(ToggleSwitch, { label: 'Enable trusted proxy validation', checked: tp.enabled === true, onChange: function(v) { patchTp('enabled', v); } }),
         tp.enabled && h(TagInput, { label: 'Trusted Proxy IPs / CIDRs', value: tp.ips || [], onChange: function(v) { patchTp('ips', v); }, placeholder: '10.0.0.0/8', mono: true })
@@ -2366,14 +2503,14 @@ function NetworkFirewallTab(props) {
 
       // CORS
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.globe(), ' CORS Origins'),
+        h('div', { style: _cardTitleStyle }, I.globe(), ' CORS Origins', h(HelpButton, { label: 'CORS Origins' }, h('div', null, h('p', null, 'Cross-Origin Resource Sharing (CORS) controls which domains can make API requests to your server from a browser.'), h('p', null, 'Add your dashboard URL and any custom frontend domains. Leave empty to allow all origins (not recommended for production).')))),
         h('div', { style: _cardDescStyle }, 'Allowed origins for cross-origin requests. Leave empty to allow all origins (*).'),
         h(TagInput, { label: 'Allowed Origins', value: net.corsOrigins || [], onChange: function(v) { patchNet('corsOrigins', v); }, placeholder: 'https://dashboard.example.com', mono: true })
       ),
 
       // Rate Limiting
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.clock(), ' Rate Limiting'),
+        h('div', { style: _cardTitleStyle }, I.clock(), ' Rate Limiting', h(HelpButton, { label: 'Rate Limiting' }, h('div', null, h('p', null, 'Limits API requests per IP address using a token bucket algorithm. Prevents brute-force attacks and API abuse.'), h('p', null, 'Skip paths (like /health) are excluded from rate limiting. Adjust requests per minute based on your expected traffic.')))),
         h('div', { style: _cardDescStyle }, 'Per-IP rate limiting using token bucket algorithm. Protects against abuse and DDoS.'),
         h(ToggleSwitch, { label: 'Enable rate limiting', checked: rl.enabled !== false, onChange: function(v) { patchRl('enabled', v); } }),
         h('div', { className: 'form-group', style: { marginBottom: 12 } },
@@ -2385,7 +2522,7 @@ function NetworkFirewallTab(props) {
 
       // HTTPS Enforcement
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.key(), ' HTTPS Enforcement'),
+        h('div', { style: _cardTitleStyle }, I.key(), ' HTTPS Enforcement', h(HelpButton, { label: 'HTTPS Enforcement' }, h('div', null, h('p', null, 'Redirects all HTTP requests to HTTPS in production. Essential for protecting data in transit.'), h('p', null, 'Uses X-Forwarded-Proto header detection for reverse proxy setups (Cloudflare, nginx, etc.). Exclude specific paths like health checks if needed.')))),
         h('div', { style: _cardDescStyle }, 'Require HTTPS for all requests in production. Checks X-Forwarded-Proto header for reverse proxy setups.'),
         h(ToggleSwitch, { label: 'Enforce HTTPS', checked: https.enabled === true, onChange: function(v) { patchHttps('enabled', v); } }),
         https.enabled && h(TagInput, { label: 'Exclude Paths', value: https.excludePaths || [], onChange: function(v) { patchHttps('excludePaths', v); }, placeholder: '/health', mono: true })
@@ -2393,7 +2530,7 @@ function NetworkFirewallTab(props) {
 
       // Security Headers
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.shield(), ' Security Headers'),
+        h('div', { style: _cardTitleStyle }, I.shield(), ' Security Headers', h(HelpButton, { label: 'Security Headers' }, h('div', null, h('p', null, 'HTTP headers added to every response for defense-in-depth browser security.'), h('p', null, h('strong', null, 'HSTS:'), ' Forces browsers to use HTTPS for future visits.'), h('p', null, h('strong', null, 'X-Frame-Options:'), ' Prevents clickjacking by controlling iframe embedding.'), h('p', null, h('strong', null, 'Referrer-Policy:'), ' Controls how much referrer info is sent with requests.'), h('p', null, h('strong', null, 'Permissions-Policy:'), ' Disables browser features like camera/microphone access.')))),
         h('div', { style: _cardDescStyle }, 'HTTP security headers applied to all responses. Protects against clickjacking, MIME sniffing, and other browser-level attacks.'),
         h(ToggleSwitch, { label: 'Strict-Transport-Security (HSTS)', checked: sh.hsts !== false, onChange: function(v) { patchSh('hsts', v); } }),
         sh.hsts !== false && h('div', { className: 'form-group', style: { marginBottom: 12 } },
@@ -2431,7 +2568,7 @@ function NetworkFirewallTab(props) {
 
       // DNS Rebinding Protection
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.shield(), ' DNS Rebinding Protection'),
+        h('div', { style: _cardTitleStyle }, I.shield(), ' DNS Rebinding Protection', h(HelpButton, { label: 'DNS Rebinding Protection' }, h('div', null, h('p', null, 'Prevents DNS rebinding attacks where a malicious website resolves its domain to your internal server IP.'), h('p', null, 'When enabled, requests with a Host header not in the allowlist are rejected. Add your domain(s) to the allowed hosts list.')))),
         h('div', { style: _cardDescStyle }, 'Validates the Host header against an allowlist to prevent DNS rebinding attacks targeting internal services.'),
         h(ToggleSwitch, { label: 'Enable DNS rebinding protection', checked: dnsReb.enabled === true, onChange: function(v) { patchFw('dnsRebinding', Object.assign({}, dnsReb, { enabled: v })); } }),
         dnsReb.enabled && h(TagInput, { label: 'Allowed Hosts', value: dnsReb.allowedHosts || [], onChange: function(v) { patchFw('dnsRebinding', Object.assign({}, dnsReb, { allowedHosts: v })); }, placeholder: 'enterprise.example.com', mono: true })
@@ -2439,7 +2576,7 @@ function NetworkFirewallTab(props) {
 
       // Request Body Size Limit
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.shield(), ' Request Body Limits'),
+        h('div', { style: _cardTitleStyle }, I.shield(), ' Request Body Limits', h(HelpButton, { label: 'Request Body Limits' }, h('div', null, h('p', null, 'Limits the maximum size of incoming request bodies to prevent denial-of-service via oversized payloads.'), h('p', null, 'Default is 10 MB. Increase if agents need to upload large files. Decrease for tighter security in exposed environments.')))),
         h('div', { style: _cardDescStyle }, 'Maximum request body size for API endpoints. Prevents excessively large payloads from consuming server resources.'),
         h('div', { className: 'form-group', style: { marginBottom: 12 } },
           h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Max Body Size (KB)'),
@@ -2450,7 +2587,7 @@ function NetworkFirewallTab(props) {
 
       // Geo-IP Restrictions
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.globe(), ' Geo-IP Restrictions'),
+        h('div', { style: _cardTitleStyle }, I.globe(), ' Geo-IP Restrictions', h(HelpButton, { label: 'Geo-IP Restrictions' }, h('div', null, h('p', null, 'Restricts access based on the geographic location of the client IP address.'), h('p', null, h('strong', null, 'Allowlist:'), ' Only selected countries can access.'), h('p', null, h('strong', null, 'Blocklist:'), ' Selected countries are blocked, everyone else allowed.'), h('p', null, 'Uses built-in IP geolocation — works without Cloudflare or any reverse proxy.')))),
         h('div', { style: _cardDescStyle }, 'Restrict access by country using built-in IP geolocation. Works with any setup — no reverse proxy headers required.'),
         h(ToggleSwitch, { label: 'Enable geo-IP filtering', checked: geoIp.enabled === true, onChange: function(v) { patchFw('geoIp', Object.assign({}, geoIp, { enabled: v, mode: geoIp.mode || 'blocklist' })); } }),
         geoIp.enabled && h(Fragment, null,
@@ -2470,7 +2607,7 @@ function NetworkFirewallTab(props) {
 
       // Webhook Security
       h('div', { style: _cardStyle },
-        h('div', { style: _cardTitleStyle }, I.key(), ' Webhook Security'),
+        h('div', { style: _cardTitleStyle }, I.key(), ' Webhook Security', h(HelpButton, { label: 'Webhook Security' }, h('div', null, h('p', null, 'Secures inbound webhook endpoints used by Slack, Google Chat, and other integrations.'), h('p', null, h('strong', null, 'HMAC validation:'), ' Requires incoming webhooks to include a valid signature, preventing spoofed requests.'), h('p', null, h('strong', null, 'Source IP filtering:'), ' Only accept webhooks from known provider IP ranges (e.g. Google, Slack).')))),
         h('div', { style: _cardDescStyle }, 'Security controls for inbound webhook endpoints (Google Chat, Slack, third-party integrations).'),
         h(ToggleSwitch, { label: 'Enable webhook security', checked: webhookSec.enabled === true, onChange: function(v) { patchFw('webhookSecurity', Object.assign({}, webhookSec, { enabled: v })); } }),
         webhookSec.enabled && h(Fragment, null,

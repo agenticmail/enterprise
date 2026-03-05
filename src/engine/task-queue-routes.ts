@@ -72,6 +72,24 @@ export function createTaskQueueRoutes(taskQueue: TaskQueueManager) {
     });
   });
 
+  // POST /task-pipeline/webhook — receive task events from standalone agent processes
+  // Agents create/update tasks in shared DB but SSE subscribers are on this process.
+  // This endpoint re-emits the event to all SSE subscribers for real-time updates.
+  router.post('/webhook', async (c) => {
+    try {
+      const event = await c.req.json();
+      if (event && event.task) {
+        // Re-emit to local SSE subscribers
+        for (const l of (taskQueue as any).listeners || []) {
+          try { l(event); } catch { /* ignore */ }
+        }
+      }
+      return c.json({ ok: true });
+    } catch {
+      return c.json({ ok: false }, 400);
+    }
+  });
+
   // GET /task-pipeline/:id — single task detail
   router.get('/:id', (c) => {
     const task = taskQueue.getTask(c.req.param('id'));

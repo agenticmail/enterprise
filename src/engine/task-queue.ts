@@ -91,9 +91,10 @@ export interface TaskRecord {
   // Activity log (micro-events within a task)
   activityLog: Array<{
     ts: string;
-    type: string;                // 'created' | 'assigned' | 'started' | 'delegated' | 'returned' | 'progress' | 'completed' | 'failed' | 'note'
+    type: string;                // 'created' | 'assigned' | 'started' | 'delegated' | 'returned' | 'progress' | 'completed' | 'failed' | 'note' | 'crash'
     agent: string;
     detail: string;
+    [key: string]: any;          // Allow extra fields (previousStatus, retryCount, sessionId, etc.)
   }>;
 }
 
@@ -357,7 +358,7 @@ export class TaskQueueManager {
     return chain.sort((a, b) => (a.chainSeq || 0) - (b.chainSeq || 0));
   }
 
-  async updateTask(taskId: string, updates: Partial<Pick<TaskRecord, 'status' | 'progress' | 'result' | 'error' | 'modelUsed' | 'tokensUsed' | 'costUsd' | 'sessionId' | 'title' | 'description' | 'priority' | 'activityLog'>>): Promise<TaskRecord | null> {
+  async updateTask(taskId: string, updates: Partial<Pick<TaskRecord, 'status' | 'progress' | 'result' | 'error' | 'modelUsed' | 'tokensUsed' | 'costUsd' | 'sessionId' | 'title' | 'description' | 'priority' | 'activityLog' | 'startedAt'>>): Promise<TaskRecord | null> {
     await this.init();
     const task = this.tasks.get(taskId);
     if (!task) return null;
@@ -552,9 +553,21 @@ export class TaskQueueManager {
     return () => { this.listeners.delete(listener); };
   }
 
+  /** URL to notify when tasks change (for standalone agents → enterprise SSE relay) */
+  webhookUrl: string | null = null;
+
   private emit(event: TaskEvent): void {
     for (const l of this.listeners) {
       try { l(event); } catch { /* ignore */ }
+    }
+    // Notify enterprise server for SSE relay (fire-and-forget)
+    if (this.webhookUrl) {
+      fetch(this.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(event),
+        signal: AbortSignal.timeout(3000),
+      }).catch(() => {});
     }
   }
 

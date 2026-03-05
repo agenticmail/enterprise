@@ -132,10 +132,11 @@ export function DatabaseAccessPage() {
     try {
       var [conns, agts] = await Promise.all([
         engineCall('/database/connections'),
-        engineCall('/agents').catch(function() { return []; }),
+        engineCall('/agents').catch(function() { return { agents: [] }; }),
       ]);
       setConnections(Array.isArray(conns) ? conns : []);
-      setAgents(Array.isArray(agts) ? agts : []);
+      var agentList = Array.isArray(agts) ? agts : (agts && Array.isArray(agts.agents) ? agts.agents : []);
+      setAgents(agentList);
     } catch (e) { console.error('Load failed:', e); }
     setLoading(false);
   }, []);
@@ -694,7 +695,7 @@ function GrantAccessModal(props) {
         h('select', { style: s.select, value: agentId, onChange: function(e) { setAgentId(e.target.value); } },
           h('option', { value: '' }, '— Select Agent —'),
           props.agents.map(function(a) {
-            return h('option', { key: a.id, value: a.id }, a.displayName || a.name);
+            return h('option', { key: a.id, value: a.id }, a.displayName || a.display_name || a.name || (a.config && a.config.name) || a.id);
           })
         ),
       ),

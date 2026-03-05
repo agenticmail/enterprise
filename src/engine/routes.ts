@@ -96,6 +96,10 @@ import type { DatabaseAdapter } from '../db/adapter.js';
 const engine = new Hono<AppEnv>();
 let _engineApp: Hono<AppEnv> = engine;
 
+// Forward declarations (set later via setEngineDb)
+let _engineDb: import('./db-adapter.js').EngineDatabase | null = null;
+let _adminDb: DatabaseAdapter | null = null;
+
 // ─── Shared Instances ───────────────────────────────────
 
 const permissionEngine = new PermissionEngine(FULL_SKILL_DEFINITIONS);
@@ -753,9 +757,6 @@ engine.post('/email-poller/rediscover', async (c) => {
 });
 
 // ─── setEngineDb ────────────────────────────────────────
-
-let _engineDb: import('./db-adapter.js').EngineDatabase | null = null;
-let _adminDb: DatabaseAdapter | null = null;
 
 export async function setEngineDb(
   db: import('./db-adapter.js').EngineDatabase,

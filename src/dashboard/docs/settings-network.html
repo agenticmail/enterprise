@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network &amp; Firewall — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/settings">&#8592; Back to Settings</a>
+
+<h1>Network &amp; Firewall</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Control network access, egress rules, proxy settings, and deployment security for your enterprise instance.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#ip-access">Inbound IP Filtering</a></li>
+    <li><a href="#egress">Egress Filtering</a></li>
+    <li><a href="#proxy">Proxy Configuration</a></li>
+    <li><a href="#trusted-proxies">Trusted Proxies</a></li>
+    <li><a href="#cors">CORS Origins</a></li>
+    <li><a href="#rate-limiting">Rate Limiting</a></li>
+    <li><a href="#https">HTTPS Enforcement</a></li>
+    <li><a href="#security-headers">Security Headers</a></li>
+    <li><a href="#dns-rebinding">DNS Rebinding Protection</a></li>
+    <li><a href="#body-limits">Request Body Limits</a></li>
+    <li><a href="#geo-ip">Geo-IP Restrictions</a></li>
+    <li><a href="#webhooks">Webhook Security</a></li>
+    <li><a href="#deployment-scenarios">Deployment Scenarios</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>The Network &amp; Firewall tab controls who can access your AgenticMail instance (inbound) and what your agents can reach on the internet (outbound). These settings form the perimeter defense of your deployment.</p>
+
+<div class="tip"><strong>Save behavior:</strong> Changes are saved when you click the "Save Settings" button at the top or the sticky bar at the bottom. A "Changes take effect immediately" note appears — no server restart is needed.</div>
+
+<h2 id="ip-access">Inbound IP Filtering</h2>
+<p>Restricts which IP addresses can access the dashboard, APIs, and engine endpoints. Supports individual IPs and CIDR ranges.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Master toggle for IP filtering</td></tr>
+    <tr><td><strong>Mode</strong></td><td>
+      <ul style="margin: 0;">
+        <li><strong>Allowlist</strong> — Only listed IPs can access. Everything else is blocked. Use for production lockdown.</li>
+        <li><strong>Blocklist</strong> — All IPs allowed except listed ones. Use for blocking known attackers.</li>
+      </ul>
+    </td></tr>
+    <tr><td><strong>Allowed IPs / CIDRs</strong></td><td>IPs permitted in allowlist mode. E.g., <code>10.0.0.0/8</code>, <code>203.0.113.42</code></td></tr>
+    <tr><td><strong>Blocked IPs / CIDRs</strong></td><td>IPs rejected in blocklist mode</td></tr>
+    <tr><td><strong>Bypass Paths</strong></td><td>URL paths that skip IP filtering (e.g., <code>/health</code>, <code>/ready</code> for load balancer checks)</td></tr>
+  </table>
+</div>
+
+<h3>Test IP Tool</h3>
+<p>Enter any IP address and click "Test" to see whether it would be allowed or blocked under the current rules. Useful for validating your configuration before saving.</p>
+
+<div class="warning"><strong>Don't lock yourself out!</strong> Before enabling allowlist mode, make sure your current IP is included. If you do lock yourself out, you can modify the firewall config directly in the database (<code>securityConfig</code> in the <code>settings</code> table).</div>
+
+<h2 id="egress">Egress Filtering</h2>
+<p>Controls which external hosts and ports agents can reach when using web fetch, browser automation, and other network tools.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Master toggle for egress filtering</td></tr>
+    <tr><td><strong>Mode</strong></td><td>
+      <ul style="margin: 0;">
+        <li><strong>Allowlist</strong> — Agents can only connect to listed hosts. Maximum restriction.</li>
+        <li><strong>Blocklist</strong> — Agents can connect anywhere except listed hosts. More permissive.</li>
+      </ul>
+    </td></tr>
+    <tr><td><strong>Allowed Hosts</strong></td><td>Wildcards supported: <code>*.googleapis.com</code>, <code>api.openai.com</code></td></tr>
+    <tr><td><strong>Blocked Hosts</strong></td><td>Hosts agents cannot reach: <code>evil.example.com</code></td></tr>
+    <tr><td><strong>Allowed Ports</strong></td><td>Only these outbound ports are permitted (e.g., 443, 80)</td></tr>
+    <tr><td><strong>Blocked Ports</strong></td><td>These outbound ports are blocked (e.g., 25 for SMTP, 22 for SSH)</td></tr>
+  </table>
+</div>
+
+<div class="tip"><strong>Minimal egress for production:</strong> Use allowlist mode and only permit the hosts your agents actually need — LLM provider APIs, email servers, and specific integration endpoints. This prevents data exfiltration even if an agent is compromised.</div>
+
+<h2 id="proxy">Proxy Configuration</h2>
+<p>Configure HTTP/HTTPS proxies for agent outbound traffic. Required in corporate environments with restricted internet access.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>HTTP Proxy</strong></td><td>Proxy URL for HTTP traffic: <code>http://proxy.corp.internal:8080</code></td></tr>
+    <tr><td><strong>HTTPS Proxy</strong></td><td>Proxy URL for HTTPS traffic (often the same as HTTP proxy)</td></tr>
+    <tr><td><strong>No-Proxy Hosts</strong></td><td>Hosts that bypass the proxy: <code>localhost</code>, <code>127.0.0.1</code>, <code>*.internal</code></td></tr>
+  </table>
+</div>
+
+<p>When configured, these proxy settings are applied to all outbound HTTP/HTTPS requests made by agents via tools like <code>web_fetch</code>, <code>web_search</code>, and browser automation.</p>
+
+<h2 id="trusted-proxies">Trusted Proxies</h2>
+<p>When your instance sits behind a reverse proxy (nginx, Cloudflare, AWS ALB), the real client IP is in the <code>X-Forwarded-For</code> header. You must list your proxy IPs here so the system extracts the correct client IP.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle trusted proxy validation</td></tr>
+    <tr><td><strong>Trusted Proxy IPs / CIDRs</strong></td><td>IP ranges of your proxies: <code>10.0.0.0/8</code>, <code>172.16.0.0/12</code></td></tr>
+  </table>
+</div>
+
+<div class="danger"><strong>Critical for IP filtering:</strong> Without trusted proxies configured, the system sees the proxy's IP instead of the real client IP. This breaks IP allowlisting, rate limiting, and audit logging.</div>
+
+<h2 id="cors">CORS Origins</h2>
+<p>Controls which domains can make cross-origin API requests from a browser. Required when your dashboard is served from a different domain than the API.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Allowed Origins</strong></td><td>List of allowed origins: <code>https://dashboard.example.com</code>. Leave empty to allow all (<code>*</code>).</td></tr>
+  </table>
+</div>
+
+<div class="warning"><strong>Production:</strong> Never leave CORS origins empty in production. Always specify exact origins to prevent unauthorized cross-origin requests.</div>
+
+<h2 id="rate-limiting">Rate Limiting</h2>
+<p>Per-IP rate limiting using a token bucket algorithm. Protects against brute-force attacks, API abuse, and basic DDoS.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>On</td><td>Master toggle</td></tr>
+    <tr><td><strong>Requests per Minute</strong></td><td>120</td><td>Maximum API requests per IP per minute</td></tr>
+    <tr><td><strong>Skip Paths</strong></td><td><code>/health</code>, <code>/ready</code></td><td>Paths excluded from rate limiting (health checks, webhooks)</td></tr>
+  </table>
+</div>
+
+<p>When a client exceeds the limit, they receive a <code>429 Too Many Requests</code> response with a <code>Retry-After</code> header.</p>
+
+<h2 id="https">HTTPS Enforcement</h2>
+<p>Redirects all HTTP requests to HTTPS. Essential for production deployments.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enforce HTTPS</strong></td><td>Redirect HTTP to HTTPS. Checks <code>X-Forwarded-Proto</code> for reverse proxy setups.</td></tr>
+    <tr><td><strong>Exclude Paths</strong></td><td>Paths that can be accessed over HTTP (e.g., health checks from internal LB)</td></tr>
+  </table>
+</div>
+
+<h2 id="security-headers">Security Headers</h2>
+<p>HTTP headers added to every response for browser-level security.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Header</th><th>Default</th><th>Purpose</th></tr>
+    <tr><td><strong>Strict-Transport-Security (HSTS)</strong></td><td>Enabled, 1 year</td><td>Forces browsers to always use HTTPS. <code>max-age</code> sets how long browsers remember this.</td></tr>
+    <tr><td><strong>X-Content-Type-Options</strong></td><td><code>nosniff</code></td><td>Prevents browsers from guessing content types. Stops MIME-based attacks.</td></tr>
+    <tr><td><strong>X-Frame-Options</strong></td><td><code>DENY</code></td><td>Prevents your dashboard from being embedded in iframes. Stops clickjacking.</td></tr>
+    <tr><td><strong>Referrer-Policy</strong></td><td><code>strict-origin-when-cross-origin</code></td><td>Controls how much URL info is sent in the <code>Referer</code> header.</td></tr>
+    <tr><td><strong>Permissions-Policy</strong></td><td><code>camera=(), microphone=(), geolocation=()</code></td><td>Disables browser features not needed by the dashboard.</td></tr>
+  </table>
+</div>
+
+<div class="tip"><strong>Recommended:</strong> Keep all defaults. Only change X-Frame-Options to <code>SAMEORIGIN</code> if you embed the dashboard in your own portal.</div>
+
+<h2 id="dns-rebinding">DNS Rebinding Protection</h2>
+<p>Validates the <code>Host</code> header against an allowlist to prevent DNS rebinding attacks.</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">What is DNS Rebinding?</h3>
+  <p>An attacker registers a domain that initially resolves to their server, then re-resolves to your internal server IP. The browser thinks it's making a same-origin request to the attacker's domain, but it's actually hitting your internal API.</p>
+  <p>When enabled, requests with a <code>Host</code> header not in the allowlist are rejected with a <code>403 Forbidden</code>.</p>
+</div>
+
+<table>
+  <tr><th>Setting</th><th>Description</th></tr>
+  <tr><td><strong>Enable</strong></td><td>Toggle DNS rebinding protection</td></tr>
+  <tr><td><strong>Allowed Hosts</strong></td><td>Your domain(s): <code>enterprise.example.com</code>, <code>localhost</code></td></tr>
+</table>
+
+<h2 id="body-limits">Request Body Limits</h2>
+<p>Maximum size for incoming request bodies. Prevents denial-of-service via oversized payloads.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+    <tr><td><strong>Max Body Size</strong></td><td>10,240 KB (10 MB)</td><td>Requests exceeding this are rejected with <code>413 Payload Too Large</code></td></tr>
+  </table>
+</div>
+
+<p>Increase this if agents need to upload large files (documents, images). Decrease for tighter security in exposed environments.</p>
+
+<h2 id="geo-ip">Geo-IP Restrictions</h2>
+<p>Restrict access by country using built-in IP geolocation. Works without Cloudflare or any reverse proxy — the server resolves IPs directly.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle geo-IP filtering</td></tr>
+    <tr><td><strong>Mode</strong></td><td>
+      <ul style="margin: 0;">
+        <li><strong>Allowlist</strong> — Only selected countries can access</li>
+        <li><strong>Blocklist</strong> — Selected countries are blocked, all others allowed</li>
+      </ul>
+    </td></tr>
+    <tr><td><strong>Countries</strong></td><td>Select countries using the picker (search by name or code)</td></tr>
+  </table>
+</div>
+
+<div class="warning"><strong>VPN users:</strong> Geo-IP filtering is based on the IP address the server sees. Users on VPNs will appear to be in the VPN's country, not their actual location. Consider this when using allowlist mode.</div>
+
+<h2 id="webhooks">Webhook Security</h2>
+<p>Security controls for inbound webhook endpoints used by Slack, Google Chat, and third-party integrations.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable</strong></td><td>Toggle webhook security</td></tr>
+    <tr><td><strong>Require HMAC Signature</strong></td><td>Webhooks must include a valid HMAC signature. Prevents spoofed requests from attackers.</td></tr>
+    <tr><td><strong>Allowed Source IPs</strong></td><td>Only accept webhooks from known provider IP ranges (e.g., Google: <code>35.0.0.0/8</code>, Slack: <code>3.0.0.0/8</code>)</td></tr>
+  </table>
+</div>
+
+<h2 id="deployment-scenarios">Deployment Scenarios</h2>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Development / Local</h3>
+  <ul>
+    <li>IP filtering: Disabled</li>
+    <li>HTTPS: Disabled</li>
+    <li>CORS: Empty (allow all)</li>
+    <li>Rate limiting: Enabled (prevents runaway scripts)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Production — Behind Cloudflare</h3>
+  <ul>
+    <li>IP filtering: Allowlist with Cloudflare IPs (<code>173.245.48.0/20</code>, <code>103.21.244.0/22</code>, etc.)</li>
+    <li>Trusted proxies: Cloudflare IP ranges</li>
+    <li>HTTPS: Enforced</li>
+    <li>CORS: Your dashboard domain only</li>
+    <li>Security headers: All defaults</li>
+    <li>Geo-IP: Optional — Cloudflare can also handle this at the edge</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Corporate / Air-Gapped</h3>
+  <ul>
+    <li>IP filtering: Allowlist with corporate IP ranges</li>
+    <li>Egress: Allowlist with only required API endpoints</li>
+    <li>Proxy: Corporate HTTP/HTTPS proxy configured</li>
+    <li>HTTPS: Enforced</li>
+    <li>DNS rebinding: Enabled with internal hostnames</li>
+  </ul>
+</div>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/settings-security">Security System</a> — Prompt injection, encryption, dependency management</li>
+    <li><a href="/docs/settings-tool-security">Tool Security</a> — Path sandbox, SSRF, command sanitizer</li>
+    <li><a href="/docs/settings">Settings Overview</a> — All settings tabs</li>
+    <li><a href="/docs/audit">Audit Log</a> — Monitor security events</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

@@ -481,6 +481,8 @@ export class PermissionEngine {
         console.error(`[permissions] Failed to persist profile for agent ${agentId}:`, err);
       });
     }
+    // Push to standalone agent in real-time
+    import('./agent-notify.js').then(({ notifyAgent }) => notifyAgent(agentId, 'permissions')).catch(() => {});
   }
 
   getProfile(agentId: string): AgentPermissionProfile | undefined {

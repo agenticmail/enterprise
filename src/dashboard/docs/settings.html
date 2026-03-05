@@ -195,15 +195,23 @@
 <p>Manage deployment credentials for pushing agents to different environments (Docker, Kubernetes, cloud VMs). Create credentials with target-specific configuration.</p>
 
 <h2 id="security">Security</h2>
-<p>The Security tab provides system-level security configuration, event monitoring, and port scanning to check your instance's exposure.</p>
+<p>The Security tab provides comprehensive security configuration including prompt injection defense, SQL injection prevention, input/output filtering, transport encryption, dependency management, screen unlock, and audit logging. Each section has its own Edit/Save/Cancel buttons.</p>
 
-<h3>Transport Encryption</h3>
-<p>Encrypt API data in transit between the dashboard and server using AES-256-CBC. Choose to encrypt all API calls or select specific endpoint groups (API keys, database credentials, OAuth tokens, etc.). See the <a href="/docs/transport-encryption">Transport Encryption documentation</a> for full details.</p>
-<ul>
-<li><strong>Encrypt All:</strong> Every dashboard API call is encrypted</li>
-<li><strong>Sensitive Only:</strong> Pre-selected groups handling credentials and secrets</li>
-<li><strong>Custom:</strong> Toggle individual endpoint groups and add custom patterns</li>
-</ul>
+<div class="card">
+  <table>
+    <tr><th>Section</th><th>What It Controls</th></tr>
+    <tr><td><strong>Prompt Injection Defense</strong></td><td>Multi-layer detection: monitor, sanitize, or block injection attempts</td></tr>
+    <tr><td><strong>SQL Injection Prevention</strong></td><td>Scan tool inputs and API bodies for SQL injection patterns</td></tr>
+    <tr><td><strong>Input Validation</strong></td><td>Max input length, JSON depth, HTML stripping, Unicode sanitization</td></tr>
+    <tr><td><strong>Output Filtering</strong></td><td>Scan agent outputs for secrets and PII; redact or block</td></tr>
+    <tr><td><strong>Transport Encryption</strong></td><td>AES-256-CBC encryption of API data between dashboard and server</td></tr>
+    <tr><td><strong>Dependency Management</strong></td><td>Org-wide package install policy, allowed managers, blocked packages</td></tr>
+    <tr><td><strong>Screen Unlock</strong></td><td>Auto-unlock the machine when agents need desktop access</td></tr>
+    <tr><td><strong>Security Audit Log</strong></td><td>Log prompt injection attempts, tool calls, API access</td></tr>
+  </table>
+</div>
+
+<p><a href="/docs/settings-security">View full Security System documentation &rarr;</a></p>
 
 <h2 id="tool-security">Tool Security</h2>
 <p>Fine-grained control over what agents' tools can access:</p>
@@ -218,16 +226,28 @@
     <tr><td><strong>Circuit Breaker</strong></td><td>Auto-disable tools that are failing repeatedly.</td></tr>
   </table>
 </div>
+<p><a href="/docs/settings-tool-security">View full Tool Security documentation &rarr;</a></p>
 
 <h2 id="network">Network &amp; Firewall</h2>
-<p>Configure network-level security:</p>
-<ul>
-  <li><strong>IP Allowlist:</strong> Only allow access from specific IPs or CIDR ranges</li>
-  <li><strong>IP Blocklist:</strong> Block specific IPs</li>
-  <li><strong>Rate Limiting:</strong> Limit requests per minute per IP</li>
-  <li><strong>Geo-blocking:</strong> Restrict access by country</li>
-  <li><strong>Test IP:</strong> Check if a specific IP would be allowed or blocked</li>
-</ul>
+<p>Configure network-level security — who can access your instance and what agents can reach on the internet.</p>
+<div class="card">
+  <table>
+    <tr><th>Section</th><th>What It Controls</th></tr>
+    <tr><td><strong>Inbound IP Filtering</strong></td><td>Allowlist or blocklist IPs/CIDRs with test tool</td></tr>
+    <tr><td><strong>Egress Filtering</strong></td><td>Control outbound hosts and ports agents can reach</td></tr>
+    <tr><td><strong>Proxy Configuration</strong></td><td>HTTP/HTTPS proxy for corporate/air-gapped environments</td></tr>
+    <tr><td><strong>Trusted Proxies</strong></td><td>Reverse proxy IPs for correct X-Forwarded-For extraction</td></tr>
+    <tr><td><strong>CORS Origins</strong></td><td>Allowed cross-origin request domains</td></tr>
+    <tr><td><strong>Rate Limiting</strong></td><td>Per-IP requests per minute with skip paths</td></tr>
+    <tr><td><strong>HTTPS Enforcement</strong></td><td>Redirect HTTP to HTTPS in production</td></tr>
+    <tr><td><strong>Security Headers</strong></td><td>HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy</td></tr>
+    <tr><td><strong>DNS Rebinding Protection</strong></td><td>Host header validation against allowlist</td></tr>
+    <tr><td><strong>Request Body Limits</strong></td><td>Maximum payload size (default 10 MB)</td></tr>
+    <tr><td><strong>Geo-IP Restrictions</strong></td><td>Country-based access control with built-in geolocation</td></tr>
+    <tr><td><strong>Webhook Security</strong></td><td>HMAC validation and source IP filtering for webhooks</td></tr>
+  </table>
+</div>
+<p><a href="/docs/settings-network">View full Network &amp; Firewall documentation &rarr;</a></p>
 
 <h2 id="troubleshooting">Troubleshooting</h2>
 <table>

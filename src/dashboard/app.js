@@ -156,7 +156,8 @@ function App() {
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [orgVersion, setOrgVersion] = useState(0);
-  const onOrgChange = useCallback((id, org) => { setSelectedOrgId(id); setSelectedOrg(org); setOrgVersion(v => v + 1); }, []);
+  const [companyName, setCompanyName] = useState((window.__EM_BRANDING__ && window.__EM_BRANDING__.companyName) || '');
+  const onOrgChange = useCallback((id, org) => { setSelectedOrgId(id); setSelectedOrg(org); setOrgVersion(v => v + 1); if (org && org.name) setCompanyName(org.name); }, []);
 
   // Check if already authenticated via cookie on mount, and check setup state
   useEffect(() => {
@@ -188,6 +189,11 @@ function App() {
             setTransportEncConfig(te);
             if (window.__transportEncryption) await window.__transportEncryption.waitForReady();
           }
+        } catch {}
+        // Fetch company name for sidebar
+        try {
+          var s = await apiCall('/settings');
+          if (s && s.name) setCompanyName(s.name);
         } catch {}
         setAuthed(true);
         setAuthChecked(true);
@@ -457,7 +463,7 @@ function App() {
   const PageComponent = canAccessPage ? (pages[page] || DashboardPage) : null;
   const sidebarClass = 'sidebar' + (sidebarPinned ? ' expanded' : sidebarHovered ? ' hover-expanded' : '') + (mobileMenuOpen ? ' mobile-open' : '');
 
-  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions, impersonating, startImpersonation, stopImpersonation, selectedOrgId, selectedOrg, onOrgChange } },
+  return h(AppContext.Provider, { value: { toast, toasts, user, theme, setPage, permissions, impersonating, startImpersonation, stopImpersonation, selectedOrgId, selectedOrg, onOrgChange, companyName, setCompanyName } },
     h('div', { className: 'app-layout' },
       // Mobile hamburger
       h('button', { className: 'mobile-hamburger', onClick: () => setMobileMenuOpen(true) },
@@ -473,7 +479,7 @@ function App() {
       h('div', { className: sidebarClass, onMouseEnter: onSidebarEnter, onMouseLeave: onSidebarLeave },
         h('div', { className: 'sidebar-brand' },
           h('img', { src: (window.__EM_BRANDING__ && window.__EM_BRANDING__.logo) || '/dashboard/assets/logo.png', alt: 'AgenticMail', style: { width: 28, height: 28, objectFit: 'contain' } }),
-          h('div', { className: 'sidebar-brand-text' }, h('h2', null, (window.__EM_BRANDING__ && window.__EM_BRANDING__.companyName) || 'AgenticMail'), h('span', null, 'Enterprise')),
+          h('div', { className: 'sidebar-brand-text' }, h('h2', null, companyName || 'AgenticMail'), h('span', null, 'Enterprise')),
           h('button', { className: 'sidebar-toggle' + (sidebarPinned ? ' pinned' : ''), onClick: toggleSidebarPin, title: sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar' }, sidebarPinned ? I.chevronLeft() : I.panelLeft())
         ),
         h('div', { className: 'sidebar-nav' },

@@ -10,5 +10,9 @@ export type AppEnv = {
     authType: string;
     apiKeyScopes: string[];
     requestId: string;
+    userOrgId: string;
+    clientOrgId: string;
+    impersonatedBy: string;
+    enforcedOrgId: string;
   };
 };

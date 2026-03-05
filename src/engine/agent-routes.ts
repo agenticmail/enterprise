@@ -263,7 +263,9 @@ export function createAgentRoutes(opts: {
   router.put('/agents/:id/budget', async (c) => {
     const config = await c.req.json();
     try {
-      await lifecycle.setBudgetConfig(c.req.param('id'), config);
+      const aid = c.req.param('id');
+      await lifecycle.setBudgetConfig(aid, config);
+      import('./agent-notify.js').then(({ notifyAgent }) => notifyAgent(aid, 'budget', lifecycle)).catch(() => {});
       return c.json({ success: true, budgetConfig: config });
     } catch (e: any) {
       return c.json({ error: e.message }, 400);
@@ -363,6 +365,178 @@ export function createAgentRoutes(opts: {
       return c.json({ success: false, error: result.error, hint: 'Try running: sudo npm install -g pm2' }, 500);
     } catch (e: any) {
       return c.json({ success: false, error: e.message, hint: 'Try running: sudo npm install -g pm2' }, 500);
+    }
+  });
+
+  // ─── Port Availability Check ──────────────────────────────
+
+  router.post('/system/check-port', async (c) => {
+    try {
+      const { port } = await c.req.json();
+      const p = parseInt(port);
+      if (!p || p < 1 || p > 65535) {
+        return c.json({ available: false, error: 'Invalid port number (1-65535)' });
+      }
+      // Try to bind to the port on all interfaces to check availability
+      const net = await import('net');
+      const tryBind = (host: string) => new Promise<boolean>((resolve) => {
+        const server = net.createServer();
+        server.once('error', () => resolve(false));
+        server.once('listening', () => { server.close(() => resolve(true)); });
+        server.listen(p, host);
+      });
+      // Check both 0.0.0.0 and 127.0.0.1 — a port is only available if free on both
+      const [availAll, availLocal] = await Promise.all([tryBind('0.0.0.0'), tryBind('127.0.0.1')]);
+      const available = availAll && availLocal;
+      if (!available) {
+        // Try to identify what's using it
+        let processInfo = '';
+        try {
+          const { execSync } = await import('child_process');
+          if (process.platform === 'darwin' || process.platform === 'linux') {
+            const lsofBin = process.platform === 'darwin' ? '/usr/sbin/lsof' : 'lsof';
+            const out = execSync(`${lsofBin} -i :${p} -P -n 2>/dev/null | head -5`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+            if (out) {
+              const lines = out.split('\n').slice(1); // skip header
+              if (lines.length > 0) {
+                const parts = lines[0].split(/\s+/);
+                processInfo = parts[0] ? `${parts[0]} (PID ${parts[1]})` : '';
+              }
+            }
+          } else if (process.platform === 'win32') {
+            const out = execSync(`netstat -ano | findstr :${p}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+            if (out) {
+              const parts = out.split(/\s+/);
+              processInfo = `PID ${parts[parts.length - 1]}`;
+            }
+          }
+        } catch {}
+        return c.json({ available: false, port: p, inUse: true, process: processInfo || 'Unknown process' });
+      }
+      return c.json({ available: true, port: p });
+    } catch (e: any) {
+      return c.json({ available: false, error: e.message });
+    }
+  });
+
+  // ─── Screen Unlock ──────────────────────────────────────
+
+  router.post('/system/unlock-screen', async (c) => {
+    try {
+      const platform = process.platform;
+      if (platform === 'darwin') {
+        // macOS: Use AppleScript via osascript to wake and unlock
+        const { execSync } = await import('child_process');
+        // First wake the display
+        try { execSync('caffeinate -u -t 2', { stdio: 'pipe', timeout: 5000 }); } catch {}
+        // Check if screen is locked
+        const isLocked = (() => {
+          try {
+            const out = execSync('python3 -c "import Quartz; d=Quartz.CGSessionCopyCurrentDictionary(); print(d.get(\'CGSSessionScreenIsLocked\', 0))"', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+            return out === '1' || out === 'True';
+          } catch {
+            // Fallback: check if loginwindow is frontmost
+            try {
+              const out = execSync('osascript -e \'tell application "System Events" to get name of first application process whose frontmost is true\'', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+              return out === 'loginwindow' || out === 'ScreenSaverEngine';
+            } catch { return false; }
+          }
+        })();
+        if (!isLocked) {
+          return c.json({ success: true, wasLocked: false, message: 'Screen is already unlocked' });
+        }
+        // Get password from agent's security config or request body
+        const body = await c.req.json().catch(() => ({}));
+        const password = body.password;
+        if (!password) {
+          return c.json({ success: false, locked: true, error: 'Screen is locked but no password provided. Configure the system password in Settings > Security or the agent\'s Permissions tab.' });
+        }
+        // Use cliclick or AppleScript to type password and press Enter
+        // Method 1: Use osascript to simulate keystrokes at the login window
+        try {
+          execSync(`osascript -e 'tell application "System Events" to keystroke "${password.replace(/["\\]/g, '\\$&')}"' -e 'delay 0.3' -e 'tell application "System Events" to key code 36'`, {
+            stdio: 'pipe', timeout: 10000
+          });
+          // Wait a moment and check if unlocked
+          await new Promise(r => setTimeout(r, 2000));
+          const stillLocked = (() => {
+            try {
+              const out = execSync('python3 -c "import Quartz; d=Quartz.CGSessionCopyCurrentDictionary(); print(d.get(\'CGSSessionScreenIsLocked\', 0))"', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+              return out === '1' || out === 'True';
+            } catch { return false; }
+          })();
+          if (stillLocked) {
+            return c.json({ success: false, error: 'Failed to unlock — password may be incorrect' });
+          }
+          return c.json({ success: true, wasLocked: true, message: 'Screen unlocked successfully' });
+        } catch (e: any) {
+          return c.json({ success: false, error: 'Unlock attempt failed: ' + e.message });
+        }
+      } else if (platform === 'linux') {
+        const { execSync } = await import('child_process');
+        // Check for common screen lockers and unlock them
+        const body = await c.req.json().catch(() => ({}));
+        const password = body.password;
+        // Try loginctl unlock-session
+        try {
+          execSync('loginctl unlock-session $(loginctl list-sessions --no-legend | head -1 | awk \'{print $1}\')', { stdio: 'pipe', timeout: 5000 });
+          return c.json({ success: true, message: 'Session unlocked via loginctl' });
+        } catch {}
+        // Try xdotool for X11 based lockers
+        if (password) {
+          try {
+            execSync(`xdotool key --clearmodifiers super; sleep 0.5; xdotool type --clearmodifiers "${password.replace(/["\\]/g, '\\$&')}"; xdotool key Return`, { stdio: 'pipe', timeout: 10000 });
+            return c.json({ success: true, message: 'Unlock attempted via xdotool' });
+          } catch {}
+        }
+        return c.json({ success: false, error: 'Could not unlock Linux session. Supported: loginctl, xdotool.' });
+      } else if (platform === 'win32') {
+        return c.json({ success: false, error: 'Windows unlock not yet supported. Use Remote Desktop or disable lock screen.' });
+      } else {
+        return c.json({ success: false, error: `Unsupported platform: ${platform}` });
+      }
+    } catch (e: any) {
+      return c.json({ success: false, error: e.message });
+    }
+  });
+
+  router.get('/system/screen-status', async (c) => {
+    try {
+      const platform = process.platform;
+      if (platform === 'darwin') {
+        const { execSync } = await import('child_process');
+        const isLocked = (() => {
+          try {
+            const out = execSync('python3 -c "import Quartz; d=Quartz.CGSessionCopyCurrentDictionary(); print(d.get(\'CGSSessionScreenIsLocked\', 0))"', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+            return out === '1' || out === 'True';
+          } catch {
+            try {
+              const out = execSync('osascript -e \'tell application "System Events" to get name of first application process whose frontmost is true\'', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+              return out === 'loginwindow' || out === 'ScreenSaverEngine';
+            } catch { return false; }
+          }
+        })();
+        // Check if display is asleep
+        const displayAsleep = (() => {
+          try {
+            const out = execSync('ioreg -r -d 1 -k IODisplayWrangler | grep -i "currentpowerstate"', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 });
+            return out.includes('= 0') || out.includes('= 1');
+          } catch { return false; }
+        })();
+        return c.json({ locked: isLocked, displayAsleep, platform: 'macOS' });
+      } else if (platform === 'linux') {
+        const { execSync } = await import('child_process');
+        const isLocked = (() => {
+          try {
+            const out = execSync('loginctl show-session $(loginctl list-sessions --no-legend | head -1 | awk \'{print $1}\') -p LockedHint --value', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000 }).trim();
+            return out === 'yes';
+          } catch { return false; }
+        })();
+        return c.json({ locked: isLocked, platform: 'Linux' });
+      }
+      return c.json({ locked: false, platform });
+    } catch (e: any) {
+      return c.json({ locked: false, error: e.message });
     }
   });
 
@@ -1128,7 +1302,7 @@ export function createAgentRoutes(opts: {
 
     // Also clear directly in DB to ensure no stale data
     try {
-      const db = lifecycle.getDb?.() || (globalThis as any).__engineDb;
+      const db = (lifecycle as any).getDb?.() || (globalThis as any).__engineDb;
       if (db) {
         const isPostgres = !!(db as any).pool;
         if (isPostgres) {
@@ -1314,6 +1488,85 @@ export function createAgentRoutes(opts: {
       id: 'telegram', name: 'Telegram', description: 'Telegram Bot API — send messages, media, manage chats. Requires a bot token.',
       icon: Emoji.telegram || Emoji.chat, requiresIntegration: 'telegram',
       tools: ['telegram_send', 'telegram_send_media', 'telegram_get_me', 'telegram_get_chat'],
+    },
+    // ── Microsoft 365 ──────────────────────────────────
+    {
+      id: 'outlook_mail', name: 'Outlook Mail', description: 'Full email management — inbox, send, reply, forward, search, threads, drafts, rules, auto-reply, categories',
+      icon: Emoji.envelope, requiresOAuth: 'microsoft',
+      tools: ['outlook_mail_list', 'outlook_mail_read', 'outlook_mail_thread', 'outlook_mail_send', 'outlook_mail_reply',
+              'outlook_mail_forward', 'outlook_mail_move', 'outlook_mail_delete', 'outlook_mail_update', 'outlook_mail_search',
+              'outlook_mail_draft', 'outlook_mail_send_draft', 'outlook_mail_folders', 'outlook_mail_create_folder',
+              'outlook_mail_attachment_download', 'outlook_mail_auto_reply', 'outlook_mail_get_auto_reply',
+              'outlook_mail_rules', 'outlook_mail_categories', 'outlook_mail_profile'],
+    },
+    {
+      id: 'outlook_calendar', name: 'Outlook Calendar', description: 'Calendar events, scheduling, free/busy lookup, Teams meeting creation, invite responses',
+      icon: Emoji.calendar, requiresOAuth: 'microsoft',
+      tools: ['outlook_calendar_list', 'outlook_calendar_events', 'outlook_calendar_create', 'outlook_calendar_update',
+              'outlook_calendar_delete', 'outlook_calendar_respond', 'outlook_calendar_freebusy'],
+    },
+    {
+      id: 'onedrive', name: 'OneDrive', description: 'Cloud file management — list, search, read, upload, share, create folders',
+      icon: Emoji.folder, requiresOAuth: 'microsoft',
+      tools: ['onedrive_list', 'onedrive_search', 'onedrive_read', 'onedrive_upload', 'onedrive_create_folder',
+              'onedrive_delete', 'onedrive_share'],
+    },
+    {
+      id: 'teams', name: 'Microsoft Teams', description: 'Team messaging, channels, chats, file sharing, presence, member management',
+      icon: Emoji.chat, requiresOAuth: 'microsoft',
+      tools: ['teams_list_teams', 'teams_list_channels', 'teams_create_channel', 'teams_send_channel_message',
+              'teams_reply_to_message', 'teams_read_channel_messages', 'teams_list_chats', 'teams_send_chat_message',
+              'teams_read_chat_messages', 'teams_list_members', 'teams_add_member', 'teams_share_file',
+              'teams_presence', 'teams_set_status'],
+    },
+    {
+      id: 'todo', name: 'Microsoft To Do', description: 'Task lists, task CRUD with due dates, reminders, and importance',
+      icon: Emoji.check, requiresOAuth: 'microsoft',
+      tools: ['todo_list_lists', 'todo_list_tasks', 'todo_create_task', 'todo_update_task', 'todo_delete_task', 'todo_create_list'],
+    },
+    {
+      id: 'outlook_contacts', name: 'Outlook Contacts', description: 'Contact management, address book, people search',
+      icon: Emoji.people, requiresOAuth: 'microsoft',
+      tools: ['outlook_contacts_list', 'outlook_contacts_create', 'outlook_contacts_update', 'outlook_contacts_delete', 'outlook_people_search'],
+    },
+    {
+      id: 'excel', name: 'Microsoft Excel', description: 'Read/write cells, ranges, tables, worksheets, formulas, charts, formatting',
+      icon: Emoji.chartUp, requiresOAuth: 'microsoft',
+      tools: ['excel_list_worksheets', 'excel_read_range', 'excel_write_range', 'excel_add_row', 'excel_list_tables',
+              'excel_read_table', 'excel_create_worksheet', 'excel_create_session', 'excel_close_session',
+              'excel_evaluate_formula', 'excel_named_ranges', 'excel_read_named_range', 'excel_list_charts',
+              'excel_chart_image', 'excel_pivot_refresh', 'excel_set_cell_format'],
+    },
+    {
+      id: 'sharepoint', name: 'SharePoint', description: 'Sites, document libraries, lists, search, file management across SharePoint Online',
+      icon: Emoji.database, requiresOAuth: 'microsoft',
+      tools: ['sharepoint_list_sites', 'sharepoint_get_site', 'sharepoint_list_drives', 'sharepoint_list_files',
+              'sharepoint_upload_file', 'sharepoint_list_lists', 'sharepoint_list_items', 'sharepoint_create_list_item',
+              'sharepoint_update_list_item', 'sharepoint_search'],
+    },
+    {
+      id: 'onenote', name: 'OneNote', description: 'Notebooks, sections, pages — read, create, and update notes',
+      icon: Emoji.note, requiresOAuth: 'microsoft',
+      tools: ['onenote_list_notebooks', 'onenote_list_sections', 'onenote_list_pages', 'onenote_read_page',
+              'onenote_create_page', 'onenote_update_page'],
+    },
+    {
+      id: 'powerpoint', name: 'PowerPoint', description: 'Presentation metadata, PDF export, thumbnails, templates, embed URLs',
+      icon: Emoji.art, requiresOAuth: 'microsoft',
+      tools: ['powerpoint_get_info', 'powerpoint_export_pdf', 'powerpoint_get_thumbnails',
+              'powerpoint_create_from_template', 'powerpoint_get_embed_url'],
+    },
+    {
+      id: 'planner', name: 'Microsoft Planner', description: 'Project boards — plans, buckets, tasks (Kanban-style task management)',
+      icon: Emoji.clipboard, requiresOAuth: 'microsoft',
+      tools: ['planner_list_plans', 'planner_list_buckets', 'planner_list_tasks', 'planner_create_task',
+              'planner_update_task', 'planner_delete_task'],
+    },
+    {
+      id: 'powerbi', name: 'Power BI', description: 'Workspaces, reports, dashboards, datasets, DAX queries, data refresh',
+      icon: Emoji.barChart, requiresOAuth: 'microsoft',
+      tools: ['powerbi_list_workspaces', 'powerbi_list_reports', 'powerbi_list_dashboards', 'powerbi_list_datasets',
+              'powerbi_refresh_dataset', 'powerbi_refresh_history', 'powerbi_execute_query', 'powerbi_dashboard_tiles'],
     },
   ];
 
@@ -1845,7 +2098,7 @@ export function createAgentRoutes(opts: {
       if (body.requireApproval) profile.requireApproval = body.requireApproval;
       if (body.rateLimits) profile.rateLimits = body.rateLimits;
       if (body.constraints) profile.constraints = body.constraints;
-      permissions.setProfile(agentId, profile, managed.org_id);
+      permissions.setProfile(agentId, profile, managed.orgId);
     }
 
     managed.updatedAt = new Date().toISOString();
@@ -1948,7 +2201,7 @@ export function createAgentRoutes(opts: {
       }
       profile.tools.blocked = [...newBlocked];
       profile.tools.allowed = [...newAllowed];
-      permissions.setProfile(agentId, profile, managed.org_id);
+      permissions.setProfile(agentId, profile, managed.orgId);
     }
 
     managed.updatedAt = new Date().toISOString();

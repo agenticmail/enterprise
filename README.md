@@ -152,7 +152,8 @@ Most AI agent platforms give you a chatbot. We give you a **workforce**.
 | SaaS integration adapters | 145 |
 | Enterprise skill definitions | 52 |
 | Google Workspace tools | 13 services |
-| Agent tools | 270+ |
+| Microsoft 365 tools | 13 services, 90+ tools |
+| Agent tools | 270+ (smart tiered loading) |
 | Soul templates | 51 (14 categories) |
 | DLP rule packs | 7 (53 pre-built rules) |
 | Compliance report types | 5 (SOC 2, GDPR, SOX, Incident, Access Review) |
@@ -385,7 +386,19 @@ The agent automatically:
 
 ## Agent Tools
 
-270+ tools organized by category:
+270+ tools organized by category, with **intelligent tiered loading** to minimize token costs:
+
+### Smart Tool Loading
+
+Tools are loaded on-demand using a 3-tier system — agents don't pay for 270 tool definitions on every message:
+
+| Tier | When Loaded | Example |
+|------|-------------|---------|
+| **Tier 1 — Essential** | Always loaded (~20 tools, ~3K tokens) | File I/O, memory, management, search |
+| **Tier 2 — Contextual** | Auto-loaded by channel + conversation signals | Gmail when user says "email", Teams when on Teams |
+| **Tier 3 — Specialist** | On-demand via `request_tools` | Slides, Forms, Power BI, security scanning |
+
+A simple "Thank you" on Telegram loads ~50 tools (~8K tokens) instead of 270 (~33K tokens) — **75% token savings**. The agent can always request more tools mid-conversation, and conversation signals auto-promote relevant tools (mention "calendar" → calendar tools load automatically).
 
 ### Core Tools
 
@@ -416,6 +429,25 @@ The agent automatically:
 | `google_docs_*` / `google_sheets_*` / `google_slides_*` | Document editing |
 | `google_forms_*` / `google_tasks_*` | Forms and Tasks |
 | `google_meetings_*` | Meet integration |
+
+### Microsoft 365 Tools
+
+| Tool | Description |
+|------|-------------|
+| `outlook_mail_*` (20 tools) | Read, send, reply, forward, search, drafts, rules, categories, auto-reply, thread |
+| `outlook_calendar_*` (7 tools) | Events, create with Teams link, respond to invites, free/busy |
+| `teams_*` (15 tools) | Channel messages, chats, file sharing, members, presence, status |
+| `onedrive_*` (12 tools) | Files, search, share, move, copy, versions, permissions |
+| `excel_*` (16 tools) | Read/write ranges, tables, charts, formulas, sessions, named ranges, formatting |
+| `sharepoint_*` (10 tools) | Sites, document libraries, lists, search, upload |
+| `onenote_*` (6 tools) | Notebooks, sections, pages, create, update |
+| `planner_*` (6 tools) | Plans, buckets, tasks with ETag concurrency |
+| `todo_*` (6 tools) | Task lists, create, update, complete |
+| `powerpoint_*` (5 tools) | Info, export PDF, thumbnails, templates, embed URLs |
+| `powerbi_*` (8 tools) | Workspaces, reports, dashboards, datasets, DAX queries, refresh |
+| `ms_contacts_*` (5 tools) | Contacts CRUD, people/directory search |
+
+Microsoft tools auto-detect via OAuth provider — if the agent has Microsoft OAuth configured, all Graph API tools become available. Includes production-grade retry with exponential backoff, 429 rate-limit handling, auto-pagination, and JSON batch support.
 
 ### Enterprise Tools
 
@@ -484,6 +516,36 @@ Agents can:
 
 ---
 
+## Microsoft 365 Integration
+
+Deep, native integration with 13 Microsoft services via Microsoft Graph API:
+
+| Service | Tools | Key Features |
+|---------|-------|-------------|
+| **Outlook Mail** | 20 tools | Full CRUD, threads, rules, categories, auto-reply, drafts, attachments |
+| **Outlook Calendar** | 7 tools | Events, Teams meeting links, free/busy, invite responses |
+| **Teams** | 15 tools | Channels, chats, file sharing, members, presence, status messages |
+| **OneDrive** | 12 tools | Files, search, share, move, copy, versions, permissions |
+| **Excel** | 16 tools | Ranges, tables, charts, formulas, sessions, named ranges, formatting |
+| **SharePoint** | 10 tools | Sites, document libraries, lists, content search |
+| **OneNote** | 6 tools | Notebooks, sections, pages CRUD |
+| **Planner** | 6 tools | Team task management with concurrency control |
+| **To Do** | 6 tools | Personal task lists with reminders |
+| **PowerPoint** | 5 tools | Export, thumbnails, templates, embedding |
+| **Power BI** | 8 tools | Reports, dashboards, DAX queries, dataset refresh |
+| **Contacts** | 5 tools | Contact CRUD, people/directory search |
+
+**Auto-detected via OAuth provider** — connect Microsoft OAuth in the dashboard and all tools become available. Each service has its own dedicated system prompt with tool usage guidance.
+
+**Production-grade Graph API client:**
+- Retry with exponential backoff (3 attempts)
+- 429 rate-limit handling with `Retry-After` header
+- Auto-pagination via `@odata.nextLink` (up to 500 items)
+- JSON batch support (up to 20 requests per batch)
+- Beta endpoint support for preview APIs
+
+---
+
 ## 145 SaaS Integration Adapters
 
 Pre-built MCP adapters for connecting agents to any SaaS tool:
@@ -510,8 +572,8 @@ Each adapter provides:
 ### Google Workspace Suite (14)
 Gmail · Calendar · Drive · Docs · Sheets · Slides · Forms · Meet · Chat · Keep · Sites · Groups · Admin · Vault
 
-### Microsoft 365 Suite (17)
-Outlook · Teams · OneDrive · Word · Excel · PowerPoint · SharePoint · Planner · Todo · OneNote · Forms · Bookings · Power BI · Power Automate · Whiteboard · Copilot · Admin
+### Microsoft 365 Suite (13 services, 90+ tools)
+Outlook Mail (20 tools) · Outlook Calendar (7) · Teams (15) · OneDrive (12) · Excel (16) · SharePoint (10) · OneNote (6) · Planner (6) · To Do (6) · PowerPoint (5) · Power BI (8) · Contacts (5) · Each with dedicated system prompts and Graph API integration with retry, rate-limit handling, pagination, and batch support.
 
 ### Enterprise Custom Suite (16+)
 Calendar · Code Sandbox · Database · Diff · Documents · Finance · HTTP · Knowledge Search · Logs · Notifications · Security Scan · Spreadsheet · Translation · Vision · Web Research · Workflow
@@ -757,18 +819,21 @@ Manage agents like employees:
 
 ### Task Pipeline
 
-- Visual node-based task flow editor
-- Task assignment and delegation
-- Status tracking (pending → claimed → in_progress → completed)
-- Org-scoped pipeline views
-- SSE streaming for real-time updates
+- **Real-time table view** — Paginated task list with search, sort, and status tabs (Active, Completed, Failed, All)
+- **Live SSE updates** — Tasks appear, update, and move between tabs instantly as agents work
+- **Cross-process webhook relay** — Standalone agent processes notify the enterprise server, so the dashboard updates in real-time even when agents run as separate processes
+- **Delegation chain visualization** — Click any task to see the full delegation flow (who assigned → who worked → review loops)
+- **Stats cards** — Active, completed, failed counts with today's metrics, token usage, and cost
+- **Org-scoped views** — Client org users only see their agents' tasks
+- **Activity log** — Per-task activity timeline with search and type filtering
 
 ### External Channels
 
 | Channel | Mode | Features |
 |---------|------|----------|
 | **Email (Gmail)** | OAuth | Full CRUD, attachments, signatures |
-| **Email (Outlook)** | OAuth | Full CRUD, attachments |
+| **Email (Outlook)** | OAuth | Full CRUD, attachments, rules, auto-reply, categories |
+| **Microsoft Teams** | OAuth | Channels, chats, file sharing, presence, status |
 | **Telegram** | Long-polling | Text, media (images/video/docs), inline buttons |
 | **WhatsApp** | Webhook | Text, media, templates |
 | **Google Chat** | Webhook + API | Messages, spaces, reactions |
@@ -835,49 +900,63 @@ Media handling includes:
 
 ## Deployment
 
-### Production (Recommended)
+### Zero-Config (Recommended)
 
 ```bash
-# Main server
-pm2 start dist/cli.js --name enterprise -- start
-
-# Standalone agents (one per agent)
-pm2 start dist/cli.js --name fola-agent -- agent --env-file=.env.fola
-pm2 start dist/cli.js --name john-agent -- agent --env-file=.env.john
-
-# Cloudflare tunnel (optional, for public access)
-pm2 start cloudflared -- tunnel run --token $TUNNEL_TOKEN
+npx @agenticmail/enterprise
 ```
 
-### Docker
+The setup wizard handles everything. After setup, the system is **self-managing**.
+
+### Automatic System Persistence
+
+AgenticMail automatically configures itself to survive reboots, crashes, and network outages — **you never run a single command**:
+
+| Feature | What It Does |
+|---------|-------------|
+| **Auto-start on boot** | Configures OS-level startup (launchd on macOS, systemd on Linux, Windows Service on Windows) |
+| **Crash recovery** | Exponential backoff restart (1.5s → 3s → 6s → 12s → 15s cap). Max 50 restarts before stopping |
+| **Memory protection** | Auto-restart if process exceeds memory limit (512MB server, 384MB agents) |
+| **Log rotation** | Auto-installs pm2-logrotate: 10MB max per file, 5 rotated files, compressed |
+| **Process persistence** | Saves process list on every boot — `pm2 resurrect` restores everything automatically |
+| **Graceful shutdown** | 10s timeout for clean shutdown before force-kill |
+
+**Works on every platform — automatically:**
+
+| Platform | Startup Method | User Action Needed |
+|----------|---------------|-------------------|
+| macOS | launchd (LaunchAgent) | None |
+| Linux (Ubuntu/Debian/RHEL) | systemd service | None |
+| Windows | Windows Service | None |
+| Docker | `pm2-runtime` in CMD | None |
+| Raspberry Pi | systemd | None |
+
+All persistence setup runs **once on first boot** and writes a marker file. Subsequent boots just save the process list silently.
+
+### Production Log Levels
+
+| Level | What Shows |
+|-------|-----------|
+| `debug` | Everything (verbose) |
+| `info` | Normal operation (default) |
+| `warn` | Warnings and errors only (recommended for production) |
+| `error` | Errors only |
+
+Set `LOG_LEVEL=warn` in your `.env` file for production deployments.
+
+### Manual PM2 (Advanced)
 
 ```bash
-npx @agenticmail/enterprise  # Select "Docker"
-docker compose up -d
+# Or use the ecosystem config for full control:
+pm2 start ecosystem.config.cjs
+pm2 save
 ```
 
-### Fly.io
+### Docker / Fly.io / Railway
 
 ```bash
-npx @agenticmail/enterprise  # Select "Fly.io"
-fly launch --copy-config
-fly secrets set DATABASE_URL="..." JWT_SECRET="..."
-fly deploy
-```
-
-### Railway
-
-```bash
-npx @agenticmail/enterprise  # Select "Railway"
-railway init && railway link && railway up
-```
-
-### Local / Development
-
-```bash
-npx @agenticmail/enterprise  # Select "Local"
-# or
-npm run dev  # Build + watch mode
+npx @agenticmail/enterprise  # Select your deploy target
+# Wizard handles everything
 ```
 
 ---
@@ -923,6 +1002,7 @@ npx @agenticmail/enterprise verify-domain
 | `MASTER_KEY` | Admin master key (first-run setup) | — |
 | `TRANSPORT_DECRYPT_KEY` | Transport encryption key for API responses | — |
 | `PORT` | Server port | `3000` |
+| `LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, `error` | `info` |
 | `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `*` |
 | `RATE_LIMIT` | Requests per minute per IP | `120` |
 | `DB_POOL_MAX` | Override database connection pool size | Auto (3 for pooler, 10 for direct) |

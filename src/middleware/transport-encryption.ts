@@ -389,10 +389,7 @@ export function transportEncryptionMiddleware() {
           headers: newHeaders,
         });
       } catch (e: any) {
-        // Encryption failed — reconstruct plaintext response from parsed data
-        if (originalBody) {
-          c.res = new Response(originalBody, { status: response.status, headers: response.headers });
-        }
+        // Encryption failed — pass through original response
       }
     }
   };

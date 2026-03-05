@@ -101,6 +101,7 @@ export const AGENTICMAIL_TOOLS: ToolDefinition[] = AGENTICMAIL_MODULES.flatMap(m
 // ─── Enterprise Utility Skills ─────────────────────────
 
 import * as EntDatabase from './enterprise-database.js';
+import * as DatabaseAccess from './database-access.js';
 import * as EntSpreadsheet from './enterprise-spreadsheet.js';
 import * as EntDocuments from './enterprise-documents.js';
 import * as EntHttp from './enterprise-http.js';
@@ -109,7 +110,7 @@ import * as EntCodeSandbox from './enterprise-code-sandbox.js';
 import * as EntDiff from './enterprise-diff.js';
 
 export const ENTERPRISE_MODULES = [
-  EntDatabase, EntSpreadsheet, EntDocuments, EntHttp,
+  EntDatabase, DatabaseAccess, EntSpreadsheet, EntDocuments, EntHttp,
   EntSecurityScan, EntCodeSandbox, EntDiff,
 ] as const;
 
@@ -152,7 +153,7 @@ export {
   GwsSheets, GwsSlides, GwsMeet, GwsChat,
   GwsForms, GwsSites, GwsKeep, GwsAdmin,
   GwsVault, GwsGroups, GwsMaps, GwsContacts, GwsTasks,
-  EntDatabase, EntSpreadsheet, EntDocuments, EntHttp,
+  EntDatabase, DatabaseAccess, EntSpreadsheet, EntDocuments, EntHttp,
   EntSecurityScan, EntCodeSandbox, EntDiff,
   CoreTools, MeetingLifecycle, AgentMemory, VisualMemory, KnowledgeSearch,
 };

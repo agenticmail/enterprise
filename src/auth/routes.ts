@@ -730,11 +730,11 @@ export function createAuthRoutes(
         .sign(secret);
 
       // Set the impersonation token as the session cookie so all subsequent requests use it
-      setCookie(c, 'em_session', impersonateToken, { path: '/', httpOnly: true, secure: isSecure, sameSite: 'Lax', maxAge: 3600 });
+      setCookie(c, 'em_session', impersonateToken, { path: '/', httpOnly: true, secure: isSecure(), sameSite: 'Lax', maxAge: 3600 });
 
       return c.json({
         token: impersonateToken,
-        user: { id: target.id, email: target.email, name: target.name, role: target.role, totpEnabled: !!target.totpEnabled, clientOrgId: target.clientOrgId || null, permissions: target.permissions },
+        user: { id: target.id, email: target.email, name: target.name, role: target.role, totpEnabled: !!(target as any).totpEnabled, clientOrgId: (target as any).clientOrgId || null, permissions: (target as any).permissions },
         impersonatedBy: { id: caller.id, name: caller.name, email: caller.email },
       });
     } catch (e: any) {
@@ -744,11 +744,11 @@ export function createAuthRoutes(
 
   auth.post('/stop-impersonate', async (c) => {
     try {
-      const impersonatedBy = c.get('impersonatedBy' as any);
+      const impersonatedBy = (c as any).get('impersonatedBy');
       if (!impersonatedBy) return c.json({ error: 'Not impersonating' }, 400);
       const owner = await db.getUser(impersonatedBy);
       if (!owner) return c.json({ error: 'Original user not found' }, 404);
-      await setSessionCookies(c, owner.id, owner.email, owner.role, 'stop-impersonate', owner.clientOrgId);
+      await setSessionCookies(c, owner.id, owner.email, owner.role, 'stop-impersonate', (owner as any).clientOrgId);
       return c.json({ ok: true, user: { id: owner.id, email: owner.email, name: owner.name, role: owner.role } });
     } catch (e: any) {
       return c.json({ error: e.message }, 500);

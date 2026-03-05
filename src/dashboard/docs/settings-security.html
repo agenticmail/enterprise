@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security System — AgenticMail Enterprise</title>
+<style>
+  :root {
+    --bg-primary: #0f1117; --bg-secondary: #161822; --bg-tertiary: #1c1f2e; --bg-card: #181b28;
+    --text-primary: #e8eaf0; --text-secondary: #9ca3b8; --text-muted: #6b7394;
+    --accent: #6366f1; --accent-soft: rgba(99,102,241,0.12);
+    --border: #2a2f45; --border-light: #353a52; --radius: 10px;
+    --success: #15803d; --warning: #eab308; --danger: #ef4444;
+    --info-soft: rgba(99,102,241,0.06);
+  }
+  [data-theme="light"] {
+    --bg-primary: #d0c5a0; --bg-secondary: #ddd3b2; --bg-tertiary: #c8bc94; --bg-card: #e5dcc0;
+    --text-primary: #2c2410; --text-secondary: #3d3520; --text-muted: #6b5e42;
+    --accent: #2563eb; --accent-soft: rgba(37,99,235,0.1);
+    --border: #b8ad8a; --border-light: #a89e7a; --info-soft: rgba(37,99,235,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; padding: 32px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  p { margin-bottom: 12px; color: var(--text-secondary); }
+  code { background: var(--bg-primary); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--accent); }
+  pre { background: var(--bg-primary); border: 1px solid var(--border); padding: 16px; border-radius: var(--radius); overflow-x: auto; margin: 12px 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  pre code { background: none; border: none; padding: 0; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 16px 0; }
+  .tip { background: var(--info-soft); border: 1px solid rgba(59,130,246,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  .danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 12px 16px; border-radius: var(--radius); margin: 12px 0; font-size: 13px; color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--text-secondary); }
+  th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
+  ul, ol { padding-left: 24px; margin-bottom: 12px; color: var(--text-secondary); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+  .back:hover { color: var(--text-primary); }
+  strong { color: var(--text-primary); }
+  .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; }
+  .toc ul { list-style: none; padding: 0; }
+  .toc li { margin: 4px 0; }
+  .toc a { font-size: 13px; text-decoration: none; }
+</style>
+<script>
+  var t = localStorage.getItem('em_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+</script>
+</head>
+<body>
+
+<a class="back" href="/dashboard/settings">&#8592; Back to Settings</a>
+
+<h1>Security System</h1>
+<p style="color: var(--text-muted); margin-bottom: 24px;">Comprehensive security configuration for your AgenticMail Enterprise deployment. Each section can be edited independently using its own Edit button.</p>
+
+<div class="toc">
+  <h3>On This Page</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#prompt-injection">Prompt Injection Defense</a></li>
+    <li><a href="#sql-injection">SQL Injection Prevention</a></li>
+    <li><a href="#input-validation">Input Validation</a></li>
+    <li><a href="#output-filtering">Output Filtering</a></li>
+    <li><a href="#transport-encryption">Transport Encryption</a></li>
+    <li><a href="#dependency-management">Dependency &amp; Package Management</a></li>
+    <li><a href="#screen-unlock">Screen Unlock &amp; Machine Access</a></li>
+    <li><a href="#audit-logging">Security Audit Log</a></li>
+    <li><a href="#best-practices">Best Practices</a></li>
+  </ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<p>The Security System tab provides defense-in-depth controls protecting your instance from prompt injection, data exfiltration, SQL injection, and other attack vectors. Each section has its own Edit/Save/Cancel buttons — click Edit to modify a section, then Save to persist changes or Cancel to discard.</p>
+
+<div class="tip"><strong>Per-section editing:</strong> Only one section can be edited at a time. Other sections dim while you're editing, preventing accidental changes. Your changes are saved to the server when you click Save.</div>
+
+<h2 id="prompt-injection">Prompt Injection Defense</h2>
+<p>Multi-layer detection and prevention of prompt injection attacks — attempts by users or external content to override an agent's instructions.</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Settings</h3>
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable Protection</strong></td><td>Master toggle for prompt injection defense</td></tr>
+    <tr><td><strong>Detection Mode</strong></td><td>
+      <ul style="margin: 0;">
+        <li><strong>Monitor Only</strong> — Logs detections but allows them through. Good for testing.</li>
+        <li><strong>Sanitize Content</strong> — Strips suspected injection patterns from input. Recommended for most deployments.</li>
+        <li><strong>Block Request</strong> — Rejects the entire request. Strictest mode.</li>
+      </ul>
+    </td></tr>
+    <tr><td><strong>Sensitivity Level</strong></td><td>Low / Medium / High / Maximum. Higher sensitivity catches more but increases false positives.</td></tr>
+    <tr><td><strong>Log Detections</strong></td><td>Write detection events to the security audit log</td></tr>
+    <tr><td><strong>Block Response</strong></td><td>Custom message returned when a request is blocked (only in Block mode)</td></tr>
+  </table>
+</div>
+
+<div class="tip"><strong>Recommended:</strong> Start with <code>Sanitize</code> mode at <code>Medium</code> sensitivity. Monitor the audit log for false positives before increasing to High.</div>
+
+<h3>How It Works</h3>
+<p>The system scans all incoming messages and tool inputs for known prompt injection patterns:</p>
+<ul>
+  <li>System prompt override attempts ("Ignore previous instructions...")</li>
+  <li>Role confusion attacks ("You are now a different assistant...")</li>
+  <li>Delimiter injection (using special characters to break out of context)</li>
+  <li>Indirect injection via tool outputs (e.g., a fetched webpage containing injection)</li>
+</ul>
+
+<h2 id="sql-injection">SQL Injection Prevention</h2>
+<p>Detects and blocks SQL injection attempts in tool inputs and API request bodies.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Enable Protection</strong></td><td>Master toggle</td></tr>
+    <tr><td><strong>Detection Mode</strong></td><td><code>Monitor Only</code> (log but allow) or <code>Block Request</code> (reject)</td></tr>
+    <tr><td><strong>Scan Tool Arguments</strong></td><td>Check arguments passed to agent tools (database queries, file operations, etc.)</td></tr>
+    <tr><td><strong>Scan API Request Bodies</strong></td><td>Check incoming API request payloads for SQL patterns</td></tr>
+    <tr><td><strong>Log Detections</strong></td><td>Write events to the audit log</td></tr>
+  </table>
+</div>
+
+<h3>Detection Patterns</h3>
+<p>Scans for common SQL injection vectors including:</p>
+<ul>
+  <li>Union-based injection (<code>UNION SELECT</code>)</li>
+  <li>Boolean-based blind injection (<code>OR 1=1</code>)</li>
+  <li>Time-based injection (<code>SLEEP()</code>, <code>WAITFOR DELAY</code>)</li>
+  <li>Stacked queries (semicolon-separated statements)</li>
+  <li>Comment-based evasion (<code>--</code>, <code>/* */</code>)</li>
+</ul>
+
+<h2 id="input-validation">Input Validation</h2>
+<p>Sanitizes and validates all incoming data to prevent malformed or malicious payloads.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+    <tr><td><strong>Max Input Length</strong></td><td>100,000 chars</td><td>Reject inputs exceeding this length. Prevents memory exhaustion attacks.</td></tr>
+    <tr><td><strong>Max JSON Depth</strong></td><td>20 levels</td><td>Reject deeply nested JSON objects. Prevents stack overflow in parsers.</td></tr>
+    <tr><td><strong>Strip HTML</strong></td><td>Off</td><td>Remove all HTML tags from text inputs. Use when agents don't need HTML.</td></tr>
+    <tr><td><strong>Block Scripts</strong></td><td>On</td><td>Reject inputs containing <code>&lt;script&gt;</code> tags. Prevents XSS via agent outputs.</td></tr>
+    <tr><td><strong>Sanitize Unicode</strong></td><td>On</td><td>Normalize Unicode and remove invisible/homoglyph characters used for evasion.</td></tr>
+  </table>
+</div>
+
+<h2 id="output-filtering">Output Filtering</h2>
+<p>Scans agent outputs for secrets and personal information before they reach users or external systems.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Description</th></tr>
+    <tr><td><strong>Filter Mode</strong></td><td>
+      <ul style="margin: 0;">
+        <li><strong>Monitor Only</strong> — Log but don't modify outputs</li>
+        <li><strong>Redact Secrets</strong> — Replace detected secrets with <code>[REDACTED]</code></li>
+        <li><strong>Block Output</strong> — Reject the entire response</li>
+      </ul>
+    </td></tr>
+    <tr><td><strong>Scan for Secrets</strong></td><td>Detect API keys, passwords, tokens, connection strings</td></tr>
+    <tr><td><strong>Scan for PII</strong></td><td>Detect emails, phone numbers, SSNs, credit card numbers</td></tr>
+    <tr><td><strong>Log Detections</strong></td><td>Write events to the audit log</td></tr>
+  </table>
+</div>
+
+<div class="warning"><strong>Important:</strong> Output filtering works alongside <a href="/docs/dlp">DLP rules</a>. DLP provides more granular, rule-based detection. Output filtering here is a safety net that catches common patterns without custom rules.</div>
+
+<h2 id="transport-encryption">Transport Encryption</h2>
+<p>Encrypts API data in transit between the dashboard and server using AES-256-CBC with HMAC verification. Provides application-layer encryption on top of HTTPS for defense-in-depth.</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Why Use This?</h3>
+  <p>HTTPS already encrypts traffic at the transport layer. Transport encryption adds a second layer that protects against:</p>
+  <ul>
+    <li><strong>Compromised TLS proxies</strong> — Corporate SSL inspection that decrypts and re-encrypts traffic</li>
+    <li><strong>MITM attacks</strong> — Even if TLS is broken, data remains encrypted</li>
+    <li><strong>Network sniffing</strong> — Encrypted payloads are opaque even if captured</li>
+  </ul>
+</div>
+
+<h3>Encryption Modes</h3>
+<table>
+  <tr><th>Mode</th><th>Description</th></tr>
+  <tr><td><strong>Encrypt All</strong></td><td>Every dashboard API call is encrypted. SSE streams are automatically excluded (they don't support custom headers).</td></tr>
+  <tr><td><strong>Sensitive Only</strong></td><td>Pre-selected endpoint groups handling credentials and secrets (API keys, OAuth tokens, database URLs, vault).</td></tr>
+  <tr><td><strong>Custom</strong></td><td>Toggle individual endpoint groups and add custom path patterns.</td></tr>
+</table>
+
+<h3>Endpoint Groups</h3>
+<p>There are 22 endpoint groups covering every API area. Groups marked <span style="color: var(--danger);">SENSITIVE</span> handle credentials or secrets:</p>
+<ul>
+  <li><strong>Models & API Keys</strong> <span style="color: var(--danger);">SENSITIVE</span> — LLM provider API keys</li>
+  <li><strong>Authentication</strong> <span style="color: var(--danger);">SENSITIVE</span> — Login, sessions, tokens</li>
+  <li><strong>Email & SMTP</strong> <span style="color: var(--danger);">SENSITIVE</span> — SMTP credentials, email configs</li>
+  <li><strong>Database Connections</strong> <span style="color: var(--danger);">SENSITIVE</span> — Database URLs and credentials</li>
+  <li><strong>Vault & Secrets</strong> <span style="color: var(--danger);">SENSITIVE</span> — Encrypted secret storage</li>
+  <li><strong>Integrations</strong> <span style="color: var(--danger);">SENSITIVE</span> — OAuth tokens, org integrations</li>
+  <li><strong>Memory</strong> <span style="color: var(--danger);">SENSITIVE</span> — Agent memories and transfer data</li>
+  <li>Settings, Agents, Skills, Organizations, Knowledge, Tasks, Workforce, Messages, Guardrails, Journal, Approvals, Compliance, Domain, Roles, Dashboard</li>
+</ul>
+
+<h3>Advanced Settings</h3>
+<table>
+  <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+  <tr><td><strong>Payload Max Age</strong></td><td>300 seconds</td><td>Reject encrypted payloads older than this (replay attack protection)</td></tr>
+  <tr><td><strong>Debug Logging</strong></td><td>Off</td><td>Log encryption/decryption operations to browser console. Never enable in production.</td></tr>
+</table>
+
+<p>For full technical details, see the <a href="/docs/transport-encryption">Transport Encryption documentation</a>.</p>
+
+<h2 id="dependency-management">Dependency &amp; Package Management</h2>
+<p>Organization-wide defaults for how agents install software packages. Individual agents can override these in their Permissions tab.</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Install Policy</h3>
+  <table>
+    <tr><th>Policy</th><th>Description</th></tr>
+    <tr><td><strong>Auto</strong></td><td>Agents install what they need without asking. Best for trusted environments.</td></tr>
+    <tr><td><strong>Ask Manager</strong></td><td>Agents must get human approval before installing any package.</td></tr>
+    <tr><td><strong>Deny</strong></td><td>No package installation allowed. Agents must use pre-installed tools.</td></tr>
+  </table>
+</div>
+
+<h3>Cross-Platform Support</h3>
+<p>The dependency manager automatically detects the platform and uses the appropriate package manager:</p>
+<table>
+  <tr><th>Platform</th><th>Package Managers</th></tr>
+  <tr><td>macOS</td><td>Homebrew (brew)</td></tr>
+  <tr><td>Ubuntu/Debian</td><td>apt</td></tr>
+  <tr><td>Fedora/RHEL</td><td>dnf</td></tr>
+  <tr><td>Arch Linux</td><td>pacman</td></tr>
+  <tr><td>Snap-enabled Linux</td><td>snap</td></tr>
+  <tr><td>Windows</td><td>Chocolatey, winget, Scoop</td></tr>
+  <tr><td>npm packages</td><td>npm (local install to temp dir, never global)</td></tr>
+  <tr><td>Python packages</td><td>pip</td></tr>
+</table>
+
+<h3>Safety Guarantees</h3>
+<ul>
+  <li><strong>Never touches existing installations</strong> — If a tool is already installed, agents use it as-is without upgrading or reinstalling.</li>
+  <li><strong>npm packages install locally</strong> — Installed to a session temp directory (<code>/tmp/agenticmail-deps-{pid}/</code>), never globally. Cleaned up on session end.</li>
+  <li><strong>Blocked packages</strong> — Packages listed here can never be installed by any agent, regardless of policy.</li>
+  <li><strong>Auto-cleanup</strong> — Agent-installed packages are removed when the session ends (only agent-installed, never pre-existing).</li>
+</ul>
+
+<h3>Elevated Access</h3>
+<table>
+  <tr><th>Setting</th><th>Description</th></tr>
+  <tr><td><strong>Allow Global Installs</strong></td><td>Permit system-level package installation (brew, apt, etc.). When off, only local npm/pip installs are allowed.</td></tr>
+  <tr><td><strong>Allow Elevated (sudo)</strong></td><td>Permit agents to use sudo for packages that require root (e.g., <code>apt install</code>). Requires a system password to be configured.</td></tr>
+  <tr><td><strong>Allowed Managers</strong></td><td>Whitelist which package managers agents can use.</td></tr>
+</table>
+
+<div class="danger"><strong>Security note:</strong> Enabling elevated access gives agents the ability to install system-level software. Only enable this in trusted, isolated environments. The system password is stored encrypted in the server's security config.</div>
+
+<h2 id="screen-unlock">Screen Unlock &amp; Machine Access</h2>
+<p>Allows the system to automatically unlock the screen when agents need to interact with the desktop (browser automation, GUI tools, scheduled tasks).</p>
+
+<div class="card">
+  <h3 style="margin-top: 0;">How It Works</h3>
+  <ol>
+    <li>Agent detects the screen is locked (via system APIs)</li>
+    <li>System wakes the display if asleep (using <code>caffeinate</code> on macOS)</li>
+    <li>Types your password to unlock the screen (via AppleScript keystroke on macOS)</li>
+    <li>Agent performs the required action (browser, desktop automation, etc.)</li>
+  </ol>
+</div>
+
+<h3>Settings</h3>
+<table>
+  <tr><th>Setting</th><th>Description</th></tr>
+  <tr><td><strong>Enable Screen Auto-Unlock</strong></td><td>Master toggle for all screen unlock features</td></tr>
+  <tr><td><strong>System / Computer Password</strong></td><td>Your macOS or Linux login password. Stored encrypted in the server's security config. Agents never see the raw password.</td></tr>
+  <tr><td><strong>Check Screen Status</strong></td><td>Shows whether the screen is currently locked or unlocked, and the platform</td></tr>
+  <tr><td><strong>Unlock Now</strong></td><td>Manually trigger an unlock (useful for testing)</td></tr>
+  <tr><td><strong>Auto-Unlock on Agent Activity</strong></td><td>Automatically unlock when an agent needs to use the browser, run desktop automation, or start a scheduled task</td></tr>
+  <tr><td><strong>Prevent System Sleep</strong></td><td>Keep the system awake using <code>caffeinate</code> (macOS) or <code>systemd-inhibit</code> (Linux). Prevents sleep while agents are active.</td></tr>
+</table>
+
+<h3>Platform Support</h3>
+<table>
+  <tr><th>Platform</th><th>Lock Detection</th><th>Unlock Method</th><th>Sleep Prevention</th></tr>
+  <tr><td>macOS</td><td>Quartz session check</td><td>AppleScript keystroke</td><td><code>caffeinate -u -t 2</code></td></tr>
+  <tr><td>Linux</td><td><code>loginctl</code> / <code>xdotool</code></td><td><code>loginctl unlock-session</code></td><td><code>systemd-inhibit</code></td></tr>
+  <tr><td>Windows</td><td>Not supported</td><td>Not supported</td><td>Not supported</td></tr>
+</table>
+
+<div class="warning"><strong>Security consideration:</strong> The password is stored in the server's encrypted security config. Only the server process has access — agents invoke the unlock via an API call and never handle the password directly. Still, ensure your server is properly secured.</div>
+
+<h2 id="audit-logging">Security Audit Log</h2>
+<p>Log and monitor security events across your instance.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+    <tr><td><strong>Enable Audit Logging</strong></td><td>On</td><td>Master toggle for security event logging</td></tr>
+    <tr><td><strong>Retention (days)</strong></td><td>90</td><td>How long to keep audit log entries before auto-deletion</td></tr>
+    <tr><td><strong>Log Prompt Injection Attempts</strong></td><td>On</td><td>Record detected prompt injection attempts</td></tr>
+    <tr><td><strong>Log All Tool Calls</strong></td><td>Off</td><td>Record every tool invocation by every agent. High volume — enable only for investigation.</td></tr>
+    <tr><td><strong>Log API Access</strong></td><td>Off</td><td>Record all API endpoint access. Very high volume.</td></tr>
+  </table>
+</div>
+
+<h3>Recent Security Events</h3>
+<p>The audit log section also displays the 10 most recent security events with severity levels (critical, high, medium, low). Click "Refresh" to fetch the latest events.</p>
+
+<h2 id="best-practices">Best Practices</h2>
+
+<div class="card">
+  <h3 style="margin-top: 0;">Recommended Configuration</h3>
+  <table>
+    <tr><th>Setting</th><th>Recommendation</th></tr>
+    <tr><td>Prompt Injection</td><td>Sanitize mode, Medium sensitivity</td></tr>
+    <tr><td>SQL Injection</td><td>Block mode, scan both tool inputs and API bodies</td></tr>
+    <tr><td>Input Validation</td><td>Enabled with defaults (100K max length, 20 JSON depth)</td></tr>
+    <tr><td>Output Filtering</td><td>Redact mode with both secret and PII scanning</td></tr>
+    <tr><td>Transport Encryption</td><td>Sensitive Only (or Encrypt All for high-security environments)</td></tr>
+    <tr><td>Dependency Management</td><td>Auto mode with blocked packages for security tools (nmap, metasploit)</td></tr>
+    <tr><td>Screen Unlock</td><td>Enabled only on dedicated agent machines, not shared workstations</td></tr>
+    <tr><td>Audit Logging</td><td>Enabled with 90-day retention, prompt injection logging on</td></tr>
+  </table>
+</div>
+
+<h2>Related Pages</h2>
+<div class="card">
+  <ul>
+    <li><a href="/docs/settings-network">Network &amp; Firewall</a> — IP filtering, egress rules, proxy, geo-blocking</li>
+    <li><a href="/docs/settings-tool-security">Tool Security</a> — Path sandbox, SSRF, command sanitizer</li>
+    <li><a href="/docs/transport-encryption">Transport Encryption</a> — Detailed technical documentation</li>
+    <li><a href="/docs/dlp">Data Loss Prevention</a> — Rule-based content scanning</li>
+    <li><a href="/docs/audit">Audit Log</a> — View and search all audit events</li>
+    <li><a href="/docs/agent-permissions">Agent Permissions</a> — Per-agent dependency and security settings</li>
+  </ul>
+</div>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-muted)">
+  <span>AgenticMail Enterprise Documentation</span>
+  <a href="https://github.com/agenticmail/enterprise/issues" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-muted);text-decoration:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg> Report an issue</a>
+</div>
+</body>
+</html>

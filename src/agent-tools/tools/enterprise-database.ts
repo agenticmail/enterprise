@@ -52,7 +52,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbQuery: AnyAgentTool = {
     name: 'ent_db_query',
     label: 'Database Query',
-    description: 'Execute a read-only SQL query against a database connection.',
+    description: 'Execute a read-only SQL query against a LOCAL SQLite database file. For external/cloud databases, use db_query instead.',
     category: 'utility',
     risk: 'medium',
     parameters: {
@@ -220,8 +220,8 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
 
   var entDbConnections: AnyAgentTool = {
     name: 'ent_db_connections',
-    label: 'List Database Connections',
-    description: 'List all available database connections that can be used with other database ...',
+    label: 'List Local Database Files',
+    description: 'List LOCAL SQLite database files found in the workspace directory. ONLY for local .db/.sqlite files on this machine. For external/cloud databases (Postgres, MySQL, Supabase, etc.) granted by your admin, use db_list_connections instead.',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -265,8 +265,8 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
 
   var entDbTables: AnyAgentTool = {
     name: 'ent_db_tables',
-    label: 'List Tables',
-    description: 'List all tables in a database connection.',
+    label: 'List Local DB Tables',
+    description: 'List all tables in a LOCAL SQLite database file. For external/cloud databases, use db_list_tables instead.',
     category: 'utility',
     risk: 'low',
     parameters: {

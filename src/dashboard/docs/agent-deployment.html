@@ -162,12 +162,39 @@
 <h3 id="local">Local (In-Process)</h3>
 <p>For development and single-server deployments:</p>
 <ul>
-  <li><strong>Port</strong> — HTTP port the agent listens on.</li>
+  <li><strong>Port</strong> — HTTP port the agent listens on. Validated in real-time (see below).</li>
   <li><strong>Host</strong> — Hostname or IP (default: localhost).</li>
   <li><strong>Process Manager</strong> — PM2 (with install detection), systemd, Manual, or In-Process (embedded).</li>
   <li><strong>Process Name</strong> — PM2/systemd service name for lifecycle management.</li>
   <li><strong>Working Directory</strong> — Auto-detected or manually specified.</li>
 </ul>
+
+<h4>Port Validation</h4>
+<p>When you enter a port number, the system automatically checks whether it's available before allowing you to save:</p>
+<div class="card">
+  <table>
+    <thead><tr><th>Indicator</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><strong style="color:var(--success)">Green border + checkmark</strong></td><td>Port is available — you can save and deploy.</td></tr>
+      <tr><td><strong style="color:var(--danger)">Red border + error</strong></td><td>Port is already in use — save is blocked. The error shows which process is using it (e.g., "Port 3100 is in use by node (PID 12345)").</td></tr>
+    </tbody>
+  </table>
+</div>
+<ul>
+  <li><strong>Debounced</strong> — Validation triggers 500ms after you stop typing, preventing excessive API calls.</li>
+  <li><strong>Bind test</strong> — Uses <code>net.createServer()</code> to attempt binding the port. This is the most reliable availability check.</li>
+  <li><strong>Process identification</strong> — If the port is in use, the system runs <code>lsof</code> (macOS/Linux) or <code>netstat</code> (Windows) to identify the process name and PID.</li>
+  <li><strong>Save blocked</strong> — You cannot save deployment configuration while a port conflict exists.</li>
+</ul>
+
+<div class="card">
+  <h3>API Reference</h3>
+  <pre><code>POST /system/check-port
+Body: { "port": 4100 }
+Response (available): { "available": true, "port": 3102 }
+Response (in use):    { "available": false, "port": 3102, "process": "node (PID 12345)" }</code></pre>
+</div>
+
 <div class="tip">
   <strong>Tip:</strong> PM2 availability is auto-detected. If PM2 isn't installed, the dashboard offers a one-click "Install PM2" button.
 </div>
@@ -266,6 +293,11 @@ Response: { "agentId": "...", "assigned": ["kb-1", "kb-2"], "count": 2 }</code><
 <div class="card">
   <h3>Health status shows "Unhealthy"</h3>
   <p>The agent process may have crashed. Check logs on the deployment platform. Common causes: missing environment variables, incorrect model configuration, or insufficient memory.</p>
+</div>
+
+<div class="card">
+  <h3>Port is in use — can't save</h3>
+  <p>The port validation detected another process using the port. Either change the port number or stop the conflicting process. The error message shows the process name and PID — you can stop it with <code>kill &lt;PID&gt;</code> or choose a different port. Common conflicts: another agent already running on that port, or a development server.</p>
 </div>
 
 <div class="card">

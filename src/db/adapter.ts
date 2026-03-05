@@ -42,6 +42,7 @@ export interface Agent {
   status: 'active' | 'archived' | 'suspended';
   metadata: Record<string, unknown>;
   securityOverrides?: Partial<SecurityConfig>;
+  client_org_id?: string;
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;

@@ -39,6 +39,8 @@ export interface ManagedAgent {
   displayName?: string;              // Human-facing display name
   display_name?: string;             // Snake_case alias (DB compat)
   orgId: string;                     // Which company owns this agent
+  org_id?: string;                   // Snake_case alias (DB compat)
+  client_org_id?: string;            // Client org binding (if external)
   config: AgentConfig;
   state: AgentState;
   permissionProfileId?: string;      // Permission profile reference
@@ -1202,6 +1204,8 @@ export class AgentLifecycleManager {
       await this.persistAgent(agent);
       // Emit generic agent save event — all config keys may have changed
       configBus.emitAgentConfig(agentId, '_save', undefined, 'lifecycle');
+      // Push config to standalone agent process in real-time
+      import('./agent-notify.js').then(({ notifyAgent }) => notifyAgent(agentId, 'config', this)).catch(() => {});
     }
   }
 

@@ -3,34 +3,35 @@
  * 
  * Creates tools that agents can use to query databases they have access to.
  * Each agent only sees connections they've been granted access to.
+ * 
+ * IMPORTANT: execute() must match AgentTool signature: (toolCallId: string, params: any) => Promise<ToolResult>
+ * ToolResult = { content: [{ type: 'text', text: string }] }
  */
 
 import type { DatabaseConnectionManager } from './connection-manager.js';
 import { DATABASE_LABELS } from './types.js';
 
-interface ToolDefinition {
-  name: string;
-  description: string;
-  parameters: Record<string, any>;
-  execute: (input: any) => Promise<any>;
-  category?: string;
-  sideEffects?: string[];
+function jsonResult(data: any) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
-export function createDatabaseTools(manager: DatabaseConnectionManager, agentId: string): ToolDefinition[] {
-  const accessList = manager.getAgentAccess(agentId);
-  if (accessList.length === 0) return [];
+function errorResult(msg: string) {
+  return { content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }] };
+}
 
-  const tools: ToolDefinition[] = [];
+export function createDatabaseTools(manager: DatabaseConnectionManager, agentId: string): any[] {
+  const tools: any[] = [];
 
   // Tool 1: List available databases
   tools.push({
     name: 'db_list_connections',
-    description: 'List database connections this agent has access to.',
+    description: 'List EXTERNAL database connections (Postgres, MySQL, Supabase, etc.) granted to you by your admin. Use this when asked about any named database like "DateGPT", "production", etc.',
     category: 'database',
+    risk: 'low',
     parameters: { type: 'object', properties: {}, required: [] },
-    async execute() {
-      const connections = accessList.map(a => {
+    async execute(_toolCallId: string, _params: any) {
+      const accessList = manager.getAgentAccess(agentId);
+      const connections = accessList.filter(a => a.enabled).map(a => {
         const conn = manager.getConnection(a.connectionId);
         if (!conn) return null;
         return {
@@ -42,58 +43,69 @@ export function createDatabaseTools(manager: DatabaseConnectionManager, agentId:
           host: conn.host,
           status: conn.status,
           permissions: a.permissions,
-          description: conn.description,
+          description: (conn as any).config?.description || conn.description,
         };
       }).filter(Boolean);
-      return { connections };
+
+      if (connections.length === 0) {
+        return jsonResult({ connections: [], message: 'No external database connections granted. Ask your admin to grant access from the Database Access page.' });
+      }
+      return jsonResult({ connections });
     },
   });
 
   // Tool 2: Execute SQL query
   tools.push({
     name: 'db_query',
-    description: 'Execute a SQL query on a connected database. Use db_list_connections first to see available databases.',
+    description: 'Execute a SQL query on an EXTERNAL database connection granted by your admin. Use db_list_connections first to see available databases and get the connectionId.',
     category: 'database',
+    risk: 'medium',
     sideEffects: ['database_write'],
     parameters: {
       type: 'object',
       properties: {
-        connectionId: { type: 'string', description: 'Database connection ID' },
+        connectionId: { type: 'string', description: 'Database connection ID (from db_list_connections)' },
         sql: { type: 'string', description: 'SQL query to execute' },
         params: { type: 'array', items: { type: 'string' }, description: 'Query parameters (for parameterized queries)' },
       },
       required: ['connectionId', 'sql'],
     },
-    async execute(input: { connectionId: string; sql: string; params?: any[] }) {
-      const result = await manager.executeQuery({
-        connectionId: input.connectionId,
-        agentId,
-        operation: 'read',
-        sql: input.sql,
-        params: input.params,
-      });
+    async execute(_toolCallId: string, input: { connectionId: string; sql: string; params?: any[] }) {
+      if (!input?.connectionId || !input?.sql) return errorResult('connectionId and sql are required');
+      
+      try {
+        const result = await manager.executeQuery({
+          connectionId: input.connectionId,
+          agentId,
+          operation: 'read',
+          sql: input.sql,
+          params: input.params,
+        });
 
-      if (!result.success) {
-        return { error: result.error, queryId: result.queryId };
+        if (!result.success) {
+          return errorResult(result.error || 'Query failed');
+        }
+
+        return jsonResult({
+          rows: result.rows,
+          rowCount: result.rowCount,
+          affectedRows: result.affectedRows,
+          fields: result.fields,
+          executionTimeMs: result.executionTimeMs,
+          truncated: result.truncated,
+        });
+      } catch (e: any) {
+        return errorResult(e.message || 'Query execution failed');
       }
-
-      return {
-        rows: result.rows,
-        rowCount: result.rowCount,
-        affectedRows: result.affectedRows,
-        fields: result.fields,
-        executionTimeMs: result.executionTimeMs,
-        truncated: result.truncated,
-        queryId: result.queryId,
-      };
     },
   });
 
   // Tool 3: Describe table schema
   tools.push({
     name: 'db_describe_table',
-    description: 'Get the schema (columns, types, constraints) of a database table.',
+    description: 'Get the schema (columns, types, constraints) of a table in an external database.',
     category: 'database',
+    risk: 'low',
     parameters: {
       type: 'object',
       properties: {
@@ -102,11 +114,12 @@ export function createDatabaseTools(manager: DatabaseConnectionManager, agentId:
       },
       required: ['connectionId', 'table'],
     },
-    async execute(input: { connectionId: string; table: string }) {
-      const conn = manager.getConnection(input.connectionId);
-      if (!conn) return { error: 'Connection not found' };
+    async execute(_toolCallId: string, input: { connectionId: string; table: string }) {
+      if (!input?.connectionId || !input?.table) return errorResult('connectionId and table are required');
 
-      // Build describe query based on database type
+      const conn = manager.getConnection(input.connectionId);
+      if (!conn) return errorResult('Connection not found');
+
       let sql: string;
       switch (conn.type) {
         case 'postgresql': case 'cockroachdb': case 'supabase': case 'neon':
@@ -119,23 +132,25 @@ export function createDatabaseTools(manager: DatabaseConnectionManager, agentId:
           sql = `PRAGMA table_info('${input.table.replace(/'/g, "''")}')`;
           break;
         default:
-          return { error: `Schema inspection not supported for ${conn.type}` };
+          return errorResult(`Schema inspection not supported for ${conn.type}`);
       }
 
-      return manager.executeQuery({
-        connectionId: input.connectionId,
-        agentId,
-        operation: 'read',
-        sql,
-      });
+      try {
+        const result = await manager.executeQuery({ connectionId: input.connectionId, agentId, operation: 'read', sql });
+        if (!result.success) return errorResult(result.error || 'Query failed');
+        return jsonResult({ columns: result.rows, table: input.table });
+      } catch (e: any) {
+        return errorResult(e.message);
+      }
     },
   });
 
   // Tool 4: List tables
   tools.push({
     name: 'db_list_tables',
-    description: 'List all tables in the connected database.',
+    description: 'List all tables in an external database connection.',
     category: 'database',
+    risk: 'low',
     parameters: {
       type: 'object',
       properties: {
@@ -143,9 +158,11 @@ export function createDatabaseTools(manager: DatabaseConnectionManager, agentId:
       },
       required: ['connectionId'],
     },
-    async execute(input: { connectionId: string }) {
+    async execute(_toolCallId: string, input: { connectionId: string }) {
+      if (!input?.connectionId) return errorResult('connectionId is required');
+
       const conn = manager.getConnection(input.connectionId);
-      if (!conn) return { error: 'Connection not found' };
+      if (!conn) return errorResult('Connection not found');
 
       let sql: string;
       switch (conn.type) {
@@ -158,19 +175,17 @@ export function createDatabaseTools(manager: DatabaseConnectionManager, agentId:
         case 'sqlite': case 'turso':
           sql = `SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name`;
           break;
-        case 'mongodb':
-          sql = JSON.stringify({ collection: 'system.namespaces', operation: 'find', filter: {} });
-          break;
         default:
-          return { error: `Table listing not supported for ${conn.type}` };
+          return errorResult(`Table listing not supported for ${conn.type}`);
       }
 
-      return manager.executeQuery({
-        connectionId: input.connectionId,
-        agentId,
-        operation: 'read',
-        sql,
-      });
+      try {
+        const result = await manager.executeQuery({ connectionId: input.connectionId, agentId, operation: 'read', sql });
+        if (!result.success) return errorResult(result.error || 'Query failed');
+        return jsonResult({ tables: result.rows });
+      } catch (e: any) {
+        return errorResult(e.message);
+      }
     },
   });
 

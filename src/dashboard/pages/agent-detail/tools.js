@@ -170,6 +170,7 @@ export function ToolsSection(props) {
     if (filter === 'enabled') return c.enabled;
     if (filter === 'disabled') return !c.enabled;
     if (filter === 'google') return c.requiresOAuth === 'google' || c.id.startsWith('google_');
+    if (filter === 'microsoft') return c.requiresOAuth === 'microsoft' || c.id.startsWith('outlook_') || c.id.startsWith('teams') || c.id.startsWith('onedrive') || c.id.startsWith('excel') || c.id.startsWith('sharepoint') || c.id.startsWith('onenote') || c.id.startsWith('powerpoint') || c.id.startsWith('planner') || c.id.startsWith('powerbi') || c.id.startsWith('todo');
     if (filter === 'messaging') return ['whatsapp', 'telegram'].includes(c.id);
     if (filter === 'local') return c.id.startsWith('local_');
     if (filter === 'enterprise') return c.id.startsWith('enterprise_');
@@ -179,6 +180,8 @@ export function ToolsSection(props) {
 
   var googleCats = cats.filter(function(c) { return c.requiresOAuth === 'google' || c.id.startsWith('google_'); });
   var googleAvailable = googleCats.some(function(c) { return c.isAvailable; });
+  var microsoftCats = cats.filter(function(c) { return c.requiresOAuth === 'microsoft'; });
+  var microsoftAvailable = microsoftCats.some(function(c) { return c.isAvailable; });
 
   return h('div', null,
     // Org context banner
@@ -219,6 +222,12 @@ export function ToolsSection(props) {
       'Connect a Google account in the ', h('strong', null, 'Email'), ' tab to unlock Gmail, Calendar, Drive, Sheets, Docs, and Contacts tools.'
     ),
 
+    // Microsoft 365 notice
+    !microsoftAvailable && microsoftCats.length > 0 && h('div', { style: { padding: '12px 16px', background: 'var(--warning-soft)', borderRadius: 'var(--radius)', marginBottom: 16, fontSize: 12 } },
+      h('strong', { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } }, E.warning(16), ' Microsoft 365 tools require OAuth'), ' — ',
+      'Connect a Microsoft account in the ', h('strong', null, 'Email'), ' tab to unlock Outlook, Teams, OneDrive, Excel, SharePoint, and more.'
+    ),
+
     // Filter tabs
     h('div', { className: 'tabs', style: { marginBottom: 16 } },
       [
@@ -226,6 +235,7 @@ export function ToolsSection(props) {
         { id: 'enabled', label: 'Enabled' },
         { id: 'disabled', label: 'Disabled' },
         { id: 'google', label: 'Google Workspace' },
+        { id: 'microsoft', label: 'Microsoft 365' },
         { id: 'messaging', label: 'Messaging' },
         { id: 'local', label: 'Local System' },
         { id: 'enterprise', label: 'Enterprise' },
