@@ -490,9 +490,7 @@ export function OnboardingWizard({ onComplete }) {
     } catch { return null; }
   };
 
-  var dbUrlInfo = useMemo(function() {
-    return analyzeDbUrl(form.dbConnectionString);
-  }, [form.dbConnectionString]);
+  var dbUrlInfo = analyzeDbUrl(form.dbConnectionString);
 
   // ─── DB Config Builder ──────────────────────────────
 
@@ -539,7 +537,8 @@ export function OnboardingWizard({ onComplete }) {
     setError(''); setLoading(true);
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); setLoading(false); return; }
     try {
-      var res = await authCall('/bootstrap', { method: 'POST', body: JSON.stringify({ name: form.name, email: form.email, password: form.password, companyName: form.company, subdomain: form.subdomain }) });
+      var autoSub = form.company.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      var res = await authCall('/bootstrap', { method: 'POST', body: JSON.stringify({ name: form.name, email: form.email, password: form.password, companyName: form.company, subdomain: autoSub }) });
       if (res.generatedKeys && Object.keys(res.generatedKeys).length > 0) {
         setGeneratedKeys(res.generatedKeys);
         setEnvPersisted(res.envPersisted || false);
@@ -553,6 +552,7 @@ export function OnboardingWizard({ onComplete }) {
     setError(''); setLoading(true);
     try {
       await apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ smtpHost: form.smtpHost, smtpPort: form.smtpPort ? Number(form.smtpPort) : null, smtpUser: form.smtpUser, smtpPass: form.smtpPass }) });
+      if (form.company && !form.customDomain) set('customDomain', form.company.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + '.agenticmail.io');
       setStep(5);
     } catch (err) { setError(err.message); }
     setLoading(false);
@@ -783,18 +783,9 @@ export function OnboardingWizard({ onComplete }) {
             h('input', { className: 'input', type: 'password', value: form.confirmPassword, onChange: function(e) { set('confirmPassword', e.target.value); }, placeholder: 'Confirm password' })
           )
         ),
-        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
-          h('div', { className: 'form-group' },
-            h('label', { className: 'form-label' }, 'Company Name'),
-            h('input', { className: 'input', value: form.company, onChange: function(e) { set('company', e.target.value); set('subdomain', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')); }, placeholder: 'AgenticMail Inc' })
-          ),
-          h('div', { className: 'form-group' },
-            h('label', { className: 'form-label' }, 'Subdomain'),
-            h('div', { style: { display: 'flex', alignItems: 'center', gap: 4 } },
-              h('input', { className: 'input', value: form.subdomain, onChange: function(e) { set('subdomain', e.target.value); }, placeholder: 'agenticmail-inc', style: { flex: 1 } }),
-              h('span', { style: { color: 'var(--text-muted)', fontSize: 13, whiteSpace: 'nowrap' } }, '.agenticmail.io')
-            )
-          )
+        h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Company Name'),
+          h('input', { className: 'input', value: form.company, onChange: function(e) { set('company', e.target.value); }, placeholder: 'AgenticMail Inc' })
         ),
         errorBox,
         h('div', { className: 'onboarding-footer' },
@@ -924,7 +915,7 @@ export function OnboardingWizard({ onComplete }) {
 
         errorBox,
         h('div', { className: 'onboarding-footer' },
-          h('button', { className: 'btn btn-primary', onClick: function() { setStep(4); } }, keysCopied || !generatedKeys ? 'Continue' : 'I\'ve Saved My Keys — Continue')
+          h('button', { className: 'btn btn-primary', onClick: function() { if (form.company && !form.customDomain) set('customDomain', form.company.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + '.agenticmail.io'); setStep(4); } }, keysCopied || !generatedKeys ? 'Continue' : 'I\'ve Saved My Keys — Continue')
         )
       ),
 
@@ -956,7 +947,7 @@ export function OnboardingWizard({ onComplete }) {
         h('div', { className: 'onboarding-footer' },
           h('div', { style: { display: 'flex', gap: 12 } },
             h('button', { className: 'btn btn-secondary', onClick: function() { setStep(3); } }, 'Back'),
-            h('button', { className: 'onboarding-skip', onClick: function() { setStep(5); } }, 'Skip for now')
+            h('button', { className: 'onboarding-skip', onClick: function() { if (form.company && !form.customDomain) set('customDomain', form.company.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + '.agenticmail.io'); setStep(5); } }, 'Skip for now')
           ),
           h('button', { className: 'btn btn-primary', disabled: loading || !form.smtpHost, onClick: doSmtp }, loading ? 'Saving...' : 'Continue')
         )
@@ -965,12 +956,12 @@ export function OnboardingWizard({ onComplete }) {
       // ── Step 5: Domain Registration ──────────────────
       step === 5 && h(Fragment, null,
         h('div', { className: 'step-title' }, 'Domain Registration'),
-        h('div', { className: 'step-desc' }, 'Register a custom domain for your AgenticMail deployment. You can skip this and set it up later.'),
+        h('div', { className: 'step-desc' }, 'Register a custom domain or claim your free agenticmail.io subdomain. This is required for cloud deployment.'),
 
         !form.domainRegistered && h(Fragment, null,
           h('div', { className: 'form-group' },
             h('label', { className: 'form-label' }, 'Custom Domain'),
-            h('input', { className: 'input', value: form.customDomain, onChange: function(e) { set('customDomain', e.target.value); }, placeholder: 'agents.agenticmail.io', autoFocus: true })
+            h('input', { className: 'input', value: form.customDomain, onChange: function(e) { set('customDomain', e.target.value); }, placeholder: 'yourcompany.agenticmail.io', autoFocus: true })
           ),
           errorBox,
           h('div', { className: 'onboarding-footer' },

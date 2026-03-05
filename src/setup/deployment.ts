@@ -41,6 +41,8 @@ export interface DeploymentSelection {
 export async function promptDeployment(
   inquirer: any,
   chalk: any,
+  /** Subdomain already chosen in Step 1 (Company Info) */
+  existingSubdomain?: string,
 ): Promise<DeploymentSelection> {
   console.log('');
   console.log(chalk.bold.cyan('  Step 3 of 4: Deployment'));
@@ -79,7 +81,7 @@ export async function promptDeployment(
   }]);
 
   if (deployTarget === 'cloud') {
-    const cloud = await runCloudSetup(inquirer, chalk);
+    const cloud = await runCloudSetup(inquirer, chalk, existingSubdomain);
     return { target: deployTarget, cloud };
   }
 
@@ -96,33 +98,42 @@ export async function promptDeployment(
 async function runCloudSetup(
   inquirer: any,
   chalk: any,
+  existingSubdomain?: string,
 ): Promise<DeploymentSelection['cloud']> {
   console.log('');
   console.log(chalk.bold('  AgenticMail Cloud Setup'));
   console.log(chalk.dim('  Get a free subdomain on agenticmail.io — no Cloudflare account needed.'));
   console.log(chalk.dim('  Your instance will be live at https://yourname.agenticmail.io\n'));
 
-  // ── Step 1: Choose subdomain ─────────
+  // ── Step 1: Validate subdomain from Step 1 (or ask if missing) ─────────
 
   let subdomain = '';
   let claimResult: any = null;
 
   while (!subdomain) {
-    const { name } = await inquirer.prompt([{
-      type: 'input',
-      name: 'name',
-      message: 'Choose your subdomain:',
-      suffix: chalk.dim('.agenticmail.io'),
-      validate: (input: string) => {
-        const cleaned = input.toLowerCase().trim();
-        if (cleaned.length < 3) return 'Must be at least 3 characters';
-        if (cleaned.length > 32) return 'Must be 32 characters or fewer';
-        if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(cleaned)) return 'Only lowercase letters, numbers, and hyphens allowed';
-        return true;
-      },
-    }]);
+    let cleaned: string;
 
-    const cleaned = name.toLowerCase().trim();
+    if (existingSubdomain) {
+      // Reuse subdomain from Step 1 — just confirm, don't ask again
+      cleaned = existingSubdomain.toLowerCase().trim();
+      existingSubdomain = undefined; // Only use once; if it fails, ask manually next loop
+      console.log(chalk.dim(`  Using subdomain from Step 1: ${chalk.white(cleaned)}.agenticmail.io`));
+    } else {
+      const { name } = await inquirer.prompt([{
+        type: 'input',
+        name: 'name',
+        message: 'Choose your subdomain:',
+        suffix: chalk.dim('.agenticmail.io'),
+        validate: (input: string) => {
+          const c = input.toLowerCase().trim();
+          if (c.length < 3) return 'Must be at least 3 characters';
+          if (c.length > 32) return 'Must be 32 characters or fewer';
+          if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(c)) return 'Only lowercase letters, numbers, and hyphens allowed';
+          return true;
+        },
+      }]);
+      cleaned = name.toLowerCase().trim();
+    }
 
     // Check availability
     process.stdout.write(chalk.dim(`  Checking ${cleaned}.agenticmail.io... `));

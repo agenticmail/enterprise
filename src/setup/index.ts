@@ -124,7 +124,7 @@ export async function runSetupWizard(): Promise<void> {
   const database = await promptDatabase(inquirer, chalk);
 
   // ─── Step 3: Deployment ──────────────────────────
-  const deploymentResult = await promptDeployment(inquirer, chalk);
+  const deploymentResult = await promptDeployment(inquirer, chalk, company.subdomain);
   const deployTarget = deploymentResult.target;
 
   // ─── Step 4: Custom Domain ───────────────────────
