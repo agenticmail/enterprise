@@ -587,9 +587,12 @@ export class MessagingPoller {
     try {
       var resolved = this.resolveEndpoint(agent.id, agent);
       console.log(`[messaging] Dispatching to ${agent.displayName} at ${resolved.host}:${resolved.port}`);
+      var runtimeSecret = process.env.AGENT_RUNTIME_SECRET || process.env.RUNTIME_SECRET || '';
+      var headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (runtimeSecret) headers['x-agent-internal-key'] = runtimeSecret;
       var resp = await fetch(`http://${resolved.host}:${resolved.port}/api/runtime/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           source: ctx.source,
           senderName: ctx.senderName,

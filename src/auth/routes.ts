@@ -646,6 +646,32 @@ export function createAuthRoutes(
       const user = await db.getUser(payload.sub as string);
       if (!user) return c.json({ error: 'User not found' }, 401);
 
+      // Check if current session is impersonated — preserve the claim in the new token
+      const currentSessionJwt = getCookie(c, COOKIE_NAME);
+      let impersonatedBy: string | undefined;
+      if (currentSessionJwt) {
+        try {
+          const { jwtVerify: jv } = await import('jose');
+          const { payload: sp } = await jv(currentSessionJwt, secret);
+          if (sp.impersonatedBy) impersonatedBy = sp.impersonatedBy as string;
+        } catch {} // expired session token is expected — that's why we're refreshing
+      }
+
+      if (impersonatedBy) {
+        // Re-issue impersonation token (preserving the claim)
+        const { SignJWT: SJ } = await import('jose');
+        const impersonateToken = await new SJ({ sub: user.id, role: user.role, impersonatedBy, clientOrgId: user.clientOrgId || undefined, orgId: user.clientOrgId || (user as any).org_id || undefined })
+          .setProtectedHeader({ alg: 'HS256' })
+          .setIssuedAt()
+          .setExpirationTime('1h')
+          .sign(secret);
+        setCookie(c, COOKIE_NAME, impersonateToken, { path: '/', httpOnly: true, secure: isSecure(), sameSite: 'Lax', maxAge: 3600 });
+        // Don't update refresh cookie — it's the owner's
+        const csrf = generateCsrf();
+        setCookie(c, CSRF_COOKIE, csrf, { ...cookieOpts(86400, isSecure()), httpOnly: false });
+        return c.json({ token: impersonateToken, csrf });
+      }
+
       const { token, refreshToken } = await issueTokens(user.id, user.email, user.role, user.clientOrgId);
       const csrf = generateCsrf();
       const secure = isSecure();
@@ -703,6 +729,9 @@ export function createAuthRoutes(
         .setExpirationTime('1h')
         .sign(secret);
 
+      // Set the impersonation token as the session cookie so all subsequent requests use it
+      setCookie(c, 'em_session', impersonateToken, { path: '/', httpOnly: true, secure: isSecure, sameSite: 'Lax', maxAge: 3600 });
+
       return c.json({
         token: impersonateToken,
         user: { id: target.id, email: target.email, name: target.name, role: target.role, totpEnabled: !!target.totpEnabled, clientOrgId: target.clientOrgId || null, permissions: target.permissions },
@@ -710,6 +739,19 @@ export function createAuthRoutes(
       });
     } catch (e: any) {
       return c.json({ error: e.message || 'Impersonation failed' }, 500);
+    }
+  });
+
+  auth.post('/stop-impersonate', async (c) => {
+    try {
+      const impersonatedBy = c.get('impersonatedBy' as any);
+      if (!impersonatedBy) return c.json({ error: 'Not impersonating' }, 400);
+      const owner = await db.getUser(impersonatedBy);
+      if (!owner) return c.json({ error: 'Original user not found' }, 404);
+      await setSessionCookies(c, owner.id, owner.email, owner.role, 'stop-impersonate', owner.clientOrgId);
+      return c.json({ ok: true, user: { id: owner.id, email: owner.email, name: owner.name, role: owner.role } });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
     }
   });
 

@@ -61,10 +61,12 @@ export function DashboardPage() {
 
   useEffect(() => {
     var agentUrl = clientOrgFilter ? '/agents?clientOrgId=' + clientOrgFilter : '/agents';
-    apiCall('/stats').then(setStats).catch(() => {});
+    var statsUrl = clientOrgFilter ? '/stats?clientOrgId=' + clientOrgFilter : '/stats';
+    var engineOrgId = clientOrgFilter || getOrgId();
+    apiCall(statsUrl).then(setStats).catch(() => {});
     apiCall(agentUrl).then(d => { var a = d?.agents || d; setAgents(Array.isArray(a) ? a : []); }).catch(() => {});
-    engineCall('/agents?orgId=' + getOrgId()).then(d => setEngineAgents(d.agents || [])).catch(() => {});
-    engineCall('/activity/events?limit=10').then(d => setEvents(d.events || [])).catch(() => {});
+    engineCall('/agents?orgId=' + engineOrgId).then(d => setEngineAgents(d.agents || [])).catch(() => {});
+    engineCall('/activity/events?limit=10&orgId=' + engineOrgId).then(d => setEvents(d.events || [])).catch(() => {});
   }, [clientOrgFilter]);
 
   // Merge admin + engine agents; engine agents (appended last) win in the data map

@@ -1,9 +1,10 @@
 import { h, Fragment } from './utils.js';
 import { I } from './icons.js';
 
-export function Modal({ title, onClose, children, footer, large }) {
+export function Modal({ title, onClose, children, footer, large, width }) {
+  var extraStyle = width ? { width: typeof width === 'number' ? width + 'px' : width, maxWidth: '95vw' } : undefined;
   return h('div', { className: 'modal-overlay', onClick: e => { if (e.target === e.currentTarget) onClose(); } },
-    h('div', { className: 'modal' + (large ? ' modal-lg' : '') },
+    h('div', { className: 'modal' + (large ? ' modal-lg' : ''), style: extraStyle },
       h('div', { className: 'modal-header' },
         h('h2', null, title),
         h('button', { className: 'btn btn-ghost btn-icon', onClick: onClose }, I.x())

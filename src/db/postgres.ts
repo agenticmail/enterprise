@@ -189,7 +189,8 @@ export class PostgresAdapter extends DatabaseAdapter {
         client = await directPool.connect();
         console.log('[postgres] Using direct connection for migrations (bypassing PgBouncer)');
       } catch (err: any) {
-        console.warn(`[postgres] Direct connection unavailable (${err.message?.slice(0, 80)}), using pooler for migrations`);
+        // Expected for Supabase free tier — direct URL (port 5432) is often unreachable. Pooler works fine.
+        if (process.env.DEBUG_DB) console.warn(`[postgres] Direct connection unavailable (${err.message?.slice(0, 80)}), using pooler for migrations`);
         if (directPool) { try { await directPool.end(); } catch {} }
         directPool = null;
         client = await this.pool.connect();

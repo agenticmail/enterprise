@@ -52,6 +52,17 @@ export function createShellTools(opts?: { cwd?: string; timeout?: number }): Too
         required: ['command'],
       },
       execute: async (input: any) => {
+        // Intercept package install commands → redirect to install_dependency
+        var _cmdLow = (input.command || '').trim().toLowerCase();
+        var _pkgPatterns = [
+          /^(sudo\s+)?brew\s+install\s/, /^(sudo\s+)?apt(-get)?\s+install\s/, /^(sudo\s+)?dnf\s+install\s/,
+          /^(sudo\s+)?pacman\s+-S\s/, /^(sudo\s+)?snap\s+install\s/, /^choco\s+install\s/, /^winget\s+install\s/,
+          /^scoop\s+install\s/, /^(sudo\s+)?pip3?\s+install\s(?!-r\s|--requirement)/, /^npm\s+install\s+-g\s/,
+        ];
+        if (_pkgPatterns.some(p => p.test(_cmdLow))) {
+          return { stdout: '', stderr: 'POLICY: Package installation via shell is not allowed. Use the install_dependency tool instead.\nExample: install_dependency({ command: "wget" })', exitCode: 1 };
+        }
+
         var timeoutMs = (input.timeout || opts?.timeout || 30) * 1000;
         var cwd = input.cwd || opts?.cwd || process.cwd();
         try {

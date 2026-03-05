@@ -1,4 +1,4 @@
-import { h, useState, useEffect, useCallback, Fragment, useApp, engineCall, getOrgId } from '../components/utils.js';
+import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall, engineCall, getOrgId } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
@@ -67,19 +67,60 @@ export function SkillsPage() {
   var _connectingId = useState(null);
   var connectingId = _connectingId[0]; var setConnectingId = _connectingId[1];
 
+  // Org name for display (client org users may not have selectedOrg populated)
+  var _orgName = useState('');
+  var orgName = _orgName[0]; var setOrgName = _orgName[1];
+
   // Load builtin skills
+  var _allowedSkillIds = useState(null); // null = no restriction, [] = none, [...] = whitelist
+  var allowedSkillIds = _allowedSkillIds[0]; var setAllowedSkillIds = _allowedSkillIds[1];
+
   useEffect(function() {
-    engineCall('/skills/by-category')
-      .then(function(d) { setSkills(d.categories || {}); })
-      .catch(function() {});
-  }, []);
+    var isLocked = orgCtx.isLocked;
+    var fetches = [
+      engineCall('/skills/by-category'),
+      (isLocked && orgCtx.clientOrgId) ? apiCall('/organizations/' + orgCtx.clientOrgId) : (effectiveOrgId ? apiCall('/organizations/' + effectiveOrgId).catch(function() { return null; }) : Promise.resolve(null)),
+    ];
+    Promise.all(fetches).then(function(results) {
+      var allSkills = results[0].categories || {};
+      var orgData = results[1];
+      // Filter skills for client org users
+      if (orgData && orgData.name) setOrgName(orgData.name);
+      if (isLocked && orgData) {
+        var as = orgData.allowed_skills;
+        if (typeof as === 'string') try { as = JSON.parse(as); } catch { as = null; }
+        if (Array.isArray(as)) {
+          setAllowedSkillIds(as);
+          var allowedSet = {};
+          as.forEach(function(id) { allowedSet[id] = true; });
+          var filtered = {};
+          Object.keys(allSkills).forEach(function(cat) {
+            var kept = allSkills[cat].filter(function(s) { return allowedSet[s.id] || allowedSet[s.skillId]; });
+            if (kept.length > 0) filtered[cat] = kept;
+          });
+          setSkills(filtered);
+        } else {
+          setAllowedSkillIds([]);
+          setSkills({});
+        }
+      } else {
+        setAllowedSkillIds(null);
+        setSkills(allSkills);
+      }
+    }).catch(function() {});
+  }, [effectiveOrgId, orgCtx.isLocked]);
 
   // Load agents for per-agent credential scope
   useEffect(function() {
-    engineCall('/agents')
+    var url = '/agents';
+    var params = [];
+    if (effectiveOrgId) params.push('orgId=' + effectiveOrgId);
+    if (orgCtx.isLocked && orgCtx.clientOrgId) params.push('clientOrgId=' + orgCtx.clientOrgId);
+    if (params.length) url += '?' + params.join('&');
+    engineCall(url)
       .then(function(d) { setAllAgents(d.agents || []); })
       .catch(function() {});
-  }, []);
+  }, [effectiveOrgId]);
 
   // Load installed skills + statuses
   var loadInstalled = useCallback(function() {
@@ -666,7 +707,7 @@ export function SkillsPage() {
         // ── Organization Context Banner ──
         orgCtx.selectedOrgId && h('div', { style: { padding: '8px 12px', background: 'var(--info-soft, rgba(14,165,233,0.1))', borderRadius: 'var(--radius)', marginBottom: 14, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 } },
           I.building(),
-          h('span', null, 'Credentials will be saved for: ', h('strong', null, (orgCtx.selectedOrg && orgCtx.selectedOrg.name) || orgCtx.selectedOrgId))
+          h('span', null, 'Credentials will be saved for: ', h('strong', null, (orgCtx.selectedOrg && orgCtx.selectedOrg.name) || orgName || orgCtx.selectedOrgId))
         ),
 
         // ── OAuth2: Tabbed (OAuth App | Access Token) ──

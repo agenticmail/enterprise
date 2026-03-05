@@ -34,7 +34,11 @@ export function createAgentRoutes(opts: {
 
   router.get('/agents', (c) => {
     const orgId = c.req.query('orgId');
-    const agents = orgId ? lifecycle.getAgentsByOrg(orgId) : lifecycle.getAllAgents();
+    const clientOrgId = c.req.query('clientOrgId');
+    let agents = orgId ? lifecycle.getAgentsByOrg(orgId) : lifecycle.getAllAgents();
+    if (clientOrgId) {
+      agents = agents.filter(a => (a as any).clientOrgId === clientOrgId || (a as any).client_org_id === clientOrgId);
+    }
     return c.json({ agents, total: agents.length });
   });
 

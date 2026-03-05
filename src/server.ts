@@ -279,6 +279,7 @@ export function createServer(config: ServerConfig): ServerInstance {
       c.set('userEmail', (payload.email as string) || '');
       c.set('userOrgId', (payload.orgId as string) || '');
       c.set('clientOrgId', (payload.clientOrgId as string) || '');
+      c.set('impersonatedBy', (payload.impersonatedBy as string) || '');
       c.set('authType', cookieToken ? 'cookie' : 'jwt');
       return next();
     } catch {

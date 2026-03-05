@@ -167,6 +167,24 @@ export interface AgentPermissionProfile {
     sandboxMode: boolean;              // If true, all external actions are simulated
   };
 
+  // Dependency & package installation policy
+  dependencyPolicy?: {
+    /** 'auto' = install without asking, 'ask_manager' = notify manager, 'deny' = never install */
+    mode: 'auto' | 'ask_manager' | 'deny';
+    /** Allow global installs (brew/apt/choco) — if false, only local npm/pip */
+    allowGlobalInstalls: boolean;
+    /** Allow elevated privilege installs (sudo/doas on Unix, admin on Windows) */
+    allowElevated: boolean;
+    /** System/computer password for sudo/doas (piped via stdin, never in args or logs). Not needed on Windows. */
+    sudoPassword?: string;
+    /** Allowed package managers: brew, apt, npm, pip, choco, winget, pacman, dnf, snap */
+    allowedManagers: string[];
+    /** Specific packages to never install */
+    blockedPackages: string[];
+    /** Auto-cleanup installed packages when session ends */
+    autoCleanup: boolean;
+  };
+
   createdAt: string;
   updatedAt: string;
 }
@@ -280,6 +298,7 @@ export const PRESET_PROFILES: Omit<AgentPermissionProfile, 'id' | 'createdAt' | 
     requireApproval: { enabled: false, forRiskLevels: [], forSideEffects: [], approvers: [], timeoutMinutes: 30 },
     rateLimits: { toolCallsPerMinute: 30, toolCallsPerHour: 500, toolCallsPerDay: 5000, externalActionsPerHour: 0 },
     constraints: { maxConcurrentTasks: 3, maxSessionDurationMinutes: 480, sandboxMode: false },
+    dependencyPolicy: { mode: 'deny', allowGlobalInstalls: false, allowElevated: false, allowedManagers: [], blockedPackages: [], autoCleanup: true },
   },
   {
     name: 'Customer Support Agent',
@@ -291,6 +310,7 @@ export const PRESET_PROFILES: Omit<AgentPermissionProfile, 'id' | 'createdAt' | 
     requireApproval: { enabled: true, forRiskLevels: ['high', 'critical'], forSideEffects: ['sends-email'], approvers: [], timeoutMinutes: 60 },
     rateLimits: { toolCallsPerMinute: 20, toolCallsPerHour: 300, toolCallsPerDay: 3000, externalActionsPerHour: 50 },
     constraints: { maxConcurrentTasks: 5, maxSessionDurationMinutes: 480, sandboxMode: false },
+    dependencyPolicy: { mode: 'deny', allowGlobalInstalls: false, allowElevated: false, allowedManagers: [], blockedPackages: [], autoCleanup: true },
   },
   {
     name: 'Developer Assistant',
@@ -302,10 +322,11 @@ export const PRESET_PROFILES: Omit<AgentPermissionProfile, 'id' | 'createdAt' | 
     requireApproval: { enabled: true, forRiskLevels: ['critical'], forSideEffects: [], approvers: [], timeoutMinutes: 15 },
     rateLimits: { toolCallsPerMinute: 60, toolCallsPerHour: 1000, toolCallsPerDay: 10000, externalActionsPerHour: 100 },
     constraints: { maxConcurrentTasks: 3, maxSessionDurationMinutes: 720, sandboxMode: false },
+    dependencyPolicy: { mode: 'auto', allowGlobalInstalls: true, allowElevated: false, allowedManagers: ['brew', 'apt', 'npm', 'pip', 'choco', 'winget'], blockedPackages: [], autoCleanup: false },
   },
   {
     name: 'Full Access (Owner)',
-    description: 'Unrestricted access to all skills and tools. Use with caution.',
+    description: 'Unrestricted access to all skills and tools. Full system access including sudo, global installs, and all package managers.',
     skills: { mode: 'blocklist', list: [] },
     tools: { blocked: [], allowed: [] },
     maxRiskLevel: 'critical',
@@ -313,6 +334,7 @@ export const PRESET_PROFILES: Omit<AgentPermissionProfile, 'id' | 'createdAt' | 
     requireApproval: { enabled: false, forRiskLevels: [], forSideEffects: [], approvers: [], timeoutMinutes: 30 },
     rateLimits: { toolCallsPerMinute: 120, toolCallsPerHour: 5000, toolCallsPerDay: 50000, externalActionsPerHour: 500 },
     constraints: { maxConcurrentTasks: 10, maxSessionDurationMinutes: 1440, sandboxMode: false },
+    dependencyPolicy: { mode: 'auto', allowGlobalInstalls: true, allowElevated: true, allowedManagers: ['brew', 'apt', 'npm', 'pip', 'choco', 'winget', 'pacman', 'dnf', 'snap', 'scoop'], blockedPackages: [], autoCleanup: false },
   },
   {
     name: 'Sandbox (Testing)',
@@ -324,6 +346,7 @@ export const PRESET_PROFILES: Omit<AgentPermissionProfile, 'id' | 'createdAt' | 
     requireApproval: { enabled: false, forRiskLevels: [], forSideEffects: [], approvers: [], timeoutMinutes: 30 },
     rateLimits: { toolCallsPerMinute: 60, toolCallsPerHour: 1000, toolCallsPerDay: 10000, externalActionsPerHour: 500 },
     constraints: { maxConcurrentTasks: 5, maxSessionDurationMinutes: 480, sandboxMode: true },
+    dependencyPolicy: { mode: 'auto', allowGlobalInstalls: false, allowElevated: false, allowedManagers: ['npm', 'pip'], blockedPackages: [], autoCleanup: true },
   },
 ];
 
@@ -353,6 +376,7 @@ export class PermissionEngine {
   private profiles: Map<string, AgentPermissionProfile> = new Map();
   private engineDb?: import('./db-adapter.js').EngineDatabase;
   private refreshTimer?: ReturnType<typeof setInterval>;
+  private _onRefreshCallbacks: Array<(profiles: Map<string, AgentPermissionProfile>) => void> = [];
 
   constructor(skills?: SkillDefinition[]) {
     if (skills) {
@@ -373,7 +397,16 @@ export class PermissionEngine {
           this.profiles.set(profile.id, profile);
         }
       }
+      // Notify listeners (e.g., dependency manager policy sync)
+      for (const cb of this._onRefreshCallbacks) {
+        try { cb(this.profiles); } catch {}
+      }
     } catch { /* table may not exist yet */ }
+  }
+
+  /** Register a callback to run after profiles refresh (e.g., sync dependency policy) */
+  onRefresh(callback: (profiles: Map<string, AgentPermissionProfile>) => void): void {
+    this._onRefreshCallbacks.push(callback);
   }
 
   /**

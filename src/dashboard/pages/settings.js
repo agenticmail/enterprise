@@ -2025,6 +2025,84 @@ function ComprehensiveSecurityTab(props) {
       );
     })(),
 
+    // ── Dependency & Package Management ──
+    (function() {
+      var depDefaults = securityConfig.dependencyDefaults || { mode: 'auto', allowGlobalInstalls: false, allowElevated: false, allowedManagers: ['npm', 'pip'], blockedPackages: [], autoCleanup: true };
+      var ALL_MANAGERS = ['brew', 'apt', 'dnf', 'pacman', 'snap', 'choco', 'winget', 'scoop', 'npm', 'pip'];
+
+      function updateDep(updates) {
+        updateSection('dependencyDefaults', Object.assign({}, depDefaults, updates));
+      }
+
+      return h('div', { style: _cardStyle },
+        h('div', { style: _cardTitleStyle }, I.settings(), 'Dependency & Package Management'),
+        h('p', { style: _cardDescStyle }, 'Organization-wide defaults for agent package installation. Individual agents can override these in their Permissions tab.'),
+
+        // Mode
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 } },
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Default Install Policy'),
+            h('select', { className: 'input', value: depDefaults.mode, onChange: function(e) { updateDep({ mode: e.target.value }); } },
+              h('option', { value: 'auto' }, 'Auto — agents install what they need'),
+              h('option', { value: 'ask_manager' }, 'Ask Manager — require human approval'),
+              h('option', { value: 'deny' }, 'Deny — no package installation allowed')
+            )
+          ),
+          h('div', null,
+            h('label', { className: 'form-label' }, 'Auto-Cleanup'),
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 } },
+              h(ToggleSwitch, { checked: depDefaults.autoCleanup !== false, onChange: function(v) { updateDep({ autoCleanup: v }); } }),
+              h('span', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'Remove agent-installed packages on session end')
+            )
+          )
+        ),
+
+        // Global installs + Elevated
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 } },
+          h('div', null,
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+              h(ToggleSwitch, { checked: depDefaults.allowGlobalInstalls === true, onChange: function(v) { updateDep({ allowGlobalInstalls: v }); } }),
+              h('span', { style: { fontWeight: 500 } }, 'Allow Global Installs')
+            ),
+            h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: 0 } }, 'System-level packages via brew, apt, choco, etc. When off, only local npm/pip installs are allowed.')
+          ),
+          h('div', null,
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+              h(ToggleSwitch, { checked: depDefaults.allowElevated === true, onChange: function(v) { updateDep({ allowElevated: v }); } }),
+              h('span', { style: { fontWeight: 500 } }, 'Allow Elevated (sudo/admin)')
+            ),
+            h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: 0 } }, 'Permit agents to use sudo (Linux/macOS) or admin privileges (Windows) for system packages.')
+          )
+        ),
+
+        // Allowed package managers
+        h('div', { style: { marginBottom: 16 } },
+          h('label', { className: 'form-label' }, 'Allowed Package Managers'),
+          h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+            ALL_MANAGERS.map(function(mgr) {
+              var isActive = (depDefaults.allowedManagers || []).indexOf(mgr) >= 0;
+              return h('label', { key: mgr, style: { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, border: '1px solid ' + (isActive ? 'var(--brand-color, #6366f1)' : 'var(--border)'), background: isActive ? 'var(--brand-color-alpha, rgba(99,102,241,0.1))' : 'transparent', cursor: 'pointer', fontSize: 13 } },
+                h('input', { type: 'checkbox', checked: isActive, onChange: function() {
+                  var current = (depDefaults.allowedManagers || []).slice();
+                  if (isActive) { current = current.filter(function(m) { return m !== mgr; }); }
+                  else { current.push(mgr); }
+                  updateDep({ allowedManagers: current });
+                }, style: { marginRight: 2 } }),
+                mgr
+              );
+            })
+          )
+        ),
+
+        // Blocked packages
+        h('div', { style: { marginBottom: 8 } },
+          h('label', { className: 'form-label' }, 'Blocked Packages'),
+          h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 6px' } }, 'Package names that agents can never install, regardless of other settings.'),
+          h(TagInput, { value: depDefaults.blockedPackages || [], onChange: function(v) { updateDep({ blockedPackages: v }); }, placeholder: 'e.g. nmap, metasploit', mono: true })
+        )
+      );
+    })(),
+
     // Security Audit Log
     h('div', { style: _cardStyle },
       h('div', { style: _cardTitleStyle }, I.journal(), 'Security Audit Log'),

@@ -159,18 +159,23 @@ export function OrgChartPage() {
     ]).then(function(res) {
       var hierRes = res[0]; var agentRes = res[1];
       var avatarMap = {};
-      (agentRes.agents || []).forEach(function(a) { avatarMap[a.id] = a.config?.identity?.avatar || a.config?.avatar || a.config?.persona?.avatar || null; });
+      var orgAgentIds = {};
+      (agentRes.agents || []).forEach(function(a) { avatarMap[a.id] = a.config?.identity?.avatar || a.config?.avatar || a.config?.persona?.avatar || null; orgAgentIds[a.id] = true; });
       if (hierRes && hierRes.nodes) {
-        setNodes(hierRes.nodes.map(function(n) { return Object.assign({}, n, { avatar: avatarMap[n.agentId] || null }); }));
+        var filteredNodes = hierRes.nodes;
+        if (orgCtx.isLocked && orgCtx.clientOrgId) {
+          filteredNodes = filteredNodes.filter(function(n) { return orgAgentIds[n.agentId]; });
+        }
+        setNodes(filteredNodes.map(function(n) { return Object.assign({}, n, { avatar: avatarMap[n.agentId] || null }); }));
       } else {
         var agents = agentRes.agents || [];
         setNodes(agents.map(function(a) { return { agentId: a.id, name: a.config?.name || a.id, role: a.config?.role || 'Agent', state: a.state || 'stopped', managerId: a.config?.managerId || null, managerType: a.config?.externalManagerEmail ? 'external' : a.config?.managerId ? 'internal' : 'none', managerName: a.config?.externalManagerName || null, managerEmail: a.config?.externalManagerEmail || null, subordinateIds: [], subordinateCount: 0, isManager: false, level: 0, clockedIn: a.state === 'running', activeTasks: 0, errorsToday: 0, avatar: avatarMap[a.id] || null, comm: a.config?.comm || {} }; }));
       }
     }).catch(function(e) { setError(e.message || 'Failed to load'); });
     setLoading(false);
-  }, []);
+  }, [effectiveOrgId, orgCtx.isLocked]);
 
-  useEffect(function() { load(); }, []);
+  useEffect(function() { load(); }, [load]);
 
   var layout = layoutTree(nodes);
   var positioned = layout.positioned; var treeW = layout.width; var treeH = layout.height;

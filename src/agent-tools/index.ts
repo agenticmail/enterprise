@@ -487,6 +487,28 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     }
   }
 
+  // ─── Local System Tools (filesystem, shell, coding, dependency manager) ───
+  var localSystemTools: AnyAgentTool[] = [];
+  try {
+    var { createLocalSystemTools } = await import('./tools/local/index.js');
+    localSystemTools = createLocalSystemTools({
+      sandboxRoot: options?.workspaceDir || undefined,
+      shellCwd: options?.workspaceDir || process.cwd(),
+      shellTimeout: 120,
+    }) as AnyAgentTool[];
+    // Register with permission engine so tools aren't blocked as "Unknown tool"
+    if ((options as any)?.permissionEngine && localSystemTools.length > 0) {
+      const localToolDefs = localSystemTools.map(t => ({
+        id: t.name, name: t.name, description: (t as any).description || t.name,
+        category: 'utility' as any, risk: 'medium' as any,
+        skillId: 'local-shell', sideEffects: [] as any[],
+      }));
+      (options as any).permissionEngine.registerDynamicTools('local-shell', localToolDefs);
+    }
+  } catch (e: any) {
+    console.warn(`[tools] Local system tools load failed: ${e.message}`);
+  }
+
   var enabledTools = rawTools
     .filter(function(t): t is AnyAgentTool { return t !== null; })
     .concat(enterpriseTools)
@@ -496,7 +518,8 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     .concat(integrationTools)
     .concat(mcpServerTools)
     .concat(messagingTools)
-    .concat(managementTools);
+    .concat(managementTools)
+    .concat(localSystemTools);
 
   // Wrap with middleware if configured
   if (options?.middleware) {

@@ -505,7 +505,27 @@ export function TaskPipelinePage() {
         allTasks = []; // No agents in this org = no tasks
       }
       setTasks(allTasks);
-      setStats(res[1] || stats);
+      // For client org users, compute stats from filtered tasks instead of global stats
+      if (orgCtx.isLocked && orgCtx.clientOrgId) {
+        var todayStart = new Date(); todayStart.setHours(0,0,0,0); var todayMs = todayStart.getTime();
+        var cs = { created: 0, assigned: 0, inProgress: 0, completed: 0, failed: 0, cancelled: 0, total: allTasks.length, todayCompleted: 0, todayFailed: 0, todayCreated: 0, avgDurationMs: 0, totalCost: 0, totalTokens: 0, topAgents: [] };
+        var durSum = 0, durCount = 0, am = {};
+        allTasks.forEach(function(t) {
+          if (t.status === 'created') cs.created++; else if (t.status === 'assigned') cs.assigned++; else if (t.status === 'in_progress') cs.inProgress++; else if (t.status === 'completed') cs.completed++; else if (t.status === 'failed') cs.failed++; else if (t.status === 'cancelled') cs.cancelled++;
+          var cMs = new Date(t.createdAt).getTime(); if (cMs >= todayMs) cs.todayCreated++;
+          if (t.completedAt && new Date(t.completedAt).getTime() >= todayMs) { if (t.status === 'completed') cs.todayCompleted++; if (t.status === 'failed') cs.todayFailed++; }
+          if (t.completedAt && t.createdAt) { var dur = new Date(t.completedAt).getTime() - cMs; if (dur > 0) { durSum += dur; durCount++; } }
+          cs.totalTokens += t.tokensUsed || 0; cs.totalCost += t.costUsd || 0;
+          var aid = t.assignedAgent || 'unassigned';
+          if (!am[aid]) am[aid] = { agent: aid, name: (map[aid] && map[aid].name) || aid, completed: 0, active: 0 };
+          if (t.status === 'completed') am[aid].completed++; else if (t.status === 'in_progress') am[aid].active++;
+        });
+        if (durCount > 0) cs.avgDurationMs = durSum / durCount;
+        cs.topAgents = Object.values(am).sort(function(a,b) { return (b.completed + b.active) - (a.completed + a.active); });
+        setStats(cs);
+      } else {
+        setStats(res[1] || stats);
+      }
     }).catch(function(err) { console.error('[TaskPipeline]', err); })
       .finally(function() { setLoading(false); });
   }, [effectiveOrgId]);
@@ -535,8 +555,8 @@ export function TaskPipelinePage() {
               return [event.task].concat(prev);
             });
             setSelectedTask(function(prev) { return prev && prev.id === event.task.id ? event.task : prev; });
-            // Refresh stats on every task event for real-time metrics
-            engineCall('/task-pipeline/stats').then(function(s) { if (s) setStats(s); }).catch(function() {});
+            // Refresh stats on every task event for real-time metrics (skip for client org — stats are computed locally)
+            if (!orgCtx.isLocked) engineCall('/task-pipeline/stats').then(function(s) { if (s) setStats(s); }).catch(function() {});
           }
         } catch (err) {}
       };
@@ -545,6 +565,7 @@ export function TaskPipelinePage() {
   }, []);
 
   useEffect(function() {
+    if (orgCtx.isLocked) return; // Client org stats computed locally from filtered tasks
     var iv = setInterval(function() {
       engineCall('/task-pipeline/stats').then(function(s) { if (s) setStats(s); }).catch(function() {});
     }, 15000);

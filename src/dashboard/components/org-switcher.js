@@ -152,5 +152,5 @@ export function useOrgContext() {
     }, extraProps || {}));
   }, [selectedOrgId, onOrgChange]);
 
-  return { selectedOrgId: selectedOrgId, selectedOrg: selectedOrg, onOrgChange: onOrgChange, Switcher: Switcher };
+  return { selectedOrgId: selectedOrgId, selectedOrg: selectedOrg, onOrgChange: onOrgChange, Switcher: Switcher, isLocked: isLocked, clientOrgId: userClientOrgId };
 }

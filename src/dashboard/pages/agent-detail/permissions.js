@@ -38,6 +38,8 @@ export function PermissionsSection(props) {
   var profile = _profile[0]; var setProfile = _profile[1];
   var _editing = useState(false);
   var editing = _editing[0]; var setEditing = _editing[1];
+  var _editingSection = useState(null); // null | 'profile' | 'approval' | 'rateLimits' | 'constraints' | 'dependency'
+  var editingSection = _editingSection[0]; var setEditingSection = _editingSection[1];
   var _saving = useState(false);
   var saving = _saving[0]; var setSaving = _saving[1];
   var _form = useState({});
@@ -197,7 +199,58 @@ export function PermissionsSection(props) {
     });
   };
 
-  // ─── Edit Mode Init ────────────────────────────────────
+  // ─── Per-Section Edit ───────────────────────────────────
+
+  var startEditSection = function(section) {
+    var p = profile || {};
+    var rl = p.rateLimits || p.rate_limits || {};
+    var con = p.constraints || {};
+    var appr = p.requireApproval || p.approvalSettings || p.approval || {};
+    setForm({
+      maxRiskLevel: p.maxRiskLevel || p.max_risk_level || 'medium',
+      blockedSideEffects: (p.blockedSideEffects || p.blocked_side_effects || []).slice(),
+      sandboxMode: p.sandboxMode || p.sandbox_mode || false,
+      approvalEnabled: appr.enabled !== undefined ? appr.enabled : false,
+      approvalRiskLevels: (appr.forRiskLevels || appr.riskLevels || appr.risk_levels || []).slice(),
+      approvalSideEffects: (appr.forSideEffects || appr.sideEffects || appr.side_effects || []).slice(),
+      approvalTimeout: appr.timeoutMinutes || appr.timeout || 30,
+      callsPerMinute: rl.toolCallsPerMinute || rl.callsPerMinute || rl.calls_per_minute || 30,
+      callsPerHour: rl.toolCallsPerHour || rl.callsPerHour || rl.calls_per_hour || 500,
+      callsPerDay: rl.toolCallsPerDay || rl.callsPerDay || rl.calls_per_day || 5000,
+      externalPerHour: rl.externalActionsPerHour || rl.externalPerHour || rl.external_per_hour || 50,
+      maxConcurrentTasks: con.maxConcurrentTasks || con.max_concurrent_tasks || 5,
+      maxSessionDuration: con.maxSessionDurationMinutes || con.maxSessionDuration || con.max_session_duration || 480,
+      depMode: (p.dependencyPolicy || {}).mode || 'auto',
+      depAllowGlobal: (p.dependencyPolicy || {}).allowGlobalInstalls !== undefined ? (p.dependencyPolicy || {}).allowGlobalInstalls : true,
+      depAllowElevated: (p.dependencyPolicy || {}).allowElevated || false,
+      depSudoPassword: (p.dependencyPolicy || {}).sudoPassword || '',
+      depAllowedManagers: ((p.dependencyPolicy || {}).allowedManagers || ['brew', 'apt', 'npm', 'pip', 'choco', 'winget']).slice(),
+      depBlockedPackages: ((p.dependencyPolicy || {}).blockedPackages || []).join(', '),
+      depAutoCleanup: (p.dependencyPolicy || {}).autoCleanup !== undefined ? (p.dependencyPolicy || {}).autoCleanup : true,
+    });
+    setEditingSection(section);
+  };
+
+  var cancelSection = function() { setEditingSection(null); };
+
+  var sectionEditHeader = function(title, section) {
+    return h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+      h('span', { style: { fontWeight: 600 } }, title),
+      h('div', { style: { display: 'flex', gap: 6 } },
+        h('button', { className: 'btn btn-primary btn-sm', disabled: saving, onClick: saveProfile }, saving ? 'Saving...' : 'Save'),
+        h('button', { className: 'btn btn-ghost btn-sm', onClick: cancelSection }, 'Cancel')
+      )
+    );
+  };
+
+  var sectionViewHeader = function(title, section, helpContent) {
+    return h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+      h('span', { style: { display: 'flex', alignItems: 'center' } }, title, helpContent || null),
+      h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { startEditSection(section); }, style: { fontSize: 12 } }, I.journal(), ' Edit')
+    );
+  };
+
+  // ─── Edit Mode Init (full — used by "Create Custom Profile") ──
 
   var startEdit = function() {
     var p = profile || {};
@@ -218,6 +271,14 @@ export function PermissionsSection(props) {
       externalPerHour: rl.externalActionsPerHour || rl.externalPerHour || rl.external_per_hour || 50,
       maxConcurrentTasks: con.maxConcurrentTasks || con.max_concurrent_tasks || 5,
       maxSessionDuration: con.maxSessionDurationMinutes || con.maxSessionDuration || con.max_session_duration || 480,
+      // Dependency policy
+      depMode: (p.dependencyPolicy || {}).mode || 'auto',
+      depAllowGlobal: (p.dependencyPolicy || {}).allowGlobalInstalls !== undefined ? (p.dependencyPolicy || {}).allowGlobalInstalls : true,
+      depAllowElevated: (p.dependencyPolicy || {}).allowElevated || false,
+      depSudoPassword: (p.dependencyPolicy || {}).sudoPassword || '',
+      depAllowedManagers: ((p.dependencyPolicy || {}).allowedManagers || ['brew', 'apt', 'npm', 'pip', 'choco', 'winget']).slice(),
+      depBlockedPackages: ((p.dependencyPolicy || {}).blockedPackages || []).join(', '),
+      depAutoCleanup: (p.dependencyPolicy || {}).autoCleanup !== undefined ? (p.dependencyPolicy || {}).autoCleanup : true,
     });
     setEditing(true);
   };
@@ -263,6 +324,15 @@ export function PermissionsSection(props) {
         maxSessionDurationMinutes: Number(form.maxSessionDuration) || 480,
         sandboxMode: form.sandboxMode,
       },
+      dependencyPolicy: {
+        mode: form.depMode || 'auto',
+        allowGlobalInstalls: !!form.depAllowGlobal,
+        allowElevated: !!form.depAllowElevated,
+        sudoPassword: form.depSudoPassword || undefined,
+        allowedManagers: form.depAllowedManagers || [],
+        blockedPackages: (form.depBlockedPackages || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean),
+        autoCleanup: !!form.depAutoCleanup,
+      },
       createdAt: (profile && profile.createdAt) || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -274,6 +344,7 @@ export function PermissionsSection(props) {
       toast('Permissions saved', 'success');
       setProfile(res.profile || updated);
       setEditing(false);
+      setEditingSection(null);
       setSaving(false);
       reload();
     }).catch(function(err) {
@@ -393,6 +464,67 @@ export function PermissionsSection(props) {
         h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
           h('input', { type: 'checkbox', checked: form.sandboxMode, onChange: function() { setField('sandboxMode', !form.sandboxMode); } }),
           'Sandbox Mode (restrict to safe tools only)'
+        )
+      ),
+
+      // Dependency Policy
+      h('div', { className: 'card', style: { padding: 20, marginBottom: 20 } },
+        h('h4', { style: { margin: '0 0 4px', fontSize: 14, fontWeight: 600 } }, 'Dependency & Package Installation'),
+        h('p', { style: { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 16px' } }, 'Control how the agent installs tools and packages. Works on macOS, Linux, Windows, and Raspberry Pi.'),
+
+        // Mode selector
+        h('div', { style: { marginBottom: 16 } },
+          h('div', { style: labelStyle }, 'Install Mode'),
+          h('select', { style: inputStyle, value: form.depMode, onChange: function(e) { setField('depMode', e.target.value); } },
+            h('option', { value: 'auto' }, 'Auto — install without asking'),
+            h('option', { value: 'ask_manager' }, 'Ask Manager — request approval first'),
+            h('option', { value: 'deny' }, 'Deny — never install anything')
+          )
+        ),
+
+        form.depMode !== 'deny' && h('div', null,
+          // Checkboxes
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 } },
+            h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+              h('input', { type: 'checkbox', checked: form.depAllowGlobal, onChange: function() { setField('depAllowGlobal', !form.depAllowGlobal); } }),
+              'Allow Global Installs (brew, apt, choco, winget, scoop, pacman, dnf, snap)'
+            ),
+            h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+              h('input', { type: 'checkbox', checked: form.depAllowElevated, onChange: function() { setField('depAllowElevated', !form.depAllowElevated); } }),
+              'Allow Elevated Privileges (sudo/doas on Mac/Linux, admin on Windows — required for apt, dnf, pacman)'
+            ),
+            h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+              h('input', { type: 'checkbox', checked: form.depAutoCleanup, onChange: function() { setField('depAutoCleanup', !form.depAutoCleanup); } }),
+              'Auto-cleanup locally installed packages when session ends'
+            )
+          ),
+
+          // System password
+          form.depAllowElevated && h('div', { style: { marginBottom: 16 } },
+            h('div', { style: labelStyle }, 'System / Computer Password (optional)'),
+            h('input', { type: 'password', style: inputStyle, value: form.depSudoPassword, placeholder: 'Leave empty if passwordless sudo/doas is configured', onChange: function(e) { setField('depSudoPassword', e.target.value); } }),
+            h('p', { style: { fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' } }, 'Used for sudo (Mac/Linux) or doas (BSD). On Windows, elevation is handled by the OS. Password is piped via stdin — never stored in command arguments or logs.')
+          ),
+
+          // Allowed package managers
+          h('div', { style: { marginBottom: 16 } },
+            h('div', { style: labelStyle }, 'Allowed Package Managers'),
+            h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+              ['brew', 'apt', 'dnf', 'pacman', 'snap', 'choco', 'winget', 'scoop', 'npm', 'pip'].map(function(mgr) {
+                var checked = (form.depAllowedManagers || []).indexOf(mgr) >= 0;
+                return h('label', { key: mgr, style: { fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: checked ? 'var(--accent-subtle)' : 'var(--bg-secondary)', borderRadius: 6, border: '1px solid ' + (checked ? 'var(--accent)' : 'var(--border)') } },
+                  h('input', { type: 'checkbox', checked: checked, style: { display: 'none' }, onChange: function() { toggleInArray('depAllowedManagers', mgr); } }),
+                  mgr
+                );
+              })
+            )
+          ),
+
+          // Blocked packages
+          h('div', { style: { marginBottom: 0 } },
+            h('div', { style: labelStyle }, 'Blocked Packages (comma-separated)'),
+            h('input', { type: 'text', style: inputStyle, value: form.depBlockedPackages, placeholder: 'e.g. nmap, wireshark, metasploit', onChange: function(e) { setField('depBlockedPackages', e.target.value); } })
+          )
         )
       ),
 
@@ -704,94 +836,189 @@ export function PermissionsSection(props) {
     // Preset selector
     presetCard,
 
-    // ─── Current Profile + Edit Button ──────────────────
+    // ─── Current Profile (Risk Level + Side Effects + Sandbox) ──────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Current Permission Profile', h(HelpButton, { label: 'Permission Profile' },
-          h('p', null, 'The active permission profile controls what this agent can do. It defines the maximum risk level, blocked side effects, sandbox mode, and approval requirements.')
-        )),
-        h('button', { className: 'btn btn-primary btn-sm', onClick: startEdit }, I.journal(), ' Edit')
-      ),
-      h('div', { className: 'card-body' },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 } },
-          h('h3', { style: { fontSize: 16, fontWeight: 600, margin: 0 } }, profile.name || profile.profileName || 'Custom Profile'),
-          h('span', { className: riskBadgeClass(maxRisk) }, 'Max Risk: ' + maxRisk)
-        ),
-        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 } },
-          h('span', { style: { fontSize: 12, color: 'var(--text-muted)', marginRight: 4 } }, 'Blocked Side Effects:'),
-          blockedSideEffects.length > 0
-            ? blockedSideEffects.map(function(se, i) {
-                return h('span', { key: i, className: 'badge badge-danger', style: { fontSize: 11 } }, se);
-              })
-            : h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'None')
-        ),
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-          h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Sandbox Mode:'),
-          h('span', { className: sandboxMode ? 'badge badge-warning' : 'badge badge-neutral' }, sandboxMode ? 'Enabled' : 'Disabled')
-        )
-      )
+      editingSection === 'profile'
+        ? h(Fragment, null,
+            sectionEditHeader('Permission Profile', 'profile'),
+            h('div', { className: 'card-body' },
+              h('div', { style: { marginBottom: 16 } },
+                h('div', { style: labelStyle }, 'Maximum Risk Level'),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  ALL_RISK_LEVELS.map(function(level) {
+                    return h('button', { key: level, className: 'btn btn-sm' + (form.maxRiskLevel === level ? ' btn-primary' : ' btn-secondary'), onClick: function() { setField('maxRiskLevel', level); }, style: { textTransform: 'capitalize' } }, level);
+                  })
+                )
+              ),
+              h('div', { style: { marginBottom: 16 } },
+                h('div', { style: labelStyle }, 'Blocked Side Effects'),
+                h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+                  ALL_SIDE_EFFECTS.map(function(se) {
+                    var active = form.blockedSideEffects.indexOf(se) >= 0;
+                    return h('div', { key: se, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, cursor: 'pointer', border: '1px solid ' + (active ? 'var(--danger)' : 'var(--border)'), background: active ? 'rgba(239,68,68,0.1)' : 'var(--bg-secondary)', fontSize: 12 }, onClick: function() { toggleInArray('blockedSideEffects', se); } },
+                      h('input', { type: 'checkbox', checked: active, readOnly: true, style: { accentColor: 'var(--danger)' } }),
+                      se
+                    );
+                  })
+                )
+              ),
+              h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+                h('input', { type: 'checkbox', checked: form.sandboxMode, onChange: function() { setField('sandboxMode', !form.sandboxMode); } }),
+                'Sandbox Mode (restrict to safe tools only)'
+              )
+            )
+          )
+        : h(Fragment, null,
+            sectionViewHeader('Permission Profile', 'profile', h(HelpButton, { label: 'Permission Profile' },
+              h('p', null, 'The active permission profile controls what this agent can do. It defines the maximum risk level, blocked side effects, sandbox mode, and approval requirements.')
+            )),
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 } },
+                h('h3', { style: { fontSize: 16, fontWeight: 600, margin: 0 } }, profile.name || profile.profileName || 'Custom Profile'),
+                h('span', { className: riskBadgeClass(maxRisk) }, 'Max Risk: ' + maxRisk)
+              ),
+              h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 } },
+                h('span', { style: { fontSize: 12, color: 'var(--text-muted)', marginRight: 4 } }, 'Blocked Side Effects:'),
+                blockedSideEffects.length > 0
+                  ? blockedSideEffects.map(function(se, i) { return h('span', { key: i, className: 'badge badge-danger', style: { fontSize: 11 } }, se); })
+                  : h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'None')
+              ),
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Sandbox Mode:'),
+                h('span', { className: sandboxMode ? 'badge badge-warning' : 'badge badge-neutral' }, sandboxMode ? 'Enabled' : 'Disabled')
+              )
+            )
+          )
     ),
 
     // ─── Approval Settings Card ─────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Approval Settings', h(HelpButton, { label: 'Approval Settings' },
-        h('p', null, 'When enabled, the agent must get human approval before performing risky actions. You can configure which risk levels and side effects trigger approval, and how long to wait before timing out.')
-      ))),
-      h('div', { className: 'card-body' },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 } },
-          h('span', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'Approval Required:'),
-          h('span', { className: approvalEnabled ? 'badge badge-success' : 'badge badge-neutral' }, approvalEnabled ? 'Enabled' : 'Disabled')
-        ),
-        approvalEnabled && h(Fragment, null,
-          h('div', { style: { marginBottom: 12 } },
-            h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 } }, 'Risk Levels Requiring Approval:'),
-            h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-              approvalRiskLevels.length > 0
-                ? approvalRiskLevels.map(function(rl, i) { return h('span', { key: i, className: riskBadgeClass(rl) }, rl); })
-                : h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'None')
+      editingSection === 'approval'
+        ? h(Fragment, null,
+            sectionEditHeader('Approval Settings', 'approval'),
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 } },
+                h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+                  h('input', { type: 'checkbox', checked: form.approvalEnabled, onChange: function() { setField('approvalEnabled', !form.approvalEnabled); } }),
+                  'Require approval for risky actions'
+                )
+              ),
+              form.approvalEnabled && h(Fragment, null,
+                h('div', { style: { marginBottom: 14 } },
+                  h('div', { style: labelStyle }, 'Risk levels requiring approval:'),
+                  h('div', { style: { display: 'flex', gap: 8 } },
+                    ALL_RISK_LEVELS.map(function(level) {
+                      var active = form.approvalRiskLevels.indexOf(level) >= 0;
+                      return h('button', { key: level, className: 'btn btn-sm' + (active ? ' btn-primary' : ' btn-secondary'), onClick: function() { toggleInArray('approvalRiskLevels', level); }, style: { textTransform: 'capitalize' } }, level);
+                    })
+                  )
+                ),
+                h('div', { style: { marginBottom: 14 } },
+                  h('div', { style: labelStyle }, 'Side effects requiring approval:'),
+                  h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+                    ALL_SIDE_EFFECTS.map(function(se) {
+                      var active = form.approvalSideEffects.indexOf(se) >= 0;
+                      return h('button', { key: se, className: 'btn btn-sm' + (active ? ' btn-info' : ' btn-ghost'), onClick: function() { toggleInArray('approvalSideEffects', se); }, style: { fontSize: 11 } }, se);
+                    })
+                  )
+                ),
+                h('div', { style: { maxWidth: 200 } },
+                  h('div', { style: labelStyle }, 'Timeout (minutes)'),
+                  h('input', { type: 'number', style: inputStyle, value: form.approvalTimeout, min: 1, onChange: function(e) { setField('approvalTimeout', e.target.value); } })
+                )
+              )
             )
-          ),
-          h('div', { style: { marginBottom: 12 } },
-            h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 } }, 'Side Effects Requiring Approval:'),
-            h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-              approvalSideEffects.length > 0
-                ? approvalSideEffects.map(function(se, i) { return h('span', { key: i, className: 'badge badge-info', style: { fontSize: 11 } }, se); })
-                : h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'None')
+          )
+        : h(Fragment, null,
+            sectionViewHeader('Approval Settings', 'approval', h(HelpButton, { label: 'Approval Settings' },
+              h('p', null, 'When enabled, the agent must get human approval before performing risky actions. You can configure which risk levels and side effects trigger approval, and how long to wait before timing out.')
+            )),
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 } },
+                h('span', { style: { fontSize: 13, color: 'var(--text-secondary)' } }, 'Approval Required:'),
+                h('span', { className: approvalEnabled ? 'badge badge-success' : 'badge badge-neutral' }, approvalEnabled ? 'Enabled' : 'Disabled')
+              ),
+              approvalEnabled && h(Fragment, null,
+                h('div', { style: { marginBottom: 12 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 } }, 'Risk Levels Requiring Approval:'),
+                  h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+                    approvalRiskLevels.length > 0
+                      ? approvalRiskLevels.map(function(rl, i) { return h('span', { key: i, className: riskBadgeClass(rl) }, rl); })
+                      : h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'None')
+                  )
+                ),
+                h('div', { style: { marginBottom: 12 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 } }, 'Side Effects Requiring Approval:'),
+                  h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+                    approvalSideEffects.length > 0
+                      ? approvalSideEffects.map(function(se, i) { return h('span', { key: i, className: 'badge badge-info', style: { fontSize: 11 } }, se); })
+                      : h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'None')
+                  )
+                ),
+                h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'Timeout: ', h('strong', null, approvalTimeout + ' minutes'))
+              )
             )
-          ),
-          h('div', { style: { fontSize: 12, color: 'var(--text-secondary)' } }, 'Timeout: ', h('strong', null, approvalTimeout + ' minutes'))
-        )
-      )
+          )
     ),
 
     // ─── Rate Limits Card ───────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Rate Limits', h(HelpButton, { label: 'Rate Limits' },
-        h('p', null, 'Controls how many tool calls the agent can make per time period. Prevents runaway behavior and controls costs. External actions (email, messaging) have a separate limit.')
-      ))),
-      h('div', { className: 'card-body' },
-        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
-          h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'Calls / Minute'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(callsPerMin || 'Unlimited'))),
-          h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'Calls / Hour'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(callsPerHr || 'Unlimited'))),
-          h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'Calls / Day'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(callsPerDay || 'Unlimited'))),
-          h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'External / Hour'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(externalPerHr || 'Unlimited')))
-        )
-      )
+      editingSection === 'rateLimits'
+        ? h(Fragment, null,
+            sectionEditHeader('Rate Limits', 'rateLimits'),
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+                h('div', null, h('div', { style: labelStyle }, 'Calls / Minute'), h('input', { type: 'number', style: inputStyle, value: form.callsPerMinute, min: 0, onChange: function(e) { setField('callsPerMinute', e.target.value); } })),
+                h('div', null, h('div', { style: labelStyle }, 'Calls / Hour'), h('input', { type: 'number', style: inputStyle, value: form.callsPerHour, min: 0, onChange: function(e) { setField('callsPerHour', e.target.value); } })),
+                h('div', null, h('div', { style: labelStyle }, 'Calls / Day'), h('input', { type: 'number', style: inputStyle, value: form.callsPerDay, min: 0, onChange: function(e) { setField('callsPerDay', e.target.value); } })),
+                h('div', null, h('div', { style: labelStyle }, 'External Actions / Hour'), h('input', { type: 'number', style: inputStyle, value: form.externalPerHour, min: 0, onChange: function(e) { setField('externalPerHour', e.target.value); } }))
+              )
+            )
+          )
+        : h(Fragment, null,
+            sectionViewHeader('Rate Limits', 'rateLimits', h(HelpButton, { label: 'Rate Limits' },
+              h('p', null, 'Controls how many tool calls the agent can make per time period. Prevents runaway behavior and controls costs. External actions (email, messaging) have a separate limit.')
+            )),
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+                h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'Calls / Minute'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(callsPerMin || 'Unlimited'))),
+                h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'Calls / Hour'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(callsPerHr || 'Unlimited'))),
+                h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'Calls / Day'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(callsPerDay || 'Unlimited'))),
+                h('div', { style: { padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 } }, h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 } }, 'External / Hour'), h('div', { style: { fontSize: 20, fontWeight: 700 } }, String(externalPerHr || 'Unlimited')))
+              )
+            )
+          )
     ),
 
     // ─── Constraints Card ───────────────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },
-      h('div', { className: 'card-header' }, h('span', { style: { display: 'flex', alignItems: 'center' } }, 'Constraints', h(HelpButton, { label: 'Constraints' },
-        h('p', null, 'Operational limits for concurrent tasks, session duration, sandbox mode, and IP allowlisting. These prevent the agent from consuming excessive resources.')
-      ))),
-      h('div', { className: 'card-body' },
-        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
-          h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Max Concurrent Tasks'), h('div', { style: { fontSize: 14, fontWeight: 600 } }, String(maxConcurrent))),
-          h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Max Session Duration'), h('div', { style: { fontSize: 14, fontWeight: 600 } }, String(maxSessionDuration))),
-          h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Sandbox Mode'), h('span', { className: sandboxMode ? 'badge badge-warning' : 'badge badge-neutral' }, sandboxMode ? 'Enabled' : 'Disabled')),
-          h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Allowed IPs'), allowedIPs.length > 0 ? h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap' } }, allowedIPs.map(function(ip, i) { return h('span', { key: i, className: 'badge badge-neutral', style: { fontSize: 11, fontFamily: 'monospace' } }, ip); })) : h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'Any'))
-        )
-      )
+      editingSection === 'constraints'
+        ? h(Fragment, null,
+            sectionEditHeader('Constraints', 'constraints'),
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 } },
+                h('div', null, h('div', { style: labelStyle }, 'Max Concurrent Tasks'), h('input', { type: 'number', style: inputStyle, value: form.maxConcurrentTasks, min: 1, onChange: function(e) { setField('maxConcurrentTasks', e.target.value); } })),
+                h('div', null, h('div', { style: labelStyle }, 'Max Session Duration (min)'), h('input', { type: 'number', style: inputStyle, value: form.maxSessionDuration, min: 1, onChange: function(e) { setField('maxSessionDuration', e.target.value); } }))
+              ),
+              h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+                h('input', { type: 'checkbox', checked: form.sandboxMode, onChange: function() { setField('sandboxMode', !form.sandboxMode); } }),
+                'Sandbox Mode (restrict to safe tools only)'
+              )
+            )
+          )
+        : h(Fragment, null,
+            sectionViewHeader('Constraints', 'constraints', h(HelpButton, { label: 'Constraints' },
+              h('p', null, 'Operational limits for concurrent tasks, session duration, sandbox mode, and IP allowlisting. These prevent the agent from consuming excessive resources.')
+            )),
+            h('div', { className: 'card-body' },
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 } },
+                h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Max Concurrent Tasks'), h('div', { style: { fontSize: 14, fontWeight: 600 } }, String(maxConcurrent))),
+                h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Max Session Duration'), h('div', { style: { fontSize: 14, fontWeight: 600 } }, String(maxSessionDuration))),
+                h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Sandbox Mode'), h('span', { className: sandboxMode ? 'badge badge-warning' : 'badge badge-neutral' }, sandboxMode ? 'Enabled' : 'Disabled')),
+                h('div', null, h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Allowed IPs'), allowedIPs.length > 0 ? h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap' } }, allowedIPs.map(function(ip, i) { return h('span', { key: i, className: 'badge badge-neutral', style: { fontSize: 11, fontFamily: 'monospace' } }, ip); })) : h('div', { style: { fontSize: 13, color: 'var(--text-muted)' } }, 'Any'))
+              )
+            )
+          )
     ),
 
     // ─── Tools Card ─────────────────────────────────────
@@ -807,6 +1034,98 @@ export function PermissionsSection(props) {
           allowedTools.map(function(t, i) { return h('span', { key: i, className: 'badge badge-success', style: { fontSize: 11 } }, t); })
         )
       )
+    ),
+
+    // ─── Dependency Policy Card ───────────────────────────
+    h('div', { className: 'card', style: { marginBottom: 20 } },
+      editingSection === 'dependency'
+        ? h(Fragment, null,
+            sectionEditHeader('Dependency & Package Installation', 'dependency'),
+            h('div', { className: 'card-body' },
+              h('div', { style: { marginBottom: 16 } },
+                h('div', { style: labelStyle }, 'Install Mode'),
+                h('select', { style: inputStyle, value: form.depMode, onChange: function(e) { setField('depMode', e.target.value); } },
+                  h('option', { value: 'auto' }, 'Auto — install without asking'),
+                  h('option', { value: 'ask_manager' }, 'Ask Manager — request approval first'),
+                  h('option', { value: 'deny' }, 'Deny — never install anything')
+                )
+              ),
+              form.depMode !== 'deny' && h('div', null,
+                h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 } },
+                  h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+                    h('input', { type: 'checkbox', checked: form.depAllowGlobal, onChange: function() { setField('depAllowGlobal', !form.depAllowGlobal); } }),
+                    'Allow Global Installs (brew, apt, choco, winget, scoop, pacman, dnf, snap)'
+                  ),
+                  h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+                    h('input', { type: 'checkbox', checked: form.depAllowElevated, onChange: function() { setField('depAllowElevated', !form.depAllowElevated); } }),
+                    'Allow Elevated Privileges (sudo/doas on Mac/Linux, admin on Windows)'
+                  ),
+                  h('label', { style: { fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 } },
+                    h('input', { type: 'checkbox', checked: form.depAutoCleanup, onChange: function() { setField('depAutoCleanup', !form.depAutoCleanup); } }),
+                    'Auto-cleanup locally installed packages when session ends'
+                  )
+                ),
+                form.depAllowElevated && h('div', { style: { marginBottom: 16 } },
+                  h('div', { style: labelStyle }, 'System / Computer Password (optional)'),
+                  h('input', { type: 'password', style: inputStyle, value: form.depSudoPassword, placeholder: 'Leave empty if passwordless sudo/doas is configured', onChange: function(e) { setField('depSudoPassword', e.target.value); } }),
+                  h('p', { style: { fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' } }, 'Password is piped via stdin — never stored in command arguments or logs.')
+                ),
+                h('div', { style: { marginBottom: 16 } },
+                  h('div', { style: labelStyle }, 'Allowed Package Managers'),
+                  h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+                    ['brew', 'apt', 'dnf', 'pacman', 'snap', 'choco', 'winget', 'scoop', 'npm', 'pip'].map(function(mgr) {
+                      var checked = (form.depAllowedManagers || []).indexOf(mgr) >= 0;
+                      return h('label', { key: mgr, style: { fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: checked ? 'var(--accent-subtle)' : 'var(--bg-secondary)', borderRadius: 6, border: '1px solid ' + (checked ? 'var(--accent)' : 'var(--border)') } },
+                        h('input', { type: 'checkbox', checked: checked, style: { display: 'none' }, onChange: function() { toggleInArray('depAllowedManagers', mgr); } }),
+                        mgr
+                      );
+                    })
+                  )
+                ),
+                h('div', null,
+                  h('div', { style: labelStyle }, 'Blocked Packages (comma-separated)'),
+                  h('input', { type: 'text', style: inputStyle, value: form.depBlockedPackages, placeholder: 'e.g. nmap, wireshark, metasploit', onChange: function(e) { setField('depBlockedPackages', e.target.value); } })
+                )
+              )
+            )
+          )
+        : (function() {
+            var dp = profile.dependencyPolicy || {};
+            var mode = dp.mode || 'auto';
+            var modeBadge = mode === 'deny' ? 'badge-danger' : mode === 'ask_manager' ? 'badge-warning' : 'badge-success';
+            var modeLabel = mode === 'deny' ? 'Denied' : mode === 'ask_manager' ? 'Ask Manager' : 'Auto';
+            return h(Fragment, null,
+              sectionViewHeader('Dependency & Package Installation', 'dependency'),
+              h('div', { className: 'card-body' },
+                h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 } },
+                  h('div', null,
+                    h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Install Mode'),
+                    h('span', { className: 'badge ' + modeBadge, style: { fontSize: 11 } }, modeLabel)
+                  ),
+                  h('div', null,
+                    h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Global Installs'),
+                    h('span', { style: { fontSize: 13 } }, dp.allowGlobalInstalls ? 'Allowed' : 'Local only')
+                  ),
+                  h('div', null,
+                    h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Elevated Privileges'),
+                    h('span', { style: { fontSize: 13 } }, dp.allowElevated ? (dp.sudoPassword ? 'Yes (password configured)' : 'Yes (passwordless)') : 'No')
+                  )
+                ),
+                mode !== 'deny' && (dp.allowedManagers || []).length > 0 && h('div', { style: { marginTop: 12 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Package Managers'),
+                  h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap' } },
+                    (dp.allowedManagers || []).map(function(m, i) { return h('span', { key: i, className: 'badge badge-neutral', style: { fontSize: 11 } }, m); })
+                  )
+                ),
+                (dp.blockedPackages || []).length > 0 && h('div', { style: { marginTop: 12 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'Blocked Packages'),
+                  h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap' } },
+                    (dp.blockedPackages || []).map(function(p, i) { return h('span', { key: i, className: 'badge badge-danger', style: { fontSize: 11 } }, p); })
+                  )
+                )
+              )
+            );
+          })()
     ),
 
     // ─── Applicable Policies Table ──────────────────────

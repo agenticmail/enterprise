@@ -608,9 +608,12 @@ export class EmailPoller {
     const url = `http://${mailbox.host}:${mailbox.port}/api/runtime/email`;
 
     try {
+      const _rtSecret = process.env.AGENT_RUNTIME_SECRET || process.env.RUNTIME_SECRET || '';
+      const _hdrs: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (_rtSecret) _hdrs['x-agent-internal-key'] = _rtSecret;
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: _hdrs,
         body: JSON.stringify({
           source: 'gmail',
           agentId: mailbox.agentId,

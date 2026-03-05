@@ -97,6 +97,31 @@ export function createBashTool(options?: ToolCreationOptions & { commandSanitize
         }
       }
 
+      // Intercept package install commands → redirect to install_dependency
+      var _cmdCheck = command.trim().toLowerCase();
+      var _installPatterns = [
+        /^(sudo\s+)?brew\s+install\s/,
+        /^(sudo\s+)?apt(-get)?\s+install\s/,
+        /^(sudo\s+)?dnf\s+install\s/,
+        /^(sudo\s+)?pacman\s+-S\s/,
+        /^(sudo\s+)?snap\s+install\s/,
+        /^choco\s+install\s/,
+        /^winget\s+install\s/,
+        /^scoop\s+install\s/,
+        /^(sudo\s+)?pip3?\s+install\s(?!-r\s|--requirement)/,  // allow pip install -r requirements.txt
+        /^npm\s+install\s+-g\s/,
+      ];
+      if (_installPatterns.some(p => p.test(_cmdCheck))) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'POLICY: Package installation via bash is not allowed. Use the install_dependency tool instead.\n\n' +
+              'Example: install_dependency({ command: "wget" })\n\n' +
+              'install_dependency handles cross-platform detection, permission policies, sudo passwords, and cleanup tracking automatically.',
+          }],
+        };
+      }
+
       var timeoutMs = Math.min(
         timeoutRaw && timeoutRaw > 0 ? timeoutRaw : bashConfig?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         MAX_TIMEOUT_MS,

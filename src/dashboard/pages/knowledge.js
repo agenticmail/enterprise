@@ -43,7 +43,8 @@ export function KnowledgeBasePage() {
 
   const create = async () => {
     try {
-      await engineCall('/knowledge-bases', { method: 'POST', body: JSON.stringify({ name: form.name, description: form.description, orgId: getOrgId(), clientOrgId: form.orgId || null }) });
+      var clientOrgIdVal = orgCtx.isLocked && orgCtx.clientOrgId ? orgCtx.clientOrgId : (form.orgId || null);
+      await engineCall('/knowledge-bases', { method: 'POST', body: JSON.stringify({ name: form.name, description: form.description, orgId: getOrgId(), clientOrgId: clientOrgIdVal }) });
       toast('Knowledge base created', 'success');
       setCreating(false); setForm({ name: '', description: '', orgId: '' }); load();
     } catch (e) { toast(e.message, 'error'); }
@@ -195,7 +196,7 @@ export function KnowledgeBasePage() {
           editing
             ? h(Fragment, null,
                 h('textarea', { className: 'input', rows: 3, value: editForm.description, onChange: e => setEditForm(f => ({ ...f, description: e.target.value })), placeholder: 'Knowledge base description...', style: { marginBottom: 8 } }),
-                clientOrgs.length > 0 && h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                !orgCtx.isLocked && clientOrgs.length > 0 && h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
                   h('label', { style: { fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' } }, 'Organization:'),
                   h('select', { className: 'input', value: editForm.clientOrgId, onChange: e => setEditForm(f => ({ ...f, clientOrgId: e.target.value })), style: { fontSize: 12, maxWidth: 250 } },
                     h('option', { value: '' }, 'My Organization (internal)'),
@@ -409,16 +410,18 @@ export function KnowledgeBasePage() {
     creating && h(Modal, { title: 'Create Knowledge Base', onClose: () => setCreating(false), footer: h(Fragment, null, h('button', { className: 'btn btn-secondary', onClick: () => setCreating(false) }, 'Cancel'), h('button', { className: 'btn btn-primary', onClick: create, disabled: !form.name }, 'Create')) },
       h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Name'), h('input', { className: 'input', value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })) })),
       h('div', { className: 'form-group' }, h('label', { className: 'form-label' }, 'Description'), h('textarea', { className: 'input', value: form.description, onChange: e => setForm(f => ({ ...f, description: e.target.value })) })),
-      clientOrgs.length > 0 && h('div', { className: 'form-group' },
-        h('label', { className: 'form-label' }, 'Organization'),
-        h('select', { className: 'input', value: form.orgId, onChange: e => setForm(f => ({ ...f, orgId: e.target.value })) },
-          h('option', { value: '' }, 'My Organization (internal)'),
-          clientOrgs.filter(o => o.is_active !== false).map(o =>
-            h('option', { key: o.id, value: o.id }, o.name)
-          )
-        ),
-        h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Assign this knowledge base to a client organization for data isolation')
-      )
+      orgCtx.isLocked
+        ? null  /* client org users auto-assign to their org — no dropdown needed */
+        : clientOrgs.length > 0 && h('div', { className: 'form-group' },
+          h('label', { className: 'form-label' }, 'Organization'),
+          h('select', { className: 'input', value: form.orgId, onChange: e => setForm(f => ({ ...f, orgId: e.target.value })) },
+            h('option', { value: '' }, 'My Organization (internal)'),
+            clientOrgs.filter(o => o.is_active !== false).map(o =>
+              h('option', { key: o.id, value: o.id }, o.name)
+            )
+          ),
+          h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Assign this knowledge base to a client organization for data isolation')
+        )
     ),
 
     loading && h('div', { style: { textAlign: 'center', padding: 40 } }, 'Loading...'),

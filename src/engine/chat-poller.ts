@@ -753,9 +753,12 @@ export class ChatPoller {
     const url = `http://${agent.host}:${agent.port}/api/runtime/chat`;
 
     try {
+      const _rtSecret = process.env.AGENT_RUNTIME_SECRET || process.env.RUNTIME_SECRET || '';
+      const _hdrs: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (_rtSecret) _hdrs['x-agent-internal-key'] = _rtSecret;
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: _hdrs,
         body: JSON.stringify(chatContext),
         signal: AbortSignal.timeout(10_000),
       });

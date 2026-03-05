@@ -134,7 +134,17 @@ function App() {
   const [permissions, setPermissions] = useState('*'); // '*' = full access, or { pageId: true | ['tab1','tab2'] }
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [show2faReminder, setShow2faReminder] = useState(false);
-  const [impersonating, setImpersonating] = useState(null); // { user, impersonatedBy }
+  const [impersonating, _setImpersonating] = useState(function() {
+    try { var s = localStorage.getItem('em_impersonating'); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const setImpersonating = function(v) {
+    _setImpersonating(function(prev) {
+      var next = typeof v === 'function' ? v(prev) : v;
+      if (next) { localStorage.setItem('em_impersonating', JSON.stringify(next)); }
+      else { localStorage.removeItem('em_impersonating'); }
+      return next;
+    });
+  };
   const [forceResetPw, setForceResetPw] = useState('');
   const [forceResetPw2, setForceResetPw2] = useState('');
   const [forceResetLoading, setForceResetLoading] = useState(false);
@@ -218,7 +228,7 @@ function App() {
     }).catch(() => {});
   }, [authed]);
 
-  const logout = useCallback(() => { authCall('/logout', { method: 'POST' }).catch(() => {}).finally(() => { setAuthed(false); setUser(null); }); }, []);
+  const logout = useCallback(() => { localStorage.removeItem('em_impersonating'); localStorage.removeItem('em_client_org_id'); authCall('/logout', { method: 'POST' }).catch(() => {}).finally(() => { setAuthed(false); setUser(null); setImpersonating(null); setPermissions('*'); }); }, []);
   const toggleSidebarPin = useCallback(() => setSidebarPinned(p => !p), []);
   const onSidebarEnter = useCallback(() => { if (!sidebarPinned) setSidebarHovered(true); }, [sidebarPinned]);
   const onSidebarLeave = useCallback(() => setSidebarHovered(false), []);
@@ -234,7 +244,12 @@ function App() {
         setImpersonating({ user: d.user, impersonatedBy: d.impersonatedBy, originalToken: localStorage.getItem('em_token') });
         localStorage.setItem('em_token', d.token);
         setUser(d.user);
-        if (d.user.permissions) setPermissions(d.user.permissions);
+        // Immediately restrict permissions for client org users (before async fetch)
+        if (d.user.clientOrgId) {
+          setPermissions({ dashboard: true, agents: true, roles: true, skills: true, 'community-skills': true, 'skill-connections': true, 'database-access': true, knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true, approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true, messages: true, guardrails: true, journal: true, activity: true, dlp: true, compliance: true, vault: true, audit: true, settings: true });
+        }
+        // Then fetch computed permissions for the definitive set
+        apiCall('/me/permissions').then(function(p) { if (p && p.permissions) setPermissions(p.permissions); }).catch(function() {});
         if (d.user.clientOrgId) {
           localStorage.setItem('em_client_org_id', d.user.clientOrgId);
           // Auto-select the client org so all pages filter by it
@@ -253,18 +268,55 @@ function App() {
   }, []);
 
   const stopImpersonation = useCallback(() => {
-    setImpersonating(prev => {
-      if (prev && prev.originalToken) {
-        localStorage.setItem('em_token', prev.originalToken);
-      }
-      return null;
+    // Suppress 401 logout during the entire swap
+    window.__suppressLogout = true;
+
+    // Try server-side stop first; if it fails (e.g. token was refreshed and lost
+    // impersonatedBy claim), fall back to re-authenticating as the owner directly.
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem('em_impersonating') || 'null'); } catch {}
+
+    var restoreOwnerSession = function() {
+      // Clear impersonation state immediately
+      setImpersonating(null);
+      localStorage.removeItem('em_impersonating');
+      localStorage.removeItem('em_client_org_id');
+      onOrgChange('', null);
+      setPermissions('*');
+
+      // Re-login as owner by calling /me — the refresh cookie is still the owner's
+      // so a refresh will restore the owner's session
+      authCall('/refresh', { method: 'POST' }).then(function() {
+        return authCall('/me');
+      }).then(function(d) {
+        setUser(d.user || d);
+        window.__suppressLogout = false;
+        apiCall('/me/permissions').then(function(p) { if (p && p.permissions) setPermissions(p.permissions); }).catch(function() {});
+        toast('Stopped impersonation', 'success');
+        setPage('users');
+      }).catch(function() {
+        // Last resort: full page reload to clear all state
+        window.location.reload();
+      });
+    };
+
+    authCall('/stop-impersonate', { method: 'POST' }).then(function(d) {
+      setImpersonating(null);
+      localStorage.removeItem('em_impersonating');
+      localStorage.removeItem('em_client_org_id');
+      onOrgChange('', null);
+      setPermissions('*');
+      setTimeout(function() {
+        window.__suppressLogout = false;
+        authCall('/me').then(function(d) { setUser(d.user || d); }).catch(function() {});
+        apiCall('/me/permissions').then(function(p) { if (p && p.permissions) setPermissions(p.permissions); }).catch(function() {});
+      }, 100);
+      toast('Stopped impersonation', 'success');
+      setPage('users');
+    }).catch(function() {
+      // stop-impersonate failed (token refreshed, or expired) — use fallback
+      restoreOwnerSession();
     });
-    localStorage.removeItem('em_client_org_id');
-    onOrgChange('', null); // Reset org selection back to platform org
-    authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {});
-    apiCall('/me/permissions').then(d => { if (d && d.permissions) setPermissions(d.permissions); }).catch(() => {});
-    toast('Stopped impersonation', 'success');
-    setPage('users');
   }, []);
 
   if (!authChecked) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Loading...');

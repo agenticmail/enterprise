@@ -673,6 +673,35 @@ export async function runAgent(_args: string[]) {
     await routes.permissionEngine.setDb(engineDb);
     routes.permissionEngine.startAutoRefresh(30_000); // Refresh permissions every 30s from DB
     routes.guardrails.startAutoRefresh(15_000); // Refresh guardrail state every 15s (pause/resume, rules)
+    // Sync dependency policy from permission profile (with org-wide defaults fallback)
+    try {
+      const depMgr = await import('./agent-tools/tools/local/dependency-manager.js');
+      // Load org-wide defaults from security settings
+      let orgDefaults: any = {};
+      try {
+        const settings = await engineDb.getSettings();
+        orgDefaults = (settings as any)?.securityConfig?.dependencyDefaults || {};
+      } catch {}
+      const profile = routes.permissionEngine.getProfile(agent.id);
+      // Per-agent policy overrides org defaults
+      const mergedPolicy = Object.assign({}, orgDefaults, profile?.dependencyPolicy || {});
+      if (Object.keys(mergedPolicy).length > 0) {
+        depMgr.setDependencyPolicy(mergedPolicy);
+        console.log(`   Dependency policy: ${mergedPolicy.mode || 'auto'} (global=${mergedPolicy.allowGlobalInstalls}, elevated=${mergedPolicy.allowElevated})`);
+      }
+      // Re-sync dependency policy whenever permission profiles refresh from dashboard changes
+      routes.permissionEngine.onRefresh(async (profiles) => {
+        const p = profiles.get(agent.id);
+        // Re-read org defaults on each refresh too
+        let freshOrgDefaults: any = {};
+        try {
+          const s = await engineDb.getSettings();
+          freshOrgDefaults = (s as any)?.securityConfig?.dependencyDefaults || {};
+        } catch {}
+        const merged = Object.assign({}, freshOrgDefaults, p?.dependencyPolicy || {});
+        depMgr.setDependencyPolicy(merged);
+      });
+    } catch {}
     console.log('   Permissions: loaded from DB');
     console.log('   Hooks lifecycle: initialized (shared singleton from step 4)');
   } catch (permErr: any) {
@@ -800,6 +829,59 @@ export async function runAgent(_args: string[]) {
 
   // 8. Start health check HTTP server
   const app = new Hono();
+
+  // ─── Runtime Auth Middleware ────────────────────────
+  // Protects all /api/* endpoints from unauthorized access.
+  // Set AGENT_RUNTIME_SECRET in .env to enable (strongly recommended).
+  // Enterprise server and Telegram/WhatsApp webhooks include this token automatically.
+  const RUNTIME_SECRET = process.env.AGENT_RUNTIME_SECRET || process.env.RUNTIME_SECRET || '';
+  const ENTERPRISE_JWT_SECRET = process.env.JWT_SECRET || '';
+  const _rateLimit = new Map<string, { count: number; resetAt: number }>();
+  const RATE_LIMIT_RPM = Number(process.env.AGENT_RATE_LIMIT_RPM) || 30; // requests per minute
+
+  app.use('/api/*', async (c, next) => {
+    // Rate limiting by IP
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'local';
+    const now = Date.now();
+    const bucket = _rateLimit.get(ip);
+    if (bucket && bucket.resetAt > now) {
+      bucket.count++;
+      if (bucket.count > RATE_LIMIT_RPM) {
+        return c.json({ error: 'Rate limit exceeded. Try again later.' }, 429);
+      }
+    } else {
+      _rateLimit.set(ip, { count: 1, resetAt: now + 60000 });
+    }
+    // Cleanup stale entries every 100 requests
+    if (Math.random() < 0.01) {
+      for (const [k, v] of _rateLimit) { if (v.resetAt < now) _rateLimit.delete(k); }
+    }
+
+    // Auth check — skip if no secret configured (backward compatible)
+    if (RUNTIME_SECRET) {
+      const authHeader = c.req.header('authorization') || '';
+      const queryToken = new URL(c.req.url).searchParams.get('token') || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '') || queryToken;
+
+      // Accept: runtime secret, enterprise JWT, or internal enterprise-to-agent header
+      const internalKey = c.req.header('x-agent-internal-key') || '';
+      if (token === RUNTIME_SECRET || internalKey === RUNTIME_SECRET) {
+        return next();
+      }
+      // Also accept valid enterprise JWT (so dashboard can communicate with agents)
+      if (ENTERPRISE_JWT_SECRET && token) {
+        try {
+          const { jwtVerify } = await import('jose');
+          const secret = new TextEncoder().encode(ENTERPRISE_JWT_SECRET);
+          await jwtVerify(token, secret);
+          return next();
+        } catch {}
+      }
+      return c.json({ error: 'Unauthorized. Set Authorization: Bearer <AGENT_RUNTIME_SECRET>' }, 401);
+    }
+
+    return next();
+  });
 
   app.get('/health', (c) => c.json({
     status: 'ok',
@@ -1062,14 +1144,48 @@ export async function runAgent(_args: string[]) {
           `- For simple greetings/questions, reply in ONE tool call. Do not overthink.`,
           '',
           `DEPENDENCY & TOOL MANAGEMENT:`,
-          `- Before running commands that need specific tools (ffmpeg, imagemagick, etc.), use check_dependency to verify they're installed.`,
-          `- If a tool is missing: use install_dependency to install it automatically (brew on macOS, apt on Linux).`,
-          `- Tell your manager what you're installing and why — don't just silently install things. Example: "I need to install ffmpeg to process your video. Installing now..."`,
-          `- After completing a task that required installing new tools, use cleanup_installed to review what was installed.`,
-          `- For common tools (ffmpeg, imagemagick, jq, etc.) you can install without explicit permission — just inform.`,
-          `- For unusual packages or large installs, ask your manager first.`,
-          `- If installation fails, explain what happened and suggest alternatives.`,
+          `- You have dedicated tools for package management: check_dependency, install_dependency, check_environment, cleanup_installed.`,
+          `- ALWAYS use install_dependency to install packages. NEVER use bash, shell_exec, or any shell tool to run "brew install", "apt install", "pip install", "choco install", "npm install -g", etc.`,
+          `- This is MANDATORY — install_dependency enforces your permission policy, tracks installations, handles sudo passwords, and ensures cleanup. Using bash to install packages bypasses all safety controls and is a policy violation.`,
+          `- Before running commands that need specific tools (ffmpeg, imagemagick, etc.), use check_dependency first.`,
+          `- Tell your manager what you're installing and why.`,
           `- Use check_environment at the start of complex tasks to understand what's available.`,
+          // Inject live dependency policy from permission profile
+          (function() {
+            const p = routes.permissionEngine.getProfile(agent.id);
+            const dp = p?.dependencyPolicy;
+            if (!dp) return '- You can install common tools (ffmpeg, imagemagick, jq, etc.) without explicit permission — just inform.';
+            const lines: string[] = [];
+            if (dp.mode === 'deny') {
+              lines.push('- RESTRICTION: Package installation is DISABLED for you. If you need a tool that is missing, ask your manager to enable it in your Permissions settings.');
+            } else if (dp.mode === 'ask_manager') {
+              lines.push('- RESTRICTION: You must get manager APPROVAL before installing any package. install_dependency will return a request — forward it to your manager.');
+            } else {
+              lines.push('- You can install packages automatically when needed.');
+            }
+            if (dp.mode !== 'deny') {
+              if (dp.allowGlobalInstalls) lines.push('- You CAN install system packages globally (brew on macOS, apt/dnf/pacman on Linux, choco/winget/scoop on Windows).');
+              else lines.push('- You can ONLY install local packages (npm, pip to temp dir). No global system installs.');
+              if (dp.allowElevated) {
+                const osPlat = process.platform;
+                const elevatedLabel = osPlat === 'win32' ? 'administrator/elevated' : osPlat === 'darwin' ? 'sudo' : 'sudo/root';
+                if (dp.sudoPassword) {
+                  lines.push(`- You HAVE ${elevatedLabel} access. The system password is pre-configured — install_dependency handles it automatically. You do NOT need to ask the user for it.`);
+                } else {
+                  lines.push(`- You HAVE ${elevatedLabel} access. ${os === 'win32' ? 'Elevated commands should work if the agent process is running as admin.' : 'No password set — works if NOPASSWD is configured or credentials are cached.'}`);
+                }
+              } else {
+                lines.push('- You do NOT have elevated/admin access. Commands requiring admin privileges (sudo on Mac/Linux, admin on Windows) will fail.');
+              }
+              if (dp.blockedPackages && dp.blockedPackages.length > 0) {
+                lines.push(`- BLOCKED packages (never install): ${dp.blockedPackages.join(', ')}`);
+              }
+              if (dp.allowedManagers && dp.allowedManagers.length > 0) {
+                lines.push(`- Allowed package managers: ${dp.allowedManagers.join(', ')}`);
+              }
+            }
+            return lines.join('\n');
+          })(),
           '',
           `FILE & MEDIA HANDLING:`,
           `- When you receive media files (images, videos, documents), they are saved locally and you can access them.`,
@@ -1443,10 +1559,14 @@ export async function runAgent(_args: string[]) {
     }
   });
 
-  serve({ fetch: app.fetch, port: PORT }, (info) => {
+  // Bind to localhost only by default — prevents external network access
+  // Set AGENT_BIND_HOST=0.0.0.0 to explicitly expose (e.g. Docker/K8s)
+  const BIND_HOST = process.env.AGENT_BIND_HOST || '127.0.0.1';
+  serve({ fetch: app.fetch, port: PORT, hostname: BIND_HOST }, (info) => {
     console.log(`\n✅ Agent runtime started`);
-    console.log(`   Health: http://localhost:${info.port}/health`);
-    console.log(`   Runtime: http://localhost:${info.port}/api/runtime`);
+    console.log(`   Health: http://${BIND_HOST}:${info.port}/health`);
+    console.log(`   Runtime: http://${BIND_HOST}:${info.port}/api/runtime`);
+    if (BIND_HOST === '0.0.0.0') console.warn(`   ⚠️  WARNING: Bound to 0.0.0.0 — accessible from external network. Set AGENT_RUNTIME_SECRET to require auth.`);
 
     // Auto-install all system dependencies (voice, browser, audio, etc.)
     ensureSystemDependencies({

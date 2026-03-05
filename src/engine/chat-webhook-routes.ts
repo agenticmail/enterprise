@@ -182,9 +182,12 @@ async function handleMessage(
     const host = sa.host || 'localhost';
     const agentUrl = `http://${host}:${sa.port}/api/runtime/chat`;
     try {
+      const runtimeSecret = process.env.AGENT_RUNTIME_SECRET || process.env.RUNTIME_SECRET || '';
+      const fwdHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (runtimeSecret) fwdHeaders['x-agent-internal-key'] = runtimeSecret;
       const resp = await fetch(agentUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: fwdHeaders,
         body: JSON.stringify(chatContext),
         signal: AbortSignal.timeout(5000),
       });
@@ -216,9 +219,12 @@ async function handleMessage(
       || (agent.config?.deployment?.config as any)?.flyAppName;
     if (flyAppName) {
       try {
+        const _rs2 = process.env.AGENT_RUNTIME_SECRET || process.env.RUNTIME_SECRET || '';
+        const _fh: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (_rs2) _fh['x-agent-internal-key'] = _rs2;
         const resp = await fetch(`https://${flyAppName}.fly.dev/api/runtime/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: _fh,
           body: JSON.stringify(chatContext),
           signal: AbortSignal.timeout(10000),
         });

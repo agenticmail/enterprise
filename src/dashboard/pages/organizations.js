@@ -68,6 +68,125 @@ export function OrganizationsPage() {
   var _intActing = useState('');
   var intActing = _intActing[0]; var setIntActing = _intActing[1];
 
+  // Roles tab state
+  var _availableRoles = useState([]);
+  var availableRoles = _availableRoles[0]; var setAvailableRoles = _availableRoles[1];
+  var _orgAllowedRoles = useState([]);
+  var orgAllowedRoles = _orgAllowedRoles[0]; var setOrgAllowedRoles = _orgAllowedRoles[1];
+  var _rolesLoading = useState(false);
+  var rolesLoading = _rolesLoading[0]; var setRolesLoading = _rolesLoading[1];
+  var _rolesSaving = useState(false);
+  var rolesSaving = _rolesSaving[0]; var setRolesSaving = _rolesSaving[1];
+  var _roleSearch = useState('');
+  var roleSearch = _roleSearch[0]; var setRoleSearch = _roleSearch[1];
+
+  var loadOrgRoles = function(org) {
+    setRolesLoading(true);
+    Promise.all([
+      engineCall('/souls/by-category'),
+      apiCall('/roles'),
+    ]).then(function(results) {
+      var builtIn = Object.values(results[0].categories || {}).flat().map(function(r) { return Object.assign({}, r, { isCustom: false }); });
+      var custom = (results[1].roles || []).map(function(r) { return Object.assign({}, r, { isCustom: true }); });
+      setAvailableRoles(builtIn.concat(custom));
+      var ar = org.allowed_roles;
+      if (typeof ar === 'string') try { ar = JSON.parse(ar); } catch { ar = null; }
+      setOrgAllowedRoles(Array.isArray(ar) ? ar : []);
+      setRolesLoading(false);
+    }).catch(function() { setRolesLoading(false); });
+  };
+
+  var toggleRole = function(roleId) {
+    setOrgAllowedRoles(function(prev) {
+      var idx = prev.indexOf(roleId);
+      if (idx >= 0) return prev.filter(function(id) { return id !== roleId; });
+      return prev.concat([roleId]);
+    });
+  };
+
+  var selectAllRoles = function() {
+    setOrgAllowedRoles(availableRoles.map(function(r) { return r.id || r.slug; }));
+  };
+
+  var deselectAllRoles = function() {
+    setOrgAllowedRoles([]);
+  };
+
+  var saveAllowedRoles = function() {
+    if (!detailOrg) return;
+    setRolesSaving(true);
+    apiCall('/organizations/' + detailOrg.id, {
+      method: 'PATCH',
+      body: JSON.stringify({ allowed_roles: orgAllowedRoles })
+    }).then(function(updated) {
+      toast('Allowed roles saved (' + orgAllowedRoles.length + ' roles)', 'success');
+      setDetailOrg(Object.assign({}, detailOrg, { allowed_roles: orgAllowedRoles }));
+      setRolesSaving(false);
+    }).catch(function(err) {
+      toast('Failed: ' + err.message, 'error');
+      setRolesSaving(false);
+    });
+  };
+
+  // Skills tab state
+  var _availableSkills = useState([]);
+  var availableSkills = _availableSkills[0]; var setAvailableSkills = _availableSkills[1];
+  var _orgAllowedSkills = useState([]);
+  var orgAllowedSkills = _orgAllowedSkills[0]; var setOrgAllowedSkills = _orgAllowedSkills[1];
+  var _skillsLoading = useState(false);
+  var skillsLoading = _skillsLoading[0]; var setSkillsLoading = _skillsLoading[1];
+  var _skillsSaving = useState(false);
+  var skillsSaving = _skillsSaving[0]; var setSkillsSaving = _skillsSaving[1];
+  var _skillSearch = useState('');
+  var skillSearch = _skillSearch[0]; var setSkillSearch = _skillSearch[1];
+
+  var loadOrgSkills = function(org) {
+    setSkillsLoading(true);
+    engineCall('/skills/by-category').then(function(d) {
+      var all = [];
+      Object.entries(d.categories || {}).forEach(function(entry) {
+        entry[1].forEach(function(s) { all.push(Object.assign({}, s, { category: entry[0] })); });
+      });
+      setAvailableSkills(all);
+      var as = org.allowed_skills;
+      if (typeof as === 'string') try { as = JSON.parse(as); } catch { as = null; }
+      setOrgAllowedSkills(Array.isArray(as) ? as : []);
+      setSkillsLoading(false);
+    }).catch(function() { setSkillsLoading(false); });
+  };
+
+  var toggleSkill = function(skillId) {
+    setOrgAllowedSkills(function(prev) {
+      var idx = prev.indexOf(skillId);
+      if (idx >= 0) return prev.filter(function(id) { return id !== skillId; });
+      return prev.concat([skillId]);
+    });
+  };
+
+  var selectAllSkills = function() {
+    setOrgAllowedSkills(availableSkills.map(function(s) { return s.id || s.skillId; }));
+  };
+
+  var deselectAllSkills = function() {
+    setOrgAllowedSkills([]);
+  };
+
+  var saveAllowedSkills = function() {
+    if (!detailOrg) return;
+    setSkillsSaving(true);
+    apiCall('/organizations/' + detailOrg.id, {
+      method: 'PATCH',
+      body: JSON.stringify({ allowed_skills: orgAllowedSkills })
+    }).then(function() {
+      toast('Allowed skills saved (' + orgAllowedSkills.length + ' skills)', 'success');
+      setDetailOrg(Object.assign({}, detailOrg, { allowed_skills: orgAllowedSkills }));
+      setSkillsSaving(false);
+    }).catch(function(err) {
+      toast('Failed: ' + err.message, 'error');
+      setSkillsSaving(false);
+    });
+  };
+
   var loadIntegrations = function(orgId) {
     if (!orgId) return;
     setIntLoading(true);
@@ -382,7 +501,7 @@ export function OrganizationsPage() {
     ),
 
     // Detail Modal
-    detailOrg && h(Modal, { title: detailOrg.name || 'Organization Detail', onClose: function() { setDetailOrg(null); }, width: 700 },
+    detailOrg && h(Modal, { title: detailOrg.name || 'Organization Detail', onClose: function() { setDetailOrg(null); }, width: '75vw' },
       h('div', { style: { padding: 4 } },
         // Org info
         h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 } },
@@ -417,12 +536,12 @@ export function OrganizationsPage() {
 
         // Tabs
         h('div', { style: { display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16 } },
-          ['agents', 'integrations', 'billing'].map(function(t) {
-            var label = t === 'agents' ? 'Agents (' + detailAgents.length + ')' : t === 'integrations' ? 'Integrations' : 'Billing & Costs';
+          ['agents', 'roles', 'skills', 'integrations', 'billing'].map(function(t) {
+            var label = t === 'agents' ? 'Agents (' + detailAgents.length + ')' : t === 'roles' ? 'Visible Roles' : t === 'skills' ? 'Visible Skills' : t === 'integrations' ? 'Integrations' : 'Billing & Costs';
             return h('button', {
               key: t, type: 'button',
               style: { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', color: detailTab === t ? 'var(--primary)' : 'var(--text-muted)', borderBottom: detailTab === t ? '2px solid var(--primary)' : '2px solid transparent', fontFamily: 'var(--font)' },
-              onClick: function() { setDetailTab(t); }
+              onClick: function() { setDetailTab(t); if (t === 'roles' && availableRoles.length === 0) loadOrgRoles(detailOrg); if (t === 'skills' && availableSkills.length === 0) loadOrgSkills(detailOrg); }
             }, label);
           })
         ),
@@ -463,6 +582,145 @@ export function OrganizationsPage() {
           h('button', { className: 'btn btn-primary btn-sm', disabled: !assignAgentId || acting === 'assign', onClick: doAssignAgent }, acting === 'assign' ? 'Assigning...' : 'Assign')
         )
         ), // end agents tab
+
+        // ── Roles Tab ─────────────────────────────
+        detailTab === 'roles' && h(Fragment, null,
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+            h('div', null,
+              h('div', { style: { fontSize: 14, fontWeight: 700 } }, 'Visible Role Templates'),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Select which role templates users in this organization can see and use. Uncheck all to hide the Roles page entirely.')
+            ),
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('button', { className: 'btn btn-ghost btn-sm', onClick: selectAllRoles }, 'Select All'),
+              h('button', { className: 'btn btn-ghost btn-sm', onClick: deselectAllRoles }, 'Deselect All'),
+              h('button', { className: 'btn btn-primary btn-sm', disabled: rolesSaving, onClick: saveAllowedRoles }, rolesSaving ? 'Saving...' : 'Save (' + orgAllowedRoles.length + ')')
+            )
+          ),
+
+          h('div', { style: { marginBottom: 12 } },
+            h('input', { className: 'input', type: 'text', value: roleSearch, onChange: function(e) { setRoleSearch(e.target.value); }, placeholder: 'Search roles...', style: { maxWidth: 300 } })
+          ),
+
+          rolesLoading
+            ? h('div', { style: { padding: 30, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading roles...')
+            : (function() {
+                var rs = roleSearch.toLowerCase();
+                var filtered = rs ? availableRoles.filter(function(r) { return (r.name || '').toLowerCase().indexOf(rs) >= 0 || (r.category || '').toLowerCase().indexOf(rs) >= 0; }) : availableRoles;
+                // Group by category
+                var grouped = {};
+                filtered.forEach(function(r) {
+                  var cat = r.category || 'other';
+                  if (!grouped[cat]) grouped[cat] = [];
+                  grouped[cat].push(r);
+                });
+                if (Object.keys(grouped).length === 0) {
+                  return h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 } }, 'No roles found');
+                }
+                return h('div', { style: { maxHeight: 400, overflowY: 'auto' } },
+                  Object.entries(grouped).map(function(entry) {
+                    var cat = entry[0]; var roles = entry[1];
+                    var allChecked = roles.every(function(r) { return orgAllowedRoles.indexOf(r.id || r.slug) >= 0; });
+                    return h('div', { key: cat, style: { marginBottom: 16 } },
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
+                        h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+                          h('input', { type: 'checkbox', checked: allChecked, onChange: function() {
+                            var ids = roles.map(function(r) { return r.id || r.slug; });
+                            if (allChecked) {
+                              setOrgAllowedRoles(function(prev) { return prev.filter(function(id) { return ids.indexOf(id) < 0; }); });
+                            } else {
+                              setOrgAllowedRoles(function(prev) { var s = {}; prev.forEach(function(id) { s[id] = true; }); ids.forEach(function(id) { s[id] = true; }); return Object.keys(s); });
+                            }
+                          } }),
+                          h('span', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' } }, cat.replace(/_/g, ' ') + ' (' + roles.length + ')')
+                        )
+                      ),
+                      h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 6 } },
+                        roles.map(function(r) {
+                          var rid = r.id || r.slug;
+                          var checked = orgAllowedRoles.indexOf(rid) >= 0;
+                          return h('label', { key: rid, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 6, border: '1px solid ' + (checked ? 'var(--brand-color, #6366f1)' : 'var(--border)'), background: checked ? 'var(--brand-color-alpha, rgba(99,102,241,0.08))' : 'transparent', cursor: 'pointer', fontSize: 12 } },
+                            h('input', { type: 'checkbox', checked: checked, onChange: function() { toggleRole(rid); }, style: { marginTop: 2 } }),
+                            h('div', null,
+                              h('div', { style: { fontWeight: 600, fontSize: 13 } }, r.name, r.isCustom && h('span', { className: 'badge badge-info', style: { fontSize: 9, marginLeft: 6 } }, 'Custom')),
+                              r.description && h('div', { style: { color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 } }, r.description.length > 80 ? r.description.slice(0, 80) + '...' : r.description)
+                            )
+                          );
+                        })
+                      )
+                    );
+                  })
+                );
+              })()
+        ),
+
+        // ── Skills Tab ────────────────────────────
+        detailTab === 'skills' && h(Fragment, null,
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+            h('div', null,
+              h('div', { style: { fontSize: 14, fontWeight: 700 } }, 'Visible Skills'),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Select which skills users in this organization can see and configure.')
+            ),
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('button', { className: 'btn btn-ghost btn-sm', onClick: selectAllSkills }, 'Select All'),
+              h('button', { className: 'btn btn-ghost btn-sm', onClick: deselectAllSkills }, 'Deselect All'),
+              h('button', { className: 'btn btn-primary btn-sm', disabled: skillsSaving, onClick: saveAllowedSkills }, skillsSaving ? 'Saving...' : 'Save (' + orgAllowedSkills.length + ')')
+            )
+          ),
+
+          h('div', { style: { marginBottom: 12 } },
+            h('input', { className: 'input', type: 'text', value: skillSearch, onChange: function(e) { setSkillSearch(e.target.value); }, placeholder: 'Search skills...', style: { maxWidth: 300 } })
+          ),
+
+          skillsLoading
+            ? h('div', { style: { padding: 30, textAlign: 'center', color: 'var(--text-muted)' } }, 'Loading skills...')
+            : (function() {
+                var ss = skillSearch.toLowerCase();
+                var filtered = ss ? availableSkills.filter(function(s) { return (s.name || '').toLowerCase().indexOf(ss) >= 0 || (s.category || '').toLowerCase().indexOf(ss) >= 0 || (s.description || '').toLowerCase().indexOf(ss) >= 0; }) : availableSkills;
+                var grouped = {};
+                filtered.forEach(function(s) {
+                  var cat = s.category || 'other';
+                  if (!grouped[cat]) grouped[cat] = [];
+                  grouped[cat].push(s);
+                });
+                if (Object.keys(grouped).length === 0) {
+                  return h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 } }, 'No skills found');
+                }
+                return h('div', { style: { maxHeight: 400, overflowY: 'auto' } },
+                  Object.entries(grouped).map(function(entry) {
+                    var cat = entry[0]; var items = entry[1];
+                    var allChecked = items.every(function(s) { return orgAllowedSkills.indexOf(s.id || s.skillId) >= 0; });
+                    return h('div', { key: cat, style: { marginBottom: 16 } },
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
+                        h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+                          h('input', { type: 'checkbox', checked: allChecked, onChange: function() {
+                            var ids = items.map(function(s) { return s.id || s.skillId; });
+                            if (allChecked) {
+                              setOrgAllowedSkills(function(prev) { return prev.filter(function(id) { return ids.indexOf(id) < 0; }); });
+                            } else {
+                              setOrgAllowedSkills(function(prev) { var set = {}; prev.forEach(function(id) { set[id] = true; }); ids.forEach(function(id) { set[id] = true; }); return Object.keys(set); });
+                            }
+                          } }),
+                          h('span', { style: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' } }, cat.replace(/_/g, ' ') + ' (' + items.length + ')')
+                        )
+                      ),
+                      h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 6 } },
+                        items.map(function(s) {
+                          var sid = s.id || s.skillId;
+                          var checked = orgAllowedSkills.indexOf(sid) >= 0;
+                          return h('label', { key: sid, style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 6, border: '1px solid ' + (checked ? 'var(--brand-color, #6366f1)' : 'var(--border)'), background: checked ? 'var(--brand-color-alpha, rgba(99,102,241,0.08))' : 'transparent', cursor: 'pointer', fontSize: 12 } },
+                            h('input', { type: 'checkbox', checked: checked, onChange: function() { toggleSkill(sid); }, style: { marginTop: 2 } }),
+                            h('div', null,
+                              h('div', { style: { fontWeight: 600, fontSize: 13 } }, s.name),
+                              s.description && h('div', { style: { color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.3 } }, s.description.length > 80 ? s.description.slice(0, 80) + '...' : s.description)
+                            )
+                          );
+                        })
+                      )
+                    );
+                  })
+                );
+              })()
+        ),
 
         // ── Integrations Tab ──────────────────────
         detailTab === 'integrations' && h(Fragment, null,

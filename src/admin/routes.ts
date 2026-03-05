@@ -211,6 +211,38 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   // ─── Dashboard Stats ────────────────────────────────
 
   api.get('/stats', async (c) => {
+    const clientOrgId = c.req.query('clientOrgId') || '';
+    if (clientOrgId) {
+      // Scoped stats for client org users
+      const allAgents = await db.listAgents({ limit: 1000, offset: 0 });
+      const orgAgents = allAgents.filter((a: any) => a.client_org_id === clientOrgId);
+      const activeOrgAgents = orgAgents.filter((a: any) => a.status === 'active');
+      // Count users in this client org
+      let orgUsers = 0;
+      try {
+        const allUsers = await db.listUsers();
+        orgUsers = allUsers.filter((u: any) => u.client_org_id === clientOrgId).length;
+      } catch { orgUsers = 0; }
+      // Count audit events for this org's agents
+      let orgAudit = 0;
+      try {
+        const agentIds = orgAgents.map((a: any) => a.id);
+        if (agentIds.length > 0) {
+          const result = await (db as any).pool?.query?.(
+            `SELECT COUNT(*) FROM audit_log WHERE org_id = $1`,
+            [clientOrgId]
+          );
+          orgAudit = result?.rows?.[0]?.count ? parseInt(result.rows[0].count, 10) : 0;
+        }
+      } catch { orgAudit = 0; }
+      return c.json({
+        totalAgents: orgAgents.length,
+        activeAgents: activeOrgAgents.length,
+        totalUsers: orgUsers,
+        totalEmails: 0,
+        totalAuditEvents: orgAudit,
+      });
+    }
     const stats = await db.getStats();
     return c.json(stats);
   });
@@ -763,6 +795,24 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     // Owner and admin always get full access
     if (userRole === 'owner' || userRole === 'admin') {
       return c.json({ permissions: '*', role: userRole, clientOrgId });
+    }
+
+    // Client org users get restricted page access by default
+    if (clientOrgId) {
+      const userPerms = user?.permissions;
+      if (!userPerms || userPerms === '*') {
+        // Default client org pages — hide internal-only pages
+        const clientPages: Record<string, boolean> = {
+          dashboard: true, agents: true, roles: true, skills: true,
+          'community-skills': true, 'skill-connections': true, 'database-access': true,
+          knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true,
+          approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true,
+          messages: true, guardrails: true, journal: true, activity: true,
+          dlp: true, compliance: true, vault: true, audit: true, settings: true,
+        };
+        return c.json({ permissions: clientPages, role: userRole, clientOrgId });
+      }
+      return c.json({ permissions: userPerms, role: userRole, clientOrgId });
     }
 
     return c.json({ permissions: user?.permissions ?? '*', role: userRole, clientOrgId });
@@ -2277,8 +2327,14 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
   });
 
-  api.get('/organizations/:id', requireRole('admin'), async (c) => {
+  api.get('/organizations/:id', async (c) => {
     const id = c.req.param('id');
+    const userRole = c.get('userRole' as any);
+    const userClientOrgId = c.get('clientOrgId' as any);
+    // Non-admins can only access their own client org
+    if (userRole !== 'owner' && userRole !== 'admin') {
+      if (!userClientOrgId || userClientOrgId !== id) return c.json({ error: 'Forbidden' }, 403);
+    }
     try {
       const isPostgres = (db as any).pool;
       if (isPostgres) {
@@ -2317,6 +2373,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           fields.push(isPostgres ? `${key} = $${idx++}` : `${key} = ?`);
           values.push(body[key]);
         }
+      }
+      // JSON fields
+      if (body.allowed_roles !== undefined) {
+        fields.push(isPostgres ? `allowed_roles = $${idx++}` : `allowed_roles = ?`);
+        values.push(JSON.stringify(body.allowed_roles));
+      }
+      if (body.allowed_skills !== undefined) {
+        fields.push(isPostgres ? `allowed_skills = $${idx++}` : `allowed_skills = ?`);
+        values.push(JSON.stringify(body.allowed_skills));
       }
       if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400);
       fields.push(isPostgres ? `updated_at = NOW()` : `updated_at = datetime('now')`);

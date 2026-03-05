@@ -14,60 +14,61 @@ One command. Interactive setup wizard. Full platform in under 2 minutes.
 
 ## Getting Started (5 Minutes)
 
-### What You Need
+### Option A: Cloud Deploy (Easiest — No Code Required)
 
-| Requirement | Details |
-|------------|---------|
-| **Node.js** | v18 or higher ([download](https://nodejs.org)) |
-| **Database** | SQLite (built-in, zero config) or Postgres (recommended for production) |
-| **LLM API Key** | At least one: [Anthropic](https://console.anthropic.com), [OpenAI](https://platform.openai.com), or [xAI](https://console.x.ai) |
+1. Run the setup wizard:
+   ```bash
+   npx @agenticmail/enterprise
+   ```
+2. Select **"AgenticMail Cloud"** as the deploy target
+3. Claim your free subdomain (e.g., `yourcompany.agenticmail.io`)
+4. Complete the guided setup — database, admin account, and first agent
 
-### Step 1: Run the Setup Wizard
+That's it. Your dashboard is live at `https://yourcompany.agenticmail.io`. Everything is configured from the UI — no code, no config files, no terminal commands.
+
+### Option B: Self-Hosted
+
+Same wizard, different deploy target:
 
 ```bash
 npx @agenticmail/enterprise
 ```
 
-This launches an interactive wizard that walks you through everything. No config files to edit manually.
+The wizard walks you through:
 
-### Step 2: Choose Your Database
+1. **Database** — Pick SQLite (zero config) or paste a Postgres URL. We auto-detect Supabase/Neon and optimize connection pooling automatically.
+2. **Admin Account** — Name, email, password
+3. **Deploy Target** — Cloudflare Tunnel (free, no ports to open), Docker, Railway, Fly.io, or local
+4. **Dashboard** — Opens automatically. Everything is managed from the UI.
 
-**Option A: SQLite (Easiest — great for trying it out)**
-- Select "SQLite" in the wizard
-- Data stored locally in a file — zero configuration
-- Perfect for development, demos, and small deployments
+#### Database Options
 
-**Option B: Free Supabase Postgres (Recommended for production)**
-1. Go to [supabase.com](https://supabase.com) and create a free account
-2. Create a new project (free tier gives you a full Postgres database)
-3. Go to **Settings → Database → Connection string → URI**
-4. Select **"Transaction mode"** (port 6543) — this is important!
-5. Copy the connection string and paste it in the wizard
+| Option | Best For | Setup |
+|--------|----------|-------|
+| **SQLite** | Trying it out, local dev | Zero config — built-in |
+| **[Supabase](https://supabase.com) (Free)** | Production, cloud | Create free project → copy connection string |
+| **Any Postgres** | Enterprise, existing infra | Paste your connection string |
+| **MySQL, MongoDB, etc.** | Special requirements | 10 backends supported — see [Database Backends](#database-backends) |
 
-> **The wizard auto-optimizes your connection string** — it detects Supabase URLs, switches to the right pooler mode, adds the correct parameters, and generates a direct URL for migrations. You don't need to configure anything manually.
+> **Supabase users:** The wizard auto-optimizes your connection string — switches to transaction mode, adds PgBouncer params, and generates a direct URL for migrations. Zero manual config.
 
-**Option C: Any Postgres, MySQL, MongoDB, or other database**
-- We support 10 database backends — see [Database Backends](#database-backends)
-- Just paste your connection string and the wizard handles the rest
+### What You Get
 
-### Step 3: Create Your Admin Account
+Once setup completes, open the dashboard and you'll see:
 
-- Enter your name, email, and password
-- This becomes the owner account with full access
-
-### Step 4: Open the Dashboard
-
-The wizard gives you a URL (default: `http://localhost:3000`). Open it and you'll see:
 - **Setup Checklist** — guided steps to configure email, create agents, etc.
 - **Create Agent** — pick from 51 personality templates or build your own
 - **Full Admin Dashboard** — 28 pages covering every aspect of agent management
 
-### Step 5: Create Your First Agent
+Everything is managed from the dashboard — agent creation, permissions, email setup, channel connections, DLP rules, workforce schedules, compliance reports. No code needed.
+
+### Create Your First Agent
 
 1. Click **"Create Agent"** in the dashboard
 2. Choose a soul template (e.g., "Executive Assistant", "Sales Rep", "Developer")
 3. Add your LLM API key in **Settings → API Keys** (or in the agent's config)
-4. Start the agent — it'll get its own email, tools, and identity
+4. Configure permissions — set what tools the agent can use, package managers it can access, sudo privileges, etc.
+5. Start the agent — it gets its own email, tools, and identity
 
 ### What's Next?
 
@@ -75,10 +76,7 @@ The wizard gives you a URL (default: `http://localhost:3000`). Open it and you'l
 - **Add Telegram/WhatsApp** — Connect messaging channels (Agent Detail → Channels tab)
 - **Set up DLP** — Apply pre-built rule packs to protect sensitive data (DLP page → Rule Packs)
 - **Configure Shifts** — Set work hours and on-call schedules (Workforce page)
-- **Run Standalone** — For production, run each agent as its own process:
-  ```bash
-  node dist/cli.js agent --env-file=.env.my-agent
-  ```
+- **Set Dependency Policy** — Control what packages agents can install, allow sudo, set computer password (Agent Detail → Permissions tab)
 
 ---
 

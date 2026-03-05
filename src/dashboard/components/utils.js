@@ -82,7 +82,7 @@ export function apiCall(path, opts = {}) {
     const r = await fetch(url, fetchOpts);
     if (r.status === 401 && !opts._retried) {
       try { await tryRefreshToken(); return apiCall(path, { ...opts, _retried: true }); }
-      catch { if (window.__emLogout) window.__emLogout(); throw new Error('Session expired'); }
+      catch { if (window.__emLogout && !window.__suppressLogout) window.__emLogout(); throw new Error('Session expired'); }
     }
 
     const d = await r.json().catch(() => ({}));

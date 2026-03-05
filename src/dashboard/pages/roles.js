@@ -466,6 +466,7 @@ export function RolesPage() {
   var [builtInRoles, setBuiltInRoles] = useState([]);
   var [builtInMeta, setBuiltInMeta] = useState({});
   var [customRoles, setCustomRoles] = useState([]);
+  var [allowedRoleIds, setAllowedRoleIds] = useState(null); // null = show all (internal), [] = show none, [...] = whitelist
   var [loading, setLoading] = useState(true);
   var [editRole, setEditRole] = useState(null);       // null | role obj | 'new'
   var [previewRole, setPreviewRole] = useState(null); // role to preview
@@ -489,19 +490,33 @@ export function RolesPage() {
 
   useEffect(function() {
     setLoading(true);
-    Promise.all([
+    var isLocked = orgCtx.isLocked;
+    var fetches = [
+      // Always load built-in — we filter later based on allowed_roles
       engineCall('/souls/by-category'),
       apiCall('/roles' + (effectiveOrgId ? '?orgId=' + effectiveOrgId : '')),
-      engineCall('/skills/by-category'),
-    ]).then(function(results) {
+      isLocked ? Promise.resolve({ categories: {} }) : engineCall('/skills/by-category'),
+      // If client org user, fetch their org's allowed_roles
+      isLocked && orgCtx.clientOrgId ? apiCall('/organizations/' + orgCtx.clientOrgId) : Promise.resolve(null),
+    ];
+    Promise.all(fetches).then(function(results) {
       var soulData = results[0];
       var rolesData = results[1];
       var skillsData = results[2];
+      var orgData = results[3];
       setBuiltInRoles(Object.values(soulData.categories || {}).flat());
       setBuiltInMeta(soulData.categoryMeta || {});
       setCustomRoles(rolesData.roles || []);
       setAllSkills(skillsData.categories || {});
       setSkillsLoaded(true);
+      // Set allowed roles from org config — null means no restriction (internal), array means whitelist
+      if (isLocked && orgData) {
+        var ar = orgData.allowed_roles;
+        if (typeof ar === 'string') try { ar = JSON.parse(ar); } catch { ar = null; }
+        setAllowedRoleIds(Array.isArray(ar) ? ar : []);
+      } else {
+        setAllowedRoleIds(null);
+      }
       setLoading(false);
     }).catch(function() { setLoading(false); });
   }, [effectiveOrgId]);
@@ -556,8 +571,23 @@ export function RolesPage() {
     } catch (e) { toast(e.message, 'error'); }
   };
 
-  // Merge and filter
-  var allRoles = builtInRoles.map(function(r) { return Object.assign({}, r, { isCustom: false }); }).concat(customRoles);
+  // Merge and filter — client org users only see roles whitelisted by the parent org
+  var isClientOrg = orgCtx.isLocked;
+  var allRoles;
+  if (isClientOrg && Array.isArray(allowedRoleIds)) {
+    // Show only roles that the parent org has whitelisted
+    if (allowedRoleIds.length === 0) {
+      allRoles = [];
+    } else {
+      var allowedSet = {};
+      allowedRoleIds.forEach(function(id) { allowedSet[id] = true; });
+      var allowed = builtInRoles.filter(function(r) { return allowedSet[r.id] || allowedSet[r.slug]; }).map(function(r) { return Object.assign({}, r, { isCustom: false }); });
+      var allowedCustom = customRoles.filter(function(r) { return allowedSet[r.id] || allowedSet[r.slug]; });
+      allRoles = allowed.concat(allowedCustom);
+    }
+  } else {
+    allRoles = builtInRoles.map(function(r) { return Object.assign({}, r, { isCustom: false }); }).concat(customRoles);
+  }
   if (search) {
     var q = search.toLowerCase();
     allRoles = allRoles.filter(function(r) {
@@ -592,12 +622,12 @@ export function RolesPage() {
             h('p', null, 'When creating a new agent, the role template auto-configures personality, skills, permissions, and communication tone — saving time and ensuring consistency.')
           )
         ),
-        h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, builtInRoles.length + ' built-in + ' + customRoles.length + ' custom role templates')
+        h('p', { style: { color: 'var(--text-muted)', fontSize: 13 } }, isClientOrg ? customRoles.length + ' role templates' : builtInRoles.length + ' built-in + ' + customRoles.length + ' custom role templates')
       ),
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-        h(orgCtx.Switcher),
-        h('button', { className: 'btn btn-secondary', onClick: function() { setShowPrompt(!showPrompt); } }, I.copy(), showPrompt ? ' Hide Prompt' : ' AI Prompt'),
-        h('button', { className: 'btn btn-primary', onClick: function() { setEditRole('new'); } }, I.plus(), ' Create Role')
+        !isClientOrg && h(orgCtx.Switcher),
+        !isClientOrg && h('button', { className: 'btn btn-secondary', onClick: function() { setShowPrompt(!showPrompt); } }, I.copy(), showPrompt ? ' Hide Prompt' : ' AI Prompt'),
+        !isClientOrg && h('button', { className: 'btn btn-primary', onClick: function() { setEditRole('new'); } }, I.plus(), ' Create Role')
       )
     ),
 
