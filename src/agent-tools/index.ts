@@ -208,6 +208,8 @@ export interface AllToolsOptions extends ToolCreationOptions {
   useEnterpriseBrowser?: boolean;
   /** Which Google services to load (e.g. ['gmail','calendar','drive','tasks','chat','slides','forms']). Default: core set only. */
   enabledGoogleServices?: string[];
+  /** Which Microsoft services to load (e.g. ['mail','calendar','onedrive','teams','tasks','contacts']). Default: core set (mail, calendar, onedrive, tasks). */
+  enabledMicrosoftServices?: string[];
 }
 
 /**
@@ -374,8 +376,11 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
       // Meeting lifecycle tools (work on all deployments — API-based)
       workspaceTools = workspaceTools.concat(createMeetingLifecycleTools({ tokenProvider: tp }, options));
     }
-    // TODO: Microsoft Graph tools
-    // if (provider === 'microsoft') { workspaceTools = createAllMicrosoftTools({ tokenProvider: tp }, options); }
+    if (provider === 'microsoft') {
+      const { createAllMicrosoftTools } = await import('./tools/microsoft/index.js');
+      const msOpts = options?.enabledMicrosoftServices ? { ...options, enabledMicrosoftServices: options.enabledMicrosoftServices } : options;
+      workspaceTools = createAllMicrosoftTools({ tokenProvider: tp }, msOpts);
+    }
   }
 
   // Try to load enterprise browser tool async (non-blocking)
