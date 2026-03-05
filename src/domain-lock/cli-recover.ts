@@ -557,7 +557,8 @@ async function runCloudRecover(args: string[], inquirer: any, chalk: any, ora: a
         const { execSync: ex } = await import('child_process');
         ex('which pm2', { timeout: 3000 });
         try { ex('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch {}
-        ex(`pm2 start cloudflared --name cloudflared -- tunnel --no-autoupdate run --token ${data.tunnelToken}`, { timeout: 15000 });
+        const safeToken = String(data.tunnelToken).replace(/[^a-zA-Z0-9_-]/g, '');
+        ex(`pm2 start cloudflared --name cloudflared -- tunnel --no-autoupdate run --token ${safeToken}`, { timeout: 15000 });
         try { ex('pm2 save 2>/dev/null', { timeout: 5000 }); } catch {}
         // Setup PM2 to survive reboots
         try {
