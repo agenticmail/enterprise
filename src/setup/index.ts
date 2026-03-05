@@ -111,10 +111,24 @@ export async function runSetupWizard(): Promise<void> {
 
   // ─── Banner ──────────────────────────────────────
   console.log('');
-  console.log(chalk.bold('  AgenticMail Enterprise'));
-  console.log(chalk.dim('  AI Agent Identity & Email for Organizations'));
+  console.log(chalk.cyan('       ╔══════════════════════════════════════════╗'));
+  console.log(chalk.cyan('       ║') + chalk.bold.white('   ✉  AgenticMail Enterprise  ✉          ') + chalk.cyan('║'));
+  console.log(chalk.cyan('       ╚══════════════════════════════════════════╝'));
   console.log('');
-  console.log(chalk.dim('  ─────────────────────────────────────────'));
+  console.log(chalk.bold.white('  The AI Agent Operating System for Organizations'));
+  console.log('');
+  console.log(chalk.dim('  You are about to set up a complete enterprise platform for'));
+  console.log(chalk.dim('  deploying, managing, and securing AI agents at scale.'));
+  console.log('');
+  console.log(`  ${chalk.cyan('●')} ${chalk.white('AI agents with real email identities & inboxes')}`);
+  console.log(`  ${chalk.cyan('●')} ${chalk.white('Full dashboard — workforce, security, compliance')}`);
+  console.log(`  ${chalk.cyan('●')} ${chalk.white('Google & Microsoft 365 integration')}`);
+  console.log(`  ${chalk.cyan('●')} ${chalk.white('Telegram, WhatsApp, Slack & Discord channels')}`);
+  console.log(`  ${chalk.cyan('●')} ${chalk.white('DLP, guardrails, vault & audit logging')}`);
+  console.log(`  ${chalk.cyan('●')} ${chalk.white('Voice agents — join Google Meet calls')}`);
+  console.log(`  ${chalk.cyan('●')} ${chalk.white('Multi-tenant with client org isolation')}`);
+  console.log('');
+  console.log(chalk.dim('  ──────────────────────────────────────────────'));
   console.log('');
 
   // ─── Step 1: Company ─────────────────────────────

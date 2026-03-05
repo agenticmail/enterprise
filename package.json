@@ -1,6 +1,6 @@
 {
   "name": "@agenticmail/enterprise",
-  "version": "0.5.339",
+  "version": "0.5.340",
   "description": "AgenticMail Enterprise — cloud-hosted AI agent identity, email, auth & compliance for organizations",
   "type": "module",
   "bin": {
