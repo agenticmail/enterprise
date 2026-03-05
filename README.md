@@ -135,7 +135,7 @@ Everything is managed from the dashboard — agent creation, permissions, email 
 Most AI agent platforms give you a chatbot. We give you a **workforce**.
 
 - **Real Identity** — Each agent gets a real email address, phone number (Google Voice), Google Workspace access, and digital presence
-- **Real Autonomy** — Agents clock in/out, check email, respond to messages, attend meetings, and work independently
+- **Real Autonomy** — Agents clock in/out, check email, respond to messages, **join Google Meet calls and speak like humans**, and work independently
 - **Real Governance** — DLP scanning, guardrails, approval workflows, compliance reporting, action journaling with rollback
 - **Real Scale** — Multi-tenant isolation, org-scoped everything, role-based access control, budget gates
 - **Real Integration** — 145 SaaS adapters, 13 Google Workspace tools, full browser automation, shell access, filesystem tools
@@ -791,9 +791,18 @@ Agents operate independently with configurable autonomy features:
 
 ---
 
-## Meeting & Voice Intelligence
+## 🎙️ Meeting & Voice Intelligence — Agents That Join Calls and Speak
 
-Agents can attend and participate in meetings:
+**Your AI agents join Google Meet calls and participate with natural human-like voice.** This isn't a transcription bot — agents actually listen, understand context, and respond verbally in real-time using ElevenLabs TTS.
+
+- **Join any Google Meet** — Agent opens the browser, clicks "Join", and enters the meeting
+- **Speak with natural voice** — ElevenLabs TTS generates human-quality speech routed through a virtual audio device
+- **Listen and understand** — Real-time transcription feeds into the agent's context so it knows what's being discussed
+- **Context-aware responses** — Agent draws on its email, calendar, documents, and memory to give informed answers
+- **Multi-agent meetings** — Multiple agents can join the same call and collaborate
+- **Automatic meeting notes** — Agent generates summaries and action items after the call
+
+**Use cases:** Daily standups, client demos, team syncs, investor updates, sales calls, onboarding sessions, interview screening.
 
 | Feature | Description |
 |---------|-------------|
