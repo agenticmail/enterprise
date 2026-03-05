@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: mailto:security@agenticmail.io
+    about: Report security vulnerabilities via email (do not open a public issue)
+  - name: Documentation
+    url: https://agenticmail.io/docs
+    about: Check the documentation before opening an issue

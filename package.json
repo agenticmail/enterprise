@@ -1,6 +1,6 @@
 {
   "name": "@agenticmail/enterprise",
-  "version": "0.5.320",
+  "version": "0.5.321",
   "description": "AgenticMail Enterprise — cloud-hosted AI agent identity, email, auth & compliance for organizations",
   "type": "module",
   "bin": {
@@ -28,10 +28,31 @@
     "saml",
     "oidc",
     "scim",
-    "identity"
+    "identity",
+    "ai-agents",
+    "agent-platform",
+    "microsoft-365",
+    "google-workspace",
+    "compliance",
+    "soc2",
+    "gdpr",
+    "dlp",
+    "data-loss-prevention",
+    "oauth",
+    "multi-tenant",
+    "workforce-management",
+    "task-pipeline",
+    "telegram-bot",
+    "whatsapp-bot",
+    "voice-ai",
+    "google-meet",
+    "dependency-management",
+    "audit-log",
+    "rbac",
+    "encryption"
   ],
   "author": "Ope Olatunji (https://github.com/ope-olatunji)",
-  "homepage": "https://github.com/agenticmail/enterprise",
+  "homepage": "https://agenticmail.io",
   "repository": {
     "type": "git",
     "url": "https://github.com/agenticmail/enterprise.git"
@@ -90,5 +111,12 @@
     "mongodb": "^6.3.0",
     "mysql2": "^3.9.0",
     "postgres": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://agenticmail.io"
   }
 }
