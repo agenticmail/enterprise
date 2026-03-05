@@ -14,17 +14,37 @@ One command. Interactive setup wizard. Full platform in under 2 minutes.
 
 ## Getting Started (5 Minutes)
 
-### Option A: Cloud Deploy (Easiest — No Code Required)
+### ☁️ Option A: Deploy on AgenticMail Cloud (Recommended)
 
-1. Run the setup wizard:
-   ```bash
-   npx @agenticmail/enterprise
-   ```
-2. Select **"AgenticMail Cloud"** as the deploy target
-3. Claim your free subdomain (e.g., `yourcompany.agenticmail.io`)
-4. Complete the guided setup — database, admin account, and first agent
+**Get a free `yourcompany.agenticmail.io` subdomain — live in under 2 minutes.**
 
-That's it. Your dashboard is live at `https://yourcompany.agenticmail.io`. Everything is configured from the UI — no code, no config files, no terminal commands.
+```bash
+npx @agenticmail/enterprise
+```
+
+The wizard will ask you to:
+
+1. **Select deploy target** → Choose **"AgenticMail Cloud"**
+2. **Pick your subdomain** → e.g., `acme` → your dashboard is at `https://acme.agenticmail.io`
+3. **Create admin account** → Name, email, password
+4. **Done** → Dashboard opens. Create your first agent.
+
+```
+$ npx @agenticmail/enterprise
+
+  Deploy target: AgenticMail Cloud (free)
+  Subdomain: acme.agenticmail.io
+  ✓ Database provisioned
+  ✓ Schema migrated (32 tables)
+  ✓ Admin account created
+
+  Dashboard: https://acme.agenticmail.io
+  ✓ Live! Create your first agent →
+```
+
+**No servers to manage. No Docker. No ports to open. No infra.** Everything runs on our infrastructure — you just configure from the dashboard.
+
+---
 
 ### Option B: Self-Hosted
 
