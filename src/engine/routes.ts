@@ -276,7 +276,17 @@ engine.get('/agent-status/:agentId', (c) => {
 engine.post('/agent-status/:agentId', async (c) => {
   try {
     const body = await c.req.json();
-    agentStatus.externalUpdate(c.req.param('agentId'), body);
+    const agentId = c.req.param('agentId');
+    agentStatus.externalUpdate(agentId, body);
+    // Also update DB state so dashboard shows correct status without SSE
+    if (body.status === 'online' || body.status === 'idle') {
+      const agent = lifecycle.getAgent(agentId);
+      if (agent && agent.state !== 'running' && agent.state !== 'active') {
+        (agent as any).state = 'running';
+        (agent as any).stateMessage = 'Agent online (heartbeat)';
+        lifecycle.saveAgent(agentId).catch(() => {});
+      }
+    }
     return c.json({ ok: true });
   } catch (err: any) { return c.json({ error: err.message }, 400); }
 });
@@ -1061,20 +1071,37 @@ async function startChatPoller(engineDb: any): Promise<void> {
   const tokenAgent = chatAgents[0];
   const emailConfig = tokenAgent.config!.emailConfig!;
 
+  // Resolve client ID/secret — may be on agent config or org-level settings
+  let chatClientId = emailConfig.oauthClientId;
+  let chatClientSecret = emailConfig.oauthClientSecret;
+  if (!chatClientId || !chatClientSecret) {
+    try {
+      const adminDb = (await import('./admin-db.js')).getAdminDb();
+      if (adminDb) {
+        const orgSettings = await adminDb.getSettings();
+        chatClientId = chatClientId || orgSettings?.oauthClientId;
+        chatClientSecret = chatClientSecret || orgSettings?.oauthClientSecret;
+      }
+    } catch {}
+  }
+
   const refreshToken = async (): Promise<string> => {
+    if (!chatClientId || !chatClientSecret) {
+      throw new Error('invalid_client: No OAuth client ID/secret found in agent or org config');
+    }
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: emailConfig.oauthClientId,
-        client_secret: emailConfig.oauthClientSecret,
+        client_id: chatClientId,
+        client_secret: chatClientSecret,
         refresh_token: emailConfig.oauthRefreshToken,
         grant_type: 'refresh_token',
       }),
     });
     const data = await res.json() as any;
     if (data.access_token) return data.access_token;
-    throw new Error(`Token refresh failed: ${data.error || 'unknown'}`);
+    throw new Error(`Token refresh failed (${res.status}): ${JSON.stringify(data)}`);
   };
 
   // Build agent endpoints from known standalone agents + lifecycle agents

@@ -404,7 +404,8 @@ export class AgentLifecycleManager {
     const agent = this.getAgent(agentId);
     if (!agent) throw new Error(`Agent ${agentId} not found`);
 
-    if (!['ready', 'stopped', 'error'].includes(agent.state)) {
+    // Allow deploy from any state — re-deploy should always work
+    if (agent.state === 'archived') {
       throw new Error(`Cannot deploy from state "${agent.state}"`);
     }
 

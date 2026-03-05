@@ -112,7 +112,7 @@ export async function runSetupWizard(): Promise<void> {
   // ─── Banner ──────────────────────────────────────
   console.log('');
   console.log(chalk.cyan('       ╔══════════════════════════════════════════╗'));
-  console.log(chalk.cyan('       ║') + chalk.bold.white('   ✉  AgenticMail Enterprise  ✉          ') + chalk.cyan('║'));
+  console.log(chalk.cyan('       ║') + chalk.bold.white('   🎀  AgenticMail Enterprise  🎀          ') + chalk.cyan('║'));
   console.log(chalk.cyan('       ╚══════════════════════════════════════════╝'));
   console.log('');
   console.log(chalk.bold.white('  The AI Agent Operating System for Organizations'));

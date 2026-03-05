@@ -45,6 +45,10 @@ import * as GwsMaps from './gws-maps.js';
 import * as GwsContacts from './gws-contacts.js';
 import * as GwsTasks from './gws-tasks.js';
 
+// ─── Generic SMTP/IMAP Email ────────────────────────────
+
+import * as SmtpEmail from './smtp-email.js';
+
 // ─── Core + System Skills ───────────────────────────────
 
 import * as CoreTools from './core-tools.js';
@@ -128,7 +132,12 @@ const SYSTEM_MODULES = [CoreTools, MeetingLifecycle, AgentMemory, VisualMemory, 
 export const SYSTEM_SKILL_DEFS = SYSTEM_MODULES.map(m => m.SKILL_DEF);
 export const SYSTEM_TOOLS: ToolDefinition[] = SYSTEM_MODULES.flatMap(m => m.TOOLS);
 
-const ALL_MODULES = [...AGENTICMAIL_MODULES, ...M365_MODULES, ...GWS_MODULES, ...ENTERPRISE_MODULES, ...SYSTEM_MODULES];
+// ─── SMTP/IMAP Email ────────────────────────────────────
+
+export const SMTP_EMAIL_SKILL_DEFS = [SmtpEmail.SKILL_DEF];
+export const SMTP_EMAIL_TOOLS: ToolDefinition[] = SmtpEmail.TOOLS;
+
+const ALL_MODULES = [...AGENTICMAIL_MODULES, ...M365_MODULES, ...GWS_MODULES, ...ENTERPRISE_MODULES, ...SYSTEM_MODULES, SmtpEmail];
 
 export const FULL_SKILL_DEFINITIONS: SkillDefinition[] = [
   ...ALL_MODULES.map(m => ({
@@ -156,4 +165,5 @@ export {
   EntDatabase, DatabaseAccess, EntSpreadsheet, EntDocuments, EntHttp,
   EntSecurityScan, EntCodeSandbox, EntDiff,
   CoreTools, MeetingLifecycle, AgentMemory, VisualMemory, KnowledgeSearch,
+  SmtpEmail,
 };

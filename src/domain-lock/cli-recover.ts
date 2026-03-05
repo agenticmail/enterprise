@@ -528,7 +528,7 @@ async function runCloudRecover(args: string[], inquirer: any, chalk: any, ora: a
 
       // Install cloudflared if needed
       try {
-        execSync('which cloudflared', { timeout: 3000 });
+        execSync(process.platform === 'win32' ? 'where cloudflared' : 'which cloudflared', { timeout: 3000 });
         console.log(chalk.green('  cloudflared already installed'));
       } catch {
         const spinner2 = ora('Installing cloudflared...').start();

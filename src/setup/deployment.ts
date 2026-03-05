@@ -8,7 +8,7 @@
 
 import { execSync, exec as execCb } from 'child_process';
 import { promisify } from 'util';
-import { existsSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, writeFileSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform, arch } from 'os';
 
@@ -183,7 +183,7 @@ async function runCloudSetup(
       const claimResp = await fetch(`${SUBDOMAIN_REGISTRY_URL}/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: cleaned, vaultKeyHash }),
+        body: JSON.stringify({ name: cleaned, vaultKeyHash, port: parseInt(process.env.PORT || '8080', 10) }),
       });
       claimResult = await claimResp.json() as any;
 
@@ -249,15 +249,33 @@ async function runCloudSetup(
         const archStr = arch() === 'arm64' ? 'arm64' : 'amd64';
         execSync(`curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${archStr} -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared`, { stdio: 'pipe', timeout: 120000 });
       } else if (os === 'win32') {
-        // Try winget first, then direct download
-        try {
-          execSync('winget install --id Cloudflare.cloudflared --accept-source-agreements --accept-package-agreements', { stdio: 'pipe', timeout: 120000 });
-        } catch {
-          console.log(chalk.dim('  winget failed, trying direct download...'));
-          const archStr = arch() === 'arm64' ? 'arm64' : 'amd64';
-          execSync(`powershell -Command "Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-${archStr}.exe' -OutFile '$env:LOCALAPPDATA\\cloudflared\\cloudflared.exe'"`, { stdio: 'pipe', timeout: 120000 });
+        // Check common install location first
+        const localAppData = process.env.LOCALAPPDATA || `${process.env.USERPROFILE}\\AppData\\Local`;
+        const cfDir = `${localAppData}\\cloudflared`;
+        const cfExe = `${cfDir}\\cloudflared.exe`;
+        let found = false;
+        try { statSync(cfExe); found = true; } catch {}
+
+        if (!found) {
+          // Try winget first, then direct download
+          try {
+            execSync('winget install --id Cloudflare.cloudflared --accept-source-agreements --accept-package-agreements', { stdio: 'pipe', timeout: 120000 });
+            found = true;
+          } catch {
+            console.log(chalk.dim('  winget failed, trying direct download...'));
+            try {
+              const archStr = arch() === 'arm64' ? 'arm64' : 'amd64';
+              const dlUrl = `https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-${archStr}.exe`;
+              execSync(`powershell -Command "New-Item -ItemType Directory -Force -Path '${cfDir}' | Out-Null; Invoke-WebRequest -Uri '${dlUrl}' -OutFile '${cfExe}'"`, { stdio: 'inherit', timeout: 120000 });
+              found = true;
+            } catch (dlErr: any) {
+              console.log(chalk.dim(`  Download failed: ${dlErr.message?.substring(0, 100)}`));
+            }
+          }
+        }
+        if (found) {
           // Add to PATH for this session
-          process.env.PATH = `${process.env.LOCALAPPDATA}\\cloudflared;${process.env.PATH}`;
+          process.env.PATH = `${cfDir};${process.env.PATH}`;
         }
       } else {
         console.log(chalk.yellow('  Please install cloudflared manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/'));

@@ -167,7 +167,8 @@ export function OverviewSection(props) {
   var createdAt = engineAgent?.createdAt || engineAgent?.created_at || agent?.createdAt;
   var dbState = engineAgent?.state || engineAgent?.status || agent?.status || 'unknown';
   // Prefer live SSE status over stale DB state
-  var agentState = rtStatus ? (rtStatus.status === 'online' ? 'running' : rtStatus.status === 'idle' ? 'idle' : rtStatus.status === 'offline' ? 'stopped' : rtStatus.status) : dbState;
+  // Prefer real-time SSE status, but preserve DB state for non-running states like degraded/error/draft
+  var agentState = rtStatus ? (rtStatus.status === 'online' ? 'running' : rtStatus.status === 'idle' ? 'idle' : rtStatus.status === 'offline' ? (dbState === 'degraded' || dbState === 'error' || dbState === 'draft' ? dbState : 'stopped') : rtStatus.status) : dbState;
   var stateColor = { running: 'success', active: 'success', idle: 'info', deploying: 'info', starting: 'info', ready: 'primary', degraded: 'warning', error: 'danger', stopped: 'neutral', draft: 'neutral' }[agentState] || 'neutral';
   var resolvedMgr = resolveManager(config, props.agents);
   var managerName = resolvedMgr ? resolvedMgr.name : null;

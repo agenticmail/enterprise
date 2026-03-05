@@ -798,7 +798,7 @@ export async function runAgent(_args: string[]) {
         const session = await runtime.spawnSession({
           agentId,
           message: `[System — Task Recovery] You have a stuck task to complete:\n\nTask: ${task.title}\nID: ${task.id}\nCategory: ${task.category}\nPriority: ${task.priority}\nDescription: ${task.description}\n\nPlease complete this task now.`,
-          model: (task.model || undefined) as any,
+          model: (task.model || process.env.AGENTICMAIL_MODEL || undefined) as any,
         });
         if (session?.id) {
           sessionRouter.register({
@@ -1899,6 +1899,25 @@ export async function runAgent(_args: string[]) {
       if (managerEmail && emailConfig) {
         console.log(`[welcome] Sending introduction email to ${managerEmail}...`);
         try {
+          // Check if welcome email was already sent BEFORE connecting
+          let alreadySent = false;
+          try {
+            const sentCheck = await engineDb.query(
+              `SELECT id FROM agent_memory WHERE agent_id = $1 AND content LIKE '%welcome_email_sent%' LIMIT 1`,
+              [AGENT_ID]
+            );
+            alreadySent = (sentCheck && sentCheck.length > 0);
+          } catch {}
+          if (!alreadySent && memoryManager) {
+            try {
+              const memories = await memoryManager.recall(AGENT_ID, 'welcome_email_sent', 3);
+              alreadySent = memories.some((m: any) => m.content?.includes('welcome_email_sent'));
+            } catch {}
+          }
+          if (alreadySent) {
+            console.log('[welcome] Welcome email already sent, skipping');
+          } else {
+
           const { createEmailProvider } = await import('./agenticmail/index.js');
           // Determine provider type from emailConfig
           const providerType = emailConfig.provider || (emailConfig.oauthProvider === 'google' ? 'google' : emailConfig.oauthProvider === 'microsoft' ? 'microsoft' : 'imap');
@@ -1953,6 +1972,12 @@ export async function runAgent(_args: string[]) {
             accessToken: currentAccessToken,
             refreshToken: refreshTokenFn,
             provider: providerType,
+            // IMAP/SMTP fields
+            imapHost: emailConfig.imapHost,
+            imapPort: emailConfig.imapPort,
+            smtpHost: emailConfig.smtpHost,
+            smtpPort: emailConfig.smtpPort,
+            password: emailConfig.password,
           });
 
           const agentName = config.displayName || config.name;
@@ -1960,26 +1985,7 @@ export async function runAgent(_args: string[]) {
           const identity = config.identity || {};
           const agentEmailAddr = config.email?.address || emailConfig?.email || '';
 
-          // Check if welcome email was already sent (only send once) — use DB directly for reliability
-          let alreadySent = false;
-          try {
-            const sentCheck = await engineDb.query(
-              `SELECT id FROM agent_memory WHERE agent_id = $1 AND content LIKE '%welcome_email_sent%' LIMIT 1`,
-              [AGENT_ID]
-            );
-            alreadySent = (sentCheck && sentCheck.length > 0);
-          } catch {}
-          if (!alreadySent && memoryManager) {
-            try {
-              const memories = await memoryManager.recall(AGENT_ID, 'welcome_email_sent', 3);
-              alreadySent = memories.some((m: any) => m.content?.includes('welcome_email_sent'));
-            } catch {}
-          }
-
-          if (alreadySent) {
-            console.log('[welcome] Welcome email already sent, skipping');
-          } else {
-            // Use AI to generate the welcome email
+          // Use AI to generate the welcome email
             console.log(`[welcome] Generating AI welcome email for ${managerEmail}...`);
             const welcomeSession = await runtime.spawnSession({
               agentId: agentId,
@@ -1993,12 +1999,12 @@ Your details:
 ${identity.personality ? `- Personality: ${identity.personality.slice(0, 600)}` : ''}
 ${identity.tone ? `- Tone: ${identity.tone}` : ''}
 
-Write and send a brief, genuine introduction email to your manager. Be yourself — don't use templates or corporate speak. Mention your role, what you can help with, and that you're ready to get started. Keep it concise (under 200 words). Use the gmail_send or agenticmail_send tool to send it.`,
+Write and send a brief, genuine introduction email to your manager. Be yourself — don't use templates or corporate speak. Mention your role, what you can help with, and that you're ready to get started. Keep it concise (under 200 words). Use the ${providerType === 'imap' ? 'email_send' : 'gmail_send or agenticmail_send'} tool to send it.`,
               systemPrompt: `You are ${agentName}, a ${role}. ${identity.personality || ''}
 
 You have email tools available. Send ONE email to introduce yourself to your manager. Be genuine and concise. Do NOT send more than one email.
 
-Available tools: gmail_send (to, subject, body) or agenticmail_send (to, subject, body).`,
+Available tools: ${providerType === 'imap' ? 'email_send (to, subject, body)' : 'gmail_send (to, subject, body) or agenticmail_send (to, subject, body)'}.`,
             });
             console.log(`[welcome] ✅ Welcome email session ${welcomeSession.id} created`);
 
@@ -2013,9 +2019,11 @@ Available tools: gmail_send (to, subject, body) or agenticmail_send (to, subject
                 });
               } catch {}
             }
-          }
+          // Close the email provider connection
+          try { await emailProvider.disconnect?.(); } catch {}
+          } // end else (not alreadySent)
         } catch (err: any) {
-          console.error(`[welcome] Failed to send welcome email: ${err.message}`);
+          console.warn(`[welcome] Failed to send welcome email: ${err.message} — will not retry`);
         }
       } else {
         if (!managerEmail) console.log('[welcome] No manager email configured, skipping welcome email');

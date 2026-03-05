@@ -395,6 +395,63 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     }
   }
 
+  // ─── SMTP/IMAP Email Tools (when no OAuth, agent has SMTP credentials) ───
+  var smtpEmailTools: AnyAgentTool[] = [];
+  var smtpProvider = options?.emailConfig?.provider;
+  if (options?.emailConfig?.smtpHost && (!tp || smtpProvider === 'imap' || smtpProvider === 'smtp')) {
+    // Agent has SMTP credentials — load generic email tools (even alongside OAuth if provider is explicitly SMTP/IMAP)
+    try {
+      var { executeSmtpEmailTool, getSmtpEmailTools: getSmtpIds } = await import('./tools/smtp-email.js');
+      var smtpToolIds = getSmtpIds();
+      var smtpToolDefs: Record<string, { desc: string; params: any }> = {
+        email_send: { desc: 'Send an email via SMTP', params: { type: 'object', properties: { to: { type: 'string', description: 'Recipient email' }, cc: { type: 'string' }, bcc: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string', description: 'Email body text' }, html: { type: 'string' }, replyTo: { type: 'string' } }, required: ['to', 'body'] } },
+        email_reply: { desc: 'Reply to an email by UID', params: { type: 'object', properties: { uid: { type: 'number', description: 'Email UID to reply to' }, folder: { type: 'string' }, body: { type: 'string' }, all: { type: 'boolean', description: 'Reply all' } }, required: ['uid', 'body'] } },
+        email_forward: { desc: 'Forward an email', params: { type: 'object', properties: { uid: { type: 'number' }, to: { type: 'string' }, folder: { type: 'string' }, comment: { type: 'string' } }, required: ['uid', 'to'] } },
+        email_search: { desc: 'Search emails', params: { type: 'object', properties: { query: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' }, subject: { type: 'string' }, since: { type: 'string' }, before: { type: 'string' }, folder: { type: 'string' }, limit: { type: 'number' } } } },
+        email_read: { desc: 'Read a specific email by UID', params: { type: 'object', properties: { uid: { type: 'number' }, folder: { type: 'string' }, markRead: { type: 'boolean' } }, required: ['uid'] } },
+        email_list: { desc: 'List recent emails', params: { type: 'object', properties: { folder: { type: 'string' }, limit: { type: 'number' }, unreadOnly: { type: 'boolean' } } } },
+        email_folders: { desc: 'List email folders', params: { type: 'object', properties: {} } },
+        email_move: { desc: 'Move email to folder', params: { type: 'object', properties: { uid: { type: 'number' }, from: { type: 'string' }, to: { type: 'string' } }, required: ['uid', 'to'] } },
+        email_delete: { desc: 'Delete email', params: { type: 'object', properties: { uid: { type: 'number' }, folder: { type: 'string' }, permanent: { type: 'boolean' } }, required: ['uid'] } },
+        email_mark_read: { desc: 'Mark email read/unread', params: { type: 'object', properties: { uid: { type: 'number' }, folder: { type: 'string' }, unread: { type: 'boolean' } }, required: ['uid'] } },
+      };
+      var emailCfg = options.emailConfig;
+      for (var toolId of smtpToolIds) {
+        var def = smtpToolDefs[toolId];
+        if (!def) continue;
+        smtpEmailTools.push({
+          name: toolId,
+          label: toolId.replace(/_/g, ' ').replace(/\b\w/g, function(c: string) { return c.toUpperCase(); }),
+          description: def.desc,
+          category: 'communication',
+          input_schema: def.params,
+          execute: (function(tid: string) {
+            return async function(_id: string, params: any) {
+              var ctx = { emailConfig: emailCfg } as any;
+              var result = await executeSmtpEmailTool(tid, ctx, params);
+              if (result.error) return { content: [{ type: 'text', text: 'Error: ' + result.error }] };
+              return { content: [{ type: 'text', text: JSON.stringify(result.result, null, 2) }] };
+            };
+          })(toolId),
+        } as AnyAgentTool);
+      }
+      if (smtpEmailTools.length > 0) {
+        console.log(`[tools] Loaded ${smtpEmailTools.length} SMTP/IMAP email tools for ${emailCfg.email || emailCfg.smtpUser}`);
+        // Register with permission engine so tools aren't blocked as "Unknown tool"
+        if ((options as any)?.permissionEngine) {
+          const smtpDefs = smtpEmailTools.map(t => ({
+            id: t.name, name: t.name, description: (t as any).description || t.name,
+            category: 'communicate' as any, risk: t.name.includes('send') || t.name.includes('reply') || t.name.includes('forward') ? 'high' as any : 'low' as any,
+            skillId: 'smtp-email', sideEffects: t.name.includes('send') || t.name.includes('reply') || t.name.includes('forward') ? ['sends-email'] as any[] : [] as any[],
+          }));
+          (options as any).permissionEngine.registerDynamicTools('smtp-email', smtpDefs);
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[tools] SMTP email tools load failed: ${e.message}`);
+    }
+  }
+
   // ─── Integration Tools (Slack, GitHub, Jira, Stripe, etc.) ───
   // 144 integrations — only loads tools for services with vault credentials
   var integrationTools: AnyAgentTool[] = [];
@@ -500,6 +557,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
       sandboxRoot: options?.workspaceDir || undefined,
       shellCwd: options?.workspaceDir || process.cwd(),
       shellTimeout: 120,
+      toolOptions: options,
     }) as AnyAgentTool[];
     // Register with permission engine so tools aren't blocked as "Unknown tool"
     if ((options as any)?.permissionEngine && localSystemTools.length > 0) {
@@ -519,6 +577,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     .concat(enterpriseTools)
     .concat(agenticmailTools)
     .concat(workspaceTools)
+    .concat(smtpEmailTools)
     .concat(enterpriseBrowserTools)
     .concat(integrationTools)
     .concat(mcpServerTools)

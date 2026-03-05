@@ -1,6 +1,6 @@
 {
   "name": "@agenticmail/enterprise",
-  "version": "0.5.340",
+  "version": "0.5.377",
   "description": "AgenticMail Enterprise — cloud-hosted AI agent identity, email, auth & compliance for organizations",
   "type": "module",
   "bin": {
@@ -111,7 +111,8 @@
     "better-sqlite3": "^11.0.0",
     "mongodb": "^6.3.0",
     "mysql2": "^3.9.0",
-    "postgres": "^3.4.0"
+    "postgres": "^3.4.0",
+    "pg": "^8.13.0"
   },
   "engines": {
     "node": ">=20.0.0"

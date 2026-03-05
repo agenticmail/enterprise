@@ -65,6 +65,10 @@ Commands:
   recover                 Recover a domain/subdomain on a new machine
   reset-password          Reset admin password directly in the database
   verify-domain           Check DNS verification for your domain
+  update / upgrade        Update to the latest version
+    --check               Check for updates without installing
+    --cron                Set up automatic updates (cron/task scheduler)
+    --no-restart          Update without restarting PM2 services
 
 Domain Recovery & Verification:
   npx @agenticmail/enterprise recover
@@ -81,6 +85,11 @@ Skill Development:
   npx @agenticmail/enterprise build-skill
   npx @agenticmail/enterprise submit-skill ./community-skills/my-skill/
 `);
+    break;
+
+  case 'update':
+  case 'upgrade':
+    import('./cli-update.js').then(m => m.runUpdate(args.slice(1))).catch(fatal);
     break;
 
   case 'serve':

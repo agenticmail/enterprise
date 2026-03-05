@@ -95,8 +95,20 @@ export class ImapEmailProvider implements IEmailProvider {
   async connect(identity: AgentEmailIdentity): Promise<void> {
     const imapIdentity = identity as ImapEmailIdentity;
 
+    // Auto-derive IMAP from SMTP if not explicitly set
+    if (!imapIdentity.imapHost && imapIdentity.smtpHost) {
+      const smtp = imapIdentity.smtpHost;
+      if (smtp.includes('smtp.gmail')) imapIdentity.imapHost = 'imap.gmail.com';
+      else if (smtp.includes('smtp.office365') || smtp.includes('smtp.outlook')) imapIdentity.imapHost = 'outlook.office365.com';
+      else if (smtp.includes('smtp.yahoo')) imapIdentity.imapHost = 'imap.mail.yahoo.com';
+      else if (smtp.includes('smtp.zoho')) imapIdentity.imapHost = 'imap.zoho.com';
+      else if (smtp.includes('smtp.fastmail')) imapIdentity.imapHost = 'imap.fastmail.com';
+      else if (smtp.includes('smtp.mail.me')) imapIdentity.imapHost = 'imap.mail.me.com';
+      else imapIdentity.imapHost = smtp.replace('smtp.', 'imap.');
+    }
+
     // Validate required fields
-    if (!imapIdentity.imapHost) throw new Error('IMAP host is required');
+    if (!imapIdentity.imapHost) throw new Error('IMAP host is required (set imapHost or smtpHost)');
     if (!imapIdentity.smtpHost) throw new Error('SMTP host is required');
 
     this.identity = imapIdentity;
@@ -113,6 +125,12 @@ export class ImapEmailProvider implements IEmailProvider {
           pass: imapIdentity.password || imapIdentity.accessToken,
         },
         logger: false,
+        socketTimeout: 30000,
+        greetingTimeout: 15000,
+      });
+      // Suppress uncaught socket timeout errors
+      this.imapClient.on('error', (err: any) => {
+        console.warn(`[imap-provider] IMAP error (suppressed): ${err.message}`);
       });
       await this.imapClient.connect();
     } catch (err: any) {

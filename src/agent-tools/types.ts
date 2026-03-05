@@ -104,6 +104,8 @@ export interface ToolCreationOptions {
     getCurrentSessionId?: () => string | undefined;
     /** Mark a session as keep-alive (prevents completion on end_turn) */
     setKeepAlive?: (sessionId: string, keepAlive: boolean) => void;
+    /** Terminate a session (abort the agent loop) */
+    terminateSession?: (sessionId: string) => Promise<void>;
   };
   /** AgenticMail tool-specific config overrides */
   config?: AgenticMailToolConfig;

@@ -358,7 +358,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     const agent = await db.getAgent(agentId);
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
 
-    const body = await c.req.json();
+    const body = await c.req.json().catch(() => ({}));
     const targetType = body.targetType || 'fly';
     const config = body.config || {};
 
@@ -2090,7 +2090,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       if (platform === 'darwin') {
         // macOS — try brew first
         try {
-          execSync('which brew', { timeout: 3000 });
+          execSync(process.platform === 'win32' ? 'where brew' : 'which brew', { timeout: 3000 });
           execSync('brew install cloudflared 2>&1', { encoding: 'utf8', timeout: 120000 });
         } catch {
           // Direct download
@@ -2201,7 +2201,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
       // 4. Start with PM2
       try {
-        execSync('which pm2', { timeout: 3000 });
+        execSync(process.platform === 'win32' ? 'where pm2' : 'which pm2', { timeout: 3000 });
         // Stop existing if any
         try { execSync('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
         execSync(`pm2 start cloudflared --name cloudflared -- tunnel run`, { encoding: 'utf8', timeout: 15000 });
@@ -2962,6 +2962,34 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       );
       return c.json(mapRole(await rolesGet('SELECT * FROM custom_roles WHERE id = $1', [id])), 201);
     } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── System Update Endpoints ─────────────────────────
+  
+  api.get('/system/update-check', async (c) => {
+    try {
+      const { checkForUpdate, getCachedUpdateCheck } = await import('../cli-update.js');
+      // Return cached if checked within last 5 minutes
+      const cached = getCachedUpdateCheck();
+      if (cached && Date.now() - new Date(cached.checkedAt).getTime() < 5 * 60_000) {
+        return c.json(cached);
+      }
+      const info = await checkForUpdate();
+      return c.json(info);
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  api.post('/system/update', async (c) => {
+    try {
+      const { performUpdate } = await import('../cli-update.js');
+      // Run update in background — response returns immediately
+      const result = await performUpdate({ restart: true });
+      return c.json(result);
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
   });
 
   return api;

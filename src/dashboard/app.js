@@ -135,6 +135,8 @@ function App() {
   const [permissions, setPermissions] = useState('*'); // '*' = full access, or { pageId: true | ['tab1','tab2'] }
   const [mustResetPassword, setMustResetPassword] = useState(false);
   const [show2faReminder, setShow2faReminder] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [updating, setUpdating] = useState(false);
   const [impersonating, _setImpersonating] = useState(function() {
     try { var s = localStorage.getItem('em_impersonating'); return s ? JSON.parse(s) : null; } catch { return null; }
   });
@@ -329,7 +331,14 @@ function App() {
   if (!authChecked) return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)', color: 'var(--text-muted)' } }, 'Loading...');
   if (needsSetup === true && !authed) return h(OnboardingWizard, { onComplete: () => { setNeedsSetup(false); setAuthed(true); authCall('/me').then(d => { setUser(d.user || d); }).catch(() => {}); } });
   if (!authed) return h(LoginPage, { onLogin: async (d) => {
-    if (d?.user) { setUser(d.user); if (!d.user.totpEnabled) setShow2faReminder(true); }
+    if (d?.user) {
+      setUser(d.user);
+      if (!d.user.totpEnabled) setShow2faReminder(true);
+      // Check for updates (admin only)
+      if (d.user.role === 'admin' || d.user.role === 'owner') {
+        apiCall('/admin/system/update-check').then(u => { if (u?.updateAvailable) setUpdateInfo(u); }).catch(() => {});
+      }
+    }
     if (d?.mustResetPassword) setMustResetPassword(true);
     // Init encryption before enabling dashboard
     try {
@@ -543,6 +552,37 @@ function App() {
             ),
             h('button', { className: 'btn btn-warning btn-sm', onClick: () => { setPage('settings'); setShow2faReminder(false); history.pushState(null, '', '/dashboard/settings'); } }, 'Set Up 2FA'),
             h('button', { className: 'btn btn-ghost btn-sm', onClick: () => setShow2faReminder(false), style: { padding: '2px 6px', minWidth: 0 } }, '\u00d7')
+          ),
+          // Update available banner
+          updateInfo && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', margin: '0 0 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 8, fontSize: 13 } },
+            h('span', { style: { fontSize: 18 } }, '\uD83C\uDF80'),
+            h('div', { style: { flex: 1 } },
+              h('strong', null, 'Update Available'),
+              h('span', { style: { color: 'var(--text-secondary)', marginLeft: 6 } },
+                'v' + updateInfo.current + ' \u2192 v' + updateInfo.latest
+              )
+            ),
+            h('button', {
+              className: 'btn btn-sm',
+              disabled: updating,
+              style: { background: 'rgba(16,185,129,0.9)', color: '#fff', border: 'none' },
+              onClick: async () => {
+                setUpdating(true);
+                try {
+                  const r = await apiCall('/admin/system/update', { method: 'POST' });
+                  if (r?.success) {
+                    setUpdateInfo(null);
+                    showToast && showToast('Updated to v' + r.to + ' — services restarting...', 'success');
+                  } else {
+                    showToast && showToast('Update failed: ' + (r?.message || 'unknown'), 'error');
+                  }
+                } catch (e) {
+                  showToast && showToast('Update failed: ' + e.message, 'error');
+                }
+                setUpdating(false);
+              }
+            }, updating ? 'Updating...' : 'Update Now'),
+            h('button', { className: 'btn btn-ghost btn-sm', onClick: () => setUpdateInfo(null), style: { padding: '2px 6px', minWidth: 0 } }, '\u00d7')
           ),
           selectedAgentId
             ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { _setSelectedAgentId(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); } })

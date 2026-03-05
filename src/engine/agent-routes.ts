@@ -106,7 +106,8 @@ export function createAgentRoutes(opts: {
   });
 
   router.post('/agents/:id/deploy', async (c) => {
-    const { deployedBy } = await c.req.json();
+    const body = await c.req.json().catch(() => ({}));
+    const { deployedBy } = body;
     try {
       const actor = c.req.header('X-User-Id') || deployedBy;
       const agent = await lifecycle.deploy(c.req.param('id'), actor);

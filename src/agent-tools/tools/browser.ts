@@ -75,7 +75,7 @@ function startIdleCleanup() {
       // Chrome/headed contexts get longer timeouts (meetings, Google services)
       var timeout = (key.endsWith(':chrome') || key.endsWith(':headed')) ? 2 * 60 * 60_000 : DEFAULT_IDLE_TIMEOUT_MS;
       if (now - ctx.lastUsed > timeout) {
-        try { ctx.context.close(); } catch { /* ignore */ }
+        ctx.context.close().catch(() => {});
         agentContexts.delete(key);
       }
     }
@@ -87,7 +87,7 @@ function startIdleCleanup() {
         if (key.endsWith(prefix)) { hasContexts = true; break; }
       }
       if (!hasContexts && browsers[mode]) {
-        try { browsers[mode].close(); } catch { /* ignore */ }
+        browsers[mode]!.close().catch(() => {});
         browsers[mode] = null;
       }
     }
@@ -131,7 +131,7 @@ export async function ensureBrowser(headless: boolean, agentId: string, useChrom
     if (oldestId) {
       var evicted = agentContexts.get(oldestId);
       if (evicted) {
-        try { evicted.context.close(); } catch { /* ignore */ }
+        evicted.context.close().catch(() => {});
         agentContexts.delete(oldestId);
       }
     }
@@ -637,7 +637,7 @@ export function createBrowserTool(options?: ToolCreationOptions & {
           var key = `${agentId}:${mode}`;
           var ctx = agentContexts.get(key);
           if (ctx) {
-            try { ctx.context.close(); } catch { /* ignore */ }
+            ctx.context.close().catch(() => {});
             agentContexts.delete(key);
           }
         }
@@ -702,7 +702,7 @@ export function createBrowserTool(options?: ToolCreationOptions & {
             await fs.writeFile(screenshotPath, buf);
             return {
               content: [
-                { type: 'text', text: `Screenshot of: ${page.url()}\nSaved to: ${screenshotPath}\nFilename: ${screenshotFile}\nSize: ${buf.length} bytes\n\nTo attach this screenshot to an email, use gmail_reply or gmail_send with:\nattachment_paths: ["${screenshotPath}"]` },
+                { type: 'text', text: `Screenshot of: ${page.url()}\nSaved to: ${screenshotPath}\nFilename: ${screenshotFile}\nSize: ${buf.length} bytes` },
                 { type: 'image', data: buf.toString('base64'), mimeType: 'image/png' },
               ],
             };

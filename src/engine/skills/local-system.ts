@@ -52,6 +52,11 @@ const CODING_TOOLS: ToolDefinition[] = [
   { id: 'code_create', name: 'Create File', description: 'Create new file with auto-directory creation', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['modifies-files'] },
   { id: 'code_diff', name: 'Diff Preview', description: 'Preview edit as unified diff without applying', category: 'read', risk: 'low', skillId: 'local-coding', sideEffects: [] },
   { id: 'code_pm2', name: 'PM2 Manager', description: 'Manage pm2 processes: list, restart, logs, stop', category: 'write', risk: 'medium', skillId: 'local-coding', sideEffects: ['executes-code'] },
+  { id: 'agent_stop', name: 'Stop Agent', description: 'Stop this agent process when user requests shutdown', category: 'write', risk: 'high', skillId: 'local-shell', sideEffects: ['terminates-process'] },
+  { id: 'check_dependency', name: 'Check Dependency', description: 'Check if a system dependency is installed', category: 'read', risk: 'low', skillId: 'local-shell', sideEffects: [] },
+  { id: 'install_dependency', name: 'Install Dependency', description: 'Install a system dependency', category: 'write', risk: 'high', skillId: 'local-shell', sideEffects: ['installs-software'] },
+  { id: 'batch_check_dependencies', name: 'Batch Check Dependencies', description: 'Check multiple dependencies at once', category: 'read', risk: 'low', skillId: 'local-shell', sideEffects: [] },
+  { id: 'uninstall_dependency', name: 'Uninstall Dependency', description: 'Uninstall agent-installed dependency', category: 'write', risk: 'high', skillId: 'local-shell', sideEffects: ['uninstalls-software'] },
 ];
 
 export const LOCAL_SYSTEM_SKILLS: SkillDefinition[] = [

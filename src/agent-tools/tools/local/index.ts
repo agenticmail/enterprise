@@ -14,7 +14,8 @@ import { createShellTools } from './shell.js';
 import { createDependencyManagerTools } from './dependency-manager.js';
 import { createSystemInfoTool } from './system-info.js';
 import { createCodingTools } from './coding.js';
-import type { ToolDefinition } from '../../types.js';
+import { createAgentControlTools } from './agent-control.js';
+import type { ToolDefinition, ToolCreationOptions } from '../../types.js';
 
 export interface LocalToolsConfig {
   /** If set, filesystem tools are sandboxed to this directory. Null = full access. */
@@ -23,6 +24,8 @@ export interface LocalToolsConfig {
   shellCwd?: string;
   /** Shell command timeout in seconds (default 30). */
   shellTimeout?: number;
+  /** Pass-through ToolCreationOptions for tools that need runtime refs */
+  toolOptions?: ToolCreationOptions;
 }
 
 export function createLocalSystemTools(config?: LocalToolsConfig): ToolDefinition[] {
@@ -40,6 +43,7 @@ export function createLocalSystemTools(config?: LocalToolsConfig): ToolDefinitio
     ...createDependencyManagerTools(),
     createSystemInfoTool(),
     ...createCodingTools({ cwd: config?.shellCwd, sandbox }),
+    ...createAgentControlTools(config?.toolOptions),
   ];
 }
 
@@ -53,3 +57,4 @@ export { createShellTools, createShellExecTool } from './shell.js';
 export { createSystemInfoTool } from './system-info.js';
 export { createCodingTools } from './coding.js';
 export { createDependencyManagerTools } from './dependency-manager.js';
+export { createAgentControlTools } from './agent-control.js';

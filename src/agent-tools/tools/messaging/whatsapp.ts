@@ -278,10 +278,10 @@ export async function autoStartConnections(agents: { id: string; dataDir: string
 }
 
 async function proxySend(agentId: string, body: any): Promise<any> {
-  var port = process.env.ENTERPRISE_PORT || '3100';
+  var baseUrl = process.env.ENTERPRISE_URL || `http://localhost:${process.env.ENTERPRISE_PORT || process.env.PORT || '8080'}`;
   var payload = JSON.stringify(body);
   try {
-    var resp = await fetch(`http://localhost:${port}/api/engine/bridge/agents/${agentId}/whatsapp/proxy-send`, {
+    var resp = await fetch(`${baseUrl}/api/engine/bridge/agents/${agentId}/whatsapp/proxy-send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: payload,

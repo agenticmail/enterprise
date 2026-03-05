@@ -154,11 +154,12 @@ export class AgentRuntime {
         sendMessage: (sid: string, message: string) => self.sendMessage(sid, message),
         getCurrentSessionId: () => sessionId,
         setKeepAlive: (sid: string, keepAlive: boolean) => self.setKeepAlive(sid, keepAlive),
+        terminateSession: (sid: string) => self.terminateSession(sid),
       },
     };
     if (this.config.getEmailConfig) {
       const ec = this.config.getEmailConfig(agentId);
-      if (ec?.oauthAccessToken) {
+      if (ec?.oauthAccessToken || ec?.smtpHost) {
         base.emailConfig = ec;
         if (this.config.onTokenRefresh) {
           const onRefresh = this.config.onTokenRefresh;

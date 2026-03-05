@@ -138,6 +138,12 @@ export async function runServe(_args: string[]) {
   await server.start();
   console.log(`AgenticMail Enterprise server running on :${PORT}`);
 
+  // Background update check — non-blocking, runs 30s after startup
+  try {
+    const { startBackgroundUpdateCheck } = await import('./cli-update.js');
+    startBackgroundUpdateCheck();
+  } catch {}
+
   // Start prevent-sleep if configured
   try {
     const { startPreventSleep } = await import('./engine/screen-unlock.js');
@@ -167,24 +173,42 @@ export async function runServe(_args: string[]) {
     try {
       const { execSync, spawn } = await import('child_process');
       try {
-        execSync('which cloudflared', { timeout: 3000 });
+        execSync(process.platform === 'win32' ? 'where cloudflared' : 'which cloudflared', { timeout: 3000 });
       } catch {
         console.log('[startup] cloudflared not found — skipping tunnel auto-start');
         console.log('[startup] Install cloudflared to enable tunnel: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/');
         return;
       }
 
-      // Check if already running
+      // Check if already running (PM2 or standalone)
       try {
-        execSync('pgrep -f "cloudflared.*tunnel.*run"', { timeout: 3000 });
-        console.log('[startup] cloudflared tunnel already running');
-        return;
+        if (process.platform === 'win32') {
+          const tasklist = execSync('tasklist /FI "IMAGENAME eq cloudflared.exe" /NH', { encoding: 'utf8', timeout: 5000 });
+          if (tasklist.includes('cloudflared.exe')) {
+            console.log('[startup] cloudflared tunnel already running');
+            return;
+          }
+        } else {
+          execSync('pgrep -f "cloudflared.*tunnel.*run"', { timeout: 3000 });
+          console.log('[startup] cloudflared tunnel already running');
+          return;
+        }
       } catch { /* not running, start it */ }
 
       const subdomain = process.env.AGENTICMAIL_SUBDOMAIN || process.env.AGENTICMAIL_DOMAIN || '';
       console.log(`[startup] Starting cloudflared tunnel${subdomain ? ` for ${subdomain}.agenticmail.io` : ''}...`);
 
-      const child = spawn('cloudflared', ['tunnel', '--no-autoupdate', 'run', '--token', tunnelToken], {
+      // Find cloudflared binary (may not be in PATH on Windows)
+      let cfBin = 'cloudflared';
+      if (process.platform === 'win32') {
+        try {
+          cfBin = execSync('where cloudflared', { encoding: 'utf8', timeout: 3000 }).trim().split('\n')[0].trim();
+        } catch {
+          const candidate = `${process.env.LOCALAPPDATA || ''}\\cloudflared\\cloudflared.exe`;
+          try { (await import('fs')).statSync(candidate); cfBin = candidate; } catch {}
+        }
+      }
+      const child = spawn(cfBin, ['tunnel', '--no-autoupdate', 'run', '--token', tunnelToken], {
         detached: true,
         stdio: 'ignore',
       });

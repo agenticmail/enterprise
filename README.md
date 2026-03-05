@@ -933,6 +933,30 @@ AgenticMail automatically configures itself to survive reboots, crashes, and net
 
 All persistence setup runs **once on first boot** and writes a marker file. Subsequent boots just save the process list silently.
 
+### Self-Update System
+
+AgenticMail includes a built-in self-update system — **4 ways to stay current**:
+
+| Method | How | Best For |
+|--------|-----|----------|
+| **Dashboard banner** | One-click "Update Now" button when a new version is detected | GUI users |
+| **CLI command** | `agenticmail-enterprise update` | Terminal users |
+| **Auto-update cron** | `agenticmail-enterprise update --cron` — checks every 6 hours | Set and forget |
+| **Background check** | Server checks npm registry on startup + every 6 hours, logs when update available | Awareness |
+
+```bash
+# One command to update everything
+agenticmail-enterprise update
+
+# Just check, don't install
+agenticmail-enterprise update --check
+
+# Set up automatic updates (cron job / Windows Task Scheduler)
+agenticmail-enterprise update --cron
+```
+
+The update process: installs the latest npm package globally, finds all AgenticMail PM2 processes, restarts them, and saves the PM2 config. Zero downtime for agents — they restart in seconds.
+
 ### Production Log Levels
 
 | Level | What Shows |
@@ -988,6 +1012,12 @@ npx @agenticmail/enterprise recover --domain agents.agenticmail.io --key <hex>
 
 # DNS verification
 npx @agenticmail/enterprise verify-domain
+
+# Self-update
+npx @agenticmail/enterprise update              # Update + restart all services
+npx @agenticmail/enterprise update --check       # Check for updates without installing
+npx @agenticmail/enterprise update --cron        # Set up automatic updates (every 6 hours)
+npx @agenticmail/enterprise update --no-restart  # Update without restarting PM2
 ```
 
 ---

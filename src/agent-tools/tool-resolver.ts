@@ -136,6 +136,7 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   mcp_bridge: 3,
   filesystem: 2,
   web: 2,
+  smtp_email: 2,
 };
 
 // ─── Exhaustive Tool Registry ────────────────────────────
@@ -207,6 +208,18 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   google_chat_upload_attachment: 'gws_chat',
   google_chat_download_attachment: 'gws_chat',
   google_chat_setup_space: 'gws_chat',
+
+  // ── SMTP/IMAP Email (10) ──
+  email_send: 'smtp_email',
+  email_reply: 'smtp_email',
+  email_forward: 'smtp_email',
+  email_search: 'smtp_email',
+  email_read: 'smtp_email',
+  email_list: 'smtp_email',
+  email_folders: 'smtp_email',
+  email_move: 'smtp_email',
+  email_delete: 'smtp_email',
+  email_mark_read: 'smtp_email',
 
   // ── Gmail (15) ──
   gmail_search: 'gws_gmail',
@@ -521,9 +534,9 @@ const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
   // Messaging channels: load the relevant channel's tools + common tools
   // The agent's OWN channel tools are essential (Tier 1-like for that session)
   // Other channel tools and specialist tools load on demand
-  whatsapp: ['msg_whatsapp', ..._COMMON_T2],
-  telegram: ['msg_telegram', ..._COMMON_T2],
-  email: ['agenticmail', 'gws_gmail', ..._COMMON_T2],
+  whatsapp: ['msg_whatsapp', 'smtp_email', ..._COMMON_T2],
+  telegram: ['msg_telegram', 'smtp_email', ..._COMMON_T2],
+  email: ['agenticmail', 'gws_gmail', 'smtp_email', ..._COMMON_T2],
 
   // Task/full: broader set for agent-to-agent work
   task: ['agenticmail', ..._COMMON_T2],
@@ -542,7 +555,7 @@ interface SignalRule {
 const SIGNAL_RULES: SignalRule[] = [
   // Email mentions
   { patterns: [/\bemail\b/i, /\bgmail\b/i, /\binbox\b/i, /\bsend.*mail\b/i],
-    sets: ['gws_gmail'] },
+    sets: ['gws_gmail', 'smtp_email'] },
   // Calendar mentions
   { patterns: [/\bcalendar\b/i, /\bschedule\b/i, /\bmeeting.*upcoming\b/i, /\bevent\b/i, /\bfree.*busy\b/i],
     sets: ['gws_calendar'] },
@@ -785,6 +798,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   meeting_voice: 'In-meeting voice + chat (4 tools)',
   meeting_lifecycle: 'Join/schedule/manage meetings (8 tools)',
   gws_chat: 'Google Chat messaging (14 tools)',
+  smtp_email: 'Email via SMTP/IMAP — send, read, search, manage (10 tools)',
   gws_gmail: 'Gmail read/send/search (15 tools)',
   gws_calendar: 'Google Calendar events (6 tools)',
   gws_drive: 'Google Drive files (7 tools)',
@@ -820,7 +834,13 @@ function createRequestToolsTool(
   _context: SessionContext,
 ): AnyAgentTool {
   const loadedSets = new Set<ToolSet>(activeSets);
-  const allSets = Object.keys(SET_DESCRIPTIONS) as ToolSet[];
+  // Only show sets that have actual tools available (e.g., don't show gws_gmail if no OAuth)
+  const availableSetsInAllTools = new Set<ToolSet>();
+  for (const tool of allTools) {
+    const set = TOOL_REGISTRY[tool.name];
+    if (set) availableSetsInAllTools.add(set);
+  }
+  const allSets = (Object.keys(SET_DESCRIPTIONS) as ToolSet[]).filter(s => availableSetsInAllTools.has(s));
   const notLoaded = allSets.filter(s => !loadedSets.has(s));
 
   // Compact description — only list what's NOT loaded to save tokens
