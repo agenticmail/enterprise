@@ -16,4 +16,3 @@ enterprise-live-test.db
 ecosystem.config.cjs
 .github/
 src/
-dist/_seed-data*

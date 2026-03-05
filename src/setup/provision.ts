@@ -283,61 +283,79 @@ async function deploy(
   if (deployTarget === 'cloud' && cloud) {
     spinner.start('Configuring agenticmail.io deployment...');
 
-    // Start cloudflared with the tunnel token via PM2
+    // Ensure cloudflared is installed
     try {
-      const pm2 = await import('pm2' as string);
-      await new Promise<void>((resolve, reject) => {
-        pm2.connect((err: any) => {
-          if (err) { reject(err); return; }
+      const whichCmd = process.platform === 'win32' ? 'where' : 'which';
+      execSync(`${whichCmd} cloudflared`, { stdio: 'pipe', timeout: 5000 });
+    } catch {
+      spinner.text = 'Installing cloudflared...';
+      try {
+        if (process.platform === 'win32') {
+          try {
+            execSync('winget install --id Cloudflare.cloudflared --accept-source-agreements --accept-package-agreements', { stdio: 'pipe', timeout: 120000 });
+          } catch {
+            const archStr = process.arch === 'arm64' ? 'arm64' : 'amd64';
+            execSync(`powershell -Command "New-Item -ItemType Directory -Force -Path '$env:LOCALAPPDATA\\\\cloudflared' | Out-Null; Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-${archStr}.exe' -OutFile '$env:LOCALAPPDATA\\\\cloudflared\\\\cloudflared.exe'"`, { stdio: 'pipe', timeout: 120000 });
+            process.env.PATH = `${process.env.LOCALAPPDATA}\\cloudflared;${process.env.PATH}`;
+          }
+        } else if (process.platform === 'darwin') {
+          execSync('brew install cloudflared', { stdio: 'pipe', timeout: 120000 });
+        } else {
+          const archStr = process.arch === 'arm64' ? 'arm64' : 'amd64';
+          execSync(`curl -L -o /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${archStr} && chmod +x /usr/local/bin/cloudflared`, { stdio: 'pipe', timeout: 120000 });
+        }
+      } catch { /* will show manual instructions later */ }
+    }
 
-          // Start cloudflared tunnel
-          pm2.start({
-            name: 'cloudflared',
-            script: 'cloudflared',
-            args: `tunnel --no-autoupdate run --token ${cloud.tunnelToken}`,
-            interpreter: 'none',
-            autorestart: true,
-          }, (e: any) => {
-            if (e) console.warn(`PM2 cloudflared start: ${e.message}`);
+    // Ensure PM2 is installed
+    try {
+      execSync('npm ls -g pm2 --depth=0', { stdio: 'pipe', timeout: 10000 });
+    } catch {
+      spinner.text = 'Installing PM2 process manager...';
+      try {
+        execSync('npm install -g pm2', { stdio: 'pipe', timeout: 60000 });
+      } catch { /* will fall back to manual start */ }
+    }
 
-            // Start enterprise server
-            pm2.start({
-              name: 'enterprise',
-              script: 'npx',
-              args: '@agenticmail/enterprise start',
-              env: {
-                PORT: String(cloud.port || 8080),
-                DATABASE_URL: database.connectionString || '',
-                JWT_SECRET: jwtSecret,
-                AGENTICMAIL_VAULT_KEY: vaultKey,
-                AGENTICMAIL_DOMAIN: cloud.fqdn,
-              },
-              autorestart: true,
-            }, (e2: any) => {
-              pm2.disconnect();
-              if (e2) reject(e2); else resolve();
-            });
-          });
-        });
+    // Start cloudflared + enterprise via PM2 CLI
+    try {
+      // Delete old processes if they exist
+      try { execSync('pm2 delete cloudflared 2>&1', { stdio: 'pipe', timeout: 10000 }); } catch {}
+      try { execSync('pm2 delete enterprise 2>&1', { stdio: 'pipe', timeout: 10000 }); } catch {}
+
+      // Start cloudflared tunnel
+      execSync(`pm2 start cloudflared --name cloudflared --interpreter none -- tunnel --no-autoupdate run --token ${cloud.tunnelToken}`, { stdio: 'pipe', timeout: 15000 });
+
+      // Start enterprise server
+      const envVars = [
+        `PORT=${cloud.port || 8080}`,
+        `DATABASE_URL=${database.connectionString || ''}`,
+        `JWT_SECRET=${jwtSecret}`,
+        `AGENTICMAIL_VAULT_KEY=${vaultKey}`,
+        `AGENTICMAIL_DOMAIN=${cloud.fqdn}`,
+      ].join(' ');
+      const pm2Env = process.platform === 'win32'
+        ? `--env PORT=${cloud.port || 8080}`
+        : '';
+      execSync(`pm2 start npx --name enterprise -- @agenticmail/enterprise start`, {
+        stdio: 'pipe', timeout: 15000,
+        env: {
+          ...process.env,
+          PORT: String(cloud.port || 8080),
+          DATABASE_URL: database.connectionString || '',
+          JWT_SECRET: jwtSecret,
+          AGENTICMAIL_VAULT_KEY: vaultKey,
+          AGENTICMAIL_DOMAIN: cloud.fqdn,
+        },
       });
 
-      // Save PM2 process list + setup startup script for reboot persistence
+      // Save + startup
+      try { execSync('pm2 save', { timeout: 10000, stdio: 'pipe' }); } catch {}
       try {
-        const { execSync } = await import('child_process');
-        execSync('pm2 save', { timeout: 10000, stdio: 'pipe' });
-
-        // pm2 startup generates a command to run — capture and execute it
-        try {
-          const startupOut = execSync('pm2 startup 2>&1', { encoding: 'utf8', timeout: 15000 });
-          // Output contains a sudo command to run — try to execute it
-          const sudoMatch = startupOut.match(/sudo .+$/m);
-          if (sudoMatch) {
-            try {
-              execSync(sudoMatch[0], { timeout: 15000, stdio: 'pipe' });
-            } catch { /* may need user to run manually — that's ok */ }
-          }
-        } catch { /* pm2 startup may require manual run — non-fatal */ }
-      } catch { /* pm2 save failed — non-fatal */ }
+        const startupOut = execSync('pm2 startup 2>&1', { encoding: 'utf8', timeout: 15000 });
+        const sudoMatch = startupOut.match(/sudo .+$/m);
+        if (sudoMatch) try { execSync(sudoMatch[0], { timeout: 15000, stdio: 'pipe' }); } catch {}
+      } catch {}
 
       spinner.succeed(`Live at https://${cloud.fqdn}`);
       console.log(chalk.dim('  PM2 will auto-restart on crash and survive reboots.'));
