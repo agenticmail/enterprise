@@ -343,6 +343,124 @@ engine.get('/cluster/best-node', (c) => {
   const node = cluster.findBestNode(caps);
   return node ? c.json(node) : c.json({ error: 'No suitable node available' }, 404);
 });
+engine.post('/cluster/test-connection', async (c) => {
+  const { host, port } = await c.req.json();
+  if (!host) return c.json({ error: 'host required' }, 400);
+  const p = port || 3101;
+  const start = Date.now();
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(`http://${host}:${p}/health`, { signal: ctrl.signal }).catch(() => null);
+    clearTimeout(timeout);
+    if (res && res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return c.json({ success: true, latencyMs: Date.now() - start, version: data.version, agentId: data.agentId });
+    }
+    // Try the enterprise status endpoint as fallback
+    const ctrl2 = new AbortController();
+    const timeout2 = setTimeout(() => ctrl2.abort(), 5000);
+    const res2 = await fetch(`http://${host}:${p}/api/status`, { signal: ctrl2.signal }).catch(() => null);
+    clearTimeout(timeout2);
+    if (res2 && res2.ok) {
+      return c.json({ success: true, latencyMs: Date.now() - start, version: 'enterprise' });
+    }
+    return c.json({ success: false, error: 'No response from ' + host + ':' + p, latencyMs: Date.now() - start });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message || 'Connection failed', latencyMs: Date.now() - start });
+  }
+});
+
+engine.post('/cluster/deploy-via-ssh', async (c) => {
+  const body = await c.req.json();
+  if (!body.host) return c.json({ error: 'host required' }, 400);
+  // Use the deployment engine's SSH infrastructure
+  try {
+    const dbUrl = process.env.DATABASE_URL || '';
+    const enterpriseUrl = process.env.ENTERPRISE_URL || `http://${body.host}:${body.port || 3101}`;
+    const nodeId = body.name?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'worker-' + body.host.replace(/\./g, '-');
+
+    // Build remote setup script
+    const script = [
+      '#!/bin/bash',
+      'set -e',
+      'export NVM_DIR="$HOME/.nvm"',
+      '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"',
+      '',
+      '# Install Node.js if not present',
+      'if ! command -v node &> /dev/null; then',
+      '  if command -v apt-get &> /dev/null; then',
+      '    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -',
+      '    sudo apt-get install -y nodejs',
+      '  elif command -v brew &> /dev/null; then',
+      '    brew install node',
+      '  fi',
+      'fi',
+      '',
+      '# Install PM2 and AgenticMail',
+      'npm install -g pm2 @agenticmail/enterprise',
+      '',
+      '# Write env file',
+      'mkdir -p ~/.agenticmail',
+      `cat > ~/.agenticmail/worker.env << 'ENVEOF'`,
+      `ENTERPRISE_URL=${enterpriseUrl}`,
+      `WORKER_NODE_ID=${nodeId}`,
+      `WORKER_NAME="${body.name || nodeId}"`,
+      `DATABASE_URL=${dbUrl}`,
+      `PORT=${body.port || 3101}`,
+      'LOG_LEVEL=warn',
+      'ENVEOF',
+      '',
+      '# Start agents via PM2',
+      ...(body.agentIds || []).map((id: string, i: number) =>
+        `pm2 start "$(which agenticmail-enterprise || echo npx @agenticmail/enterprise) agent --id ${id}" --name "agent-${i}" --env ~/.agenticmail/worker.env`
+      ),
+      'pm2 save',
+      'echo "DEPLOY_SUCCESS"',
+    ].join('\n');
+
+    const { execSync } = await import('child_process');
+    const sshTarget = `${body.user || 'root'}@${body.host}`;
+    const keyOpt = body.privateKey ? `-i /tmp/_am_ssh_key_${Date.now()}` : '';
+
+    if (body.privateKey) {
+      const { writeFileSync, chmodSync } = await import('fs');
+      const keyPath = `/tmp/_am_ssh_key_${Date.now()}`;
+      writeFileSync(keyPath, body.privateKey, { mode: 0o600 });
+    }
+
+    const scriptB64 = Buffer.from(script).toString('base64');
+    const sshCmd = `ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${keyOpt} ${sshTarget} "echo '${scriptB64}' | base64 -d | bash"`;
+
+    // Run async — don't block the request
+    const { exec } = await import('child_process');
+    exec(sshCmd, { timeout: 120_000 }, (err, stdout, stderr) => {
+      if (err) {
+        console.warn(`[cluster] SSH deploy to ${body.host} failed:`, err.message);
+      } else if (stdout.includes('DEPLOY_SUCCESS')) {
+        console.log(`[cluster] SSH deploy to ${body.host} succeeded`);
+      }
+    });
+
+    return c.json({ message: 'Deployment started via SSH to ' + sshTarget + '. Check the Cluster page for the node to appear.', nodeId });
+  } catch (e: any) {
+    return c.json({ error: 'SSH deploy failed: ' + e.message }, 500);
+  }
+});
+
+engine.post('/cluster/nodes/:nodeId/restart', async (c) => {
+  const node = cluster.getNode(c.req.param('nodeId'));
+  if (!node) return c.json({ error: 'Node not found' }, 404);
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 10000);
+    await fetch(`${node.url}/restart`, { method: 'POST', signal: ctrl.signal }).catch(() => {});
+    return c.json({ ok: true, message: 'Restart signal sent to ' + node.name });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 engine.get('/cluster/stream', (c) => {
   const stream = new ReadableStream({
     start(controller) {

@@ -26,7 +26,7 @@ export interface WorkerNode {
   name: string;
   host: string;          // IP or hostname reachable from control plane
   port: number;          // Worker API port
-  url: string;           // Full base URL (e.g., http://192.168.1.50:3101)
+  url: string;           // Full base URL (e.g., http://186.158.1.50:3101)
   platform: string;      // darwin, linux, win32
   arch: string;          // arm64, x64
   cpuCount: number;
@@ -113,6 +113,14 @@ export class ClusterManager {
     }
   }
 
+  /** Validate node ID format */
+  private validateNodeId(nodeId: string): string | null {
+    if (!nodeId || nodeId.length < 2) return 'Node ID must be at least 2 characters';
+    if (nodeId.length > 64) return 'Node ID must be at most 64 characters';
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(nodeId)) return 'Node ID must start with alphanumeric and contain only alphanumeric, dots, hyphens, underscores';
+    return null;
+  }
+
   /** Register or re-register a worker node */
   async register(data: {
     nodeId: string;
@@ -128,6 +136,11 @@ export class ClusterManager {
     capabilities?: string[];
     metadata?: Record<string, any>;
   }): Promise<WorkerNode> {
+    // Validate
+    const idErr = this.validateNodeId(data.nodeId);
+    if (idErr) throw new Error(idErr);
+    if (!data.host) throw new Error('host is required');
+    if (!data.port || data.port < 1 || data.port > 65535) throw new Error('port must be 1-65535');
     const now = new Date().toISOString();
     const existing = this.nodes.get(data.nodeId);
     const node: WorkerNode = {

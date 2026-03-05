@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cluster Management — AgenticMail Enterprise Docs</title>
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+<div class="docs-container">
+  <nav class="docs-nav"><a href="/dashboard">&larr; Back to Dashboard</a></nav>
+
+  <h1>Cluster Management</h1>
+  <p class="docs-subtitle">Scale your AI workforce across multiple machines — Mac Minis, VPS, cloud instances, or any combination.</p>
+
+  <div class="docs-toc">
+    <h4>Contents</h4>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#adding-nodes">Adding Worker Nodes</a></li>
+      <li><a href="#manual">Method 1: Manual Registration</a></li>
+      <li><a href="#ssh">Method 2: SSH Deploy</a></li>
+      <li><a href="#script">Method 3: Setup Script</a></li>
+      <li><a href="#env-vars">Environment Variables</a></li>
+      <li><a href="#monitoring">Monitoring & Health</a></li>
+      <li><a href="#node-detail">Node Detail & Actions</a></li>
+      <li><a href="#load-balancing">Load Balancing</a></li>
+      <li><a href="#database">Database Sharing</a></li>
+      <li><a href="#networking">Networking Requirements</a></li>
+      <li><a href="#security">Security Considerations</a></li>
+      <li><a href="#edge-cases">Edge Cases & Troubleshooting</a></li>
+      <li><a href="#api">API Reference</a></li>
+    </ul>
+  </div>
+
+  <h2 id="overview">Overview</h2>
+  <p>The Cluster system enables <strong>horizontal scaling</strong> of your AI agent workforce. Instead of running all agents on a single machine, you can distribute them across multiple worker nodes — each running one or more agents that report back to a central dashboard.</p>
+  <p>This is useful when:</p>
+  <ul>
+    <li>You have more agents than a single machine can handle</li>
+    <li>You want geographic distribution (agents closer to users)</li>
+    <li>You need hardware isolation (GPU nodes for voice, separate machines for browser automation)</li>
+    <li>You want fault tolerance (agents survive if one machine goes down)</li>
+    <li>You're scaling from a single Mac Mini to a fleet of machines</li>
+  </ul>
+
+  <h2 id="architecture">Architecture</h2>
+  <div class="docs-diagram">
+    <pre>
+┌─────────────────────────────────────┐
+│         Control Plane               │
+│   (Enterprise Dashboard Server)     │
+│                                     │
+│  ┌──────────┐  ┌────────────────┐   │
+│  │ Dashboard │  │  Cluster API   │   │
+│  │   (UI)    │  │  (REST + SSE)  │   │
+│  └──────────┘  └────────────────┘   │
+│         │              │            │
+│  ┌──────────────────────────┐       │
+│  │     Shared Database      │       │
+│  │  (Postgres / Supabase)   │       │
+│  └──────────────────────────┘       │
+└─────────────┬───────────────────────┘
+              │ HTTP (heartbeat, status)
+     ┌────────┼────────┐
+     │        │        │
+┌────┴───┐ ┌──┴───┐ ┌──┴───┐
+│Worker 1│ │Worker│ │Worker│
+│Mac Mini│ │ VPS  │ │ AWS  │
+│Agent A │ │AgentB│ │AgentC│
+│Agent D │ │AgentE│ │AgentF│
+└────────┘ └──────┘ └──────┘
+    </pre>
+  </div>
+
+  <h3>Key Concepts</h3>
+  <table>
+    <tr><th>Term</th><th>Description</th></tr>
+    <tr><td><strong>Control Plane</strong></td><td>The central enterprise server running the dashboard, API, and database. One per deployment.</td></tr>
+    <tr><td><strong>Worker Node</strong></td><td>Any machine running one or more agent processes. Reports to the control plane via HTTP.</td></tr>
+    <tr><td><strong>Node ID</strong></td><td>Unique identifier for each worker node (e.g., "mac-mini-office", "aws-us-east-1").</td></tr>
+    <tr><td><strong>Heartbeat</strong></td><td>Periodic HTTP POST from worker to control plane (every 30 seconds). Proves the node is alive.</td></tr>
+    <tr><td><strong>Stale Threshold</strong></td><td>If no heartbeat received for 90 seconds, node is marked offline.</td></tr>
+    <tr><td><strong>Capabilities</strong></td><td>Tags describing what the node can do: "browser", "voice", "gpu", "docker".</td></tr>
+  </table>
+
+  <h2 id="adding-nodes">Adding Worker Nodes</h2>
+  <p>There are <strong>3 ways</strong> to add a worker node, all from the dashboard UI:</p>
+
+  <h3 id="manual">Method 1: Manual Registration</h3>
+  <p>Best for: Machines that already have AgenticMail installed and running.</p>
+  <ol>
+    <li>Go to <strong>Operations &gt; Cluster</strong> in the sidebar</li>
+    <li>Click <strong>Add Worker Node</strong></li>
+    <li>Select the <strong>Manual Registration</strong> tab</li>
+    <li>Enter the node name, host IP/hostname, and port</li>
+    <li>Click <strong>Test Connection</strong> to verify reachability</li>
+    <li>Click <strong>Add Node</strong></li>
+  </ol>
+  <p>The node will appear in the cluster and start receiving heartbeats when the agent process has <code>WORKER_NODE_ID</code> set.</p>
+
+  <h3 id="ssh">Method 2: SSH Deploy</h3>
+  <p>Best for: Fresh machines where you want the dashboard to handle everything.</p>
+  <ol>
+    <li>Click <strong>Add Worker Node</strong> &gt; <strong>Deploy via SSH</strong> tab</li>
+    <li>Enter the SSH host, username, and optionally paste a private key</li>
+    <li>Optionally specify which agent IDs to deploy</li>
+    <li>Click <strong>Deploy Worker</strong></li>
+  </ol>
+  <p>The dashboard will SSH into the machine, install Node.js, PM2, and AgenticMail, write the environment file, and start the agent processes. The node auto-registers on startup.</p>
+
+  <div class="docs-note">
+    <strong>Note:</strong> SSH deploy requires the dashboard server to have network access to the target machine on port 22. For cloud instances, make sure the security group allows SSH from the dashboard's IP.
+  </div>
+
+  <h3 id="script">Method 3: Setup Script</h3>
+  <p>Best for: Machines you can't SSH into from the dashboard (firewalled, air-gapped, or you prefer manual control).</p>
+  <ol>
+    <li>Click <strong>Add Worker Node</strong> &gt; <strong>Setup Script</strong> tab</li>
+    <li>Enter a name and port</li>
+    <li>Click <strong>Generate Setup Script</strong></li>
+    <li>Copy the script</li>
+    <li>SSH into the target machine yourself and paste/run the script</li>
+    <li>Edit <code>~/.agenticmail/worker.env</code> to set your <code>DATABASE_URL</code></li>
+    <li>Start agents with <code>pm2 start "agenticmail-enterprise agent --id &lt;ID&gt;"</code></li>
+  </ol>
+
+  <h2 id="env-vars">Environment Variables</h2>
+  <p>These environment variables control worker node behavior:</p>
+  <table>
+    <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+    <tr><td><code>ENTERPRISE_URL</code></td><td>Yes</td><td>Full URL of the control plane (e.g., <code>https://acme.agenticmail.io</code>)</td></tr>
+    <tr><td><code>WORKER_NODE_ID</code></td><td>Yes*</td><td>Unique node identifier. Triggers auto-registration on startup. <em>*Required for cluster mode.</em></td></tr>
+    <tr><td><code>WORKER_NAME</code></td><td>No</td><td>Human-readable name shown in dashboard. Defaults to system hostname.</td></tr>
+    <tr><td><code>WORKER_HOST</code></td><td>No</td><td>IP/hostname the control plane should use to reach this node. Defaults to "localhost".</td></tr>
+    <tr><td><code>WORKER_CAPABILITIES</code></td><td>No</td><td>Comma-separated capabilities: "browser,voice,gpu,docker"</td></tr>
+    <tr><td><code>DATABASE_URL</code></td><td>Yes</td><td>Same database as the control plane (shared Postgres)</td></tr>
+    <tr><td><code>PORT</code></td><td>No</td><td>Agent API port (default: 3101)</td></tr>
+    <tr><td><code>LOG_LEVEL</code></td><td>No</td><td>Set to "warn" for production noise suppression</td></tr>
+  </table>
+
+  <h2 id="monitoring">Monitoring & Health</h2>
+  <h3>Real-Time Status</h3>
+  <p>The Cluster page shows live status for every node via Server-Sent Events (SSE). No polling — updates appear instantly when:</p>
+  <ul>
+    <li>A node registers or re-registers</li>
+    <li>A heartbeat is received (every 30s)</li>
+    <li>A node goes offline (no heartbeat for 90s)</li>
+    <li>Node agent list changes</li>
+  </ul>
+
+  <h3>Node Statuses</h3>
+  <table>
+    <tr><th>Status</th><th>Color</th><th>Meaning</th></tr>
+    <tr><td>online</td><td style="color: #22c55e;">Green</td><td>Node is reachable and heartbeating normally</td></tr>
+    <tr><td>degraded</td><td style="color: #f59e0b;">Orange</td><td>Node is reachable but reporting issues</td></tr>
+    <tr><td>offline</td><td style="color: #6b7280;">Gray</td><td>No heartbeat for 90+ seconds</td></tr>
+  </table>
+
+  <h3>Stats Cards</h3>
+  <p>The top of the Cluster page shows aggregate stats:</p>
+  <ul>
+    <li><strong>Total Nodes</strong> — All registered nodes (online + offline)</li>
+    <li><strong>Online</strong> — Currently heartbeating nodes</li>
+    <li><strong>Running Agents</strong> — Total agents across all online nodes</li>
+    <li><strong>Total CPUs</strong> — Aggregate CPU cores across online nodes</li>
+    <li><strong>Total Memory</strong> — Aggregate RAM across online nodes</li>
+  </ul>
+
+  <h2 id="node-detail">Node Detail & Actions</h2>
+  <p>Click any node card to see full details:</p>
+  <ul>
+    <li><strong>Platform info</strong> — OS, architecture, CPU count, memory</li>
+    <li><strong>Agent list</strong> — All agents running on this node with names and roles</li>
+    <li><strong>Capabilities</strong> — What the node supports (browser, voice, etc.)</li>
+    <li><strong>Ping</strong> — Test connection from dashboard to node (shows latency)</li>
+    <li><strong>Restart Agents</strong> — Send restart signal to all agents on this node</li>
+  </ul>
+
+  <h2 id="load-balancing">Load Balancing</h2>
+  <p>When deploying a new agent, the system can automatically select the best node:</p>
+  <ul>
+    <li><strong>Least-loaded</strong> — Node with fewest running agents</li>
+    <li><strong>Capability-matching</strong> — If the agent needs "voice" or "browser", only nodes with those capabilities are considered</li>
+    <li><strong>API endpoint</strong>: <code>GET /api/engine/cluster/best-node?capabilities=voice,browser</code></li>
+  </ul>
+
+  <h2 id="database">Database Sharing</h2>
+  <p>All worker nodes <strong>must connect to the same database</strong> as the control plane. This is how agents share state, memory, tasks, and configuration.</p>
+  <div class="docs-note">
+    <strong>Recommended:</strong> Use a cloud-hosted PostgreSQL (Supabase, Neon, AWS RDS) accessible from all nodes. SQLite does NOT work for multi-node clusters.
+  </div>
+  <p>Connection pool settings are auto-optimized per node via the <code>smartDbConfig()</code> helper. Each node maintains its own small connection pool (3 connections max).</p>
+
+  <h2 id="networking">Networking Requirements</h2>
+  <table>
+    <tr><th>Direction</th><th>From</th><th>To</th><th>Port</th><th>Purpose</th></tr>
+    <tr><td>Outbound</td><td>Worker Node</td><td>Control Plane</td><td>3100 (or custom)</td><td>Heartbeats, status updates, task webhooks</td></tr>
+    <tr><td>Outbound</td><td>Worker Node</td><td>Database</td><td>5432 (Postgres)</td><td>Shared database connection</td></tr>
+    <tr><td>Inbound</td><td>Control Plane</td><td>Worker Node</td><td>3101 (or custom)</td><td>Health checks, ping, restart commands</td></tr>
+    <tr><td>Outbound</td><td>Control Plane</td><td>Worker Node</td><td>22 (SSH)</td><td>Only for SSH deploy method</td></tr>
+  </table>
+  <p>If nodes are behind NAT or firewalls, only outbound from worker to control plane is strictly required. The test-connection and restart features need inbound access.</p>
+
+  <h2 id="security">Security Considerations</h2>
+  <ul>
+    <li><strong>No authentication on cluster API (yet)</strong> — The heartbeat and status endpoints are unauthenticated for simplicity. Only expose the control plane's API behind a reverse proxy with authentication, or restrict by IP.</li>
+    <li><strong>SSH keys</strong> — For SSH deploy, keys are used once and not persisted. Prefer SSH agent forwarding or temporary keys.</li>
+    <li><strong>Database credentials</strong> — Each worker node needs <code>DATABASE_URL</code>. Use environment variables, never commit credentials.</li>
+    <li><strong>TLS</strong> — Use HTTPS between workers and control plane in production. Set <code>ENTERPRISE_URL=https://...</code>.</li>
+    <li><strong>Network segmentation</strong> — Place worker nodes and control plane on the same VPN/VPC for internal traffic.</li>
+  </ul>
+
+  <h2 id="edge-cases">Edge Cases & Troubleshooting</h2>
+
+  <h3>Node keeps showing "offline"</h3>
+  <ul>
+    <li>Check <code>ENTERPRISE_URL</code> is correct and reachable from the worker</li>
+    <li>Check <code>WORKER_NODE_ID</code> is set in the agent's environment</li>
+    <li>Check firewall rules — worker must be able to POST to <code>ENTERPRISE_URL/api/engine/cluster/heartbeat/...</code></li>
+    <li>Check agent logs: <code>pm2 logs agent-name</code></li>
+  </ul>
+
+  <h3>Duplicate node IDs</h3>
+  <p>If two machines use the same <code>WORKER_NODE_ID</code>, they'll overwrite each other's registration. Use unique IDs per machine.</p>
+
+  <h3>Agent appears on wrong node</h3>
+  <p>Each agent process reports its <code>WORKER_NODE_ID</code> on startup. If you move an agent between machines, restart it on the new machine — it will re-register under the new node.</p>
+
+  <h3>Control plane restarts</h3>
+  <p>All node data is persisted in the <code>cluster_nodes</code> database table. On restart, nodes load from DB as "offline" and transition to "online" when the next heartbeat arrives (within 30s).</p>
+
+  <h3>Worker restarts</h3>
+  <p>PM2 auto-restarts crashed agent processes. On restart, the agent re-registers with the control plane within seconds.</p>
+
+  <h3>Network partition</h3>
+  <p>If a worker loses connectivity to the control plane, it continues running agents normally. It just stops reporting status. When connectivity resumes, the next heartbeat restores the "online" status.</p>
+
+  <h3>Database failover</h3>
+  <p>All nodes connect to the same database. If the database goes down, all nodes are affected. Use a cloud provider with automatic failover (Supabase, Neon, RDS Multi-AZ).</p>
+
+  <h2 id="api">API Reference</h2>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+    <tr><td>GET</td><td><code>/api/engine/cluster/nodes</code></td><td>List all nodes + cluster stats</td></tr>
+    <tr><td>GET</td><td><code>/api/engine/cluster/nodes/:nodeId</code></td><td>Get specific node</td></tr>
+    <tr><td>POST</td><td><code>/api/engine/cluster/register</code></td><td>Register a worker node</td></tr>
+    <tr><td>POST</td><td><code>/api/engine/cluster/heartbeat/:nodeId</code></td><td>Worker heartbeat</td></tr>
+    <tr><td>DELETE</td><td><code>/api/engine/cluster/nodes/:nodeId</code></td><td>Remove a node</td></tr>
+    <tr><td>GET</td><td><code>/api/engine/cluster/best-node</code></td><td>Find best node for deployment</td></tr>
+    <tr><td>POST</td><td><code>/api/engine/cluster/test-connection</code></td><td>Test connectivity to a node</td></tr>
+    <tr><td>POST</td><td><code>/api/engine/cluster/deploy-via-ssh</code></td><td>Deploy worker via SSH</td></tr>
+    <tr><td>POST</td><td><code>/api/engine/cluster/nodes/:nodeId/restart</code></td><td>Restart agents on a node</td></tr>
+    <tr><td>GET</td><td><code>/api/engine/cluster/stream</code></td><td>SSE stream of cluster events</td></tr>
+  </table>
+
+  <h3>Register Node (POST /api/engine/cluster/register)</h3>
+  <pre>
+{
+  "nodeId": "mac-mini-office",    // Required, unique, 2-64 chars, alphanumeric + .-_
+  "name": "Office Mac Mini",       // Optional display name
+  "host": "192.168.1.50",          // Required, IP or hostname
+  "port": 3101,                    // Required, 1-65535
+  "platform": "darwin",            // Optional, auto-detected
+  "arch": "arm64",                 // Optional, auto-detected
+  "cpuCount": 10,                  // Optional, auto-detected
+  "memoryMb": 16384,               // Optional, auto-detected
+  "version": "0.5.324",            // Optional
+  "agents": ["agent-uuid-1"],      // Optional, list of agent IDs
+  "capabilities": ["browser", "voice"] // Optional
+}
+  </pre>
+
+  <h3>Heartbeat (POST /api/engine/cluster/heartbeat/:nodeId)</h3>
+  <pre>
+{
+  "agents": ["agent-uuid-1"],  // Current agent list
+  "cpuUsage": 0.45,            // Optional, 0-1
+  "memoryUsage": 0.62          // Optional, 0-1
+}
+  </pre>
+
+</div>
+</body>
+</html>
