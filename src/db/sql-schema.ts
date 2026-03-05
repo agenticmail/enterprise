@@ -59,7 +59,8 @@ export const TABLES = {
       action TEXT NOT NULL,
       resource TEXT NOT NULL,
       details TEXT DEFAULT '{}',
-      ip TEXT
+      ip TEXT,
+      org_id TEXT
     )`,
 
   api_keys: `

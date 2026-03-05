@@ -306,7 +306,7 @@ async function deploy(
               script: 'npx',
               args: '@agenticmail/enterprise start',
               env: {
-                PORT: String(cloud.port || 3100),
+                PORT: String(cloud.port || 8080),
                 DATABASE_URL: database.connectionString || '',
                 JWT_SECRET: jwtSecret,
                 AGENTICMAIL_VAULT_KEY: vaultKey,

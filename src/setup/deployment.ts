@@ -14,6 +14,12 @@ import { homedir, platform, arch } from 'os';
 
 const execP = promisify(execCb);
 
+/** Cross-platform `which` — uses `where` on Windows */
+function whichCmd(bin: string): string {
+  const cmd = platform() === 'win32' ? `where ${bin}` : `which ${bin}`;
+  return execSync(cmd, { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }).trim().split(/\r?\n/)[0];
+}
+
 export type DeployTarget = 'cloud' | 'cloudflare-tunnel' | 'fly' | 'railway' | 'docker' | 'local';
 
 const SUBDOMAIN_REGISTRY_URL = process.env.AGENTICMAIL_SUBDOMAIN_REGISTRY_URL
@@ -231,21 +237,32 @@ async function runCloudSetup(
 
   let cloudflaredPath = '';
   try {
-    cloudflaredPath = execSync('which cloudflared', { encoding: 'utf8' }).trim();
+    cloudflaredPath = whichCmd('cloudflared');
     console.log(chalk.green(`  ✓ cloudflared found at ${cloudflaredPath}`));
   } catch {
     console.log(chalk.dim('  cloudflared not found — installing...'));
     try {
       const os = platform();
       if (os === 'darwin') {
-        execSync('brew install cloudflared', { stdio: 'pipe' });
+        execSync('brew install cloudflared', { stdio: 'pipe', timeout: 120000 });
       } else if (os === 'linux') {
         const archStr = arch() === 'arm64' ? 'arm64' : 'amd64';
-        execSync(`curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${archStr} -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared`, { stdio: 'pipe' });
+        execSync(`curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${archStr} -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared`, { stdio: 'pipe', timeout: 120000 });
+      } else if (os === 'win32') {
+        // Try winget first, then direct download
+        try {
+          execSync('winget install --id Cloudflare.cloudflared --accept-source-agreements --accept-package-agreements', { stdio: 'pipe', timeout: 120000 });
+        } catch {
+          console.log(chalk.dim('  winget failed, trying direct download...'));
+          const archStr = arch() === 'arm64' ? 'arm64' : 'amd64';
+          execSync(`powershell -Command "Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-${archStr}.exe' -OutFile '$env:LOCALAPPDATA\\cloudflared\\cloudflared.exe'"`, { stdio: 'pipe', timeout: 120000 });
+          // Add to PATH for this session
+          process.env.PATH = `${process.env.LOCALAPPDATA}\\cloudflared;${process.env.PATH}`;
+        }
       } else {
         console.log(chalk.yellow('  Please install cloudflared manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/'));
       }
-      cloudflaredPath = execSync('which cloudflared', { encoding: 'utf8' }).trim();
+      cloudflaredPath = whichCmd('cloudflared');
       console.log(chalk.green(`  ✓ cloudflared installed at ${cloudflaredPath}`));
     } catch (e: any) {
       console.log(chalk.yellow('  ⚠ Could not auto-install cloudflared.'));
@@ -255,7 +272,7 @@ async function runCloudSetup(
 
   // ── Step 4: Configure PM2 ─────────
 
-  const port = 3100;
+  const port = parseInt(process.env.PORT || '8080', 10);
   const fqdn = claimResult?.fqdn || `${subdomain}.agenticmail.io`;
   const tunnelToken = claimResult?.tunnelToken;
   const tunnelId = claimResult?.tunnelId;
@@ -267,7 +284,7 @@ async function runCloudSetup(
 
   // ── CRITICAL: Vault key backup warning ─────────
   console.log('');
-  console.log(chalk.bgYellow.black.bold('  ⚠  BACK UP ~/.agenticmail/.env  ⚠  '));
+  console.log(chalk.yellow.bold('  ⚠  BACK UP ~/.agenticmail/.env  ⚠  '));
   console.log('');
   console.log(chalk.yellow('  This file contains EVERYTHING needed to recover if your machine crashes:'));
   console.log('');
@@ -495,7 +512,7 @@ async function runTunnelSetup(
   // Start with PM2
   let started = false;
   try {
-    execSync('which pm2', { timeout: 3000 });
+    whichCmd('pm2');
     try { execSync('pm2 delete cloudflared 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
     execSync(`pm2 start cloudflared --name cloudflared -- tunnel run`, { encoding: 'utf8', timeout: 15000 });
     try { execSync('pm2 save 2>/dev/null', { timeout: 5000 }); } catch { /* ok */ }
@@ -551,7 +568,7 @@ async function installCloudflared(): Promise<void> {
 
   if (plat === 'darwin') {
     try {
-      execSync('which brew', { timeout: 3000 });
+      whichCmd('brew');
       execSync('brew install cloudflared 2>&1', { encoding: 'utf8', timeout: 120000 });
       return;
     } catch { /* no brew, direct download */ }

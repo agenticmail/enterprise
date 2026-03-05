@@ -274,6 +274,9 @@ export class PostgresAdapter extends DatabaseAdapter {
         );
       `).catch(() => {});
       await client.query(`
+        ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS org_id TEXT;
+      `).catch(() => {});
+      await client.query(`
         CREATE TABLE IF NOT EXISTS agent_knowledge_access (
           id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
           agent_id TEXT NOT NULL,
