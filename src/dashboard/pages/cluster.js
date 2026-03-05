@@ -1,6 +1,6 @@
 import { h, useState, useEffect, useRef, Fragment, useApp, engineCall, apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
-import { HelpButton } from '../components/settings-help.js';
+import { HelpButton } from '../components/help-button.js';
 import { KnowledgeLink } from '../components/knowledge-link.js';
 
 function AddNodeModal({ onClose, onAdded, toast }) {
