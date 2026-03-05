@@ -116,6 +116,8 @@ const tenants = new TenantManager();
 const activity = new ActivityTracker();
 import { AgentStatusTracker } from './agent-status.js';
 const agentStatus = new AgentStatusTracker();
+import { ClusterManager } from './cluster.js';
+const cluster = new ClusterManager();
 const dlp = new DLPEngine();
 const commBus = new AgentCommunicationBus();
 const guardrails = new GuardrailEngine({
@@ -313,6 +315,47 @@ engine.get('/agent-status-stream', (c) => {
   return new Response(stream, {
     headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
   });
+});
+
+// ─── Cluster Management ─────────────────────────────────
+engine.get('/cluster/nodes', (c) => c.json({ nodes: cluster.getAllNodes(), stats: cluster.getStats() }));
+engine.get('/cluster/nodes/:nodeId', (c) => {
+  const node = cluster.getNode(c.req.param('nodeId'));
+  return node ? c.json(node) : c.json({ error: 'Node not found' }, 404);
+});
+engine.post('/cluster/register', async (c) => {
+  const body = await c.req.json();
+  if (!body.nodeId || !body.host || !body.port) return c.json({ error: 'nodeId, host, port required' }, 400);
+  const node = await cluster.register(body);
+  return c.json(node);
+});
+engine.post('/cluster/heartbeat/:nodeId', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  cluster.heartbeat(c.req.param('nodeId'), body);
+  return c.json({ ok: true });
+});
+engine.delete('/cluster/nodes/:nodeId', async (c) => {
+  await cluster.remove(c.req.param('nodeId'));
+  return c.json({ removed: true });
+});
+engine.get('/cluster/best-node', (c) => {
+  const caps = c.req.query('capabilities')?.split(',').filter(Boolean);
+  const node = cluster.findBestNode(caps);
+  return node ? c.json(node) : c.json({ error: 'No suitable node available' }, 404);
+});
+engine.get('/cluster/stream', (c) => {
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      const send = (d: string) => { try { controller.enqueue(encoder.encode(`data: ${d}\n\n`)); } catch { unsub(); } };
+      // Send current state
+      for (const n of cluster.getAllNodes()) send(JSON.stringify({ type: 'node', event: 'snapshot', ...n }));
+      const unsub = cluster.subscribe((nodeId, node, event) => send(JSON.stringify({ type: 'node', event, ...node })));
+      const hb = setInterval(() => send(JSON.stringify({ type: 'heartbeat' })), 30_000);
+      c.req.raw.signal.addEventListener('abort', () => { unsub(); clearInterval(hb); });
+    },
+  });
+  return new Response(stream, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' } });
 });
 
 engine.route('/community', createCommunityRoutes(communityRegistry));
@@ -783,6 +826,7 @@ export async function setEngineDb(
     (async () => { knowledgeImport.setDb((db as any)?.db || db); knowledgeImport.setKnowledgeEngine(knowledgeBase); await knowledgeImport.loadJobs(); })(),
     workforce.setDb(db),
     policyEngine.setDb(db),
+    (async () => { cluster.setDb(db); await cluster.loadFromDb(); })(),
     memoryManager.setDb(db),
     onboarding.setDb(db),
     vault.setDb(db),
@@ -1071,4 +1115,4 @@ export function setRuntime(runtime: any): void {
 }
 
 export { engine as engineRoutes };
-export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus, hierarchyManager, databaseManager, orgIntegrations };
+export { permissionEngine, configGen, deployer, approvals, lifecycle, knowledgeBase, tenants, activity, dlp, commBus, guardrails, journal, compliance, communityRegistry, workforce, policyEngine, memoryManager, onboarding, vault, storageManager, policyImporter, knowledgeContribution, skillUpdater, agentStatus, hierarchyManager, databaseManager, orgIntegrations, cluster };

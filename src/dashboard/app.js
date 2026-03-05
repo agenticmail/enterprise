@@ -31,6 +31,7 @@ import { DatabaseAccessPage } from './pages/database-access.js';
 import { OrganizationsPage } from './pages/organizations.js';
 import { RolesPage } from './pages/roles.js';
 import { MemoryTransferPage } from './pages/memory-transfer.js';
+import { ClusterPage } from './pages/cluster.js';
 
 // ─── Toast System ────────────────────────────────────────
 let toastId = 0;
@@ -252,7 +253,7 @@ function App() {
         setUser(d.user);
         // Immediately restrict permissions for client org users (before async fetch)
         if (d.user.clientOrgId) {
-          setPermissions({ dashboard: true, agents: true, roles: true, skills: true, 'community-skills': true, 'skill-connections': true, 'database-access': true, knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true, approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true, messages: true, guardrails: true, journal: true, activity: true, dlp: true, compliance: true, vault: true, audit: true, settings: true });
+          setPermissions({ dashboard: true, agents: true, roles: true, skills: true, 'community-skills': true, 'skill-connections': true, 'database-access': true, knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true, approvals: true, 'org-chart': true, 'task-pipeline': true, cluster: true, workforce: true, messages: true, guardrails: true, journal: true, activity: true, dlp: true, compliance: true, vault: true, audit: true, settings: true });
         }
         // Then fetch computed permissions for the definitive set
         apiCall('/me/permissions').then(function(p) { if (p && p.permissions) setPermissions(p.permissions); }).catch(function() {});
@@ -404,6 +405,7 @@ function App() {
     { section: 'Operations', items: [
       { id: 'org-chart', icon: I.orgChart, label: 'Org Chart' },
       { id: 'task-pipeline', icon: I.workflow, label: 'Task Pipeline' },
+      { id: 'cluster', icon: I.server, label: 'Cluster' },
       { id: 'workforce', icon: I.clock, label: 'Workforce' },
       { id: 'messages', icon: I.messages, label: 'Messages' },
       { id: 'guardrails', icon: I.guardrails, label: 'Guardrails' },
@@ -447,6 +449,7 @@ function App() {
     organizations: OrganizationsPage,
     roles: RolesPage,
     'memory-transfer': MemoryTransferPage,
+    cluster: ClusterPage,
   };
 
   const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };

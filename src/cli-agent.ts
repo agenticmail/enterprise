@@ -686,11 +686,43 @@ export async function runAgent(_args: string[]) {
   };
   // Mark online immediately
   _reportStatus({ status: 'idle', clockedIn: false, activeSessions: 0, currentActivity: null });
-  // Heartbeat every 30s
+  // Heartbeat every 30s (status + cluster)
+  const _agentPort = parseInt(process.env.PORT || '3101');
+  const _hostname = process.env.HOSTNAME || process.env.WORKER_HOST || 'localhost';
   setInterval(() => {
     const sessions = (runtime as any).activeSessions?.size || 0;
     _reportStatus({ status: sessions > 0 ? 'online' : 'idle', activeSessions: sessions });
+    // Cluster heartbeat (if registered)
+    fetch(`${ENTERPRISE_URL}/api/engine/cluster/heartbeat/${process.env.WORKER_NODE_ID || AGENT_ID}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agents: [AGENT_ID] }),
+    }).catch(() => {});
   }, 30_000).unref();
+  // Register as cluster worker node (if WORKER_NODE_ID is set)
+  if (process.env.WORKER_NODE_ID) {
+    const os = await import('os');
+    fetch(`${ENTERPRISE_URL}/api/engine/cluster/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nodeId: process.env.WORKER_NODE_ID,
+        name: process.env.WORKER_NAME || os.hostname(),
+        host: _hostname,
+        port: _agentPort,
+        platform: process.platform,
+        arch: process.arch,
+        cpuCount: os.cpus().length,
+        memoryMb: Math.round(os.totalmem() / 1024 / 1024),
+        version: process.env.npm_package_version || 'unknown',
+        agents: [AGENT_ID],
+        capabilities: [
+          process.env.WORKER_CAPABILITIES || '',
+          process.platform === 'darwin' ? 'voice' : '',
+          'browser',
+        ].filter(Boolean),
+      }),
+    }).then(() => console.log(`[cluster] Registered as worker node: ${process.env.WORKER_NODE_ID}`))
+      .catch((e) => console.warn(`[cluster] Registration failed: ${e.message}`));
+  }
   // Expose reporter for runtime to use
   (runtime as any)._reportStatus = _reportStatus;
 

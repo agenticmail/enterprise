@@ -58,6 +58,7 @@ chevronRight: () => h('svg', S, h('polyline', { points: '9 18 15 12 9 6' })),
 chevronDown: () => h('svg', S, h('polyline', { points: '6 9 12 15 18 9' })),
 mail: () => h('svg', S, h('path', { d: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z' }), h('polyline', { points: '22,6 12,13 2,6' })),
   building: () => h('svg', S, h('path', { d: 'M3 21h18M3 10h18M3 7l9-4 9 4M4 10v11M20 10v11M8 14v.01M12 14v.01M16 14v.01M8 18v.01M12 18v.01M16 18v.01' })),
+  server: () => h('svg', S, h('rect', { x: 2, y: 2, width: 20, height: 8, rx: 2, ry: 2 }), h('rect', { x: 2, y: 14, width: 20, height: 8, rx: 2, ry: 2 }), h('line', { x1: 6, y1: 6, x2: 6.01, y2: 6 }), h('line', { x1: 6, y1: 18, x2: 6.01, y2: 18 })),
   brain: () => h('svg', S, h('path', { d: 'M9.5 2a3.5 3.5 0 00-3.21 4.87A3.5 3.5 0 004 10.5a3.5 3.5 0 002.81 3.43A3.5 3.5 0 009.5 18h1V2z' }), h('path', { d: 'M14.5 2a3.5 3.5 0 013.21 4.87A3.5 3.5 0 0120 10.5a3.5 3.5 0 01-2.81 3.43A3.5 3.5 0 0114.5 18h-1V2z' }), h('path', { d: 'M12 2v16' }), h('path', { d: 'M4.93 7.5h2.57M16.5 7.5h2.57M7 13h3M14 13h3' })),
   edit: () => h('svg', S, h('path', { d: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' }), h('path', { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' })),
 };

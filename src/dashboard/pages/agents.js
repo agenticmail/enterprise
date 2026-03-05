@@ -1132,6 +1132,25 @@ export function AgentsPage({ onSelectAgent }) {
   var orgCtx = useOrgContext();
   const [agents, setAgents] = useState([]);
   const [creating, setCreating] = useState(false);
+  const [liveStatuses, setLiveStatuses] = useState({});
+
+  // Subscribe to real-time agent status
+  useEffect(function() {
+    var es = new EventSource('/api/engine/agent-status-stream');
+    es.onmessage = function(ev) {
+      try {
+        var d = JSON.parse(ev.data);
+        if (d.type === 'status' && d.agentId) {
+          setLiveStatuses(function(prev) {
+            var next = Object.assign({}, prev);
+            next[d.agentId] = d;
+            return next;
+          });
+        }
+      } catch(e) {}
+    };
+    return function() { es.close(); };
+  }, []);
 
   const perms = app.permissions || '*';
   const allowedAgents = perms === '*' ? '*' : (perms._allowedAgents || '*');
@@ -1190,7 +1209,17 @@ export function AgentsPage({ onSelectAgent }) {
                   h('td', null, h('strong', { style: { cursor: 'pointer', color: 'var(--accent-text)' }, onClick: () => onSelectAgent && onSelectAgent(a.id) }, a.name)),
                   h('td', null, h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 12 } }, a.email || '-')),
                   h('td', null, h('span', { className: 'badge badge-neutral' }, a.role || 'agent')),
-                  h('td', null, h('span', { className: 'badge badge-' + (a.status === 'active' ? 'success' : a.status === 'archived' ? 'neutral' : 'warning') }, a.status || 'active')),
+                  h('td', null, (function() {
+                    var live = liveStatuses[a.id];
+                    var st = live ? live.status : null;
+                    var label = st === 'online' ? 'running' : st === 'idle' ? 'idle' : st === 'offline' ? 'stopped' : st === 'error' ? 'error' : (a.status || 'active');
+                    var color = { running: 'success', idle: 'info', stopped: 'neutral', error: 'danger', active: 'success', archived: 'neutral' }[label] || 'warning';
+                    var activity = live && live.currentActivity ? live.currentActivity.detail || live.currentActivity.type : null;
+                    return h(Fragment, null,
+                      h('span', { className: 'badge badge-' + color, style: { textTransform: 'capitalize' } }, label),
+                      activity && h('span', { style: { fontSize: 10, color: 'var(--text-muted)', marginLeft: 6, fontStyle: 'italic' } }, activity)
+                    );
+                  })()),
                   h('td', { style: { fontSize: 12, color: 'var(--text-muted)' } }, a.createdAt ? new Date(a.createdAt).toLocaleDateString() : '-'),
                   h('td', null,
                     h('div', { style: { display: 'flex', gap: 4 } },

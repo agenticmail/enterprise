@@ -103,14 +103,35 @@ export function AgentDetailPage(props) {
 
   useEffect(function() { load(); }, [agentId]);
 
+  // ─── Real-Time Status from Agent Process ────────────────
+  var [liveStatus, setLiveStatus] = useState(null);
+  useEffect(function() {
+    var es = new EventSource('/api/engine/agent-status-stream?agentId=' + encodeURIComponent(agentId));
+    es.onmessage = function(ev) {
+      try {
+        var d = JSON.parse(ev.data);
+        if (d.type === 'status' && d.agentId === agentId) { setLiveStatus(d); }
+      } catch(e) {}
+    };
+    es.onerror = function() { /* reconnects automatically */ };
+    return function() { es.close(); };
+  }, [agentId]);
+
   // ─── Derived Values ─────────────────────────────────────
 
   var ea = engineAgent || {};
   var a = agent || {};
   var config = ea.config || {};
   var identity = config.identity || {};
-  var state = ea.state || ea.status || a.status || 'unknown';
-  var stateColor = { running: 'success', active: 'success', deploying: 'info', starting: 'info', provisioning: 'info', degraded: 'warning', error: 'danger', stopped: 'neutral', draft: 'neutral', ready: 'primary' }[state] || 'neutral';
+  // Prefer live process status over DB state
+  var liveState = liveStatus ? liveStatus.status : null;
+  var dbState = ea.state || ea.status || a.status || 'unknown';
+  var state = liveState || dbState;
+  // Map live statuses: online→running, idle→idle, offline→stopped, error→error
+  if (state === 'online') state = 'running';
+  if (state === 'idle') state = 'idle';
+  if (state === 'offline') state = 'stopped';
+  var stateColor = { running: 'success', active: 'success', idle: 'info', deploying: 'info', starting: 'info', provisioning: 'info', degraded: 'warning', error: 'danger', stopped: 'neutral', draft: 'neutral', ready: 'primary' }[state] || 'neutral';
   var displayName = identity.name || config.name || config.displayName || a.name || 'Unnamed Agent';
   var displayEmail = identity.email || config.email || a.email || '';
   var avatarUrl = identity.avatar && identity.avatar.length > 2 ? identity.avatar : null;
@@ -175,7 +196,8 @@ export function AgentDetailPage(props) {
       h('div', { style: { flex: 1, minWidth: 0 } },
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
           h('h1', { style: { fontSize: 20, fontWeight: 700, margin: 0 } }, displayName),
-          h('span', { className: 'badge badge-' + stateColor, style: { textTransform: 'capitalize' } }, state)
+          h('span', { className: 'badge badge-' + stateColor, style: { textTransform: 'capitalize' } }, state),
+          liveStatus && liveStatus.currentActivity && h('span', { style: { fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' } }, liveStatus.currentActivity.detail || liveStatus.currentActivity.type)
         ),
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 } },
           displayEmail && h('span', { style: { fontFamily: 'var(--font-mono, monospace)', fontSize: 12, color: 'var(--text-muted)' } }, displayEmail),
