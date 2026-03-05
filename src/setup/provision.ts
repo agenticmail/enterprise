@@ -367,8 +367,16 @@ async function deploy(
     }
 
     console.log('');
-    console.log(`  Dashboard: https://${cloud.fqdn}`);
-    console.log(`  To recover on a new machine, keep your AGENTICMAIL_VAULT_KEY safe.`);
+    console.log(chalk.bold.green('  ────────────────────────────────────'));
+    console.log(chalk.bold.green('  Your dashboard is ready!'));
+    console.log(chalk.bold.green('  ────────────────────────────────────'));
+    console.log('');
+    console.log(`  ${chalk.bold('URL:')}       ${chalk.cyan('https://' + cloud.fqdn)}`);
+    console.log(`  ${chalk.bold('Email:')}     ${chalk.white(config.company.adminEmail)}`);
+    console.log(`  ${chalk.bold('Password:')}  ${chalk.white(config.company.adminPassword)}`);
+    console.log('');
+    console.log(chalk.dim('  Open the URL above and sign in with these credentials.'));
+    console.log(chalk.dim('  To recover on a new machine, keep your AGENTICMAIL_VAULT_KEY safe.'));
     console.log('');
     return { url: `https://${cloud.fqdn}` };
   }
@@ -402,6 +410,10 @@ async function deploy(
     console.log('');
     console.log(`  Run:       ${chalk.cyan('docker compose up -d')}`);
     console.log(`  Dashboard: ${chalk.cyan('http://localhost:3000')}`);
+    console.log('');
+    console.log(`  ${chalk.bold('Login email:')}     ${chalk.white(config.company.adminEmail)}`);
+    console.log(`  ${chalk.bold('Login password:')}  ${chalk.white(config.company.adminPassword)}`);
+    console.log('');
     console.log(chalk.dim('  Secrets stored in .env — do not commit to git'));
     if (domain.customDomain) {
       printCustomDomainInstructions(chalk, domain.customDomain, 'docker');
@@ -461,8 +473,8 @@ async function deploy(
   console.log(chalk.green.bold('  AgenticMail Enterprise is running!'));
   console.log('');
   console.log(`  ${chalk.bold('Dashboard:')}  ${chalk.cyan('http://localhost:3000')}`);
-  console.log(`  ${chalk.bold('API:')}        ${chalk.cyan('http://localhost:3000/api')}`);
-  console.log(`  ${chalk.bold('Admin:')}      ${company.adminEmail}`);
+  console.log(`  ${chalk.bold('Email:')}      ${chalk.white(company.adminEmail)}`);
+  console.log(`  ${chalk.bold('Password:')}   ${chalk.white(company.adminPassword)}`);
   console.log('');
   console.log(chalk.dim('  Press Ctrl+C to stop'));
 

@@ -94,6 +94,7 @@ export async function promptCompanyInfo(
       type: 'input',
       name: 'adminEmail',
       message: 'Admin email:',
+      suffix: chalk.dim('  (you will use this to log in to your dashboard)'),
       validate: (v: string) => {
         if (!v.includes('@') || !v.includes('.')) return 'Enter a valid email address';
         return true;
@@ -103,6 +104,7 @@ export async function promptCompanyInfo(
       type: 'password',
       name: 'adminPassword',
       message: 'Admin password:',
+      suffix: chalk.dim('  (you will use this to log in to your dashboard)'),
       mask: '*',
       validate: (v: string) => {
         if (v.length < 8) return 'Password must be at least 8 characters';
