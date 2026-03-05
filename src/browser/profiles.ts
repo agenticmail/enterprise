@@ -48,7 +48,6 @@ export function getUsedPorts(
   profiles: Record<string, { cdpPort?: number; cdpUrl?: string }> | undefined,
 ): Set<number> {
   if (!profiles) {
-  if (!profiles) return new Set();
     return new Set();
   }
   const used = new Set<number>();

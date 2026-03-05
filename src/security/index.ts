@@ -359,7 +359,7 @@ export class SecurityEngine {
    * Get security events
    */
   async getSecurityEvents(filter: SecurityEventFilter = {}) {
-    return this.threatLogger?.getEvents(filter) || [];
+    return (await this.threatLogger?.getEvents(filter)) || [];
   }
   
   /**

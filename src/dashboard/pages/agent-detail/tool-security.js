@@ -200,7 +200,7 @@ export function ToolSecuritySection(props) {
   };
 
   var resetAll = function() {
-    showConfirm('Reset to Org Defaults', 'This will remove all agent-level tool security overrides and revert to the organization defaults. Continue?', function() {
+    showConfirm({title: 'Reset to Org Defaults', message: 'This will remove all agent-level tool security overrides and revert to the organization defaults. Continue?'}).then(function() {
       setSaving(true);
       engineCall('/agents/' + agentId + '/tool-security', {
         method: 'PATCH',

@@ -87,7 +87,7 @@ export function DomainStatusPage() {
     }
 
     if (data && data.domain && data.status === 'verified') {
-      showConfirm('Change Domain', 'You are changing your verified domain from "' + data.domain + '" to "' + d + '". You will need to re-verify DNS. Continue?').then(function(ok) { if (ok) doRegister(); });
+      showConfirm({title: 'Change Domain', message: 'You are changing your verified domain from "' + data.domain + '" to "' + d + '". You will need to re-verify DNS. Continue?'}).then(function(ok) { if (ok) doRegister(); });
     } else {
       doRegister();
     }
@@ -127,10 +127,7 @@ export function DomainStatusPage() {
     }
 
     if (isActive) {
-      showConfirm(
-        'Change Active Subdomain',
-        'You are currently accessing this dashboard from "' + oldSub + '.agenticmail.io". Changing the subdomain will NOT automatically redirect traffic to the new URL.\n\nYou will need to:\n1. Update DNS records to point "' + s + '.agenticmail.io" to your server\n2. Update any bookmarks, integrations, or agent configs that reference the old URL\n3. Access the dashboard from the new URL after DNS propagates\n\nThe old URL will stop working once DNS is updated. Continue?'
-      ).then(function(ok) { if (ok) doSave(); });
+      showConfirm({title: 'Change Active Subdomain', message: 'You are currently accessing this dashboard from "' + oldSub + '.agenticmail.io". Changing the subdomain will NOT automatically redirect traffic to the new URL.\n\nYou will need to:\n1. Update DNS records to point "' + s + '.agenticmail.io" to your server\n2. Update any bookmarks, integrations, or agent configs that reference the old URL\n3. Access the dashboard from the new URL after DNS propagates\n\nThe old URL will stop working once DNS is updated. Continue?'}).then(function(ok) { if (ok) doSave(); });
     } else {
       doSave();
     }
@@ -138,7 +135,7 @@ export function DomainStatusPage() {
 
   // ─── Remove Domain ─────────────────────────────────
   var removeDomain = useCallback(function() {
-    showConfirm('Remove Custom Domain', 'This will remove "' + data.domain + '" from your deployment. Your domain registration and DNS verification will be cleared. Continue?').then(function(ok) {
+    showConfirm({title: 'Remove Custom Domain', message: 'This will remove "' + data.domain + '" from your deployment. Your domain registration and DNS verification will be cleared. Continue?'}).then(function(ok) {
       if (!ok) return;
       apiCall('/domain', { method: 'DELETE' })
         .then(function() {

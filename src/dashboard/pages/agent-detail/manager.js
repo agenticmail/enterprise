@@ -264,7 +264,7 @@ export function ManagerCatchUpSection(props) {
           )
         ),
 
-        form.catchUpEnabled && !form.managerType !== 'none' && form.managerType === 'none' && h('div', {
+        form.catchUpEnabled && form.managerType === 'none' && h('div', {
           style: { padding: '10px 14px', background: 'var(--warning-soft, #fff3cd)', borderRadius: 6, fontSize: 13, color: 'var(--warning-text, #856404)', marginTop: 12 }
         }, 'Note: Catch-up is enabled but no manager is assigned. The agent won\'t have anyone to report to.')
       )

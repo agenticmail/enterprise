@@ -165,8 +165,10 @@ export function OverviewSection(props) {
   var agentModel = typeof config.model === 'string' ? config.model : (config.model ? (config.model.modelId || config.model.provider || 'unknown') : 'unknown');
   var agentDesc = identity.description || config.description || '';
   var createdAt = engineAgent?.createdAt || engineAgent?.created_at || agent?.createdAt;
-  var agentState = engineAgent?.state || engineAgent?.status || agent?.status || 'unknown';
-  var stateColor = { running: 'success', active: 'success', deploying: 'info', starting: 'info', ready: 'primary', degraded: 'warning', error: 'danger', stopped: 'neutral', draft: 'neutral' }[agentState] || 'neutral';
+  var dbState = engineAgent?.state || engineAgent?.status || agent?.status || 'unknown';
+  // Prefer live SSE status over stale DB state
+  var agentState = rtStatus ? (rtStatus.status === 'online' ? 'running' : rtStatus.status === 'idle' ? 'idle' : rtStatus.status === 'offline' ? 'stopped' : rtStatus.status) : dbState;
+  var stateColor = { running: 'success', active: 'success', idle: 'info', deploying: 'info', starting: 'info', ready: 'primary', degraded: 'warning', error: 'danger', stopped: 'neutral', draft: 'neutral' }[agentState] || 'neutral';
   var resolvedMgr = resolveManager(config, props.agents);
   var managerName = resolvedMgr ? resolvedMgr.name : null;
   var managerEmail = resolvedMgr && resolvedMgr.type === 'external' ? resolvedMgr.email : null;

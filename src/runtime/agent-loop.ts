@@ -15,7 +15,6 @@ import type { AgentConfig, AgentMessage, RuntimeHooks, SessionState, StreamEvent
 import { callLLM, toolsToDefinitions, estimateMessageTokens, type LLMResponse } from './llm-client.js';
 import { ToolRegistry, executeTool } from './tool-executor.js';
 import { compactContext, COMPACTION_THRESHOLD } from './compaction.js';
-import { buildModelChain, withModelFallback, type ModelFallbackConfig } from '../engine/model-fallback.js';
 
 // ─── Constants ───────────────────────────────────────────
 

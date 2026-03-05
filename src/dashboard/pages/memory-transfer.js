@@ -235,7 +235,7 @@ export function MemoryTransferPage() {
 
   // ─── Render ──────────────────────────────────────────
 
-  var tabStyle = function(t) { return { padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent', color: tab === t ? 'var(--accent)' : 'var(--text-secondary)', background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent' }; };
+  var tabStyle = function(t) { return { padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: tab === t ? 'var(--accent)' : 'var(--text-secondary)', background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent' }; };
 
   return h('div', { style: { padding: 0 } },
     // Header

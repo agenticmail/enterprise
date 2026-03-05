@@ -105,15 +105,17 @@ export function AgentDetailPage(props) {
 
   // ─── Real-Time Status from Agent Process ────────────────
   var [liveStatus, setLiveStatus] = useState(null);
+  var [sseConnected, setSseConnected] = useState(false);
   useEffect(function() {
     var es = new EventSource('/api/engine/agent-status-stream?agentId=' + encodeURIComponent(agentId));
+    es.onopen = function() { setSseConnected(true); };
     es.onmessage = function(ev) {
       try {
         var d = JSON.parse(ev.data);
         if (d.type === 'status' && d.agentId === agentId) { setLiveStatus(d); }
       } catch(e) {}
     };
-    es.onerror = function() { /* reconnects automatically */ };
+    es.onerror = function() { setSseConnected(false); };
     return function() { es.close(); };
   }, [agentId]);
 
@@ -126,7 +128,8 @@ export function AgentDetailPage(props) {
   // Prefer live process status over DB state
   var liveState = liveStatus ? liveStatus.status : null;
   var dbState = ea.state || ea.status || a.status || 'unknown';
-  var state = liveState || dbState;
+  // If SSE connected but no live status yet, show idle instead of DB's stale "running"
+  var state = liveState || (sseConnected && dbState === 'running' ? 'idle' : dbState);
   // Map live statuses: online→running, idle→idle, offline→stopped, error→error
   if (state === 'online') state = 'running';
   if (state === 'idle') state = 'idle';

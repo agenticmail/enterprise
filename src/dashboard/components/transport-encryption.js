@@ -210,68 +210,6 @@ function isSensitive(url) {
  */
 export function installFetchInterceptor() {
   // No-op — encryption is now handled directly in apiCall
-  return;
-  if (window.__teInstalled) return;
-  window.__teInstalled = true;
-  var originalFetch = window.fetch;
-
-  window.fetch = async function(input, init) {
-    if (!_enabled) return originalFetch(input, init);
-
-    var url = typeof input === 'string' ? input : input.url;
-    if (!isSensitive(url)) return originalFetch(input, init);
-
-    // Add encryption header
-    init = init || {};
-    init.headers = init.headers || {};
-    if (init.headers instanceof Headers) {
-      init.headers.set('x-transport-encryption', '1');
-    } else {
-      init.headers['x-transport-encryption'] = '1';
-    }
-
-    // Encrypt request body
-    var method = (init.method || 'GET').toUpperCase();
-    if ((method === 'POST' || method === 'PUT' || method === 'PATCH') && init.body) {
-      try {
-        var bodyData = typeof init.body === 'string' ? JSON.parse(init.body) : init.body;
-        var encrypted = await encryptPayload(bodyData);
-        if (encrypted) {
-          init.body = JSON.stringify({ _enc: encrypted });
-          if (init.headers instanceof Headers) {
-            init.headers.set('content-type', 'application/json');
-          } else {
-            init.headers['content-type'] = 'application/json';
-          }
-        }
-      } catch(e) {
-        // Fall through — send unencrypted
-      }
-    }
-
-    var response = await originalFetch(input, init);
-
-    // Decrypt response if encrypted
-    if (response.headers.get('x-transport-encrypted') === '1') {
-      try {
-        var resBody = await response.json();
-        if (resBody && resBody._enc) {
-          var decrypted = await decryptPayload(resBody._enc);
-          // Return a new Response with decrypted data
-          return new Response(JSON.stringify(decrypted), {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers,
-          });
-        }
-      } catch(e) {
-        // Decryption failed — return original
-        return response;
-      }
-    }
-
-    return response;
-  };
 }
 
 export function isEnabled() { return _enabled; }

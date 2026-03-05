@@ -1,11 +1,9 @@
 import { h, useState, useEffect, useCallback, Fragment, useApp, apiCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
-import { E } from '../assets/icons/emoji-icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
 import { KnowledgeLink } from '../components/knowledge-link.js';
 import { useOrgContext } from '../components/org-switcher.js';
-import { LANGUAGES, getLanguageName, LanguageSelect, ROLE_TAGS, TagPicker } from '../components/persona-fields.js';
 
 var engineCall = function(path, opts) { return apiCall('/engine' + path, opts); };
 
