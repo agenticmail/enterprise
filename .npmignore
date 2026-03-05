@@ -9,8 +9,12 @@ test-integration.mjs
 live-test.mjs
 start-live.mjs
 serve.mjs
+seed-data.mjs
 enterprise-live-test.db
 .git
 *.txt
 ecosystem.config.cjs
 .github/
+src/agent-tools/tools/integrations/_seed-data.json
+src/agent-tools/tools/integrations/_seed-data.ts
+dist/_seed-data*

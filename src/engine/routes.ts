@@ -434,7 +434,7 @@ engine.post('/cluster/deploy-via-ssh', async (c) => {
 
     // Run async — don't block the request
     const { exec } = await import('child_process');
-    exec(sshCmd, { timeout: 120_000 }, (err, stdout, stderr) => {
+    exec(sshCmd, { timeout: 120_000 }, (err, stdout, _stderr) => {
       if (err) {
         console.warn(`[cluster] SSH deploy to ${body.host} failed:`, err.message);
       } else if (stdout.includes('DEPLOY_SUCCESS')) {
@@ -468,7 +468,7 @@ engine.get('/cluster/stream', (c) => {
       const send = (d: string) => { try { controller.enqueue(encoder.encode(`data: ${d}\n\n`)); } catch { unsub(); } };
       // Send current state
       for (const n of cluster.getAllNodes()) send(JSON.stringify({ type: 'node', event: 'snapshot', ...n }));
-      const unsub = cluster.subscribe((nodeId, node, event) => send(JSON.stringify({ type: 'node', event, ...node })));
+      const unsub = cluster.subscribe((_nodeId, node, event) => send(JSON.stringify({ type: 'node', event, ...node })));
       const hb = setInterval(() => send(JSON.stringify({ type: 'heartbeat' })), 30_000);
       c.req.raw.signal.addEventListener('abort', () => { unsub(); clearInterval(hb); });
     },

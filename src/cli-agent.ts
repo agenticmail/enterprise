@@ -2081,7 +2081,7 @@ Available tools: gmail_send (to, subject, body) or agenticmail_send (to, subject
       (global as any).__autonomyManager = autonomy;
 
       // Store autonomy ref for shutdown
-      const origShutdown = process.listeners('SIGTERM');
+      const _origShutdown = process.listeners('SIGTERM');
       process.on('SIGTERM', () => autonomy.stop());
       process.on('SIGINT', () => autonomy.stop());
     } catch (autoErr: any) {
@@ -2166,7 +2166,7 @@ Available tools: gmail_send (to, subject, body) or agenticmail_send (to, subject
 
 async function startCalendarPolling(
   agentId: string, config: any, runtime: any,
-  engineDb: any, memoryManager: any,
+  _engineDb: any, _memoryManager: any,
   sessionRouter?: any,
 ) {
   const emailConfig = config.emailConfig;
@@ -2341,7 +2341,7 @@ async function startCalendarPolling(
 // ─── Email System Prompt Builder ──────────────────────
 
 /** Build a schedule awareness block for system prompts */
-function buildScheduleContext(schedule?: { start: string; end: string; days: number[] }, timezone?: string): string {
+function _buildScheduleContext(schedule?: { start: string; end: string; days: number[] }, timezone?: string): string {
   if (!schedule) return '';
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const workDays = schedule.days.map(d => dayNames[d]).join(', ');

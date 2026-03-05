@@ -36,7 +36,7 @@ export function createKnowledgeSearchTools(opts: ToolCreationOptions): AnyAgentT
   const knowledgeEngine: KnowledgeBaseEngine | undefined = (opts as any).knowledgeEngine;
   const engineDb = opts.engineDb;
   const agentId = opts.agentId || 'unknown';
-  const orgId = (opts as any).orgId || '';
+  const _orgId = (opts as any).orgId || '';
 
   const tools: AnyAgentTool[] = [];
 

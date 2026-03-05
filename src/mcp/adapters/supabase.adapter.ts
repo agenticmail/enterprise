@@ -328,7 +328,7 @@ export const supabaseAdapter: SkillAdapter = {
       placeholder: 'abcdefghijklmnop',
     },
   },
-  async initialize(credentials: ResolvedCredentials) {
+  async initialize(_credentials: ResolvedCredentials) {
     // Dynamic base URL will be set by the framework using projectRef from config
   },
 };

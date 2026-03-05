@@ -48,7 +48,7 @@ async function ripgrepSearch(params: {
   args.push('--', shellEscape(params.pattern), shellEscape(params.searchPath));
 
   return new Promise(function(resolve) {
-    exec(args.join(' '), { maxBuffer: 1_000_000, timeout: DEFAULT_TIMEOUT_MS }, function(error, stdout) {
+    exec(args.join(' '), { maxBuffer: 1_000_000, timeout: DEFAULT_TIMEOUT_MS }, function(_error, stdout) {
       resolve(stdout || '');
     });
   });

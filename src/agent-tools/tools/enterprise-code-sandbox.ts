@@ -12,7 +12,7 @@ import { execFile, exec } from 'node:child_process';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
-import { readStringParam, readNumberParam, jsonResult, textResult, errorResult } from '../common.js';
+import { readStringParam, readNumberParam, jsonResult, errorResult } from '../common.js';
 
 function promiseExecFile(cmd: string, args: string[], opts: Record<string, unknown>): Promise<{ stdout: string; stderr: string }> {
   return new Promise(function(resolve, reject) {

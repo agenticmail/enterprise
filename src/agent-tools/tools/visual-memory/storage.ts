@@ -486,7 +486,7 @@ export async function loadStore(agentId: string): Promise<VisualMemoryStore> {
 /**
  * Save store — no-op in enterprise (DB handles persistence).
  */
-export async function saveStore(_agentId: string, store: VisualMemoryStore): Promise<void> {
+export async function saveStore(_agentId: string, _store: VisualMemoryStore): Promise<void> {
   // DB-backed: no-op
 }
 

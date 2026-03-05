@@ -426,8 +426,8 @@ export class SecurityEventAggregator {
    */
   static generateReport(
     events: SecurityEvent[],
-    fromDate?: string,
-    toDate?: string
+    _fromDate?: string,
+    _toDate?: string
   ): {
     summary: {
       totalEvents: number;

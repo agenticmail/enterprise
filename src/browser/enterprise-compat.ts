@@ -267,7 +267,7 @@ export function createSubsystemLogger(name: string): SubsystemLogger {
     info: (...args: any[]) => console.log(prefix, ...args),
     warn: (...args: any[]) => console.warn(prefix, ...args),
     error: (...args: any[]) => console.error(prefix, ...args),
-    debug: (...args: any[]) => { /* silent in production */ },
+    debug: (..._args: any[]) => { /* silent in production */ },
     child: (sub: string) => createSubsystemLogger(`${name}:${sub}`),
   };
   return logger;

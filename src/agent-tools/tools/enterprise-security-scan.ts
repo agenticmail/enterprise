@@ -12,7 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import readline from 'node:readline';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
-import { readStringParam, readBooleanParam, readStringArrayParam, jsonResult, textResult, errorResult } from '../common.js';
+import { readStringParam, readBooleanParam, jsonResult, textResult, errorResult } from '../common.js';
 
 type SecretPattern = { name: string; regex: RegExp };
 type PiiPattern = { name: string; regex: RegExp; validate?: (m: string) => boolean };

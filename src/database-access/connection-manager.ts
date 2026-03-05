@@ -17,7 +17,7 @@ import type {
   ConnectionPoolStats,
   DatabasePermission,
 } from './types.js';
-import { sanitizeQuery, classifyQuery, sanitizeForLogging, type SanitizeResult } from './query-sanitizer.js';
+import { sanitizeQuery, sanitizeForLogging, type SanitizeResult } from './query-sanitizer.js';
 import crypto from 'crypto';
 
 // ─── Driver Interfaces ───────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ export class DatabaseConnectionManager {
     return Array.isArray(result) ? result : (result?.rows || []);
   }
 
-  private async dbGet(sql: string, params?: any[]): Promise<any> {
+  private async _dbGet(sql: string, params?: any[]): Promise<any> {
     if (!this.engineDb) return null;
     if (this.engineDb.get) return this.engineDb.get(sql, params);
     const rows = await this.dbAll(sql, params);
@@ -477,7 +477,7 @@ export class DatabaseConnectionManager {
     const finalSql = sanitizeResult.sanitizedQuery || query.sql;
 
     // 4. Check concurrent query limit
-    const maxConcurrent = access.queryLimits?.maxConcurrentQueries ?? config.queryLimits?.maxConcurrentQueries ?? 5;
+    const _maxConcurrent = access.queryLimits?.maxConcurrentQueries ?? config.queryLimits?.maxConcurrentQueries ?? 5;
     // (In production, track active queries per connection — simplified here)
 
     // 5. Execute with timeout
@@ -717,7 +717,7 @@ export class DatabaseConnectionManager {
   private async logAudit(
     query: DatabaseQuery,
     config: DatabaseConnectionConfig,
-    access: AgentDatabaseAccess,
+    _access: AgentDatabaseAccess,
     operation: string,
     rowsAffected: number,
     success: boolean,
@@ -875,7 +875,7 @@ export class DatabaseConnectionManager {
   /**
    * Parse a connection string to extract host/port/database/username when fields are missing.
    */
-  private parseConnectionString(connStr: string, type: string): { host?: string; port?: number; database?: string; username?: string } {
+  private parseConnectionString(connStr: string, _type: string): { host?: string; port?: number; database?: string; username?: string } {
     try {
       // Handle postgres://, mysql://, mongodb://, redis://, libsql:// etc
       const cleaned = connStr.replace(/^(postgres|postgresql|mysql|mongodb\+srv|mongodb|redis|rediss|libsql)/, 'http');
@@ -1149,7 +1149,7 @@ export class DatabaseConnectionManager {
         let username = config.username;
         if (connStr) {
           try {
-            const parsed = self.parseConnectionString(connStr, 'redis');
+            const _parsed = self.parseConnectionString(connStr, 'redis');
             if (!password) {
               // redis://user:pass@host:port or redis://:pass@host:port
               const url = new URL(connStr.replace(/^redis(s?)/, 'http'));

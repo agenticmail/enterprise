@@ -9,7 +9,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
-import { readStringParam, readNumberParam, readStringArrayParam, jsonResult, textResult, errorResult } from '../common.js';
+import { readStringParam, readNumberParam, jsonResult, textResult, errorResult } from '../common.js';
 
 type DiffHunk = { oldStart: number; oldCount: number; newStart: number; newCount: number; lines: string[] };
 type JsonDiffEntry = { path: string; type: 'added' | 'removed' | 'changed'; oldValue?: unknown; newValue?: unknown };

@@ -41,9 +41,8 @@ import type {
   FollowUp,
 } from './types.js';
 import { SessionManager } from './session-manager.js';
-import { createRuntimeHooks, createNoopHooks } from './hooks.js';
+import { createRuntimeHooks } from './hooks.js';
 import { runAgentLoop } from './agent-loop.js';
-import { createAllTools } from '../agent-tools/index.js';
 import { createToolsForContext, detectSessionContext, getToolSetStats, getToolsForSession, clearSessionToolState, type SessionContext } from '../agent-tools/tool-resolver.js';
 import { resolveModelForContext as resolveModel, type ModelRoute, type ModelContext } from './model-router.js';
 import { createRuntimeGateway, emitSessionEvent } from './gateway.js';
@@ -150,7 +149,7 @@ export class AgentRuntime {
       agentMemoryManager: this.config.agentMemoryManager,
       engineDb: this.config.engineDb,
       knowledgeEngine: this.config.knowledgeEngine,
-      orgId: 'default', // TODO: resolve from agent's org
+      orgId: this.config.orgId || process.env.ORG_ID || 'default',
       runtimeRef: {
         sendMessage: (sid: string, message: string) => self.sendMessage(sid, message),
         getCurrentSessionId: () => sessionId,
@@ -276,7 +275,7 @@ export class AgentRuntime {
         } catch {}
         return null;
       },
-      async findActiveSession(agentId, senderEmail) {
+      async findActiveSession(agentId, _senderEmail) {
         var sessions = await self.sessionManager!.listSessions(agentId, { status: 'active', limit: 1 });
         return sessions.length > 0 ? await self.sessionManager!.getSession(sessions[0].id) : null;
       },
@@ -659,7 +658,7 @@ export class AgentRuntime {
     if (!this.started) return;
 
     // Cancel all active sessions
-    for (var [sessionId, controller] of this.activeSessions) {
+    for (var [_sessionId, controller] of this.activeSessions) {
       controller.abort();
     }
     this.activeSessions.clear();
@@ -1004,7 +1003,7 @@ export class AgentRuntime {
   private customProviders: CustomProviderDef[] = [];
   private orgToolSecurity: any = null;
 
-  private resolveApiKey(provider: string, agentId?: string): string | undefined {
+  private _resolveApiKey(provider: string, agentId?: string): string | undefined {
     // Synchronous system-wide resolution
     return resolveApiKeyForProvider(provider, this.config.apiKeys, this.customProviders);
   }

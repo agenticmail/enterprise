@@ -8,7 +8,7 @@
  * Master key from AGENTICMAIL_VAULT_KEY env var.
  */
 
-import { createHash, randomBytes, createCipheriv, createDecipheriv, pbkdf2Sync } from 'crypto';
+import { randomBytes, createCipheriv, createDecipheriv, pbkdf2Sync } from 'crypto';
 import type { EngineDatabase } from './db-adapter.js';
 
 function safeJsonParse(val: string | null | undefined, fallback: any = {}): any {

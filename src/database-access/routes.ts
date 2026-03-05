@@ -7,7 +7,6 @@
 
 import { Hono } from 'hono';
 import type { DatabaseConnectionManager } from './connection-manager.js';
-import type { DatabasePermission } from './types.js';
 
 async function notifyAgentReload(agentId: string) {
   try {

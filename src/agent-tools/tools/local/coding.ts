@@ -8,10 +8,10 @@
  * Designed to make agents BETTER at coding than raw shell + file tools alone.
  */
 
-import { readFile, writeFile, readdir, stat, access } from 'node:fs/promises';
-import { exec as cpExec, spawn } from 'node:child_process';
+import { readFile, writeFile, readdir, access } from 'node:fs/promises';
+import { exec as cpExec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { join, relative, extname, basename, dirname } from 'node:path';
+import { join, relative, extname, dirname } from 'node:path';
 import { resolvePath } from './resolve-path.js';
 import type { ToolDefinition } from '../../types.js';
 
@@ -220,8 +220,8 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
           if (useRg && stdout) {
             // Parse ripgrep JSON output
             var matches: { file: string; line: number; text: string; context?: string[] }[] = [];
-            var currentFile = '';
-            var contextBuf: string[] = [];
+            var _currentFile = '';
+            var _contextBuf: string[] = [];
             for (var line of stdout.split('\n').filter(Boolean)) {
               try {
                 var j = JSON.parse(line);

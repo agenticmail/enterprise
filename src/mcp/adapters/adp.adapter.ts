@@ -33,7 +33,7 @@ function formatWorker(worker: any): string {
     ? [person.legalName.givenName, person.legalName.familyName1].filter(Boolean).join(' ')
     : '(no name)';
   const email = person.communication?.emails?.[0]?.emailUri || '(no email)';
-  const assignment = worker.workerDates ? '' : '';
+  const _assignment = worker.workerDates ? '' : '';
   const status = worker.workerStatus?.statusCode?.codeValue || 'N/A';
   const id = worker.workerID?.idValue || worker.associateOID || 'N/A';
   return `${name} <${email}> -- Status: ${status} (ID: ${id})`;

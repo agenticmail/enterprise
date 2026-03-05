@@ -365,7 +365,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     // Get deployment credentials
     const settings = await db.getSettings();
     const pricingConfig = (settings as any)?.modelPricingConfig || {};
-    const providerApiKeys = pricingConfig.providerApiKeys || {};
+    const _providerApiKeys = pricingConfig.providerApiKeys || {};
 
     if (targetType === 'fly') {
       // Get Fly.io API token from deploy credentials or config

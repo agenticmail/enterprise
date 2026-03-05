@@ -64,7 +64,7 @@ const listTasks: ToolHandler = {
       };
       if (params.include_closed) query.include_closed = 'true';
       if (params.statuses?.length) {
-        params.statuses.forEach((s: string, i: number) => {
+        params.statuses.forEach((s: string, _i: number) => {
           query[`statuses[]`] = s; // ClickUp expects repeated params
         });
       }

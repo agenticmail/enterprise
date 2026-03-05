@@ -11,7 +11,7 @@ import type { ContentExtractor, ExtractResult } from './types.js';
 export class GitHubContentExtractor implements ContentExtractor {
   extract(raw: string, sourceUrl?: string): ExtractResult {
     let content = raw;
-    const isReadme = sourceUrl?.toLowerCase().includes('readme') || false;
+    const _isReadme = sourceUrl?.toLowerCase().includes('readme') || false;
 
     // Remove GitHub badge images at top of README
     content = content.replace(/^\s*(\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)\s*)+/gm, '');

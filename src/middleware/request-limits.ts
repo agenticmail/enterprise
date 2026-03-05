@@ -43,7 +43,7 @@ export function requestBodyLimit(): MiddlewareHandler {
  * Reads timeout from firewallConfig.network.requestTimeoutSec.
  */
 export function requestTimeout(): MiddlewareHandler {
-  return async (c, next) => {
+  return async (_c, next) => {
     const config = await getNetworkConfig();
     const timeoutSec = config.network?.requestTimeoutSec || DEFAULT_TIMEOUT_SEC;
 

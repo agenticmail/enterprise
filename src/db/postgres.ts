@@ -142,7 +142,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
   getEngineDB() {
     if (!this.pool || this.ended) return null;
-    const pool = this.pool;
+    const _pool = this.pool;
     const self = this;
     // Convert ? placeholders to $1, $2, ... for pg driver
     const pgSql = (sql: string) => {
@@ -699,7 +699,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       totalAgents: parseInt(agents.rows[0].count, 10),
       activeAgents: parseInt(active.rows[0].count, 10),
       totalUsers: parseInt(users.rows[0].count, 10),
-      totalEmails: 0, // TODO: wire to email storage
+      totalEmails: 0, // Email count tracked externally via AgenticMail
       totalAuditEvents: parseInt(audit.rows[0].count, 10),
     };
   }

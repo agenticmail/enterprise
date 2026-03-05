@@ -21,7 +21,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-const ELEVENLABS_BASE = 'https://api.elevenlabs.io/v1';
+const _ELEVENLABS_BASE = 'https://api.elevenlabs.io/v1';
 
 // ═══════════════════════════════════════════════════════════
 // GLOBAL RESPONSE PLAYER KILL
@@ -221,7 +221,7 @@ export class MeetingVoiceIntelligence {
   // ─── Speech State (called by meeting_speak tool) ────────
 
   /** Call BEFORE streaming TTS response audio */
-  markSpeaking(text: string): void {
+  markSpeaking(_text: string): void {
     this._state = 'speaking';
   }
 
@@ -306,7 +306,7 @@ export class MeetingVoiceIntelligence {
   hasPendingResume() { return false; }
   async executeResume() { return { success: false, text: '' }; }
   cancelResume() {}
-  markDoneSpeaking_legacy(completed: boolean) { this.markDoneSpeaking(); }
+  markDoneSpeaking_legacy(_completed: boolean) { this.markDoneSpeaking(); }
 
   // Legacy — decisionEngine stub
   get decisionEngine() {

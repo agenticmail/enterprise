@@ -6,7 +6,7 @@
  */
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
-import { readStringParam, readNumberParam, readBooleanParam, jsonResult, textResult, errorResult } from '../common.js';
+import { readStringParam, readNumberParam, jsonResult, textResult, errorResult } from '../common.js';
 import type { SsrfGuard } from '../security.js';
 import * as path from 'node:path';
 import * as os from 'node:os';

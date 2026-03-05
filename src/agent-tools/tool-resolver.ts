@@ -817,7 +817,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
 function createRequestToolsTool(
   allTools: AnyAgentTool[],
   activeSets: Set<ToolSet>,
-  context: SessionContext,
+  _context: SessionContext,
 ): AnyAgentTool {
   const loadedSets = new Set<ToolSet>(activeSets);
   const allSets = Object.keys(SET_DESCRIPTIONS) as ToolSet[];

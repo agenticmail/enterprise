@@ -14,7 +14,7 @@
  */
 
 import type { EngineDatabase } from './db-adapter.js';
-import { MemorySearchIndex, tokenize } from '../lib/text-search.js';
+import { MemorySearchIndex } from '../lib/text-search.js';
 
 function sj(v: string|null|undefined, fb: any = {}): any { if(!v) return fb; try { return JSON.parse(v); } catch { return fb; } }
 // ─── Types ──────────────────────────────────────────────

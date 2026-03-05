@@ -68,7 +68,7 @@ export function createExcelTools(config: MicrosoftToolsConfig, _options?: ToolCr
           const base = itemPath(params);
           let rangePath: string;
           if (params.range) {
-            const ws = params.worksheet ? `/worksheets/${encodeURIComponent(params.worksheet)}` : '/worksheets';
+            const _ws = params.worksheet ? `/worksheets/${encodeURIComponent(params.worksheet)}` : '/worksheets';
             // If range contains !, it has sheet name embedded
             if (params.range.includes('!')) {
               rangePath = `${base}/workbook/worksheets/${encodeURIComponent(params.range.split('!')[0])}/range(address='${params.range.split('!')[1]}')`;

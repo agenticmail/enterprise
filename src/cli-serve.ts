@@ -106,7 +106,7 @@ export async function runServe(_args: string[]) {
   await ensureSecrets();
 
   const JWT_SECRET = process.env.JWT_SECRET!;
-  const VAULT_KEY = process.env.AGENTICMAIL_VAULT_KEY!;
+  const _VAULT_KEY = process.env.AGENTICMAIL_VAULT_KEY!;
 
   if (!DATABASE_URL) {
     console.error('ERROR: DATABASE_URL is required.');

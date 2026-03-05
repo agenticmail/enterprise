@@ -427,7 +427,7 @@ export class OrgIntegrationManager {
    * Used by Google Workspace and Microsoft tools at runtime.
    */
   async createTokenProviderForAgent(
-    agentId: string,
+    _agentId: string,
     agentOrgId: string | null,
     provider: 'google' | 'microsoft',
     onTokenRefresh?: (tokens: any) => void

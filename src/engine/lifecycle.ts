@@ -188,7 +188,7 @@ export class AgentLifecycleManager {
   /** When true, this lifecycle runs on a standalone agent machine (not the enterprise server).
    *  In standalone mode, persistAgent reloads dashboard-managed fields from DB before saving. */
   public standaloneMode = false;
-  private configGen = new AgentConfigGenerator();
+  private _configGen = new AgentConfigGenerator();
   private permissions: PermissionEngine;
   private engineDb?: EngineDatabase;
   private eventListeners: ((event: LifecycleEvent) => void)[] = [];

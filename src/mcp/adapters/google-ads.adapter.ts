@@ -78,7 +78,7 @@ function formatMicros(micros: string | number | undefined, currency?: string): s
 }
 
 /** Extract resource ID from a Google Ads resource name like "customers/123/campaigns/456". */
-function extractResourceId(resourceName: string | undefined): string {
+function _extractResourceId(resourceName: string | undefined): string {
   if (!resourceName) return 'unknown';
   const parts = resourceName.split('/');
   return parts[parts.length - 1] ?? 'unknown';

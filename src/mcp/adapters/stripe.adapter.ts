@@ -32,7 +32,7 @@ function formatAmount(amountCents: number | undefined, currency: string | undefi
 }
 
 /** Format a Unix timestamp into a readable date. */
-function fromUnix(ts: number | undefined): string {
+function _fromUnix(ts: number | undefined): string {
   if (!ts) return 'unknown';
   return new Date(ts * 1000).toLocaleString('en-US', {
     month: 'short',

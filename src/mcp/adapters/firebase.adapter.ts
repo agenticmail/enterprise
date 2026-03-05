@@ -292,7 +292,7 @@ const updateDocument: ToolHandler = {
         }
       }
 
-      const queryParts = updateMaskPaths.map(p => `updateMask.fieldPaths=${encodeURIComponent(p)}`);
+      const _queryParts = updateMaskPaths.map(p => `updateMask.fieldPaths=${encodeURIComponent(p)}`);
       const query: Record<string, string> = {};
       for (const path of updateMaskPaths) {
         query[`updateMask.fieldPaths`] = path;

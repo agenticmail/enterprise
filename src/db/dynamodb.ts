@@ -33,7 +33,7 @@ const TABLE = 'agenticmail_enterprise';
 // GSI1: GSI1PK/GSI1SK for secondary lookups (email, name, etc.)
 
 function pk(type: string) { return `${type}`; }
-function sk(id: string) { return id; }
+function _sk(id: string) { return id; }
 
 export class DynamoAdapter extends DatabaseAdapter {
   readonly type = 'dynamodb' as const;

@@ -439,7 +439,7 @@ function buildTranscript(previousSummaries: MessageGroup[], groups: MessageGroup
 
   // Build transcript from groups (in original order — re-sort by position)
   // Groups are sorted by importance, but transcript needs chronological order
-  const chronoGroups = [...groups];
+  const _chronoGroups = [...groups];
   // We don't have explicit position, but original array order is chronological
   // Since we only sorted a copy, use the original `groups` order... 
   // Actually, groups come from groupMessages which is already chronological.
@@ -492,7 +492,7 @@ async function llmSummarize(
   transcript: string,
   config: AgentConfig,
   apiKey: string,
-  tokenBudget: number,
+  _tokenBudget: number,
 ): Promise<LLMSummaryResult> {
   // If transcript fits in one chunk, do single call
   if (transcript.length <= CHUNK_MAX_CHARS) {

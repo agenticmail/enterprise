@@ -299,7 +299,7 @@ export function createExcelAdvancedTools(config: MicrosoftToolsConfig, _options?
           const rangePath = `${base}/workbook/worksheets/${encodeURIComponent(ws)}/range(address='${params.range}')`;
 
           // Build format object
-          const format: any = {};
+          const _format: any = {};
           if (params.numberFormat) {
             // numberFormat needs to be an array matching the range dimensions
             await graph(token, `${rangePath}/format`, { method: 'PATCH', body: { columnWidth: null } }); // ensure format exists

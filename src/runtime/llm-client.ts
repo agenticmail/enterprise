@@ -15,7 +15,7 @@
  */
 
 import type { AgentMessage, StreamEvent, ToolCall } from './types.js';
-import { PROVIDER_REGISTRY, resolveProvider, type ApiType, type CustomProviderDef } from './providers.js';
+import { resolveProvider, type ApiType, type CustomProviderDef } from './providers.js';
 
 // ─── Types ───────────────────────────────────────────────
 

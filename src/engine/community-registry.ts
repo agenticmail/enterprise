@@ -10,7 +10,7 @@
 
 import type { EngineDatabase } from './db-adapter.js';
 import type { PermissionEngine, SkillDefinition } from './skills.js';
-import { validateSkillManifest, collectCommunityToolIds, VALID_CATEGORIES, type ManifestValidationResult as _MVR } from './skill-validator.js';
+import { validateSkillManifest, VALID_CATEGORIES, type ManifestValidationResult as _MVR } from './skill-validator.js';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -133,7 +133,7 @@ export class CommunitySkillRegistry {
     // For simplicity, load installed for all orgs
     // (in production this would be per-org on request)
     try {
-      const rows = await this.engineDb.getInstalledSkillsByOrg('*').catch(() => [] as any[]);
+      const _rows = await this.engineDb.getInstalledSkillsByOrg('*').catch(() => [] as any[]);
       // Actually load per-org when requested; for startup, just clear
       this.installed.clear();
     } catch {

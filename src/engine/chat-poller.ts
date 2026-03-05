@@ -450,7 +450,7 @@ export class ChatPoller {
 
     let hadError = false;
 
-    for (const [spaceId, space] of this.spaces) {
+    for (const [_spaceId, space] of this.spaces) {
       try {
         await this.pollSpace(token, space);
       } catch (err: any) {

@@ -205,7 +205,7 @@ function sanitizeHtml(
   stripHtml: boolean, 
   blockScripts: boolean,
   allowedTags: string[],
-  allowedAttributes: string[]
+  _allowedAttributes: string[]
 ): { sanitized: string; violations: string[] } {
   const violations: string[] = [];
   let sanitized = input;

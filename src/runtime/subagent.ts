@@ -6,7 +6,6 @@
  * get their own email accounts.
  */
 
-import { nanoid } from 'nanoid';
 import type { ModelConfig, SessionState } from './types.js';
 
 // ─── Types ───────────────────────────────────────────────

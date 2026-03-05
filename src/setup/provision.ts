@@ -453,7 +453,7 @@ async function deploy(
 
 // ─── Success Messages ───────────────────────────────
 
-function printCloudSuccess(
+function _printCloudSuccess(
   chalk: any,
   url: string,
   adminEmail: string,

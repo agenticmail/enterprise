@@ -885,7 +885,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
           const update: any = { signature: params.signature };
           if (params.displayName) update.displayName = params.displayName;
 
-          const result = await gmail(token, `/settings/sendAs/${encodeURIComponent(primary.sendAsEmail)}`, {
+          const _result = await gmail(token, `/settings/sendAs/${encodeURIComponent(primary.sendAsEmail)}`, {
             method: 'PATCH',
             body: update,
           });

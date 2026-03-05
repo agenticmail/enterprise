@@ -1730,7 +1730,7 @@ export function createAgentRoutes(opts: {
 
       // ── Create a realistic browser profile using agent identity ──
       const agentName = managed.displayName || managed.display_name || managed.name || (managed.config as any)?.displayName || (managed.config as any)?.name || 'Agent';
-      const agentRole = (managed.config as any)?.role || (managed.config as any)?.description || 'AI Assistant';
+      const _agentRole = (managed.config as any)?.role || (managed.config as any)?.description || 'AI Assistant';
       const profileDir = join(homedir(), '.agenticmail', 'browser-profiles', agentId);
       mkdirSync(profileDir, { recursive: true });
 
@@ -1885,7 +1885,7 @@ export function createAgentRoutes(opts: {
           const data = await resp.json() as any;
           if (data.webSocketDebuggerUrl) {
             try {
-              const closeResp = await fetch(`http://127.0.0.1:${port}/json/close`, { method: 'PUT', signal: AbortSignal.timeout(3000) });
+              const _closeResp = await fetch(`http://127.0.0.1:${port}/json/close`, { method: 'PUT', signal: AbortSignal.timeout(3000) });
               closed = true;
             } catch { /* fallback to kill */ }
           }

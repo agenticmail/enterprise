@@ -333,7 +333,7 @@ const blockUser: ToolHandler = {
       const baseUrl = auth0Url(ctx);
       const blocked = params.blocked !== false;
 
-      const result = await ctx.apiExecutor.request({
+      const _result = await ctx.apiExecutor.request({
         method: 'PATCH',
         path: undefined,
         url: `${baseUrl}/users/${encodeURIComponent(params.user_id)}`,

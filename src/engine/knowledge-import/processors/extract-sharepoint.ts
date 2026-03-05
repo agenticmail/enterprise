@@ -9,7 +9,7 @@
 import type { ContentExtractor, ExtractResult } from './types.js';
 
 export class SharePointContentExtractor implements ContentExtractor {
-  extract(raw: string, sourceUrl?: string): ExtractResult {
+  extract(raw: string, _sourceUrl?: string): ExtractResult {
     let content = raw;
 
     // If HTML (SharePoint page or Word export)

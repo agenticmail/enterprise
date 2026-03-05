@@ -132,7 +132,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
           }
 
           for (const slide of contentSlides) {
-            const PT = 12700;
+            const _PT = 12700;
             // Create slide with TITLE_AND_BODY layout
             const addReq: any = { createSlide: { slideLayoutReference: { predefinedLayout: 'TITLE_AND_BODY' } } };
             const addResult = await slidesApi(token, `/presentations/${presentationId}:batchUpdate`, {
@@ -321,7 +321,7 @@ export function createGoogleSlidesTools(config: GoogleToolsConfig, _options?: To
       async execute(_id: string, input: any) {
         try {
           const token = await tp.getAccessToken();
-          const result = await slidesApi(token, `/presentations/${input.presentationId}:batchUpdate`, {
+          const _result = await slidesApi(token, `/presentations/${input.presentationId}:batchUpdate`, {
             method: 'POST',
             body: {
               requests: [{

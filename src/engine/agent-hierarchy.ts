@@ -893,7 +893,7 @@ export class AgentHierarchyManager {
    *   If 'email' or 'meeting', management context is minimal.
    *   If 'task' or 'management', full context is included.
    */
-  async buildManagerPrompt(agentId: string, sessionContext?: string): Promise<string | null> {
+  async buildManagerPrompt(agentId: string, _sessionContext?: string): Promise<string | null> {
     const hierarchy = await this.buildHierarchy();
     const node = hierarchy.get(agentId);
     if (!node) return null;

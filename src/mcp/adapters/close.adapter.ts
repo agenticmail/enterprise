@@ -32,7 +32,7 @@ function formatLead(lead: any): string {
   const status = lead.status_label || 'unknown';
   const contacts = lead.contacts?.length || 0;
   const created = lead.date_created ? lead.date_created.slice(0, 16) : '';
-  const url = lead.url || '';
+  const _url = lead.url || '';
   return `${name} -- ${status} -- ${contacts} contact(s) -- ${created} (ID: ${lead.id})`;
 }
 

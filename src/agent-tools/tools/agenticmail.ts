@@ -50,7 +50,7 @@ export interface AgenticMailToolsConfig {
  */
 export function createAgenticMailTools(
   config: AgenticMailToolsConfig,
-  options?: ToolCreationOptions,
+  _options?: ToolCreationOptions,
 ): AnyAgentTool[] {
   const { manager, agentId } = config;
   const tools: AnyAgentTool[] = [];
@@ -732,7 +732,7 @@ export function createAgenticMailTools(
       bcc: { type: 'string', description: 'BCC recipients' },
     }, ['id', 'to']),
     'high',
-    async (args) => {
+    async (_args) => {
       // Enterprise version: would load template and perform substitution, then send
       return { success: false, error: 'Template send not implemented in this enterprise deployment - use agenticmail_send instead' };
     },

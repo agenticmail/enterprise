@@ -169,7 +169,7 @@ export class FollowUpScheduler {
     var now = Date.now();
     var due: FollowUp[] = [];
 
-    for (var [id, fu] of this.followUps) {
+    for (var [_id, fu] of this.followUps) {
       if (fu.status === 'pending' && fu.executeAt <= now) {
         due.push(fu);
       }

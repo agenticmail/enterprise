@@ -172,7 +172,7 @@ class AttemptStore {
     let totalAttempts = 0;
     const ipAttemptCounts = new Map<string, number>();
     
-    for (const [ip, attempts] of this.attempts.entries()) {
+    for (const [ip, _attempts] of this.attempts.entries()) {
       const recentAttempts = this.getRecentAttempts(ip, 'login').length + 
                            this.getRecentAttempts(ip, 'api_key').length;
       totalAttempts += recentAttempts;

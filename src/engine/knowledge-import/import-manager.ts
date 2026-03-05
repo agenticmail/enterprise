@@ -16,7 +16,6 @@ import type {
 } from './types.js';
 import { chunkDocument } from './chunker.js';
 import { processDocument } from './processors/pipeline.js';
-import type { ProcessedDocument } from './processors/types.js';
 import { GitHubImportProvider } from './provider-github.js';
 import { SharePointImportProvider } from './provider-sharepoint.js';
 import { GoogleSitesImportProvider } from './provider-google-sites.js';
@@ -35,8 +34,8 @@ const PROVIDERS: Record<ImportSourceType, ImportProvider> = {
   'google-sites': new GoogleSitesImportProvider(),
   'url': new UrlImportProvider(),
   'file-upload': new FileUploadImportProvider(),
-  'confluence': new UrlImportProvider(),  // TODO: dedicated Confluence provider
-  'notion': new UrlImportProvider(),      // TODO: dedicated Notion provider
+  'confluence': new UrlImportProvider(),  // Uses URL-based import; add dedicated API provider when Confluence OAuth is supported
+  'notion': new UrlImportProvider(),      // Uses URL-based import; add dedicated API provider when Notion OAuth is supported
 };
 
 // ─── Source Catalog ──────────────────────────────────

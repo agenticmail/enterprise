@@ -297,7 +297,7 @@ export class SecurityEngine {
   /**
    * Get CSP policy for request
    */
-  getCspPolicy(request?: any): string {
+  getCspPolicy(_request?: any): string {
     if (!this.config.securityConfig.contentSecurity.enabled) {
       return '';
     }
@@ -316,7 +316,7 @@ export class SecurityEngine {
   /**
    * Apply CSP headers to response
    */
-  applyCspHeaders(response: any, request?: any): void {
+  applyCspHeaders(response: any, _request?: any): void {
     if (!this.config.securityConfig.contentSecurity.enabled) {
       return;
     }
@@ -335,7 +335,7 @@ export class SecurityEngine {
   /**
    * Get merged configuration for agent
    */
-  getConfig(agentId?: string, agentOverrides?: Partial<SecurityConfig>): SecurityConfig {
+  getConfig(_agentId?: string, agentOverrides?: Partial<SecurityConfig>): SecurityConfig {
     return mergeSecurityConfig(
       this.config.securityConfig,
       agentOverrides || {}

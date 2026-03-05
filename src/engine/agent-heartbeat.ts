@@ -182,7 +182,7 @@ function createUpcomingEventsCheck(): HeartbeatCheck {
     check: async (ctx: HeartbeatContext): Promise<HeartbeatCheckResult> => {
       try {
         // Check for calendar events in next 2 hours from agent_memory
-        const twoHoursFromNow = new Date(ctx.now.getTime() + 2 * 60 * 60 * 1000).toISOString();
+        const _twoHoursFromNow = new Date(ctx.now.getTime() + 2 * 60 * 60 * 1000).toISOString();
         const rows = await ctx.db.query<any>(
           `SELECT content FROM agent_memory 
            WHERE agent_id = $1 

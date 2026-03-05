@@ -254,7 +254,7 @@ const zuoraListAccounts: ToolHandler = {
     additionalProperties: false,
   },
 
-  async execute(params, ctx): Promise<ToolResult> {
+  async execute(_params, ctx): Promise<ToolResult> {
     try {
       const base = zuoraBaseUrl(ctx);
 

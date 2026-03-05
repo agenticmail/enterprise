@@ -159,7 +159,7 @@ const mixpanelGetFunnels: ToolHandler = {
 
       const data = await ctx.apiExecutor.get('/funnels', query);
 
-      const meta = data.meta ?? {};
+      const _meta = data.meta ?? {};
       const funnelData = data.data ?? {};
       const dates = Object.keys(funnelData).sort();
 

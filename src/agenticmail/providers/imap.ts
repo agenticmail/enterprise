@@ -62,7 +62,7 @@ export function detectImapSettings(email: string): { imapHost: string; imapPort:
   if (!domain) return null;
 
   // Check presets
-  for (const [key, preset] of Object.entries(IMAP_PRESETS)) {
+  for (const [key, _preset] of Object.entries(IMAP_PRESETS)) {
     if (domain.includes(key) || domain === 'gmail.com' || domain === 'outlook.com' || domain === 'hotmail.com') {
       if (domain === 'gmail.com' || domain.endsWith('.google.com')) return IMAP_PRESETS.gmail;
       if (domain === 'outlook.com' || domain === 'hotmail.com' || domain.endsWith('.onmicrosoft.com')) return IMAP_PRESETS.microsoft365;
@@ -83,7 +83,7 @@ export class ImapEmailProvider implements IEmailProvider {
 
   // IMAP connection (lazy-loaded to avoid bundling the dep if not used)
   private imapClient: any = null;
-  private smtpClient: any = null;
+  private _smtpClient: any = null;
 
   private getIdentity(): ImapEmailIdentity {
     if (!this.identity) throw new Error('Not connected — call connect() first');

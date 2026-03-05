@@ -4,8 +4,8 @@
  * Implements fast similarity search using perceptual hashes and filtering.
  */
 
-import { VisualObservation, SimilarityMatch, VisualQuery } from './types.js';
-import { calculateSimilarity, hammingDistance } from './phash.js';
+import { VisualObservation, SimilarityMatch } from './types.js';
+import { calculateSimilarity } from './phash.js';
 import { queryObservations } from './storage.js';
 
 /**

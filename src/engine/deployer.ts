@@ -10,8 +10,8 @@
 import type { AgentConfig, DeploymentTarget, DeploymentStatus } from './agent-config.js';
 import { AgentConfigGenerator } from './agent-config.js';
 import { execSync } from 'child_process';
-import { resolve, dirname } from 'path';
-import { existsSync, writeFileSync, readFileSync } from 'fs';
+import { resolve } from 'path';
+import { existsSync } from 'fs';
 
 /**
  * Derive PM2 process name from agent config.
@@ -126,7 +126,7 @@ function generateEcosystemConfig(config: AgentConfig): { script: string; args: s
 export class DeploymentEngine {
   private configGen = new AgentConfigGenerator();
   private deployments = new Map<string, DeploymentResult>();
-  private liveStatus = new Map<string, LiveAgentStatus>();
+  private _liveStatus = new Map<string, LiveAgentStatus>();
 
   /**
    * Deploy an agent to its configured target
@@ -273,13 +273,13 @@ export class DeploymentEngine {
    */
   async updateConfig(config: AgentConfig): Promise<{ success: boolean; message: string }> {
     const workspace = this.configGen.generateWorkspace(config);
-    const gatewayConfig = this.configGen.generateGatewayConfig(config);
+    const _gatewayConfig = this.configGen.generateGatewayConfig(config);
 
     switch (config.deployment.target) {
       case 'docker': {
         // Write config files into the container
         for (const [file, content] of Object.entries(workspace)) {
-          const escaped = content.replace(/'/g, "'\\''");
+          const _escaped = content.replace(/'/g, "'\\''");
           await this.execCommand(`docker exec agenticmail-${config.name} sh -c 'echo "${Buffer.from(content).toString('base64')}" | base64 -d > /workspace/${file}'`);
         }
         // Restart gateway inside container
@@ -307,7 +307,7 @@ export class DeploymentEngine {
 
     // Generate docker-compose
     emit('provision', 'started', 'Generating Docker configuration...');
-    const compose = this.configGen.generateDockerCompose(config);
+    const _compose = this.configGen.generateDockerCompose(config);
     emit('provision', 'completed', 'Docker Compose generated');
 
     // Generate workspace files
@@ -897,7 +897,7 @@ export class DeploymentEngine {
     }
   }
 
-  private generateDockerfile(config: AgentConfig): string {
+  private _generateDockerfile(config: AgentConfig): string {
     return `FROM node:22-slim
 
 WORKDIR /app
@@ -947,7 +947,7 @@ CMD ["agenticmail-enterprise", "start"]
     return this.execCommand(`ssh ${sshArgs}`);
   }
 
-  private async writeFile(path: string, content: string): Promise<void> {
+  private async _writeFile(path: string, content: string): Promise<void> {
     const { writeFile } = await import('fs/promises');
     const { dirname } = await import('path');
     const { mkdir } = await import('fs/promises');

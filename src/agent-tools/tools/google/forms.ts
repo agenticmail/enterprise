@@ -212,7 +212,7 @@ export function createGoogleFormsTools(config: GoogleToolsConfig, _options?: Too
           if (input.title) { info.title = input.title; updateMasks.push('info.title'); }
           if (input.description !== undefined) { info.description = input.description; updateMasks.push('info.description'); }
           if (updateMasks.length === 0) return errorResult('Provide title or description to update');
-          const result = await formsApi(token, `/forms/${input.formId}:batchUpdate`, {
+          const _result = await formsApi(token, `/forms/${input.formId}:batchUpdate`, {
             method: 'POST',
             body: {
               requests: [{
@@ -355,7 +355,7 @@ export function createGoogleFormsTools(config: GoogleToolsConfig, _options?: Too
           const publishSettings: any = {};
           if (input.isPublished !== undefined) publishSettings.isPublished = input.isPublished === 'true';
           if (input.isAcceptingResponses !== undefined) publishSettings.isAcceptingResponses = input.isAcceptingResponses === 'true';
-          const result = await formsApi(token, `/forms/${input.formId}:setPublishSettings`, {
+          const _result = await formsApi(token, `/forms/${input.formId}:setPublishSettings`, {
             method: 'POST',
             body: { publishSettings },
           });

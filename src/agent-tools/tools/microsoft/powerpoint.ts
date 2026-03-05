@@ -44,7 +44,7 @@ export function createPowerPointTools(config: MicrosoftToolsConfig, _options?: T
           // Get slide count via preview
           let slideCount: number | null = null;
           try {
-            const preview = await graph(token, `${base}/preview`, { method: 'POST', body: {} });
+            const _preview = await graph(token, `${base}/preview`, { method: 'POST', body: {} });
             // Preview doesn't directly give count, but we can try thumbnails
             const thumbs = await graph(token, `${base}/thumbnails`);
             if (thumbs.value?.[0]) slideCount = Object.keys(thumbs.value[0]).filter((k: string) => k !== 'id').length;

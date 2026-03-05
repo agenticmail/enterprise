@@ -622,7 +622,7 @@ export function createMeetingTools(config: GoogleToolsConfig, _options?: ToolCre
             console.warn(`[meeting-join:${agentId}] Voice preflight failed: ${e.message}`);
           }
 
-          const voiceBlock = voiceStatus
+          const _voiceBlock = voiceStatus
             ? voiceCapability.buildPromptBlock(agentId)
             : '\n## Voice: NOT CHECKED\nUse meeting_speak to talk — it auto-falls back to chat if voice fails.\n';
 

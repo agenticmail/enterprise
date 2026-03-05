@@ -9,10 +9,8 @@
 import fs from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import path from 'node:path';
-import { pipeline } from 'node:stream/promises';
-import { Readable } from 'node:stream';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
-import { readStringParam, readNumberParam, readStringArrayParam, textResult, jsonResult, errorResult } from '../common.js';
+import { readStringParam, readNumberParam, jsonResult, errorResult } from '../common.js';
 import { validateEgress } from '../../middleware/egress-filter.js';
 
 var MAX_RESPONSE_SIZE = 50 * 1024; // 50KB response body cap

@@ -19,7 +19,7 @@ function sapBaseUrl(ctx: ToolExecutionContext): string {
   if (!host) {
     throw new Error('SAP host is required in skillConfig (e.g. { host: "mycompany.s4hana.ondemand.com" })');
   }
-  const client = ctx.skillConfig.client || '100';
+  const _client = ctx.skillConfig.client || '100';
   return `https://${host}/sap/opu/odata/sap`;
 }
 
@@ -45,7 +45,7 @@ function sapError(err: unknown): ToolResult {
 }
 
 /** Format an SAP OData entity for display */
-function formatEntity(entity: any, fields: string[]): string {
+function _formatEntity(entity: any, fields: string[]): string {
   return fields
     .map(f => `${f}: ${entity[f] ?? 'N/A'}`)
     .filter(Boolean)

@@ -21,7 +21,7 @@ const MIN_SENTENCE_COUNT = 2;
 const MAX_DUPLICATE_RATIO = 0.4;
 const MIN_QUALITY_SCORE = 30;     // out of 100
 
-export function validateContent(content: string, title?: string): QualityReport {
+export function validateContent(content: string, _title?: string): QualityReport {
   const checks: QualityCheck[] = [];
   const warnings: string[] = [];
 

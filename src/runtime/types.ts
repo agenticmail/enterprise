@@ -144,6 +144,8 @@ export interface RuntimeConfig {
   databaseManager?: import('../database-access/connection-manager.js').DatabaseConnectionManager;
   /** Knowledge base engine for RAG search tools */
   knowledgeEngine?: any;
+  /** Organization ID for this runtime instance */
+  orgId?: string;
   /** Real-time agent status tracker */
   agentStatusTracker?: import('../engine/agent-status.js').AgentStatusTracker;
   /** Resolve org-scoped LLM API key (provider → key). Called before system-wide fallback. */

@@ -52,8 +52,8 @@ export class MeetingMonitor {
   private sendChatIndicator?: (page: Page, text: string) => Promise<void>;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private running = false;
-  private lastCaptionCount = 0;
-  private lastChatCount = 0;
+  private _lastCaptionCount = 0;
+  private _lastChatCount = 0;
   private consecutiveEmpty = 0;
   private consecutiveSendFailures = 0;
   /** Pending captions accumulated across flush cycles (for debouncing) */

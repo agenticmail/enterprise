@@ -132,7 +132,7 @@ const executeQuery: ToolHandler = {
       });
 
       const statementHandle = result.statementHandle || '';
-      const status = result.statementStatusUrl || '';
+      const _status = result.statementStatusUrl || '';
       const rowCount = result.resultSetMetaData?.numRows ?? result.data?.length ?? 0;
 
       const formatted = formatResultSet(result);

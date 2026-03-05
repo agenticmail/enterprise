@@ -73,7 +73,7 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
 
   return {
     // ─── Before LLM Call ────────────────────────────
-    async beforeLLMCall(messages, agentId, sessionId): Promise<AgentMessage[]> {
+    async beforeLLMCall(messages, agentId, _sessionId): Promise<AgentMessage[]> {
       var injectedMessages = [...messages];
 
       // Inject knowledge base context
@@ -157,7 +157,7 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
     },
 
     // ─── Budget Check ──────────────────────────────
-    async checkBudget(agentId, orgId, estimatedTokens): Promise<BudgetCheckResult> {
+    async checkBudget(agentId, _orgId, _estimatedTokens): Promise<BudgetCheckResult> {
       try {
         var { lifecycle } = await import('../engine/routes.js');
 
@@ -212,7 +212,7 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
         var b = budget as any;
         var dailySpend = u.costToday ?? u.dailyCostUsd ?? 0;
         var monthlySpend = u.costThisMonth ?? u.monthlyCostUsd ?? 0;
-        var weeklySpend = u.costThisWeek ?? 0;
+        var _weeklySpend = u.costThisWeek ?? 0;
         var dailyTokens = u.tokensToday ?? u.dailyTokens ?? 0;
         var monthlyTokens = u.tokensThisMonth ?? u.monthlyTokens ?? 0;
 

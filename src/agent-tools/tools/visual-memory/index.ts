@@ -14,7 +14,7 @@ import { calculateSimilarity as _calcSim } from './phash.js';
 import * as diff from './diff.js';
 
 // Session management
-let currentSessionId: number = 0;
+let _currentSessionId: number = 0;
 const activeSessions = new Map<string, number>();
 
 /**
@@ -53,7 +53,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: ['source'],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           let result: Awaited<ReturnType<typeof capture.captureFromScreenshot>>;
 
@@ -150,7 +150,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: [],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const observations = await storage.queryObservations(agentId, {
             sessionId: params.sessionId,
@@ -197,7 +197,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: ['id1', 'id2'],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const obs1 = await storage.getObservation(agentId, params.id1);
           const obs2 = await storage.getObservation(agentId, params.id2);
@@ -256,7 +256,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: ['beforeId', 'afterId'],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const beforeObs = await storage.getObservation(agentId, params.beforeId);
           const afterObs = await storage.getObservation(agentId, params.afterId);
@@ -320,7 +320,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: ['targetId'],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const targetObs = await storage.getObservation(agentId, params.targetId);
           if (!targetObs) {
@@ -384,7 +384,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: ['baselineId'],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const baseline = await storage.getObservation(agentId, params.baselineId);
           if (!baseline) {
@@ -495,7 +495,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: ['observationId'],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const observation = await storage.getObservation(agentId, params.observationId);
           if (!observation) {
@@ -550,7 +550,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         properties: {},
         required: [],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, _params: any) {
         try {
           const stats = await storage.getStoreStats(agentId);
           
@@ -608,7 +608,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: [],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const store = await storage.loadStore(agentId);
           const sessionId = ++store.sessionCount;
@@ -647,7 +647,7 @@ export function createVisualMemoryTools(options: ToolCreationOptions): AnyAgentT
         },
         required: [],
       },
-      async execute(toolCallId: string, params: any) {
+      async execute(_toolCallId: string, params: any) {
         try {
           const sessionKey = `${agentId}-session`;
           const sessionId = params.sessionId || activeSessions.get(sessionKey) || 0;

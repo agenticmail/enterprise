@@ -164,7 +164,7 @@ const searchStories: ToolHandler = {
 
   async execute(params: Record<string, any>, ctx: ToolExecutionContext): Promise<ToolResult> {
     try {
-      const body: Record<string, any> = {
+      const _body: Record<string, any> = {
         query: params.query,
         page_size: params.page_size ?? 25,
       };

@@ -14,7 +14,7 @@
 import type { AgentConfig, AgentMessage, RuntimeHooks, SessionState, StreamEvent, ToolCall } from './types.js';
 import { callLLM, toolsToDefinitions, estimateMessageTokens, type LLMResponse } from './llm-client.js';
 import { ToolRegistry, executeTool } from './tool-executor.js';
-import { compactContext, needsCompaction, COMPACTION_THRESHOLD } from './compaction.js';
+import { compactContext, COMPACTION_THRESHOLD } from './compaction.js';
 import { buildModelChain, withModelFallback, type ModelFallbackConfig } from '../engine/model-fallback.js';
 
 // ─── Constants ───────────────────────────────────────────
@@ -709,8 +709,8 @@ var FALLBACK_PRICES: Record<string, { input: number; output: number }> = {
 };
 
 // In-memory cache for DB pricing (refreshed every 5 min)
-var pricingCache: { data: Record<string, { input: number; output: number }>; expiresAt: number } | null = null;
-var PRICING_CACHE_TTL = 5 * 60_000;
+var _pricingCache: { data: Record<string, { input: number; output: number }>; expiresAt: number } | null = null;
+var _PRICING_CACHE_TTL = 5 * 60_000;
 
 async function estimateCostAsync(
   hooks: import('./types.js').RuntimeHooks,

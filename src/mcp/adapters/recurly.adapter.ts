@@ -304,7 +304,7 @@ const recurlyGetAccount: ToolHandler = {
       const email = acct.email ?? 'N/A';
       const state = acct.state ?? 'unknown';
       const created = formatDate(acct.created_at);
-      const balance = formatAmount(acct.hosted_login_token ? undefined : 0, acct.bill_to ?? 'USD');
+      const _balance = formatAmount(acct.hosted_login_token ? undefined : 0, acct.bill_to ?? 'USD');
 
       const addr = acct.address ?? {};
       const addressStr = [addr.street1, addr.street2, addr.city, addr.region, addr.postal_code, addr.country]

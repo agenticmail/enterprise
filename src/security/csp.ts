@@ -384,7 +384,7 @@ export const CSP_USE_CASES = {
  * Auto-detect appropriate CSP configuration based on request
  */
 export function detectCspConfig(req: any): CspConfig {
-  const userAgent = req.headers['user-agent'] || '';
+  const _userAgent = req.headers['user-agent'] || '';
   const path = req.url || req.path || '';
   
   // API endpoints

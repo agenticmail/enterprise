@@ -6,7 +6,6 @@
  * Also generates Docker Compose and Fly.toml for self-hosted.
  */
 
-import { randomUUID } from 'crypto';
 import { deployToFly, type FlyConfig, type AppConfig } from './fly.js';
 
 export interface DeployConfig {

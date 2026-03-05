@@ -425,7 +425,7 @@ export class KnowledgeContributionManager {
     contributors.add(entry.sourceAgentId);
   }
 
-  private indexEntryRemove(entry: KnowledgeEntry): void {
+  private _indexEntryRemove(entry: KnowledgeEntry): void {
     const baseSet = this.baseEntryIndex.get(entry.baseId);
     if (baseSet) { baseSet.delete(entry.id); if (baseSet.size === 0) this.baseEntryIndex.delete(entry.baseId); }
 

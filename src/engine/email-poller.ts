@@ -258,7 +258,7 @@ export class EmailPoller {
 
   private async connectMailbox(mailbox: AgentMailbox): Promise<void> {
     // Refresh token
-    const token = await this.refreshToken(mailbox);
+    const _token = await this.refreshToken(mailbox);
 
     // Get profile + historyId
     const profile = await this.gmailFetch(mailbox, '/profile');

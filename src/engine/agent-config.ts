@@ -623,7 +623,7 @@ Check every ${config.heartbeat.intervalMinutes} minutes during active hours.
 `;
   }
 
-  private generateTools(config: AgentConfig): string {
+  private generateTools(_config: AgentConfig): string {
     return `# TOOLS.md — Local Notes
 
 _Add environment-specific notes here (camera names, SSH hosts, etc.)_

@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import type { SecureVault } from './vault.js';
 import type { DLPEngine } from './dlp.js';
 
-export function createVaultRoutes(vault: SecureVault, dlp?: DLPEngine) {
+export function createVaultRoutes(vault: SecureVault, _dlp?: DLPEngine) {
   const router = new Hono();
 
   // ─── Secrets CRUD ────────────────────────────────────

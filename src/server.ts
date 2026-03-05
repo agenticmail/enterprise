@@ -162,7 +162,7 @@ export function createServer(config: ServerConfig): ServerInstance {
     return []; // empty = allow all
   }
   app.use('*', cors({
-    origin: async (origin, c) => {
+    origin: async (origin, _c) => {
       const allowed = await getCorsOrigins();
       // If no CORS configured, allow all (open)
       if (!allowed.length) return origin || '*';
@@ -364,7 +364,7 @@ export function createServer(config: ServerConfig): ServerInstance {
   // Loaded lazily on first request to avoid top-level await.
   // On first hit, also initializes the EngineDatabase and runs engine migrations.
   let engineInitialized = false;
-  api.all('/engine/*', async (c, next) => {
+  api.all('/engine/*', async (c, _next) => {
     try {
       const { engineRoutes, setEngineDb } = await import('./engine/routes.js');
       const { EngineDatabase } = await import('./engine/db-adapter.js');

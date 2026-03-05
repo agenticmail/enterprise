@@ -32,7 +32,7 @@ function k8sError(err: unknown): ToolResult {
   if (err instanceof Error) {
     const data = (err as any).data;
     if (data && typeof data === 'object') {
-      const status = data.status || '';
+      const _status = data.status || '';
       const message = data.message || '';
       const reason = data.reason || '';
       const code = data.code || '';

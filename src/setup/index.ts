@@ -16,8 +16,7 @@
 
 import { execSync } from 'child_process';
 import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { promptCompanyInfo } from './company.js';
 import { promptDatabase } from './database.js';
 import { promptDeployment } from './deployment.js';

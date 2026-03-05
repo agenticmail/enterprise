@@ -39,7 +39,7 @@ export async function promptDatabase(
 
   // Put Supabase first and mark as recommended
   const supabaseIdx = databases.findIndex((d: any) => d.type === 'supabase');
-  const choices = databases.map((d: any, i: number) => ({
+  const choices = databases.map((d: any, _i: number) => ({
     name: d.type === 'supabase'
       ? `${d.label}  ${chalk.green('← recommended (free tier)')}  ${chalk.dim('(cloud)')}`
       : `${d.label}  ${chalk.dim(`(${d.group})`)}`,

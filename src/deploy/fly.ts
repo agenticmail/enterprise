@@ -93,10 +93,10 @@ async function createApp(name: string, fly: FlyConfig): Promise<void> {
 /**
  * Set secrets (environment variables) on a Fly.io app.
  */
-async function setSecrets(
-  appName: string,
-  secrets: Record<string, string>,
-  fly: FlyConfig,
+async function _setSecrets(
+  _appName: string,
+  _secrets: Record<string, string>,
+  _fly: FlyConfig,
 ): Promise<void> {
   // Fly Machines API doesn't have a direct "set secrets" endpoint
   // like flyctl does. Secrets are passed as env vars in machine config.

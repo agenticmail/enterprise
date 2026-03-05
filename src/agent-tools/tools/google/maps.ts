@@ -12,7 +12,7 @@
  */
 
 import type { AnyAgentTool } from '../../types.js';
-import { jsonResult, errorResult, textResult } from '../../common.js';
+import { jsonResult, errorResult } from '../../common.js';
 
 export interface GoogleMapsConfig {
   /** Resolve the Google Maps API key. Called on each request (supports vault decryption). */
@@ -46,7 +46,7 @@ async function mapsApi(endpoint: string, params: Record<string, string>): Promis
 }
 
 // Places API (New) uses different base URL
-async function placesApiNew(path: string, body: any): Promise<any> {
+async function _placesApiNew(path: string, body: any): Promise<any> {
   const key = await getApiKey();
   const res = await fetch(`https://places.googleapis.com/v1${path}`, {
     method: 'POST',

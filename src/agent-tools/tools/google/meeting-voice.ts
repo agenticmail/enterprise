@@ -237,7 +237,7 @@ const DEFAULT_VOICES: Record<string, string> = {
   'sam': 'yoZ06aMxZJJ28mfd3POQ',           // Male, raspy
 };
 
-function delay(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+function _delay(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
 /**
  * Generate speech audio from text using ElevenLabs

@@ -575,7 +575,7 @@ export class PermissionEngine {
     return this._checkApproval(profile, toolId, tool);
   }
 
-  private _checkApproval(profile: AgentPermissionProfile, toolId: string, tool?: ToolDefinition): PermissionResult {
+  private _checkApproval(profile: AgentPermissionProfile, _toolId: string, tool?: ToolDefinition): PermissionResult {
     if (!profile.requireApproval.enabled) {
       return { allowed: true, reason: 'Permitted', requiresApproval: false };
     }

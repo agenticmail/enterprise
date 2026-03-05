@@ -185,7 +185,7 @@ export function createOrgIntegrationRoutes(manager: OrgIntegrationManager) {
   // ─── Resolve credentials for an agent ─────────────────
   router.get('/resolve/:agentId', async (c) => {
     try {
-      const agentId = c.req.param('agentId');
+      const _agentId = c.req.param('agentId');
       const provider = c.req.query('provider') || 'google';
       const orgId = c.req.query('orgId') || null;
       
@@ -288,7 +288,7 @@ export function createOrgIntegrationRoutes(manager: OrgIntegrationManager) {
       });
 
       if (!tokenRes.ok) {
-        const err = await tokenRes.text();
+        const _err = await tokenRes.text();
         return c.html(`<script>window.opener?.postMessage({type:'org-oauth-result',status:'error',message:'Token exchange failed: ${tokenRes.status}'},'*');window.close();</script>`);
       }
 
