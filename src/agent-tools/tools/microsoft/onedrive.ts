@@ -210,17 +210,218 @@ export function createOneDriveTools(config: MicrosoftToolsConfig, _options?: Too
           itemId: { type: 'string', description: 'Item ID to share' },
           type: { type: 'string', description: 'view or edit (default: view)' },
           scope: { type: 'string', description: 'anonymous (anyone) or organization (default: organization)' },
+          expirationDateTime: { type: 'string', description: 'Link expiry (ISO 8601). Only for anonymous links.' },
+          password: { type: 'string', description: 'Password-protect the link (only for anonymous links).' },
         },
         required: ['itemId'],
       },
       async execute(_id: string, params: any) {
         try {
           const token = await tp.getAccessToken();
+          const body: any = { type: params.type || 'view', scope: params.scope || 'organization' };
+          if (params.expirationDateTime) body.expirationDateTime = params.expirationDateTime;
+          if (params.password) body.password = params.password;
           const link = await graph(token, `/me/drive/items/${params.itemId}/createLink`, {
-            method: 'POST',
-            body: { type: params.type || 'view', scope: params.scope || 'organization' },
+            method: 'POST', body,
           });
-          return jsonResult({ url: link.link?.webUrl, type: link.link?.type, scope: link.link?.scope });
+          return jsonResult({ url: link.link?.webUrl, type: link.link?.type, scope: link.link?.scope, expiration: link.link?.expirationDateTime });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
+
+    {
+      name: 'onedrive_move',
+      description: 'Move or rename a file/folder in OneDrive.',
+      category: 'utility' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          itemId: { type: 'string', description: 'Item ID to move/rename' },
+          newName: { type: 'string', description: 'New name (optional, for rename)' },
+          destinationFolderId: { type: 'string', description: 'Destination folder ID (optional, for move)' },
+          destinationPath: { type: 'string', description: 'Destination folder path (alternative to ID, e.g., "/Documents/Archive")' },
+        },
+        required: ['itemId'],
+      },
+      async execute(_id: string, params: any) {
+        try {
+          const token = await tp.getAccessToken();
+          const body: any = {};
+          if (params.newName) body.name = params.newName;
+          if (params.destinationFolderId) {
+            body.parentReference = { id: params.destinationFolderId };
+          } else if (params.destinationPath) {
+            // Resolve destination folder ID first
+            const dest = await graph(token, `/me/drive/root:${params.destinationPath}`, {
+              query: { '$select': 'id' },
+            });
+            body.parentReference = { id: dest.id };
+          }
+          if (!body.name && !body.parentReference) {
+            return errorResult('Provide newName (rename), destinationFolderId or destinationPath (move), or both.');
+          }
+          const updated = await graph(token, `/me/drive/items/${params.itemId}`, {
+            method: 'PATCH', body,
+          });
+          return jsonResult({ id: updated.id, name: updated.name, webUrl: updated.webUrl, path: updated.parentReference?.path });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
+
+    {
+      name: 'onedrive_copy',
+      description: 'Copy a file or folder to a new location in OneDrive. Returns a monitor URL for large copies.',
+      category: 'utility' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          itemId: { type: 'string', description: 'Item ID to copy' },
+          destinationFolderId: { type: 'string', description: 'Destination folder ID' },
+          destinationPath: { type: 'string', description: 'Destination folder path (alternative to ID)' },
+          newName: { type: 'string', description: 'New name for the copy (optional)' },
+        },
+        required: ['itemId'],
+      },
+      async execute(_id: string, params: any) {
+        try {
+          const token = await tp.getAccessToken();
+          const body: any = {};
+          if (params.newName) body.name = params.newName;
+          if (params.destinationFolderId) {
+            body.parentReference = { driveId: 'me', id: params.destinationFolderId };
+          } else if (params.destinationPath) {
+            const dest = await graph(token, `/me/drive/root:${params.destinationPath}`, { query: { '$select': 'id,parentReference' } });
+            body.parentReference = { driveId: dest.parentReference?.driveId || 'me', id: dest.id };
+          } else {
+            return errorResult('Provide destinationFolderId or destinationPath.');
+          }
+          // Copy returns 202 with Location header (async operation)
+          const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${params.itemId}/copy`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (res.status === 202) {
+            return jsonResult({ status: 'copying', monitorUrl: res.headers.get('Location'), message: 'Copy started. Large files may take time.' });
+          }
+          if (!res.ok) throw new Error(`Copy failed: ${res.status} ${await res.text()}`);
+          const data = await res.json();
+          return jsonResult({ id: data.id, name: data.name, webUrl: data.webUrl });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
+
+    {
+      name: 'onedrive_versions',
+      description: 'List version history of a file in OneDrive.',
+      category: 'utility' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          itemId: { type: 'string', description: 'File item ID' },
+          path: { type: 'string', description: 'File path (alternative to itemId)' },
+        },
+        required: [],
+      },
+      async execute(_id: string, params: any) {
+        try {
+          const token = await tp.getAccessToken();
+          const base = params.itemId ? `/me/drive/items/${params.itemId}` : `/me/drive/root:${params.path}:`;
+          const data = await graph(token, `${base}/versions`);
+          const versions = (data.value || []).map((v: any) => ({
+            id: v.id,
+            size: v.size,
+            modified: v.lastModifiedDateTime,
+            modifiedBy: v.lastModifiedBy?.user?.displayName || v.lastModifiedBy?.user?.email,
+          }));
+          return jsonResult({ versions, count: versions.length });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
+
+    {
+      name: 'onedrive_recent',
+      description: 'List recently accessed files in OneDrive.',
+      category: 'utility' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          maxResults: { type: 'number', description: 'Max items (default: 20)' },
+        },
+        required: [],
+      },
+      async execute(_id: string, params: any) {
+        try {
+          const token = await tp.getAccessToken();
+          const data = await graph(token, '/me/drive/recent', {
+            query: { '$top': String(params.maxResults || 20), '$select': 'id,name,size,webUrl,lastModifiedDateTime,file,remoteItem' },
+          });
+          const items = (data.value || []).map((i: any) => {
+            const item = i.remoteItem || i;
+            return {
+              id: item.id, name: item.name || i.name, size: item.size,
+              mimeType: item.file?.mimeType,
+              modified: item.lastModifiedDateTime || i.lastModifiedDateTime,
+              webUrl: item.webUrl || i.webUrl,
+            };
+          });
+          return jsonResult({ items, count: items.length });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
+
+    {
+      name: 'onedrive_permissions',
+      description: 'List or manage sharing permissions on a file/folder.',
+      category: 'utility' as const,
+      parameters: {
+        type: 'object' as const,
+        properties: {
+          itemId: { type: 'string', description: 'Item ID' },
+          action: { type: 'string', description: 'list (default), revoke, or invite' },
+          permissionId: { type: 'string', description: 'Permission ID to revoke (for action=revoke)' },
+          email: { type: 'string', description: 'Email to invite (for action=invite)' },
+          role: { type: 'string', description: 'read or write (for action=invite, default: read)' },
+          message: { type: 'string', description: 'Optional message for invite' },
+        },
+        required: ['itemId'],
+      },
+      async execute(_id: string, params: any) {
+        try {
+          const token = await tp.getAccessToken();
+          const action = params.action || 'list';
+
+          if (action === 'revoke') {
+            if (!params.permissionId) return errorResult('permissionId required for revoke');
+            await graph(token, `/me/drive/items/${params.itemId}/permissions/${params.permissionId}`, { method: 'DELETE' });
+            return jsonResult({ revoked: true, permissionId: params.permissionId });
+          }
+
+          if (action === 'invite') {
+            if (!params.email) return errorResult('email required for invite');
+            const invite = await graph(token, `/me/drive/items/${params.itemId}/invite`, {
+              method: 'POST',
+              body: {
+                recipients: [{ email: params.email }],
+                roles: [params.role || 'read'],
+                requireSignIn: true,
+                sendInvitation: true,
+                message: params.message || '',
+              },
+            });
+            return jsonResult({ invited: true, email: params.email, permissions: invite.value });
+          }
+
+          // Default: list
+          const data = await graph(token, `/me/drive/items/${params.itemId}/permissions`);
+          const perms = (data.value || []).map((p: any) => ({
+            id: p.id,
+            roles: p.roles,
+            grantedTo: p.grantedToV2?.user?.displayName || p.grantedTo?.user?.displayName,
+            email: p.grantedToV2?.user?.email || p.invitation?.email,
+            link: p.link ? { type: p.link.type, scope: p.link.scope, webUrl: p.link.webUrl } : undefined,
+          }));
+          return jsonResult({ permissions: perms, count: perms.length });
         } catch (e: any) { return errorResult(e.message); }
       },
     },

@@ -107,7 +107,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbSchema: AnyAgentTool = {
     name: 'ent_db_schema',
     label: 'Database Schema',
-    description: 'Get the schema (columns, types, primary keys) for a specific table in the dat...',
+    description: 'Get the schema of a table in a LOCAL SQLite database file. For external/cloud databases granted via dashboard, use db_describe_table instead.',
     category: 'utility',
     risk: 'low',
     parameters: {
@@ -169,7 +169,7 @@ export function createDatabaseTools(options?: ToolCreationOptions): AnyAgentTool
   var entDbExplain: AnyAgentTool = {
     name: 'ent_db_explain',
     label: 'Explain Query Plan',
-    description: 'Run EXPLAIN QUERY PLAN on a SQL query to understand how the database will exe...',
+    description: 'Run EXPLAIN QUERY PLAN on a LOCAL SQLite database file. For external/cloud databases granted via dashboard, use db_explain instead.',
     category: 'utility',
     risk: 'low',
     parameters: {
