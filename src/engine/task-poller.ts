@@ -68,7 +68,7 @@ export class TaskPoller {
     this.stuckThresholdMs = config?.stuckThresholdMs ?? 5 * 60 * 1000;  // 5 min
     this.staleThresholdMs = config?.staleThresholdMs ?? 15 * 60 * 1000; // 15 min
     this.maxRetries = config?.maxRetries ?? 3;
-    this.maxTaskAgeMs = config?.maxTaskAgeMs ?? 60 * 60 * 1000; // 1 hour
+    this.maxTaskAgeMs = config?.maxTaskAgeMs ?? 15 * 60 * 1000; // 15 min — tasks older than this are auto-failed
     this.debug = config?.debug ?? false;
   }
 
