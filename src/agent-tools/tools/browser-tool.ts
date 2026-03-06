@@ -97,6 +97,7 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
       'scroll: scroll the page (deltaY positive=down, negative=up). Use to navigate long pages before taking snapshots.',
       'IMPORTANT: Use open(targetUrl) to create NEW tabs for each different site/URL. Do NOT reuse the same tab for different sites — open a new tab, get its targetId, then use that targetId for all actions on that site.',
       'Reddit URLs are auto-rewritten to old.reddit.com (avoids Shadow DOM issues).',
+      'TWITTER/X RULES: (1) Non-Premium accounts have a 280 character limit per post/reply. ALWAYS keep tweets under 280 chars. Count carefully before posting. If your message is too long, shorten it — the Post/Reply button will be DISABLED if over the limit. (2) ALWAYS verify your post went through: after clicking Reply/Post, check for a "Your post was sent" confirmation alert or see your reply appear in the thread. If the button was disabled or no confirmation appeared, the post FAILED — shorten and retry. Never assume a post succeeded without verification.',
       'FALLBACK STRATEGY: If snapshot refs fail → try evaluate with document.querySelector(). If clicks fail → take screenshot, identify coordinates, use mouse_click(x, y). If page is too long → use scroll to navigate, then snapshot again.',
     ].join(" "),
     parameters: BrowserToolSchema as any,
