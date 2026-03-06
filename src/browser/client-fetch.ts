@@ -156,13 +156,34 @@ async function fetchHttpJson<T>(
   }
 }
 
+/**
+ * Check if the given HTTP URL targets our own in-process browser server.
+ * When true, we can skip the HTTP round-trip and dispatch directly (like OpenClaw does).
+ */
+function isOwnBrowserServer(url: string): boolean {
+  if (!isAbsoluteHttp(url)) return false;
+  const ownPort = (globalThis as any).__agenticmail_browser_port;
+  if (!ownPort) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const port = parsed.port ? Number(parsed.port) : (parsed.protocol === 'https:' ? 443 : 80);
+    return (host === '127.0.0.1' || host === 'localhost' || host === '::1') && port === ownPort;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchBrowserJson<T>(
   url: string,
   init?: RequestInit & { timeoutMs?: number },
 ): Promise<T> {
   const timeoutMs = init?.timeoutMs ?? 5000;
   try {
-    if (isAbsoluteHttp(url)) {
+    // Optimization: if this URL points to our own browser server running in the same process,
+    // use in-process dispatch instead of HTTP. This eliminates the HTTP round-trip, connection
+    // overhead, and timeout issues — matching how OpenClaw's gateway dispatches browser requests.
+    if (isAbsoluteHttp(url) && !isOwnBrowserServer(url)) {
       const httpInit = withLoopbackBrowserAuth(url, init);
       return await fetchHttpJson<T>(url, { ...httpInit, timeoutMs });
     }

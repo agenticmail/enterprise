@@ -53,10 +53,9 @@ export async function clickViaPlaywright(opts: {
     // Non-fatal — element might not be in DOM yet, strategies below will handle it
   }
 
-  // Strategy 1: Normal Playwright click with SHORT timeout (3s)
-  // Heavy SPAs (Twitter, Reddit, LinkedIn) often have overlays/animations that make
-  // Playwright wait forever for "actionable". We fail fast and try alternatives.
-  const quickTimeout = Math.min(3000, Math.floor(opts.timeoutMs ?? 3000));
+  // Strategy 1: Normal Playwright click with reasonable timeout (10s)
+  // Give SPAs enough time to settle overlays/animations before falling through.
+  const quickTimeout = Math.min(10000, Math.floor(opts.timeoutMs ?? 10000));
   try {
     if (opts.doubleClick) {
       await locator.dblclick({
