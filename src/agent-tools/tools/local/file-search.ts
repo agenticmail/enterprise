@@ -19,7 +19,7 @@ export function createFileSearchTool(sandbox?: string): ToolDefinition {
       },
       required: ['path', 'pattern'],
     },
-    execute: async (input: any) => {
+    execute: async (_id: any, input: any) => {
       var dirPath = resolvePath(input.path, sandbox);
       var max = input.maxResults || 50;
       var regex = new RegExp('^' + input.pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i');

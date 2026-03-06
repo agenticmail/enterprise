@@ -103,7 +103,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['task'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var cwd = input.cwd || defaultCwd;
         var root = await detectProjectRoot(cwd);
         var project = await getProjectType(root);
@@ -185,7 +185,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['pattern'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var searchPath = resolvePath(input.path || defaultCwd, sandbox);
         var ctx = input.context_lines ?? 2;
         var max = input.max_results || 30;
@@ -260,7 +260,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['path'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var fp = resolvePath(input.path, sandbox);
         var content = await readFile(fp, 'utf-8');
         var lines = content.split('\n');
@@ -330,7 +330,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['edits'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var results: { path: string; ok: boolean; error?: string }[] = [];
         // Group edits by file to avoid re-reading
         var byFile = new Map<string, { old_text: string; new_text: string }[]>();
@@ -377,7 +377,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: [],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var cwd = input.cwd || defaultCwd;
         var root = await detectProjectRoot(cwd);
         var project = await getProjectType(root);
@@ -435,7 +435,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: [],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var cwd = input.cwd || defaultCwd;
         var root = await detectProjectRoot(cwd);
         var project = await getProjectType(root);
@@ -480,7 +480,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['action'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var cwd = input.cwd || defaultCwd;
         var root = await detectProjectRoot(cwd);
         var args = input.args || '';
@@ -525,7 +525,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['path', 'content'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var fp = resolvePath(input.path, sandbox);
         if (!input.overwrite && await exists(fp)) {
           return { error: `File already exists: ${fp}. Set overwrite: true to replace.` };
@@ -552,7 +552,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['path', 'old_text', 'new_text'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var fp = resolvePath(input.path, sandbox);
         var content = await readFile(fp, 'utf-8');
         if (!content.includes(input.old_text)) {
@@ -590,7 +590,7 @@ export function createCodingTools(opts?: { cwd?: string; sandbox?: string }): To
         },
         required: ['action'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var cmdMap: Record<string, string> = {
           list: 'pm2 jlist',
           restart: `pm2 restart ${input.name || 'all'}`,

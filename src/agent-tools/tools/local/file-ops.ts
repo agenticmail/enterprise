@@ -18,7 +18,7 @@ export function createFileMoveTool(sandbox?: string): ToolDefinition {
       },
       required: ['from', 'to'],
     },
-    execute: async (input: any) => {
+    execute: async (_id: any, input: any) => {
       var fromPath = resolvePath(input.from, sandbox);
       var toPath = resolvePath(input.to, sandbox);
       await mkdir(dirname(toPath), { recursive: true });
@@ -39,7 +39,7 @@ export function createFileDeleteTool(sandbox?: string): ToolDefinition {
       },
       required: ['path'],
     },
-    execute: async (input: any) => {
+    execute: async (_id: any, input: any) => {
       var filePath = resolvePath(input.path, sandbox);
       await unlink(filePath);
       return { ok: true, deleted: filePath };

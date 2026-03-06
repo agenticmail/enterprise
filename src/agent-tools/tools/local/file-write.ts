@@ -18,7 +18,7 @@ export function createFileWriteTool(sandbox?: string): ToolDefinition {
       },
       required: ['path', 'content'],
     },
-    execute: async (input: any) => {
+    execute: async (_id: any, input: any) => {
       var filePath = resolvePath(input.path, sandbox);
       await mkdir(dirname(filePath), { recursive: true });
       await writeFile(filePath, input.content, 'utf-8');

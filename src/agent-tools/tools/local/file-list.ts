@@ -17,7 +17,7 @@ export function createFileListTool(sandbox?: string): ToolDefinition {
       },
       required: ['path'],
     },
-    execute: async (input: any) => {
+    execute: async (_id: any, input: any) => {
       var dirPath = resolvePath(input.path, sandbox);
       var entries = await readdir(dirPath, { withFileTypes: true });
       var results: any[] = [];

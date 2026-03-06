@@ -51,7 +51,7 @@ export function createShellTools(opts?: { cwd?: string; timeout?: number }): Too
         },
         required: ['command'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         // Intercept package install commands → redirect to install_dependency
         var _cmdLow = (input.command || '').trim().toLowerCase();
         var _pkgPatterns = [
@@ -95,7 +95,7 @@ export function createShellTools(opts?: { cwd?: string; timeout?: number }): Too
         },
         required: [],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         // Resume existing session
         if (input.sessionId) {
           var session = activeSessions.get(input.sessionId);
@@ -169,7 +169,7 @@ export function createShellTools(opts?: { cwd?: string; timeout?: number }): Too
         },
         required: ['command', 'password'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         if (platform() === 'win32') {
           // Windows: Use RunAs or PowerShell elevation
           return { error: 'Use shell_interactive with "Start-Process ... -Verb RunAs" for Windows elevation' };
@@ -203,7 +203,7 @@ export function createShellTools(opts?: { cwd?: string; timeout?: number }): Too
         },
         required: ['package'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var os = platform();
         var pkg = input.package;
         var cmd: string;
@@ -260,7 +260,7 @@ export function createShellTools(opts?: { cwd?: string; timeout?: number }): Too
         properties: { sessionId: { type: 'string' } },
         required: ['sessionId'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var s = activeSessions.get(input.sessionId);
         if (!s) return { error: 'Not found' };
         try { s.proc.kill('SIGKILL'); } catch {}

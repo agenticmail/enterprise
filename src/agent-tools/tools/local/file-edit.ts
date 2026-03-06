@@ -18,7 +18,7 @@ export function createFileEditTool(sandbox?: string): ToolDefinition {
       },
       required: ['path', 'old_text', 'new_text'],
     },
-    execute: async (input: any) => {
+    execute: async (_id: any, input: any) => {
       var filePath = resolvePath(input.path, sandbox);
       var content = await readFile(filePath, 'utf-8');
       if (!content.includes(input.old_text)) {

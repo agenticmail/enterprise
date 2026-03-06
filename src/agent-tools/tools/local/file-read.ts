@@ -18,7 +18,7 @@ export function createFileReadTool(sandbox?: string): ToolDefinition {
       },
       required: ['path'],
     },
-    execute: async (input: any) => {
+    execute: async (_id: any, input: any) => {
       var filePath = resolvePath(input.path, sandbox);
       var content = await readFile(filePath, 'utf-8');
 

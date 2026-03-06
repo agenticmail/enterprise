@@ -345,7 +345,7 @@ export function createDependencyManagerTools(): ToolDefinition[] {
         },
         required: [],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var cmds: string[] = input.commands || (input.command ? [String(input.command).trim()] : []);
         if (!cmds.length) return { error: 'Provide "command" or "commands".' };
 
@@ -392,7 +392,7 @@ export function createDependencyManagerTools(): ToolDefinition[] {
         },
         required: ['command'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         if (!input.command) return { ok: false, error: 'Missing required parameter "command". Example: install_dependency({ command: "wget" })' };
         var cmd = String(input.command).trim();
         var policy = _activePolicy;
@@ -569,7 +569,7 @@ export function createDependencyManagerTools(): ToolDefinition[] {
         },
         required: ['action'],
       },
-      execute: async (input: any) => {
+      execute: async (_id: any, input: any) => {
         var records = sessionInstalls.get('global') || [];
         var agentInstalled = records.filter(r => !r.wasAlreadyInstalled);
         var preExisting = records.filter(r => r.wasAlreadyInstalled);
