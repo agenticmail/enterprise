@@ -244,7 +244,7 @@ function TaskDetail(props) {
           h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Created By'), h('div', null, task.createdByName || task.createdBy || '-')),
           h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Created'), h('div', null, task.createdAt ? new Date(task.createdAt).toLocaleString() : '-')),
           h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Duration'), h('div', null, formatDuration(task.actualDurationMs))),
-          h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Model'), h('div', null, task.modelUsed || task.model || '-')),
+          h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Model'), h('div', null, task.modelUsed || (typeof task.model === 'string' ? task.model : (task.model ? (task.model.modelId || task.model.provider || JSON.stringify(task.model)) : '-')))),
           h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Tokens / Cost'), h('div', null, (task.tokensUsed || 0).toLocaleString() + ' / $' + (task.costUsd || 0).toFixed(4))),
           h('div', null, h('div', { style: { color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 } }, 'Source'), task.source ? sourceBadge(task.source) : h('div', null, '-'))
         ),
