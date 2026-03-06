@@ -189,14 +189,14 @@ export function registerBrowserAgentSnapshotRoutes(
       typeof maxCharsRaw === "number" && Number.isFinite(maxCharsRaw) && maxCharsRaw > 0
         ? Math.floor(maxCharsRaw)
         : undefined;
+    // Apply maxChars to ALL formats (ai + aria/role) to prevent token explosion.
+    // Aria snapshots of heavy pages (Twitter search) can easily hit 60K+ chars.
     const resolvedMaxChars =
-      format === "ai"
-        ? hasMaxChars
-          ? maxChars
-          : mode === "efficient"
-            ? DEFAULT_AI_SNAPSHOT_EFFICIENT_MAX_CHARS
-            : DEFAULT_AI_SNAPSHOT_MAX_CHARS
-        : undefined;
+      hasMaxChars
+        ? maxChars
+        : mode === "efficient"
+          ? DEFAULT_AI_SNAPSHOT_EFFICIENT_MAX_CHARS
+          : DEFAULT_AI_SNAPSHOT_MAX_CHARS;
     const interactiveRaw = toBoolean(req.query.interactive);
     const compactRaw = toBoolean(req.query.compact);
     const depthRaw = toNumber(req.query.depth);
@@ -322,13 +322,34 @@ export function registerBrowserAgentSnapshotRoutes(
       if (!resolved) {
         return;
       }
-      return res.json({
+      const ariaResult = {
         ok: true,
         format,
         targetId: tab.targetId,
         url: tab.url,
         ...resolved,
-      });
+      };
+      // Truncate aria snapshot if maxChars is set (prevents 60K+ char responses)
+      if (resolvedMaxChars && resolvedMaxChars > 0) {
+        const json = JSON.stringify(ariaResult);
+        if (json.length > resolvedMaxChars) {
+          const truncated = json.slice(0, resolvedMaxChars);
+          try {
+            // Try to return valid JSON by finding the last complete node
+            return res.json(JSON.parse(truncated + ']}'));
+          } catch {
+            // If we can't make valid JSON, return the text representation
+            return res.json({
+              ok: true,
+              format,
+              targetId: tab.targetId,
+              url: tab.url,
+              snapshot: truncated + '\n... [truncated at ' + resolvedMaxChars + ' chars]',
+            });
+          }
+        }
+      }
+      return res.json(ariaResult);
     } catch (err) {
       handleRouteError(ctx, res, err);
     }

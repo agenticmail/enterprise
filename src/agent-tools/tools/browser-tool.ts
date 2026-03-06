@@ -192,14 +192,14 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
             typeof params.maxChars === "number" && Number.isFinite(params.maxChars) && params.maxChars > 0
               ? Math.floor(params.maxChars)
               : undefined;
+          // Apply maxChars to ALL snapshot formats (ai, aria, role) to prevent token explosion.
+          // Aria snapshots of heavy pages (Twitter search) can easily hit 60K+ chars.
           const resolvedMaxChars =
-            format === "ai"
-              ? hasMaxChars
-                ? maxChars
-                : mode === "efficient"
-                  ? undefined
-                  : DEFAULT_AI_SNAPSHOT_MAX_CHARS
-              : undefined;
+            hasMaxChars
+              ? maxChars
+              : mode === "efficient"
+                ? undefined
+                : DEFAULT_AI_SNAPSHOT_MAX_CHARS;
           const interactive = typeof params.interactive === "boolean" ? params.interactive : undefined;
           const compact = typeof params.compact === "boolean" ? params.compact : undefined;
           const depth =

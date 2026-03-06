@@ -191,16 +191,20 @@ export async function fetchBrowserJson<T>(
     // In-process path: reuse the browser context already created by cli-agent.ts if available.
     // This avoids re-initializing the browser service (which fails with auth config issues)
     // and matches how OpenClaw's gateway dispatches browser requests in-process.
+    // Cache the dispatcher to avoid re-registering routes on every request.
     const existingCtx = (globalThis as any).__agenticmail_browser_ctx;
-    let dispatcher;
-    if (existingCtx) {
-      dispatcher = createBrowserRouteDispatcher(existingCtx);
-    } else {
-      const started = await startBrowserControlServiceFromConfig();
-      if (!started) {
-        throw new Error("browser control disabled");
+    let dispatcher = (globalThis as any).__agenticmail_browser_dispatcher;
+    if (!dispatcher) {
+      if (existingCtx) {
+        dispatcher = createBrowserRouteDispatcher(existingCtx);
+      } else {
+        const started = await startBrowserControlServiceFromConfig();
+        if (!started) {
+          throw new Error("browser control disabled");
+        }
+        dispatcher = createBrowserRouteDispatcher(createBrowserControlContext());
       }
-      dispatcher = createBrowserRouteDispatcher(createBrowserControlContext());
+      (globalThis as any).__agenticmail_browser_dispatcher = dispatcher;
     }
     const parsed = new URL(url, "http://localhost");
     const query: Record<string, unknown> = {};
