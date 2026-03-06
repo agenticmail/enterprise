@@ -684,6 +684,17 @@ export class AgentHeartbeatManager {
       }
     } catch { /* non-blocking */ }
 
+    // Don't interrupt active work — if the agent has sessions running (especially browser tasks),
+    // heartbeat dispatches can cause contention, event loop pressure, and browser timeouts.
+    // Defer to next heartbeat cycle instead.
+    try {
+      const activeCount = this.config.runtime.getActiveSessionCount?.() ?? 0;
+      if (activeCount > 0) {
+        console.log(`[heartbeat] Deferring action dispatch — ${activeCount} active session(s) running`);
+        return;
+      }
+    } catch { /* non-blocking */ }
+
     const summaries = items.map((item, i) => 
       `${i + 1}. [${item.result.priority.toUpperCase()}] ${item.check.name}: ${item.result.summary}`
     ).join('\n');
