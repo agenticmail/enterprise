@@ -325,9 +325,21 @@ export async function evaluateViaPlaywright(opts: {
   timeoutMs?: number;
   signal?: AbortSignal;
 }): Promise<unknown> {
-  const fnText = String(opts.fn ?? "").trim();
+  let fnText = String(opts.fn ?? "").trim();
   if (!fnText) {
     throw new Error("function is required");
+  }
+  // Auto-wrap multi-statement code in an IIFE so eval("(" + fnBody + ")") works.
+  // Without this, code like "const el = ...; el.click()" fails with
+  // "Unexpected token 'const'" because eval tries to parse "(const el = ...)" as an expression.
+  const looksLikeStatements = /[;\n]/.test(fnText) &&
+    !fnText.startsWith("(") &&
+    !fnText.startsWith("function") &&
+    !fnText.startsWith("async") &&
+    !fnText.startsWith("()") &&
+    !/^[\w.[\]]+$/.test(fnText); // not a simple expression like "document.title"
+  if (looksLikeStatements) {
+    fnText = `(function() { ${fnText} })()`;
   }
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
