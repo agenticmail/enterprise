@@ -69,6 +69,7 @@ export type ToolSet =
   | 'ent_security'
   | 'ent_code'
   | 'ent_diff'
+  | 'remotion_video'
   | 'ent_knowledge'
   // Local system
   | 'local_filesystem'
@@ -127,6 +128,7 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   ent_security: 3,
   ent_code: 3,
   ent_diff: 3,
+  remotion_video: 3,
   ent_knowledge: 2,
   local_filesystem: 2,
   local_shell: 2,
@@ -376,6 +378,16 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   ent_diff_spreadsheet: 'ent_diff',
   ent_diff_summary: 'ent_diff',
 
+  // ── Remotion Video (8) ──
+  remotion_create_project: 'remotion_video',
+  remotion_create_composition: 'remotion_video',
+  remotion_render: 'remotion_video',
+  remotion_render_still: 'remotion_video',
+  remotion_list_compositions: 'remotion_video',
+  remotion_preview_url: 'remotion_video',
+  remotion_add_asset: 'remotion_video',
+  remotion_install_package: 'remotion_video',
+
   // ── Knowledge Search (3) ──
   knowledge_base_search: 'ent_knowledge',
   knowledge_hub_search: 'ent_knowledge',
@@ -619,6 +631,9 @@ const SIGNAL_RULES: SignalRule[] = [
   // AgenticMail (broader)
   { patterns: [/\bsend.*email\b/i, /\bwrite.*email\b/i, /\bdraft\b/i, /\binbox\b/i, /\bcheck.*mail\b/i],
     sets: ['agenticmail'] },
+  // Remotion Video
+  { patterns: [/\bremotion\b/i, /\bcreate.*video\b/i, /\brender.*video\b/i, /\bvideo\s*project\b/i, /\bmarketing\s*video\b/i, /\bsocial\s*reel\b/i, /\banimation\b/i, /\bmotion\s*graphics?\b/i],
+    sets: ['remotion_video'] },
 ];
 
 /**

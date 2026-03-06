@@ -108,6 +108,7 @@ import * as EntDatabase from './enterprise-database.js';
 import * as DatabaseAccess from './database-access.js';
 import * as EntSpreadsheet from './enterprise-spreadsheet.js';
 import * as EntDocuments from './enterprise-documents.js';
+import * as RemotionVideo from './remotion-video.js';
 import * as EntHttp from './enterprise-http.js';
 import * as EntSecurityScan from './enterprise-security-scan.js';
 import * as EntCodeSandbox from './enterprise-code-sandbox.js';
@@ -115,7 +116,7 @@ import * as EntDiff from './enterprise-diff.js';
 
 export const ENTERPRISE_MODULES = [
   EntDatabase, DatabaseAccess, EntSpreadsheet, EntDocuments, EntHttp,
-  EntSecurityScan, EntCodeSandbox, EntDiff,
+  EntSecurityScan, EntCodeSandbox, EntDiff, RemotionVideo,
 ] as const;
 
 // ─── Combined enterprise skill definitions ─────────────

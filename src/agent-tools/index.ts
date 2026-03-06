@@ -122,6 +122,7 @@ export { createSecurityScanTools } from './tools/enterprise-security-scan.js';
 export { createKnowledgeSearchTools } from './tools/knowledge-search.js';
 export { createCodeSandboxTools } from './tools/enterprise-code-sandbox.js';
 export { createDiffTools } from './tools/enterprise-diff.js';
+export { createRemotonTools } from './tools/remotion-video.js';
 
 // --- Web utilities (useful standalone) ---
 export { htmlToMarkdown, markdownToText, truncateText } from './tools/web-fetch-utils.js';
@@ -157,6 +158,7 @@ import { createEnterpriseHttpTools } from './tools/enterprise-http.js';
 import { createSecurityScanTools } from './tools/enterprise-security-scan.js';
 import { createCodeSandboxTools } from './tools/enterprise-code-sandbox.js';
 import { createDiffTools } from './tools/enterprise-diff.js';
+import { createRemotonTools } from './tools/remotion-video.js';
 import { createKnowledgeSearchTools } from './tools/knowledge-search.js';
 import { createAgenticMailTools } from './tools/agenticmail.js';
 import { createWhatsAppTools } from './tools/messaging/whatsapp.js';
@@ -330,6 +332,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     ...createSecurityScanTools(options),
     ...createCodeSandboxTools(options),
     ...createDiffTools(options),
+    ...createRemotonTools(),
     ...createKnowledgeSearchTools(options || {} as any),
   ];
 
