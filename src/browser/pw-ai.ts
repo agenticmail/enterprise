@@ -59,6 +59,8 @@ export {
   takeScreenshotViaPlaywright,
   traceStartViaPlaywright,
   traceStopViaPlaywright,
+  mouseClickViaPlaywright,
+  scrollViaPlaywright,
   typeViaPlaywright,
   waitForDownloadViaPlaywright,
   waitForViaPlaywright,

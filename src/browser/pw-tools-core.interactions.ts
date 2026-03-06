@@ -644,3 +644,54 @@ export async function setInputFilesViaPlaywright(opts: {
     // Best-effort for sites that don't react to setInputFiles alone.
   }
 }
+
+/**
+ * Coordinate-based mouse click — bypasses accessibility refs entirely.
+ * Use when Shadow DOM or custom web components break ref-based clicking.
+ * Works like Anthropic Computer Use: screenshot → identify coordinates → click.
+ */
+export async function mouseClickViaPlaywright(opts: {
+  cdpUrl: string;
+  targetId?: string;
+  x: number;
+  y: number;
+  button?: "left" | "right" | "middle";
+  doubleClick?: boolean;
+}): Promise<void> {
+  const page = await getPageForTargetId({
+    cdpUrl: opts.cdpUrl,
+    targetId: opts.targetId,
+  });
+  ensurePageState(page);
+  const button = opts.button || "left";
+  if (opts.doubleClick) {
+    await page.mouse.dblclick(opts.x, opts.y, { button });
+  } else {
+    await page.mouse.click(opts.x, opts.y, { button });
+  }
+}
+
+/**
+ * Scroll the page or a specific position.
+ * deltaY > 0 scrolls down, deltaY < 0 scrolls up.
+ * deltaX > 0 scrolls right, deltaX < 0 scrolls left.
+ */
+export async function scrollViaPlaywright(opts: {
+  cdpUrl: string;
+  targetId?: string;
+  x?: number;
+  y?: number;
+  deltaX?: number;
+  deltaY?: number;
+}): Promise<void> {
+  const page = await getPageForTargetId({
+    cdpUrl: opts.cdpUrl,
+    targetId: opts.targetId,
+  });
+  ensurePageState(page);
+  const x = opts.x ?? 512;
+  const y = opts.y ?? 384;
+  const deltaX = opts.deltaX ?? 0;
+  const deltaY = opts.deltaY ?? 0;
+  await page.mouse.wheel(deltaX, deltaY);
+}

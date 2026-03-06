@@ -13,6 +13,8 @@ const BROWSER_ACT_KINDS = [
   "wait",
   "evaluate",
   "close",
+  "mouse_click",
+  "scroll",
 ] as const;
 
 const BROWSER_TOOL_ACTIONS = [
@@ -75,6 +77,12 @@ const BrowserActSchema = Type.Object({
   textGone: Type.Optional(Type.String()),
   // evaluate
   fn: Type.Optional(Type.String()),
+  // mouse_click (coordinate-based clicking — fallback for Shadow DOM)
+  x: Type.Optional(Type.Number()),
+  y: Type.Optional(Type.Number()),
+  // scroll
+  deltaX: Type.Optional(Type.Number()),
+  deltaY: Type.Optional(Type.Number()),
 });
 
 // IMPORTANT: OpenAI function tool schemas must have a top-level `type: "object"`.

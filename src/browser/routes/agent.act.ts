@@ -351,6 +351,36 @@ export function registerBrowserAgentActRoutes(
               result,
             });
           }
+          case "mouse_click": {
+            const x = typeof body.x === "number" ? body.x : undefined;
+            const y = typeof body.y === "number" ? body.y : undefined;
+            if (x === undefined || y === undefined) {
+              return jsonError(res, 400, "x and y coordinates are required for mouse_click");
+            }
+            const button = (body.button === "right" || body.button === "middle") ? body.button : "left";
+            await pw.mouseClickViaPlaywright({
+              cdpUrl,
+              targetId: tab.targetId,
+              x,
+              y,
+              button: button as "left" | "right" | "middle",
+              doubleClick: !!body.doubleClick,
+            });
+            return res.json({ ok: true, targetId: tab.targetId, url: tab.url });
+          }
+          case "scroll": {
+            const deltaX = typeof body.deltaX === "number" ? body.deltaX : 0;
+            const deltaY = typeof body.deltaY === "number" ? body.deltaY : (typeof body.delta === "number" ? body.delta : 0);
+            await pw.scrollViaPlaywright({
+              cdpUrl,
+              targetId: tab.targetId,
+              x: typeof body.x === "number" ? body.x : undefined,
+              y: typeof body.y === "number" ? body.y : undefined,
+              deltaX,
+              deltaY,
+            });
+            return res.json({ ok: true, targetId: tab.targetId, url: tab.url });
+          }
           case "close": {
             await pw.closePageViaPlaywright({ cdpUrl, targetId: tab.targetId });
             return res.json({ ok: true, targetId: tab.targetId });
