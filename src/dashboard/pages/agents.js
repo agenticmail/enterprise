@@ -1134,20 +1134,22 @@ export function AgentsPage({ onSelectAgent }) {
   const [creating, setCreating] = useState(false);
   const [liveStatuses, setLiveStatuses] = useState({});
 
-  // Poll agent statuses (SSE has issues through Cloudflare tunnels)
+  // Subscribe to real-time agent status
   useEffect(function() {
-    var fetchStatuses = function() {
-      engineCall('/agent-status-all').then(function(data) {
-        if (data && data.statuses) {
-          var map = {};
-          data.statuses.forEach(function(s) { if (s.agentId) map[s.agentId] = s; });
-          setLiveStatuses(map);
+    var es = new EventSource('/api/engine/agent-status-stream');
+    es.onmessage = function(ev) {
+      try {
+        var d = JSON.parse(ev.data);
+        if (d.type === 'status' && d.agentId) {
+          setLiveStatuses(function(prev) {
+            var next = Object.assign({}, prev);
+            next[d.agentId] = d;
+            return next;
+          });
         }
-      }).catch(function() {});
+      } catch(e) {}
     };
-    fetchStatuses();
-    var interval = setInterval(fetchStatuses, 8000);
-    return function() { clearInterval(interval); };
+    return function() { es.close(); };
   }, []);
 
   const perms = app.permissions || '*';

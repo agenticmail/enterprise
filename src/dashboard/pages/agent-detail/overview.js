@@ -60,13 +60,15 @@ export function OverviewSection(props) {
   var rtStatus = _rtStatus[0]; var setRtStatus = _rtStatus[1];
 
   useEffect(function() {
-    // Fetch status via polling (SSE has issues through Cloudflare tunnels)
-    var fetchStatus = function() {
-      engineCall('/agent-status/' + agentId).then(function(d) { setRtStatus(d); }).catch(function() {});
+    engineCall('/agent-status/' + agentId).then(function(d) { setRtStatus(d); }).catch(function() {});
+    var es = new EventSource('/api/engine/agent-status-stream?agentId=' + agentId);
+    es.onmessage = function(event) {
+      try {
+        var data = JSON.parse(event.data);
+        if (data.type === 'status') setRtStatus(data);
+      } catch {}
     };
-    fetchStatus();
-    var interval = setInterval(fetchStatus, 5000);
-    return function() { clearInterval(interval); };
+    return function() { es.close(); };
   }, [agentId]);
 
   // ─── Action Handlers ───────────────────────────────────
