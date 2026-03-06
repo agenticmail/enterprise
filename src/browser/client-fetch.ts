@@ -94,17 +94,18 @@ function withLoopbackBrowserAuth(
   });
 }
 
+/** Track consecutive browser errors for transient-vs-persistent classification. */
+let consecutiveBrowserErrors = 0;
+const MAX_TRANSIENT_ERRORS = 2;
+
+/** Call on successful browser fetch to reset the error counter. */
+export function resetBrowserErrorCount(): void {
+  consecutiveBrowserErrors = 0;
+}
+
 function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number): Error {
+  consecutiveBrowserErrors += 1;
   const isLocal = !isAbsoluteHttp(url);
-  // Human-facing hint for logs/diagnostics.
-  const operatorHint = isLocal
-    ? `Restart the AgenticMail gateway (AgenticMail.app menubar, or \`${formatCliCommand("agenticmail gateway")}\`).`
-    : "If this is a sandboxed session, ensure the sandbox browser is running.";
-  // Model-facing suffix: explicitly tell the LLM NOT to retry.
-  // Without this, models see "try again" and enter an infinite tool-call loop.
-  const modelHint =
-    "Do NOT retry the browser tool — it will keep failing. " +
-    "Use an alternative approach or inform the user that the browser is currently unavailable.";
   const msg = String(err);
   const msgLower = msg.toLowerCase();
   const looksLikeTimeout =
@@ -113,6 +114,27 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
     msgLower.includes("aborted") ||
     msgLower.includes("abort") ||
     msgLower.includes("aborterror");
+
+  // First few errors are likely transient (Chrome reconnecting). Allow retry.
+  if (consecutiveBrowserErrors <= MAX_TRANSIENT_ERRORS) {
+    const retryHint = "This may be a transient browser connection issue. You can retry once — if it fails again, stop and inform the user.";
+    if (looksLikeTimeout) {
+      return new Error(
+        `Browser timed out after ${timeoutMs}ms. ${retryHint}`,
+      );
+    }
+    return new Error(
+      `Browser connection error: ${msg}. ${retryHint}`,
+    );
+  }
+
+  // Persistent failure — tell the LLM to stop retrying.
+  const operatorHint = isLocal
+    ? `Restart the AgenticMail gateway (AgenticMail.app menubar, or \`${formatCliCommand("agenticmail gateway")}\`).`
+    : "If this is a sandboxed session, ensure the sandbox browser is running.";
+  const modelHint =
+    "Do NOT retry the browser tool — it will keep failing. " +
+    "Use an alternative approach or inform the user that the browser is currently unavailable.";
   if (looksLikeTimeout) {
     return new Error(
       `Can't reach the AgenticMail browser control service (timed out after ${timeoutMs}ms). ${operatorHint} ${modelHint}`,
@@ -185,7 +207,9 @@ export async function fetchBrowserJson<T>(
     // overhead, and timeout issues — matching how OpenClaw's gateway dispatches browser requests.
     if (isAbsoluteHttp(url) && !isOwnBrowserServer(url)) {
       const httpInit = withLoopbackBrowserAuth(url, init);
-      return await fetchHttpJson<T>(url, { ...httpInit, timeoutMs });
+      const result = await fetchHttpJson<T>(url, { ...httpInit, timeoutMs });
+      resetBrowserErrorCount();
+      return result;
     }
 
     // In-process path: reuse the browser context already created by cli-agent.ts if available.
@@ -277,6 +301,7 @@ export async function fetchBrowserJson<T>(
           : `HTTP ${result.status}`;
       throw new Error(message);
     }
+    resetBrowserErrorCount();
     return result.body as T;
   } catch (err) {
     throw enhanceBrowserFetchError(url, err, timeoutMs);

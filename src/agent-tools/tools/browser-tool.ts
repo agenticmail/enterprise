@@ -276,7 +276,7 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
               format: "aria",
               targetId: snapshot.targetId,
               url: snapshot.url,
-              nodeCount: snapshot.nodes.length,
+              nodeCount: snapshot.nodes?.length ?? 0,
             },
           };
         }
