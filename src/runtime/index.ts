@@ -861,7 +861,12 @@ export class AgentRuntime {
 
         // Fire completion callbacks
         var cbs = self.sessionCompleteCallbacks.get(sessionId);
-        if (cbs) { for (var cb of cbs) { try { cb(result); } catch {} } self.sessionCompleteCallbacks.delete(sessionId); }
+        if (cbs) {
+          self.sessionCompleteCallbacks.delete(sessionId);
+          for (var cb of cbs) {
+            try { await Promise.resolve(cb(result)); } catch (cbErr: any) { console.warn(`[runtime] Session ${sessionId} completion callback error: ${cbErr?.message}`); }
+          }
+        }
 
       } catch (err: any) {
         console.error(`[runtime] Session ${sessionId} error: ${err.message}`);
@@ -871,7 +876,12 @@ export class AgentRuntime {
         emitSessionEvent(sessionId, { type: 'error', message: err.message });
         // Fire completion callbacks with failed status
         var cbs2 = self.sessionCompleteCallbacks.get(sessionId);
-        if (cbs2) { for (var cb2 of cbs2) { try { cb2({ status: 'failed', error: err.message }); } catch {} } self.sessionCompleteCallbacks.delete(sessionId); }
+        if (cbs2) {
+          self.sessionCompleteCallbacks.delete(sessionId);
+          for (var cb2 of cbs2) {
+            try { await Promise.resolve(cb2({ status: 'failed', error: err.message })); } catch (cbErr2: any) { console.warn(`[runtime] Session ${sessionId} error callback error: ${cbErr2?.message}`); }
+          }
+        }
       } finally {
         // Only remove from activeSessions if NOT keep-alive
         if (!self.keepAliveSessions.has(sessionId)) {

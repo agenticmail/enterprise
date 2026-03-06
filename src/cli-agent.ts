@@ -886,7 +886,7 @@ export async function runAgent(_args: string[]) {
                 status: result?.error ? 'failed' : 'completed',
                 error: result?.error?.message || result?.error,
                 sessionId: session.id,
-              }).catch(() => {});
+              }).catch((e: any) => console.warn(`[TaskPoller] afterSpawn failed for task ${task.id}: ${e?.message}`));
 
               // Extract last assistant text
               const messages = result?.messages || [];
@@ -1137,7 +1137,7 @@ export async function runAgent(_args: string[]) {
 
       // Mark task as in progress
       if (pipelineTaskId) {
-        markInProgress(taskQueue, pipelineTaskId, { sessionId: session.id }).catch(() => {});
+        markInProgress(taskQueue, pipelineTaskId, { sessionId: session.id }).catch((e: any) => console.warn(`[task-pipeline] markInProgress failed: ${e?.message}`));
       }
 
       // Record task completion when session finishes
@@ -1151,7 +1151,7 @@ export async function runAgent(_args: string[]) {
             modelUsed: result?.model || config.model,
             tokensUsed: (usage.inputTokens || 0) + (usage.outputTokens || 0),
             costUsd: usage.costUsd || usage.cost || 0,
-          }).catch(() => {});
+          }).catch((e: any) => console.warn(`[task-pipeline] afterSpawn failed for ${pipelineTaskId}: ${e?.message}`));
         });
       }
 
@@ -1483,7 +1483,7 @@ export async function runAgent(_args: string[]) {
 
       // Mark task as in progress
       if (taskId) {
-        markInProgress(taskQueue, taskId, { sessionId: session.id }).catch(() => {});
+        markInProgress(taskQueue, taskId, { sessionId: session.id }).catch((e: any) => console.warn(`[task-pipeline] markInProgress failed for ${taskId}: ${e?.message}`));
       }
 
       // Register in session router
@@ -1518,7 +1518,7 @@ export async function runAgent(_args: string[]) {
             costUsd: usage.costUsd || usage.cost || 0,
             sessionId: session.id,
             result: { messageCount: (result?.messages || []).length },
-          }).catch(() => {});
+          }).catch((e: any) => console.warn(`[task-pipeline] afterSpawn failed for chat task ${taskId}: ${e?.message}`));
         }
 
         // Check if agent sent a reply via the appropriate tool
