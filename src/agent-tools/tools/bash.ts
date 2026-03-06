@@ -11,7 +11,7 @@ import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { readStringParam, readNumberParam, textResult, errorResult } from '../common.js';
 import type { CommandSanitizer } from '../security.js';
 
-const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 300_000;
 const MAX_TIMEOUT_MS = 600_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 200_000;
 
@@ -56,7 +56,7 @@ export function createBashTool(options?: ToolCreationOptions & { commandSanitize
   return {
     name: 'bash',
     label: 'Execute Command',
-    description: 'Execute a bash command. Returns stdout, stderr, and exit code. Commands have a configurable timeout (default 2 minutes, max 10 minutes).',
+    description: 'Execute a bash command. Returns stdout, stderr, and exit code. Commands have a configurable timeout (default 5 minutes, max 10 minutes).',
     category: 'command',
     risk: 'high',
     parameters: {
