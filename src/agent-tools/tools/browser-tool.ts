@@ -264,19 +264,32 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
             };
           }
 
-          // aria format
-          const wrapped = wrapBrowserExternalJson({
-            kind: "snapshot",
-            payload: snapshot,
+          // aria format — extract the tree text directly to avoid double-JSON-encoding
+          // (the snapshot field is already a string containing the aria tree)
+          const snapshotAny = snapshot as any;
+          const ariaTree = typeof snapshotAny.snapshot === "string"
+            ? snapshotAny.snapshot
+            : (snapshot.nodes ? JSON.stringify(snapshot.nodes, null, 2) : JSON.stringify(snapshot, null, 2));
+          const wrappedAria = wrapExternalContent(ariaTree, {
+            source: "browser",
+            includeWarning: true,
           });
           return {
-            content: [{ type: "text", text: wrapped.wrappedText }],
+            content: [{ type: "text", text: wrappedAria }],
             details: {
-              ...wrapped.safeDetails,
+              ok: true,
               format: "aria",
               targetId: snapshot.targetId,
               url: snapshot.url,
               nodeCount: snapshot.nodes?.length ?? 0,
+              truncated: snapshotAny.truncated,
+              externalContent: {
+                untrusted: true,
+                source: "browser",
+                kind: "snapshot",
+                format: "aria",
+                wrapped: true,
+              },
             },
           };
         }

@@ -143,7 +143,7 @@ export async function browserResetProfile(
     withBaseUrl(baseUrl, `/reset-profile${q}`),
     {
       method: "POST",
-      timeoutMs: 45000,
+      timeoutMs: 50000,
     },
   );
 }
@@ -196,7 +196,7 @@ export async function browserDeleteProfile(
     withBaseUrl(baseUrl, `/profiles/${encodeURIComponent(profile)}`),
     {
       method: "DELETE",
-      timeoutMs: 45000,
+      timeoutMs: 50000,
     },
   );
 }
@@ -330,7 +330,7 @@ export async function browserSnapshot(
     q.set("profile", opts.profile);
   }
   return await fetchBrowserJson<SnapshotResult>(withBaseUrl(baseUrl, `/snapshot?${q.toString()}`), {
-    timeoutMs: 45000,
+    timeoutMs: 50000,
   });
 }
 

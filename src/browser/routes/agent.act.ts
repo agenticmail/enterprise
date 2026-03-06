@@ -65,7 +65,7 @@ export function registerBrowserAgentActRoutes(
     // Server-side timeout: ensure we always respond within 35s
     // Prevents HTTP request from hanging when Playwright operations freeze
     const actTimeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error(`act:${kind} timed out on server after 35s`)), 35000)
+      setTimeout(() => reject(new Error(`act:${kind} timed out on server after 40s`)), 40000)
     );
     const actExecution = withPlaywrightRouteContext({
       req,

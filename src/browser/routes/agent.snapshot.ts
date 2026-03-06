@@ -212,6 +212,11 @@ export function registerBrowserAgentSnapshotRoutes(
     const selectorValue = selector.trim() || undefined;
     const frameSelectorValue = frameSelector.trim() || undefined;
 
+    // Server-side timeout: ensure we always respond within 40s
+    const snapshotTimeout = new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error(`snapshot timed out on server after 40s`)), 40000)
+    );
+    const snapshotExecution = (async () => {
     try {
       const tab = await profileCtx.ensureTabAvailable(targetId || undefined);
       if ((labels || mode === "efficient") && format === "aria") {
@@ -352,6 +357,12 @@ export function registerBrowserAgentSnapshotRoutes(
       return res.json(ariaResult);
     } catch (err) {
       handleRouteError(ctx, res, err);
+    }
+    })();
+    try {
+      await Promise.race([snapshotExecution, snapshotTimeout]);
+    } catch (err: any) {
+      jsonError(res, 504, err?.message || 'snapshot operation timed out');
     }
   });
 }
