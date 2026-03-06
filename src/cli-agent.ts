@@ -1873,12 +1873,12 @@ export async function runAgent(_args: string[]) {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                raw: btoa(
+                raw: Buffer.from(
                   `To: ${managerEmail}\r\n` +
                   `Subject: ${agentName} is going offline\r\n` +
                   `Content-Type: text/plain; charset=utf-8\r\n\r\n` +
-                  `Hi,\n\nThis is ${agentName}. I'm going offline now — my process is shutting down.\n\nI'll resume when I'm restarted. If you need anything urgent, please reach out to the team.\n\nBest,\n${agentName}`
-                ).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+                  `Hi,\n\nThis is ${agentName}. I'm going offline now - my process is shutting down.\n\nI'll resume when I'm restarted. If you need anything urgent, please reach out to the team.\n\nBest,\n${agentName}`
+                ).toString('base64url'),
               }),
             }).then(r => {
               if (r.ok) console.log(`[shutdown] 📧 Email notification sent to ${managerEmail}`);
