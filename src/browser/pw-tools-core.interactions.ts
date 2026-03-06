@@ -53,9 +53,9 @@ export async function clickViaPlaywright(opts: {
     // Non-fatal — element might not be in DOM yet, strategies below will handle it
   }
 
-  // Strategy 1: Normal Playwright click with reasonable timeout (10s)
-  // Give SPAs enough time to settle overlays/animations before falling through.
-  const quickTimeout = Math.min(10000, Math.floor(opts.timeoutMs ?? 10000));
+  // Strategy 1: Normal Playwright click with reasonable timeout (5s)
+  // Keep this short so we fail fast to Strategy 2+ if element is tricky.
+  const quickTimeout = Math.min(5000, Math.floor(opts.timeoutMs ?? 5000));
   try {
     if (opts.doubleClick) {
       await locator.dblclick({
@@ -80,14 +80,14 @@ export async function clickViaPlaywright(opts: {
   try {
     if (opts.doubleClick) {
       await locator.dblclick({
-        timeout: 5000,
+        timeout: 3000,
         force: true,
         button: opts.button,
         modifiers: opts.modifiers,
       });
     } else {
       await locator.click({
-        timeout: 5000,
+        timeout: 3000,
         force: true,
         button: opts.button,
         modifiers: opts.modifiers,
