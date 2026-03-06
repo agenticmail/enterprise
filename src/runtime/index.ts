@@ -224,6 +224,17 @@ export class AgentRuntime {
     if (this.config.permissionEngine) {
       base.permissionEngine = this.config.permissionEngine;
     }
+    // ── Enterprise Browser: always use the full Playwright browser tool ──
+    // Provides snapshot+act workflow with accessibility tree refs — works on Shadow DOM sites
+    // like Reddit, Twitter, LinkedIn that break the simple browser tool.
+    // Uses the browser control server started during agent init (see cli-agent.ts).
+    base.useEnterpriseBrowser = true;
+    const browserPort = (globalThis as any).__agenticmail_browser_port;
+    base.browserConfig = {
+      defaultProfile: agentId, // Each agent gets its own persistent browser profile
+      baseUrl: browserPort ? `http://127.0.0.1:${browserPort}` : undefined,
+    };
+
     // API key resolvers from vault
     if (this.config.getIntegrationKey) {
       const getKey = this.config.getIntegrationKey;

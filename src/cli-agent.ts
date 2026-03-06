@@ -662,6 +662,62 @@ export async function runAgent(_args: string[]) {
     console.warn(`[agent] Database Connection Manager init failed (non-fatal): ${e.message}`);
   }
 
+  // ─── Enterprise Browser Server ─────────────────────────
+  // Start a lightweight browser control server for the enterprise browser tool.
+  // This provides snapshot+act workflow with accessibility tree refs — works on
+  // Shadow DOM sites (Reddit, Twitter, LinkedIn) that break simple Playwright clicks.
+  try {
+    const express = (await import('express')).default;
+    const { createBrowserRouteContext } = await import('./browser/server-context.js');
+    const { registerBrowserRoutes } = await import('./browser/routes/index.js');
+    const { installBrowserCommonMiddleware } = await import('./browser/server-middleware.js');
+
+    const browserApp = express();
+    installBrowserCommonMiddleware(browserApp);
+    // No auth needed — localhost only, agent process internal
+    const browserCtx = createBrowserRouteContext({
+      getState: () => ({
+        server: null,
+        port: 0,
+        resolved: {
+          enabled: true,
+          controlPort: 0,
+          evaluateEnabled: true,
+          profiles: {},
+          defaultProfile: agentId,
+          cdpProtocol: 'http' as const,
+          cdpHost: '127.0.0.1',
+          cdpIsLoopback: true,
+          remoteCdpTimeoutMs: 5000,
+          remoteCdpHandshakeTimeoutMs: 10000,
+          color: '#4A90D9',
+          headless: false,
+          noSandbox: false,
+          attachOnly: false,
+          extraArgs: [],
+        },
+        profiles: new Map(),
+      }),
+      refreshConfigFromDisk: false,
+    });
+    registerBrowserRoutes(browserApp as any, browserCtx);
+
+    // Bind on random port
+    const browserServer = await new Promise<any>((resolve, reject) => {
+      const s = browserApp.listen(0, '127.0.0.1', () => resolve(s));
+      s.once('error', reject);
+    });
+    const browserPort = browserServer.address().port;
+    (globalThis as any).__agenticmail_browser_port = browserPort;
+    console.log(`[browser] ✅ Enterprise browser server on 127.0.0.1:${browserPort}`);
+
+    // Clean up on shutdown
+    process.on('SIGTERM', () => browserServer.close());
+    process.on('SIGINT', () => browserServer.close());
+  } catch (browserErr: any) {
+    console.warn(`[browser] Enterprise browser server failed (falling back to simple): ${browserErr.message}`);
+  }
+
   await runtime.start();
   // Expose runtime globally for inject-message endpoint
   (globalThis as any).__agenticmail_runtime = runtime;
