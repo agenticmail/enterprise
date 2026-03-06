@@ -291,6 +291,11 @@ engine.post('/agent-status/:agentId', async (c) => {
   } catch (err: any) { return c.json({ error: err.message }, 400); }
 });
 
+// Bulk status endpoint for polling (replaces SSE for dashboard)
+engine.get('/agent-status-all', (c) => {
+  return c.json({ statuses: agentStatus.getAllStatuses() });
+});
+
 engine.get('/agent-status-stream', (c) => {
   const filterAgent = c.req.query('agentId');
   const stream = new ReadableStream({

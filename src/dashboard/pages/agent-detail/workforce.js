@@ -61,15 +61,12 @@ export function WorkforceSection(props) {
   var rtStatus = _rtStatus[0]; var setRtStatus = _rtStatus[1];
 
   useEffect(function() {
-    engineCall('/agent-status/' + agentId).then(function(d) { setRtStatus(d); }).catch(function() {});
-    var es = new EventSource('/api/engine/agent-status-stream?agentId=' + agentId);
-    es.onmessage = function(event) {
-      try {
-        var data = JSON.parse(event.data);
-        if (data.type === 'status') setRtStatus(data);
-      } catch {}
+    var fetchStatus = function() {
+      engineCall('/agent-status/' + agentId).then(function(d) { setRtStatus(d); }).catch(function() {});
     };
-    return function() { es.close(); };
+    fetchStatus();
+    var interval = setInterval(fetchStatus, 10000);
+    return function() { clearInterval(interval); };
   }, [agentId]);
 
   var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

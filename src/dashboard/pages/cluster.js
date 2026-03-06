@@ -340,27 +340,10 @@ export function ClusterPage() {
 
   useEffect(function() { load(); }, []);
 
-  // Real-time updates via SSE
+  // Poll cluster status
   useEffect(function() {
-    var es = new EventSource('/api/engine/cluster/stream');
-    es.onmessage = function(ev) {
-      try {
-        var d = JSON.parse(ev.data);
-        if (d.type === 'node') {
-          setNodes(function(prev) {
-            var idx = prev.findIndex(function(n) { return n.nodeId === d.nodeId; });
-            var next = prev.slice();
-            if (d.event === 'offline' && idx >= 0) { next[idx] = Object.assign({}, next[idx], { status: 'offline', agents: [] }); }
-            else if (idx >= 0) { next[idx] = d; }
-            else if (d.event === 'register' || d.event === 'snapshot') { next.push(d); }
-            return next;
-          });
-          // Refresh stats
-          engineCall('/cluster/nodes').then(function(dd) { setStats(dd.stats || null); }).catch(function() {});
-        }
-      } catch(e) {}
-    };
-    return function() { es.close(); };
+    var interval = setInterval(function() { load(); }, 15000);
+    return function() { clearInterval(interval); };
   }, []);
 
   var removeNode = function(e, nodeId) {

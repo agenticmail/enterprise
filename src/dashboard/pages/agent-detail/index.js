@@ -107,16 +107,14 @@ export function AgentDetailPage(props) {
   var [liveStatus, setLiveStatus] = useState(null);
   var [sseConnected, setSseConnected] = useState(false);
   useEffect(function() {
-    var es = new EventSource('/api/engine/agent-status-stream?agentId=' + encodeURIComponent(agentId));
-    es.onopen = function() { setSseConnected(true); };
-    es.onmessage = function(ev) {
-      try {
-        var d = JSON.parse(ev.data);
-        if (d.type === 'status' && d.agentId === agentId) { setLiveStatus(d); }
-      } catch(e) {}
+    var fetchStatus = function() {
+      engineCall('/agent-status/' + encodeURIComponent(agentId))
+        .then(function(d) { setLiveStatus(d); setSseConnected(true); })
+        .catch(function() { setSseConnected(false); });
     };
-    es.onerror = function() { setSseConnected(false); };
-    return function() { es.close(); };
+    fetchStatus();
+    var interval = setInterval(fetchStatus, 5000);
+    return function() { clearInterval(interval); };
   }, [agentId]);
 
   // ─── Derived Values ─────────────────────────────────────
