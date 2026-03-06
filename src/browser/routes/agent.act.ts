@@ -62,7 +62,12 @@ export function registerBrowserAgentActRoutes(
       return jsonError(res, 400, SELECTOR_UNSUPPORTED_MESSAGE);
     }
 
-    await withPlaywrightRouteContext({
+    // Server-side timeout: ensure we always respond within 35s
+    // Prevents HTTP request from hanging when Playwright operations freeze
+    const actTimeout = new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error(`act:${kind} timed out on server after 35s`)), 35000)
+    );
+    const actExecution = withPlaywrightRouteContext({
       req,
       res,
       ctx,
@@ -391,6 +396,13 @@ export function registerBrowserAgentActRoutes(
         }
       },
     });
+    try {
+      await Promise.race([actExecution, actTimeout]);
+    } catch (err: any) {
+      if (!res.headersSent) {
+        return jsonError(res, 504, err?.message || 'act operation timed out');
+      }
+    }
   });
 
   app.post("/hooks/file-chooser", async (req, res) => {

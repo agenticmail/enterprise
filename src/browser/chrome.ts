@@ -306,7 +306,7 @@ export async function launchAgenticMailChrome(
 
   const pid = proc.pid ?? -1;
   log.info(
-    `🦞 agenticmail browser started (${exe.kind}) profile "${profile.name}" on 127.0.0.1:${profile.cdpPort} (pid ${pid})`,
+    `Agenticmail browser started (${exe.kind}) profile "${profile.name}" on 127.0.0.1:${profile.cdpPort} (pid ${pid})`,
   );
 
   return {

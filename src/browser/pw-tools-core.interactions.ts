@@ -41,24 +41,90 @@ export async function clickViaPlaywright(opts: {
   restoreRoleRefsForTarget({ cdpUrl: opts.cdpUrl, targetId: opts.targetId, page });
   const ref = requireRef(opts.ref);
   const locator = refLocator(page, ref);
-  const timeout = Math.max(500, Math.min(60_000, Math.floor(opts.timeoutMs ?? 8000)));
+
+  // Strategy 1: Normal Playwright click with SHORT timeout (3s)
+  // Heavy SPAs (Twitter, Reddit, LinkedIn) often have overlays/animations that make
+  // Playwright wait forever for "actionable". We fail fast and try alternatives.
+  const quickTimeout = Math.min(3000, Math.floor(opts.timeoutMs ?? 3000));
   try {
     if (opts.doubleClick) {
       await locator.dblclick({
-        timeout,
+        timeout: quickTimeout,
         button: opts.button,
         modifiers: opts.modifiers,
       });
     } else {
       await locator.click({
-        timeout,
+        timeout: quickTimeout,
         button: opts.button,
         modifiers: opts.modifiers,
       });
     }
-  } catch (err) {
-    throw toAIFriendlyError(err, ref);
+    return; // Success
+  } catch {
+    // Fall through to Strategy 2
   }
+
+  // Strategy 2: Force click — bypass actionability checks
+  // Playwright's force:true skips visibility/stable/overlay checks
+  try {
+    if (opts.doubleClick) {
+      await locator.dblclick({
+        timeout: 5000,
+        force: true,
+        button: opts.button,
+        modifiers: opts.modifiers,
+      });
+    } else {
+      await locator.click({
+        timeout: 5000,
+        force: true,
+        button: opts.button,
+        modifiers: opts.modifiers,
+      });
+    }
+    return; // Success
+  } catch {
+    // Fall through to Strategy 3
+  }
+
+  // Strategy 3: JavaScript dispatchEvent — works on Shadow DOM, custom components, overlays
+  // This is what browser-use and other frameworks do for maximum compatibility
+  try {
+    await locator.evaluate((el: any) => {
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      el.focus();
+      el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    return; // Success
+  } catch {
+    // Fall through to Strategy 4
+  }
+
+  // Strategy 4: Get bounding box and click at coordinates (bypasses locator entirely)
+  try {
+    const box = await locator.boundingBox({ timeout: 3000 });
+    if (box) {
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      if (opts.doubleClick) {
+        await page.mouse.dblclick(x, y, { button: opts.button || 'left' });
+      } else {
+        await page.mouse.click(x, y, { button: opts.button || 'left' });
+      }
+      return; // Success
+    }
+  } catch {
+    // Final fallback failed
+  }
+
+  // All strategies failed — throw a helpful error
+  throw new Error(
+    `Click failed on ref "${ref}" after trying 4 strategies (normal, force, JS dispatch, coordinate). ` +
+    `Try mouse_click with specific x,y coordinates from a screenshot, or evaluate with document.querySelector().`
+  );
 }
 
 export async function hoverViaPlaywright(opts: {
@@ -162,10 +228,21 @@ export async function typeViaPlaywright(opts: {
   const timeout = Math.max(500, Math.min(60_000, opts.timeoutMs ?? 8000));
   try {
     if (opts.slowly) {
-      await locator.click({ timeout });
+      // Click first, then type character by character
+      try { await locator.click({ timeout: 3000 }); } catch { await locator.click({ timeout: 3000, force: true }); }
       await locator.type(text, { timeout, delay: 75 });
     } else {
-      await locator.fill(text, { timeout });
+      // Try fill first (works for input/textarea), fall back to click+type (for contenteditable)
+      try {
+        await locator.fill(text, { timeout: 3000 });
+      } catch {
+        // fill() fails on contenteditable divs (Twitter, Facebook composers, etc.)
+        // Fall back to: focus → clear → type
+        try { await locator.click({ timeout: 3000 }); } catch { await locator.click({ timeout: 3000, force: true }); }
+        await page.keyboard.press('Control+A');
+        await page.keyboard.press('Backspace');
+        await page.keyboard.type(text, { delay: 20 });
+      }
     }
     if (opts.submit) {
       await locator.press("Enter", { timeout });

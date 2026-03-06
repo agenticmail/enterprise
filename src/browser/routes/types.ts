@@ -12,6 +12,7 @@ export type BrowserRequest = {
 export type BrowserResponse = {
   status: (code: number) => BrowserResponse;
   json: (body: unknown) => void;
+  headersSent?: boolean;
 };
 
 export type BrowserRouteHandler = (
