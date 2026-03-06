@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ensureMediaDir, saveMediaBuffer } from "../enterprise-compat.js";
-import { captureScreenshot, snapshotAria } from "../cdp.js";
+import { captureScreenshot } from "../cdp.js";
 import {
   DEFAULT_AI_SNAPSHOT_EFFICIENT_DEPTH,
   DEFAULT_AI_SNAPSHOT_EFFICIENT_MAX_CHARS,
@@ -305,34 +305,34 @@ export function registerBrowserAgentSnapshotRoutes(
         });
       }
 
-      const snap =
-        profileCtx.profile.driver === "extension" || !tab.wsUrl
-          ? (() => {
-              // Extension relay doesn't expose per-page WS URLs; run AX snapshot via Playwright CDP session.
-              // Also covers cases where wsUrl is missing/unusable.
-              return requirePwAi(res, "aria snapshot").then(async (pw) => {
-                if (!pw) {
-                  return null;
-                }
-                return await pw.snapshotAriaViaPlaywright({
-                  cdpUrl: profileCtx.profile.cdpUrl,
-                  targetId: tab.targetId,
-                  limit,
-                });
-              });
-            })()
-          : snapshotAria({ wsUrl: tab.wsUrl ?? "", limit });
-
-      const resolved = await Promise.resolve(snap);
-      if (!resolved) {
+      // Use Playwright's ariaSnapshot() which pierces Shadow DOM (Web Components).
+      // CDP's Accessibility.getFullAXTree doesn't capture Shadow DOM content
+      // (Reddit, Amazon, Walmart, etc. use Shadow DOM extensively).
+      const pw = await requirePwAi(res, "aria snapshot");
+      if (!pw) {
         return;
       }
+      const roleSnap = await pw.snapshotRoleViaPlaywright({
+        cdpUrl: profileCtx.profile.cdpUrl,
+        targetId: tab.targetId,
+        selector: selectorValue,
+        frameSelector: frameSelectorValue,
+        refsMode,
+        options: {
+          interactive: interactive ?? undefined,
+          compact: compact ?? undefined,
+          maxDepth: depth ?? undefined,
+        },
+      });
+      // Return the snapshot text directly — the client-side cleaner handles rendering.
       const ariaResult = {
         ok: true,
         format,
         targetId: tab.targetId,
         url: tab.url,
-        ...resolved,
+        snapshot: roleSnap.snapshot,
+        refs: roleSnap.refs,
+        stats: roleSnap.stats,
       };
       // Server-side truncation for aria format:
       // Only truncate if the response is extremely large (>100K chars).
