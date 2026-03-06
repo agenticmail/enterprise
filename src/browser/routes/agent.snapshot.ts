@@ -61,7 +61,7 @@ export function registerBrowserAgentSnapshotRoutes(
     }
     // Auto-rewrite known problematic sites for agent browsing
     // Reddit new UI uses Shadow DOM (<shreddit-post>) that breaks Playwright selectors
-    url = url.replace(/^(https?:\/\/)(?:www\.)?reddit\.com(\/|$)/, '$1old.reddit.com$2');
+    // Note: Reddit's new UI uses Shadow DOM but we handle that with the click chain fallbacks now.
     await withPlaywrightRouteContext({
       req,
       res,
