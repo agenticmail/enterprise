@@ -266,7 +266,8 @@ async function runCloudSetup(
             try {
               const archStr = arch() === 'arm64' ? 'arm64' : 'amd64';
               const dlUrl = `https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-${archStr}.exe`;
-              execSync(`powershell -Command "New-Item -ItemType Directory -Force -Path '${cfDir}' | Out-Null; Invoke-WebRequest -Uri '${dlUrl}' -OutFile '${cfExe}'"`, { stdio: 'inherit', timeout: 120000 });
+              // Escape paths for PowerShell (CodeQL: js/indirect-command-line-injection)
+              execSync(`powershell -Command "New-Item -ItemType Directory -Force -Path '${cfDir.replace(/'/g, "''")}' | Out-Null; Invoke-WebRequest -Uri '${dlUrl}' -OutFile '${cfExe.replace(/'/g, "''")}'"`  , { stdio: 'inherit', timeout: 120000 });
               found = true;
             } catch (dlErr: any) {
               console.log(chalk.dim(`  Download failed: ${dlErr.message?.substring(0, 100)}`));

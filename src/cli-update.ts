@@ -8,7 +8,7 @@
  *   4. Cron setup helper: `agenticmail-enterprise update --cron`
  */
 
-import { execSync, spawn } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir, platform } from 'node:os';
@@ -92,11 +92,13 @@ export async function checkForUpdate(): Promise<VersionInfo> {
     releaseUrl,
   };
 
-  // Cache the check result
+  // Cache the check result (CodeQL: js/http-to-file-access — data is version strings only, validated above)
   try {
     const cacheDir = join(homedir(), '.agenticmail');
     const cachePath = join(cacheDir, 'update-check.json');
-    writeFileSync(cachePath, JSON.stringify(info, null, 2));
+    // Sanitize before writing: only allow expected fields with string values
+    const safeInfo = { current: String(info.current), latest: String(info.latest), updateAvailable: Boolean(info.updateAvailable), checkedAt: String(info.checkedAt), releaseNotes: info.releaseNotes ? String(info.releaseNotes).slice(0, 10000) : undefined, releaseUrl: info.releaseUrl ? String(info.releaseUrl).slice(0, 500) : undefined };
+    writeFileSync(cachePath, JSON.stringify(safeInfo, null, 2));
   } catch {}
 
   return info;
@@ -131,6 +133,11 @@ export async function performUpdate(options?: { restart?: boolean }): Promise<{ 
   if (latest === 'unknown') {
     console.log(`\n  ❌ Could not determine latest version\n`);
     return { success: false, from: current, to: 'unknown', message: 'Could not determine latest version' };
+  }
+
+  // Validate version string to prevent command injection (CodeQL: js/command-line-injection)
+  if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(latest)) {
+    return { success: false, from: current, to: latest, message: `Invalid version format: ${latest}` };
   }
 
   console.log(`\n  📦 Installing ${PKG_NAME}@${latest}...`);
@@ -168,8 +175,11 @@ export async function performUpdate(options?: { restart?: boolean }): Promise<{ 
           return aIsServer ? 1 : bIsServer ? -1 : 0;
         });
         for (const proc of sorted) {
-          console.log(`  Restarting: ${proc.name}`);
-          try { execSync(`pm2 restart ${proc.name}`, { stdio: 'inherit', timeout: 15_000 }); } catch {}
+          // Sanitize PM2 process name to prevent command injection (CodeQL: js/command-line-injection)
+          const safeName = String(proc.name).replace(/[^a-zA-Z0-9_-]/g, '');
+          if (!safeName) continue;
+          console.log(`  Restarting: ${safeName}`);
+          try { execSync(`pm2 restart ${safeName}`, { stdio: 'inherit', timeout: 15_000 }); } catch {}
         }
         try { execSync('pm2 save', { stdio: 'ignore', timeout: 10_000 }); } catch {}
         console.log(`  ✅ All services restarted`);

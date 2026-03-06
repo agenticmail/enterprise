@@ -100,53 +100,6 @@ export async function ensurePm2(): Promise<{ installed: boolean; version?: strin
   }
 }
 
-/**
- * Generate a PM2 ecosystem config for an agent.
- * Writes ecosystem.config.cjs if it doesn't exist or is outdated.
- */
-function generateEcosystemConfig(config: AgentConfig): { script: string; args: string; name: string; cwd: string; envFile?: string; useNpx?: boolean } {
-  const pm2Name = getPm2Name(config);
-  const local = (config.deployment?.config as any)?.local;
-  const cwd = local?.workDir || process.cwd();
-
-  // Try to find dist/cli.js from the package install location
-  let script = resolve(cwd, 'dist/cli.js');
-  let useNpx = false;
-
-  if (!existsSync(script)) {
-    // Running via npx — find the actual package location
-    try {
-      const pkgDir = resolve(import.meta.url.replace('file://', '').replace(/\/dist\/.*$|\/src\/.*$/, ''));
-      const candidate = resolve(pkgDir, 'dist/cli.js');
-      if (existsSync(candidate)) {
-        script = candidate;
-      } else {
-        useNpx = true; // Fall back to npx wrapper
-      }
-    } catch {
-      useNpx = true;
-    }
-  }
-
-  // Derive env file: .env.{slug} for agents, .env for enterprise
-  const slug = config.name.split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9-]/g, '');
-  const amDir = resolve(homedir(), '.agenticmail');
-  const envFile = resolve(amDir, `.env.${slug}`);
-  const hasEnvFile = existsSync(envFile);
-  // Also check cwd for backward compat
-  const cwdEnvFile = resolve(cwd, `.env.${slug}`);
-  const hasCwdEnvFile = existsSync(cwdEnvFile);
-
-  return {
-    script,
-    args: 'agent',
-    name: pm2Name,
-    cwd,
-    envFile: hasEnvFile ? envFile : hasCwdEnvFile ? cwdEnvFile : undefined,
-    useNpx,
-  };
-}
-
 export class DeploymentEngine {
   private configGen = new AgentConfigGenerator();
   private deployments = new Map<string, DeploymentResult>();

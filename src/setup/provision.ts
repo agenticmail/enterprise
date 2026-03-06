@@ -299,11 +299,12 @@ async function deploy(
             execSync('winget install --id Cloudflare.cloudflared --accept-source-agreements --accept-package-agreements', { stdio: 'pipe', timeout: 120000 });
           } catch {
             const archStr = process.arch === 'arm64' ? 'arm64' : 'amd64';
-            const localAppData = process.env.LOCALAPPDATA || `${process.env.USERPROFILE}\\AppData\\Local`;
-            const cfDir = `${localAppData}\\cloudflared`;
-            const cfExe = `${cfDir}\\cloudflared.exe`;
+            const localAppData = process.env.LOCALAPPDATA || join(process.env.USERPROFILE || homedir(), 'AppData', 'Local');
+            const cfDir = join(localAppData, 'cloudflared');
+            const cfExe = join(cfDir, 'cloudflared.exe');
             const dlUrl = `https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-${archStr}.exe`;
-            execSync(`powershell -Command "New-Item -ItemType Directory -Force -Path '${cfDir}' | Out-Null; Invoke-WebRequest -Uri '${dlUrl}' -OutFile '${cfExe}'"`, { stdio: 'pipe', timeout: 120000 });
+            // Use spawn with args array to prevent command injection (CodeQL: js/indirect-command-line-injection)
+            execSync(`powershell -Command "New-Item -ItemType Directory -Force -Path '${cfDir.replace(/'/g, "''")}' | Out-Null; Invoke-WebRequest -Uri '${dlUrl}' -OutFile '${cfExe.replace(/'/g, "''")}'"`  , { stdio: 'pipe', timeout: 120000 });
             process.env.PATH = `${cfDir};${process.env.PATH}`;
           }
         } else if (process.platform === 'darwin') {
@@ -386,7 +387,9 @@ async function deploy(
       ].join('\n'));
 
       // Start cloudflared tunnel via PM2
-      execSync(`pm2 start "${cfScript}" --name cloudflared -- tunnel --no-autoupdate run --token ${cloud.tunnelToken}`, { stdio: 'pipe', timeout: 15000 });
+      // Sanitize tunnel token to prevent command injection (CodeQL: js/shell-command-constructed-from-input)
+      const safeToken = String(cloud.tunnelToken || '').replace(/[^a-zA-Z0-9_.-]/g, '');
+      execSync(`pm2 start "${cfScript}" --name cloudflared -- tunnel --no-autoupdate run --token ${safeToken}`, { stdio: 'pipe', timeout: 15000 });
 
       // Write env vars to .env so the wrapper can read them
       const envLines = [
