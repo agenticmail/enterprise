@@ -299,11 +299,22 @@ export async function fetchBrowserJson<T>(
         result.body && typeof result.body === "object" && "error" in result.body
           ? String((result.body as { error?: unknown }).error)
           : `HTTP ${result.status}`;
-      throw new Error(message);
+      // 4xx errors are validation/user errors, not connection issues.
+      // Tag them so enhanceBrowserFetchError can pass them through directly.
+      const err = new Error(message) as Error & { _browserValidation?: boolean };
+      if (result.status < 500) {
+        err._browserValidation = true;
+        resetBrowserErrorCount();
+      }
+      throw err;
     }
     resetBrowserErrorCount();
     return result.body as T;
   } catch (err) {
+    // Don't wrap validation errors (4xx) with connection error messaging
+    if (err && typeof err === 'object' && '_browserValidation' in err) {
+      throw err;
+    }
     throw enhanceBrowserFetchError(url, err, timeoutMs);
   }
 }

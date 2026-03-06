@@ -247,11 +247,24 @@ export async function typeViaPlaywright(opts: {
         await locator.fill(text, { timeout: 3000 });
       } catch {
         // fill() fails on contenteditable divs (Twitter, Facebook composers, etc.)
-        // Fall back to: focus → clear → type
+        // Focus the element first
         try { await locator.click({ timeout: 3000 }); } catch { await locator.click({ timeout: 3000, force: true }); }
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Backspace');
-        await page.keyboard.type(text, { delay: 20 });
+        // Use execCommand('insertText') first — this triggers React/contenteditable state updates
+        // (keyboard.type works for raw input but doesn't update React state on sites like Twitter)
+        const inserted = await page.evaluate((t: string) => {
+          const el = document.activeElement;
+          if (el && (el as HTMLElement).isContentEditable) {
+            document.execCommand('insertText', false, t);
+            return true;
+          }
+          return false;
+        }, text);
+        if (!inserted) {
+          // Fallback to keyboard.type if execCommand didn't work
+          await page.keyboard.type(text, { delay: 20 });
+        }
       }
     }
     if (opts.submit) {
