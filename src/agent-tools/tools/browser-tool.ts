@@ -35,29 +35,7 @@ import { DEFAULT_AI_SNAPSHOT_MAX_CHARS } from "../../browser/constants.js";
 import { DEFAULT_UPLOAD_DIR, resolvePathsWithinRoot, wrapExternalContent } from "../../browser/enterprise-compat.js";
 import { BrowserToolSchema } from "./browser-tool.schema.js";
 import { type AnyAgentTool, imageResultFromFile, jsonResult, readStringParam } from "../common.js";
-
-/**
- * Render aria snapshot nodes as indented tree text (like OpenClaw's format).
- * Converts verbose JSON nodes into a compact, readable tree:
- *   - heading "Page Title" [level=2] [ref=ax1]
- *     - link "Click here" [ref=ax2]
- *       - text: "Click here"
- */
-function renderAriaTreeText(nodes: Array<{ ref: string; role: string; name: string; value?: string; description?: string; depth: number }>): string {
-  const lines: string[] = [];
-  for (const n of nodes) {
-    const indent = "  ".repeat(n.depth);
-    const nameStr = n.name ? ` "${n.name}"` : "";
-    const valueStr = n.value ? ` value="${n.value}"` : "";
-    const descStr = n.description ? ` desc="${n.description}"` : "";
-    // Skip generic/unknown nodes with no name (noise)
-    if ((n.role === "generic" || n.role === "unknown" || n.role === "none") && !n.name && !n.value) {
-      continue;
-    }
-    lines.push(`${indent}- ${n.role}${nameStr}${valueStr}${descStr} [ref=${n.ref}]`);
-  }
-  return lines.join("\n");
-}
+import { cleanSnapshot } from "./browser-snapshot-cleaner.js";
 
 function wrapBrowserExternalJson(params: {
   kind: "snapshot" | "console" | "tabs";
@@ -287,15 +265,12 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
             };
           }
 
-          // aria format — render nodes as indented tree text (compact, LLM-friendly)
-          // instead of verbose JSON that wastes tokens on keys like "ref", "role", "depth"
-          const snapshotAny = snapshot as any;
-          const ariaTree = typeof snapshotAny.snapshot === "string"
-            ? snapshotAny.snapshot
-            : snapshot.nodes
-              ? renderAriaTreeText(snapshot.nodes)
-              : JSON.stringify(snapshot, null, 2);
-          const wrappedAria = wrapExternalContent(ariaTree, {
+          // aria format — clean and render via centralized snapshot cleaner
+          const cleaned = cleanSnapshot(snapshot, {
+            url: snapshot.url,
+            maxChars: resolvedMaxChars ?? undefined,
+          });
+          const wrappedAria = wrapExternalContent(cleaned.text, {
             source: "browser",
             includeWarning: true,
           });
@@ -306,8 +281,10 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
               format: "aria",
               targetId: snapshot.targetId,
               url: snapshot.url,
-              nodeCount: snapshot.nodes?.length ?? 0,
-              truncated: snapshotAny.truncated,
+              nodeCount: cleaned.nodeCount,
+              noiseRemoved: cleaned.noiseRemoved,
+              siteExtractor: cleaned.siteExtractor,
+              truncated: cleaned.truncated,
               externalContent: {
                 untrusted: true,
                 source: "browser",
