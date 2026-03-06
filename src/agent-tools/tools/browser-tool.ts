@@ -36,6 +36,29 @@ import { DEFAULT_UPLOAD_DIR, resolvePathsWithinRoot, wrapExternalContent } from 
 import { BrowserToolSchema } from "./browser-tool.schema.js";
 import { type AnyAgentTool, imageResultFromFile, jsonResult, readStringParam } from "../common.js";
 
+/**
+ * Render aria snapshot nodes as indented tree text (like OpenClaw's format).
+ * Converts verbose JSON nodes into a compact, readable tree:
+ *   - heading "Page Title" [level=2] [ref=ax1]
+ *     - link "Click here" [ref=ax2]
+ *       - text: "Click here"
+ */
+function renderAriaTreeText(nodes: Array<{ ref: string; role: string; name: string; value?: string; description?: string; depth: number }>): string {
+  const lines: string[] = [];
+  for (const n of nodes) {
+    const indent = "  ".repeat(n.depth);
+    const nameStr = n.name ? ` "${n.name}"` : "";
+    const valueStr = n.value ? ` value="${n.value}"` : "";
+    const descStr = n.description ? ` desc="${n.description}"` : "";
+    // Skip generic/unknown nodes with no name (noise)
+    if ((n.role === "generic" || n.role === "unknown" || n.role === "none") && !n.name && !n.value) {
+      continue;
+    }
+    lines.push(`${indent}- ${n.role}${nameStr}${valueStr}${descStr} [ref=${n.ref}]`);
+  }
+  return lines.join("\n");
+}
+
 function wrapBrowserExternalJson(params: {
   kind: "snapshot" | "console" | "tabs";
   payload: unknown;
@@ -264,12 +287,14 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
             };
           }
 
-          // aria format — extract the tree text directly to avoid double-JSON-encoding
-          // (the snapshot field is already a string containing the aria tree)
+          // aria format — render nodes as indented tree text (compact, LLM-friendly)
+          // instead of verbose JSON that wastes tokens on keys like "ref", "role", "depth"
           const snapshotAny = snapshot as any;
           const ariaTree = typeof snapshotAny.snapshot === "string"
             ? snapshotAny.snapshot
-            : (snapshot.nodes ? JSON.stringify(snapshot.nodes, null, 2) : JSON.stringify(snapshot, null, 2));
+            : snapshot.nodes
+              ? renderAriaTreeText(snapshot.nodes)
+              : JSON.stringify(snapshot, null, 2);
           const wrappedAria = wrapExternalContent(ariaTree, {
             source: "browser",
             includeWarning: true,
