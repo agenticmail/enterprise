@@ -199,6 +199,8 @@ export class TaskQueueManager {
    * Sync active tasks from database into memory.
    * Called by the task poller before each cycle to catch externally-added or reset tasks.
    */
+  private _startTime = Date.now();
+
   async syncFromDb(): Promise<void> {
     if (!this.db) return;
     try {
@@ -206,20 +208,34 @@ export class TaskQueueManager {
         `SELECT * FROM task_pipeline WHERE status IN ('created','assigned','in_progress') ORDER BY created_at DESC LIMIT 200`
       );
       if (!rows) return;
-      let added = 0;
+      let added = 0, skippedPreRestart = 0;
       for (const row of rows) {
         const existing = this.tasks.get(row.id);
         const dbTask = this.rowToTask(row);
+
+        // Skip tasks from before this process started — they were likely already handled
+        // before the restart and would be re-processed incorrectly
         if (!existing) {
-          // New task not in memory — add it
+          const createdMs = new Date(dbTask.createdAt).getTime();
+          if (createdMs < this._startTime - 60_000) {
+            // Task created >1 min before process start — mark as failed in DB
+            try {
+              await this.db!.run(
+                `UPDATE task_pipeline SET status = 'failed', error = 'Process restarted — task was not completed before restart' WHERE id = ?`,
+                [row.id]
+              );
+            } catch {}
+            skippedPreRestart++;
+            continue;
+          }
           this.tasks.set(row.id, dbTask);
           added++;
         } else if (existing.status !== dbTask.status || existing.sessionId !== dbTask.sessionId) {
-          // Status changed externally (e.g., reset after crash) — update in memory
           this.tasks.set(row.id, dbTask);
         }
       }
       if (added > 0) console.log(`[TaskQueue] syncFromDb: added ${added} tasks from DB`);
+      if (skippedPreRestart > 0) console.log(`[TaskQueue] syncFromDb: auto-failed ${skippedPreRestart} pre-restart tasks`);
     } catch (e: any) {
       console.error('[TaskQueue] syncFromDb error:', e.message);
     }
