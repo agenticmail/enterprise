@@ -42,6 +42,17 @@ export async function clickViaPlaywright(opts: {
   const ref = requireRef(opts.ref);
   const locator = refLocator(page, ref);
 
+  // Pre-step: Scroll element into viewport and let animations settle
+  // Fola's field testing showed elements fail because they're off-screen or mid-animation
+  try {
+    await locator.evaluate((el: any) => {
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    });
+    await page.waitForTimeout(200); // Let scroll + animations settle
+  } catch {
+    // Non-fatal — element might not be in DOM yet, strategies below will handle it
+  }
+
   // Strategy 1: Normal Playwright click with SHORT timeout (3s)
   // Heavy SPAs (Twitter, Reddit, LinkedIn) often have overlays/animations that make
   // Playwright wait forever for "actionable". We fail fast and try alternatives.

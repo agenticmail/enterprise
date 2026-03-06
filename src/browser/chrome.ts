@@ -198,6 +198,11 @@ export async function launchAgenticMailChrome(
       "--disable-session-crashed-bubble",
       "--hide-crash-restore-bubble",
       "--password-store=basic",
+      // Anti-throttling: prevent Chrome from throttling background tabs/pages
+      // Critical for multi-tab agent workflows where tabs go inactive
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
     ];
 
     if (resolved.headless) {
