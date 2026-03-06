@@ -334,24 +334,26 @@ export function registerBrowserAgentSnapshotRoutes(
         url: tab.url,
         ...resolved,
       };
-      // Truncate aria snapshot if maxChars is set (prevents 60K+ char responses)
-      if (resolvedMaxChars && resolvedMaxChars > 0) {
-        const json = JSON.stringify(ariaResult);
-        if (json.length > resolvedMaxChars) {
-          const truncated = json.slice(0, resolvedMaxChars);
-          try {
-            // Try to return valid JSON by finding the last complete node
-            return res.json(JSON.parse(truncated + ']}'));
-          } catch {
-            // If we can't make valid JSON, return the text representation
-            return res.json({
-              ok: true,
-              format,
-              targetId: tab.targetId,
-              url: tab.url,
-              snapshot: truncated + '\n... [truncated at ' + resolvedMaxChars + ' chars]',
-            });
-          }
+      // Server-side truncation for aria format:
+      // Only truncate if the response is extremely large (>100K chars).
+      // The client-side snapshot cleaner handles compaction and intelligent truncation.
+      // Previously this truncated at 16K chars of JSON, which only fit ~200 of 500 nodes
+      // and often cut off modals/dialogs at the end of the DOM tree.
+      const serverMaxChars = 100_000;
+      const json = JSON.stringify(ariaResult);
+      if (json.length > serverMaxChars) {
+        const truncated = json.slice(0, serverMaxChars);
+        try {
+          return res.json(JSON.parse(truncated + ']}'));
+        } catch {
+          return res.json({
+            ok: true,
+            format,
+            targetId: tab.targetId,
+            url: tab.url,
+            snapshot: truncated + '\n... [truncated at ' + serverMaxChars + ' chars]',
+            truncated: true,
+          });
         }
       }
       return res.json(ariaResult);
