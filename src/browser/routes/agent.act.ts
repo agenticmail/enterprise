@@ -390,6 +390,127 @@ export function registerBrowserAgentActRoutes(
             await pw.closePageViaPlaywright({ cdpUrl, targetId: tab.targetId });
             return res.json({ ok: true, targetId: tab.targetId });
           }
+          case "dismiss": {
+            // Smart modal dismissal chain:
+            // 1. Press Escape (works on ~90% of modals)
+            // 2. Click outside the modal (backdrop click)
+            // 3. Find and click Close/X/Cancel/Back button
+            const page = await pw.getPageForTargetId({ cdpUrl, targetId: tab.targetId });
+            const steps: string[] = [];
+
+            // Step 1: Try Escape
+            try {
+              await page.keyboard.press("Escape");
+              await page.waitForTimeout(500);
+              // Check if modal is gone
+              const hasDialog = await page.evaluate(() => {
+                const d = document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
+                return !!d;
+              });
+              if (!hasDialog) {
+                steps.push("Escape key closed the modal");
+                return res.json({ ok: true, targetId: tab.targetId, url: tab.url, method: "escape", steps });
+              }
+              steps.push("Escape key pressed but modal still open");
+            } catch { steps.push("Escape key failed"); }
+
+            // Step 2: Try clicking outside the modal (backdrop)
+            try {
+              const dismissed = await page.evaluate(() => {
+                const modal = document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
+                if (!modal) return false;
+                const rect = modal.getBoundingClientRect();
+                // Click at top-left corner of viewport (likely outside modal)
+                const x = Math.max(5, rect.left - 20);
+                const y = Math.max(5, rect.top - 20);
+                const el = document.elementFromPoint(x, y);
+                if (el && !modal.contains(el)) {
+                  (el as HTMLElement).click();
+                  return true;
+                }
+                return false;
+              });
+              if (dismissed) {
+                await page.waitForTimeout(500);
+                const hasDialog = await page.evaluate(() => {
+                  return !!document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
+                });
+                if (!hasDialog) {
+                  steps.push("Clicked outside modal to dismiss");
+                  return res.json({ ok: true, targetId: tab.targetId, url: tab.url, method: "backdrop_click", steps });
+                }
+                steps.push("Clicked outside but modal still open");
+              }
+            } catch { steps.push("Backdrop click failed"); }
+
+            // Step 3: Find Close/X/Cancel/Back button inside modal
+            try {
+              const closed = await page.evaluate(() => {
+                const modal = document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
+                const searchRoot = modal || document;
+                // Common close button patterns (ordered by priority)
+                const selectors = [
+                  '[aria-label="Close"]',
+                  '[aria-label="close"]',
+                  '[aria-label="Dismiss"]',
+                  '[aria-label="dismiss"]',
+                  '[data-testid="close"]',
+                  '[data-testid="Close"]',
+                  'button[aria-label*="close" i]',
+                  'button[aria-label*="dismiss" i]',
+                  'button[aria-label*="cancel" i]',
+                ];
+                for (const sel of selectors) {
+                  const btn = searchRoot.querySelector(sel) as HTMLElement;
+                  if (btn) { btn.click(); return sel; }
+                }
+                // Try finding by text content
+                const buttons = searchRoot.querySelectorAll('button, [role="button"], a');
+                const closeTexts = ['close', 'cancel', 'dismiss', 'back', 'no thanks', 'not now', 'maybe later', '✕', '×', '✖', 'x'];
+                for (const btn of buttons) {
+                  const text = (btn as HTMLElement).innerText?.trim().toLowerCase() || '';
+                  const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
+                  if (closeTexts.some(t => text === t || ariaLabel === t)) {
+                    (btn as HTMLElement).click();
+                    return `text: "${text || ariaLabel}"`;
+                  }
+                }
+                // Try SVG close icons (X patterns)
+                const svgButtons = searchRoot.querySelectorAll('button svg, [role="button"] svg');
+                for (const svg of svgButtons) {
+                  const btn = svg.closest('button, [role="button"]') as HTMLElement;
+                  if (btn && btn.offsetWidth < 60 && btn.offsetHeight < 60) {
+                    btn.click();
+                    return "svg close icon";
+                  }
+                }
+                return null;
+              });
+              if (closed) {
+                await page.waitForTimeout(500);
+                steps.push(`Clicked close button (${closed})`);
+                return res.json({ ok: true, targetId: tab.targetId, url: tab.url, method: "close_button", matched: closed, steps });
+              }
+              steps.push("No close button found");
+            } catch { steps.push("Close button search failed"); }
+
+            // Step 4: Try pressing Escape again more aggressively
+            try {
+              await page.keyboard.press("Escape");
+              await page.waitForTimeout(300);
+              await page.keyboard.press("Escape");
+              await page.waitForTimeout(300);
+              steps.push("Double Escape pressed");
+            } catch { steps.push("Double Escape failed"); }
+
+            return res.json({
+              ok: false,
+              targetId: tab.targetId,
+              url: tab.url,
+              error: "Could not dismiss modal after trying: Escape, backdrop click, close button, double Escape",
+              steps,
+            });
+          }
           default: {
             return jsonError(res, 400, "unsupported kind");
           }
