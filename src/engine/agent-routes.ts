@@ -1462,6 +1462,12 @@ export function createAgentRoutes(opts: {
       tools: ['enterprise_text_diff', 'enterprise_json_diff', 'enterprise_spreadsheet_diff', 'enterprise_diff_summary'],
     },
     {
+      id: 'remotion_video', name: 'Video Creation (Remotion)', description: 'Create videos programmatically with React. Render MP4/WebM/GIF, generate shareable URLs.',
+      icon: Emoji.video,
+      tools: ['remotion_create_project', 'remotion_create_composition', 'remotion_render', 'remotion_render_still',
+              'remotion_list_compositions', 'remotion_preview_url', 'remotion_add_asset', 'remotion_install_package', 'remotion_share_file'],
+    },
+    {
       id: 'visual-memory', name: 'Visual Memory', description: 'Persistent visual memory — capture screenshots, detect changes, recall visual history. Enterprise DB-backed with BM25F search.',
       icon: Emoji.eye,
       tools: ['vision_capture', 'vision_query', 'vision_compare', 'vision_diff', 'vision_similar',
