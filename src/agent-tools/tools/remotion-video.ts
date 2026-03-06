@@ -395,13 +395,30 @@ const renderVideo: ToolExecutor = async (_id, params) => {
 
   try {
     const output = runInProject(projectDir, cmd, 600_000); // 10 min timeout for rendering
+    
+    // Auto-share: generate a shareable URL
+    let shareUrl: string | undefined;
+    try {
+      const baseUrl = process.env.ENTERPRISE_URL || `http://localhost:${process.env.PORT || 8080}`;
+      const res = await fetch(`${baseUrl}/api/share-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: outputPath, ttl: 72 }), // 72 hour expiry
+      });
+      if (res.ok) {
+        const data = await res.json() as any;
+        shareUrl = data.url;
+      }
+    } catch {}
+
     return {
       success: true,
       outputPath,
       compositionId,
       codec,
-      message: 'Video rendered successfully',
-      output: output.substring(output.length - 500), // last 500 chars of output
+      shareUrl,
+      message: shareUrl ? `Video rendered and available at: ${shareUrl}` : 'Video rendered successfully',
+      output: output.substring(output.length - 500),
     };
   } catch (e: any) {
     return {
@@ -522,6 +539,26 @@ const installPackage: ToolExecutor = async (_id, params) => {
   }
 };
 
+const shareFile: ToolExecutor = async (_id, params) => {
+  const { filePath, ttl = 72 } = params;
+  if (!filePath) return { error: 'filePath is required' };
+  if (!existsSync(filePath)) return { error: `File not found: ${filePath}` };
+
+  try {
+    const baseUrl = process.env.ENTERPRISE_URL || `http://localhost:${process.env.PORT || 8080}`;
+    const res = await fetch(`${baseUrl}/api/share-file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: filePath, ttl }),
+    });
+    if (!res.ok) return { error: `Share failed: ${res.status}` };
+    const data = await res.json() as any;
+    return { success: true, url: data.url, expiresIn: data.expiresIn, message: `File available at: ${data.url}` };
+  } catch (e: any) {
+    return { error: `Share failed: ${e.message?.substring(0, 300)}` };
+  }
+};
+
 // ─── Export ───────────────────────────────────────────────
 
 function tool(name: string, label: string, description: string, params: any, executor: Function): AnyAgentTool {
@@ -588,5 +625,12 @@ export function createRemotonTools(): AnyAgentTool[] {
         projectDir: { type: 'string' }, packages: { type: 'array', items: { type: 'string' } },
       }, required: ['projectDir', 'packages'],
     }, installPackage),
+
+    tool('remotion_share_file', 'Share File via URL', 'Generate a shareable URL for any file (video, image, PDF, etc.). The URL is publicly accessible for a limited time (default 72 hours). Use this to share rendered videos with users via messaging channels.', {
+      type: 'object', properties: {
+        filePath: { type: 'string', description: 'Absolute path to the file to share' },
+        ttl: { type: 'number', default: 72, description: 'Hours until the link expires (default 72)' },
+      }, required: ['filePath'],
+    }, shareFile),
   ];
 }

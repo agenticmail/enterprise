@@ -387,6 +387,7 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   remotion_preview_url: 'remotion_video',
   remotion_add_asset: 'remotion_video',
   remotion_install_package: 'remotion_video',
+  remotion_share_file: 'remotion_video',
 
   // ── Knowledge Search (3) ──
   knowledge_base_search: 'ent_knowledge',

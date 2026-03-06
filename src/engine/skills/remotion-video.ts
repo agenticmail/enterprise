@@ -168,3 +168,22 @@ export const TOOLS: ToolDefinition[] = [
     },
   },
 ];
+
+// Share file tool (also used standalone)
+TOOLS.push({
+  id: 'remotion_share_file',
+  name: 'Share File via URL',
+  description: 'Generate a temporary shareable URL for any rendered file (video, image, etc.). Link expires after configurable TTL.',
+  category: 'write',
+  risk: 'low',
+  skillId: 'remotion-video',
+  sideEffects: [],
+  parameters: {
+    type: 'object',
+    properties: {
+      filePath: { type: 'string', description: 'Absolute path to the file' },
+      ttl: { type: 'number', description: 'Hours until expiry (default 72)' },
+    },
+    required: ['filePath'],
+  },
+});

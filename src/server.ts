@@ -606,6 +606,49 @@ export function createServer(config: ServerConfig): ServerInstance {
     return c.json({ error: 'Documentation page not found' }, 404);
   });
 
+  // ─── Shared File Serving (token-based, for agent-generated media) ─────
+  // Agents can share files via /shared/:token/:filename
+  const SHARED_FILES = new Map<string, { path: string; mime: string; expires: number }>();
+  const MEDIA_MIME: Record<string, string> = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.pdf': 'application/pdf', '.svg': 'image/svg+xml' };
+
+  // API to register a file for sharing (called by agents)
+  app.post('/api/share-file', async (c) => {
+    try {
+      const body = await c.req.json();
+      const filePath = body.path;
+      if (!filePath || !existsSync(filePath)) return c.json({ error: 'File not found' }, 400);
+      const ext = filePath.substring(filePath.lastIndexOf('.'));
+      const mime = MEDIA_MIME[ext] || 'application/octet-stream';
+      const token = crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+      const ttlHours = body.ttl || 24; // default 24 hour expiry
+      SHARED_FILES.set(token, { path: filePath, mime, expires: Date.now() + ttlHours * 3600_000 });
+      const baseUrl = process.env.ENTERPRISE_URL || `http://localhost:${process.env.PORT || 8080}`;
+      const filename = filePath.split('/').pop() || 'file';
+      return c.json({ url: `${baseUrl}/shared/${token}/${filename}`, token, expiresIn: `${ttlHours}h` });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
+  // Serve shared files (no auth required — token IS the auth)
+  app.get('/shared/:token/:filename', (c) => {
+    const token = c.req.param('token');
+    const entry = SHARED_FILES.get(token);
+    if (!entry) return c.text('Not found or expired', 404);
+    if (Date.now() > entry.expires) { SHARED_FILES.delete(token); return c.text('Link expired', 410); }
+    if (!existsSync(entry.path)) { SHARED_FILES.delete(token); return c.text('File no longer available', 404); }
+    try {
+      const content = readFileSync(entry.path);
+      return new Response(content, { headers: { 'Content-Type': entry.mime, 'Content-Disposition': `inline; filename="${c.req.param('filename')}"`, 'Cache-Control': 'public, max-age=3600' } });
+    } catch { return c.text('Error reading file', 500); }
+  });
+
+  // Cleanup expired entries every 10 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of SHARED_FILES) { if (now > v.expires) SHARED_FILES.delete(k); }
+  }, 600_000);
+
   // Serve dashboard JS modules and static assets (components/*.js, pages/*.js, app.js, assets/*)
   const STATIC_MIME: Record<string, string> = { '.js': 'application/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.gif': 'image/gif', '.webp': 'image/webp', '.css': 'text/css; charset=utf-8' };
   app.get('/dashboard/*', (c) => {
