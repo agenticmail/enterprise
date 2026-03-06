@@ -675,6 +675,7 @@ export async function mouseClickViaPlaywright(opts: {
  * Scroll the page or a specific position.
  * deltaY > 0 scrolls down, deltaY < 0 scrolls up.
  * deltaX > 0 scrolls right, deltaX < 0 scrolls left.
+ * Uses JavaScript scrollBy for reliability (mouse.wheel is flaky on some sites).
  */
 export async function scrollViaPlaywright(opts: {
   cdpUrl: string;
@@ -689,9 +690,12 @@ export async function scrollViaPlaywright(opts: {
     targetId: opts.targetId,
   });
   ensurePageState(page);
-  const x = opts.x ?? 512;
-  const y = opts.y ?? 384;
   const deltaX = opts.deltaX ?? 0;
   const deltaY = opts.deltaY ?? 0;
-  await page.mouse.wheel(deltaX, deltaY);
+  // Use evaluate for reliable scrolling — mouse.wheel is inconsistent across sites
+  await page.evaluate(({ dx, dy }: { dx: number; dy: number }) => {
+    window.scrollBy({ left: dx, top: dy, behavior: 'smooth' });
+  }, { dx: deltaX, dy: deltaY });
+  // Wait for smooth scroll to settle
+  await page.waitForTimeout(300);
 }

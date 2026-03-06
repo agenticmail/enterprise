@@ -95,12 +95,32 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
       'act supports: click, type, press, hover, drag, select, fill, resize, wait, evaluate, close, mouse_click, scroll.',
       'mouse_click: coordinate-based clicking (x, y) — use when ref-based click fails on Shadow DOM/custom components. Take a screenshot first to identify coordinates.',
       'scroll: scroll the page (deltaY positive=down, negative=up). Use to navigate long pages before taking snapshots.',
-      'For multi-tab workflows, use tabs to list, open to create, focus to switch, close to remove.',
+      'IMPORTANT: Use open(targetUrl) to create NEW tabs for each different site/URL. Do NOT reuse the same tab for different sites — open a new tab, get its targetId, then use that targetId for all actions on that site.',
       'Reddit URLs are auto-rewritten to old.reddit.com (avoids Shadow DOM issues).',
       'FALLBACK STRATEGY: If snapshot refs fail → try evaluate with document.querySelector(). If clicks fail → take screenshot, identify coordinates, use mouse_click(x, y). If page is too long → use scroll to navigate, then snapshot again.',
     ].join(" "),
     parameters: BrowserToolSchema as any,
     execute: async (_toolCallId: any, args: any) => {
+      // Retry wrapper — browser server can occasionally drop connections under load
+      const executeWithRetry = async (): Promise<any> => {
+        try {
+          return await executeInner(args);
+        } catch (err: any) {
+          const msg = String(err?.message || err || '');
+          // Only retry on connection errors, not on timeouts or app-level errors
+          if (msg.includes("Can't reach") && !msg.includes("timed out")) {
+            // Wait briefly then retry once
+            await new Promise(r => setTimeout(r, 1500));
+            return await executeInner(args);
+          }
+          throw err;
+        }
+      };
+      return await executeWithRetry();
+    },
+  };
+
+  async function executeInner(args: any) {
       const params = args as Record<string, unknown>;
       const action = readStringParam(params, "action", { required: true });
       const profile = readStringParam(params, "profile") || defaultProfile;
@@ -387,6 +407,5 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
         default:
           throw new Error(`Unknown browser action: ${action}`);
       }
-    },
-  };
+  }
 }
