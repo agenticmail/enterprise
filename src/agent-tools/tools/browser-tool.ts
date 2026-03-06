@@ -94,6 +94,7 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
       'snapshot format="ai" returns a text description; format="aria" returns structured nodes.',
       'act supports: click, type, press, hover, drag, select, fill, resize, wait, evaluate, close.',
       'For multi-tab workflows, use tabs to list, open to create, focus to switch, close to remove.',
+      'SITE TIPS: Reddit — use old.reddit.com (simpler HTML, no Shadow DOM). Twitter/X — use x.com; if clicks fail, navigate directly to URLs. LinkedIn — post composer at linkedin.com/feed/?shareActive=true. Sites with Shadow DOM or heavy SPAs — use evaluate with document.querySelector() as fallback when snapshot refs fail.',
     ].join(" "),
     parameters: BrowserToolSchema as any,
     execute: async (_toolCallId: any, args: any) => {
