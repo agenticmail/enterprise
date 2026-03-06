@@ -1429,6 +1429,12 @@ export async function runAgent(_args: string[]) {
         channelKey: ctx.spaceId,
         createdAt: Date.now(),
         lastActivityAt: Date.now(),
+        meta: {
+          channel: ctx.source,
+          chatId: ctx.spaceId || ctx.senderEmail,
+          senderName: ctx.senderName,
+          webhookUrl: (ctx as any).webhookUrl,
+        },
       });
 
       // Unregister when session completes + deliver reply if agent didn't send one via tool
@@ -1717,27 +1723,196 @@ export async function runAgent(_args: string[]) {
     console.log('');
   });
 
+  // ── Shutdown notification — notify all active channels ──
+  async function sendShutdownNotifications(): Promise<void> {
+    const agentName = config.displayName || config.name || 'Agent';
+    const goodbyeMessage = `👋 ${agentName} is going offline now. I'll be back when I'm restarted. See you soon!`;
+
+    const notifications: Promise<void>[] = [];
+
+    // 1. Telegram — send to all recent chat IDs
+    try {
+      const tgConfig = config?.messagingChannels?.telegram || (config as any)?.channels?.telegram || {};
+      const botToken = tgConfig.botToken;
+      if (botToken) {
+        // Get recent Telegram chat IDs from session router
+        const activeSessions = sessionRouter.getActiveSessions(agentId);
+        const tgChatIds = new Set<string>();
+        for (const s of activeSessions) {
+          if (s.meta?.channel === 'telegram' && s.meta?.chatId) {
+            tgChatIds.add(s.meta.chatId);
+          }
+        }
+        // Also check the default chat ID from config
+        const defaultChatId = tgConfig.chatId || tgConfig.defaultChatId;
+        if (defaultChatId) tgChatIds.add(String(defaultChatId));
+
+        for (const chatId of tgChatIds) {
+          notifications.push(
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: goodbyeMessage }),
+            }).then(r => {
+              if (r.ok) console.log(`[shutdown] 📨 Telegram notification sent to ${chatId}`);
+              else console.warn(`[shutdown] Telegram send failed for ${chatId}: ${r.status}`);
+            }).catch(e => console.warn(`[shutdown] Telegram error: ${e.message}`))
+          );
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[shutdown] Telegram notification error: ${e.message}`);
+    }
+
+    // 2. WhatsApp — send to all recent chats
+    try {
+      const waConfig = config?.messagingChannels?.whatsapp || (config as any)?.channels?.whatsapp || {};
+      const waEnabled = waConfig.enabled || waConfig.phoneNumber;
+      if (waEnabled) {
+        const activeSessions = sessionRouter.getActiveSessions(agentId);
+        const waChatIds = new Set<string>();
+        for (const s of activeSessions) {
+          if (s.meta?.channel === 'whatsapp' && s.meta?.chatId) {
+            waChatIds.add(s.meta.chatId);
+          }
+        }
+        const defaultWaChat = waConfig.defaultChatId || waConfig.chatId;
+        if (defaultWaChat) waChatIds.add(String(defaultWaChat));
+
+        if (waChatIds.size > 0) {
+          try {
+            const { getConnection, toJid } = await import('./agent-tools/tools/messaging/whatsapp.js');
+            const conn = await getConnection(agentId as any);
+            if ((conn as any)?.connected && (conn as any)?.sock) {
+              for (const chatId of waChatIds) {
+                const jid = chatId.includes('@') ? chatId : chatId.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+                notifications.push(
+                  (conn as any).sock.sendMessage(jid, { text: goodbyeMessage })
+                    .then(() => console.log(`[shutdown] 📨 WhatsApp notification sent to ${chatId}`))
+                    .catch((e: any) => console.warn(`[shutdown] WhatsApp send failed for ${chatId}: ${e.message}`))
+                );
+              }
+            }
+          } catch (e: any) {
+            console.warn(`[shutdown] WhatsApp connection error: ${e.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[shutdown] WhatsApp notification error: ${e.message}`);
+    }
+
+    // 3. Email (Gmail/Outlook) — send to manager if configured
+    try {
+      const managerEmail = (config as any)?.manager?.email || config?.managerEmail;
+      const emailCfg = (config as any)?.emailConfig;
+      if (managerEmail && emailCfg?.oauthAccessToken) {
+        const provider = emailCfg.oauthProvider || 'google';
+        if (provider === 'google') {
+          notifications.push(
+            fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${emailCfg.oauthAccessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                raw: btoa(
+                  `To: ${managerEmail}\r\n` +
+                  `Subject: ${agentName} is going offline\r\n` +
+                  `Content-Type: text/plain; charset=utf-8\r\n\r\n` +
+                  `Hi,\n\nThis is ${agentName}. I'm going offline now — my process is shutting down.\n\nI'll resume when I'm restarted. If you need anything urgent, please reach out to the team.\n\nBest,\n${agentName}`
+                ).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+              }),
+            }).then(r => {
+              if (r.ok) console.log(`[shutdown] 📧 Email notification sent to ${managerEmail}`);
+              else console.warn(`[shutdown] Email send failed: ${r.status}`);
+            }).catch(e => console.warn(`[shutdown] Email error: ${e.message}`))
+          );
+        } else if (provider === 'microsoft') {
+          notifications.push(
+            fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${emailCfg.oauthAccessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                message: {
+                  subject: `${agentName} is going offline`,
+                  body: { contentType: 'Text', content: `Hi,\n\nThis is ${agentName}. I'm going offline now — my process is shutting down.\n\nI'll resume when I'm restarted. If you need anything urgent, please reach out to the team.\n\nBest,\n${agentName}` },
+                  toRecipients: [{ emailAddress: { address: managerEmail } }],
+                },
+              }),
+            }).then(r => {
+              if (r.ok) console.log(`[shutdown] 📧 Outlook notification sent to ${managerEmail}`);
+              else console.warn(`[shutdown] Outlook send failed: ${r.status}`);
+            }).catch(e => console.warn(`[shutdown] Outlook error: ${e.message}`))
+          );
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[shutdown] Email notification error: ${e.message}`);
+    }
+
+    // 4. Google Chat — notify active spaces
+    try {
+      const activeSessions = sessionRouter.getActiveSessions(agentId);
+      for (const s of activeSessions) {
+        if (s.meta?.channel === 'google_chat' && s.meta?.webhookUrl) {
+          notifications.push(
+            fetch(s.meta.webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: goodbyeMessage }),
+            }).then(r => {
+              if (r.ok) console.log(`[shutdown] 📨 Google Chat notification sent`);
+            }).catch(e => console.warn(`[shutdown] Google Chat error: ${e.message}`))
+          );
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[shutdown] Google Chat notification error: ${e.message}`);
+    }
+
+    // Wait for all notifications (with a 5s timeout so shutdown isn't blocked)
+    if (notifications.length > 0) {
+      console.log(`[shutdown] Sending goodbye to ${notifications.length} channel(s)...`);
+      await Promise.race([
+        Promise.allSettled(notifications),
+        new Promise(r => setTimeout(r, 5000)),
+      ]);
+    }
+  }
+
   // Graceful shutdown
   let shuttingDown = false;
   const shutdown = () => {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log('\n⏳ Shutting down agent...');
-    taskPoller.stop();
-    routes.permissionEngine.stopAutoRefresh();
-    routes.guardrails.stopAutoRefresh();
-    routes.lifecycle.stopConfigRefresh();
-    runtime.stop().then(() => {
-      // Small delay to let in-flight DB writes finish before ending pool
-      return new Promise(r => setTimeout(r, 2000));
-    }).then(() => db.disconnect()).then(() => {
-      console.log('✅ Agent shutdown complete');
-      process.exit(0);
-    }).catch((err: any) => {
-      console.error('Shutdown error:', err.message);
-      process.exit(1);
+
+    // Send goodbye notifications to all active channels, then proceed with cleanup
+    sendShutdownNotifications().catch(e => {
+      console.warn(`[shutdown] Notification error: ${e.message}`);
+    }).finally(() => {
+      taskPoller.stop();
+      routes.permissionEngine.stopAutoRefresh();
+      routes.guardrails.stopAutoRefresh();
+      routes.lifecycle.stopConfigRefresh();
+      runtime.stop().then(() => {
+        return new Promise(r => setTimeout(r, 2000));
+      }).then(() => db.disconnect()).then(() => {
+        console.log('✅ Agent shutdown complete');
+        process.exit(0);
+      }).catch((err: any) => {
+        console.error('Shutdown error:', err.message);
+        process.exit(1);
+      });
     });
-    setTimeout(() => process.exit(1), 15_000).unref();
+
+    // Hard timeout — force exit after 20s (was 15s, extended for notifications)
+    setTimeout(() => process.exit(1), 20_000).unref();
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
