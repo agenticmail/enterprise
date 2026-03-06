@@ -51,6 +51,9 @@ import { EmailChannel, type InboundEmail, type InboundEmailResult } from './emai
 import { FollowUpScheduler } from './followup.js';
 import { resolveApiKeyForProvider, PROVIDER_REGISTRY, type CustomProviderDef } from './providers.js';
 import { buildRemotonPrompt } from '../system-prompts/remotion.js';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
 
 const _remotionPrompt = buildRemotonPrompt();
 
@@ -145,9 +148,13 @@ export class AgentRuntime {
   /** Build tool options for a given agent, including OAuth email config if available */
   private buildToolOptions(agentId: string, sessionId?: string): any {
     const self = this;
+    // Create a dedicated workspace for each agent
+    const agentWorkspace = join(homedir(), '.agenticmail', 'workspaces', agentId);
+    try { mkdirSync(agentWorkspace, { recursive: true }); } catch {}
+
     const base: any = {
       agentId,
-      workspaceDir: process.cwd(),
+      workspaceDir: agentWorkspace,
       agenticmailManager: this.config.agenticmailManager,
       agentMemoryManager: this.config.agentMemoryManager,
       engineDb: this.config.engineDb,
@@ -1046,6 +1053,7 @@ export function createAgentRuntime(config: RuntimeConfig): AgentRuntime {
 // ─── Default System Prompt ───────────────────────────────
 
 function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string, agentIdentity?: any, dbConnections?: string[]): string {
+  const wsDir = join(homedir(), '.agenticmail', 'workspaces', agentId);
   var base = `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
 
 You have access to a comprehensive set of tools for completing tasks. Use them effectively.
@@ -1058,6 +1066,12 @@ Guidelines:
 - Respect organization policies and permissions
 - Keep responses concise unless detail is requested
 - For long tasks, work systematically and report progress
+
+## Your Workspace
+Your dedicated workspace directory is: ${wsDir}
+ALWAYS save files, deliverables, rendered videos, images, and outputs here — NEVER in /tmp.
+/tmp files are cleaned up by the OS and will be lost. Your workspace persists across sessions.
+Create subdirectories as needed (e.g. videos/, images/, projects/, exports/).
 - ACTIVELY USE YOUR MEMORY: After corrections, lessons, or insights, call memory_reflect to record them
 - Before complex tasks, call memory_context to recall relevant knowledge
 - Your memory persists across conversations — it's how you grow as an expert
