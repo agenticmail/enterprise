@@ -187,11 +187,21 @@ export async function fetchBrowserJson<T>(
       const httpInit = withLoopbackBrowserAuth(url, init);
       return await fetchHttpJson<T>(url, { ...httpInit, timeoutMs });
     }
-    const started = await startBrowserControlServiceFromConfig();
-    if (!started) {
-      throw new Error("browser control disabled");
+
+    // In-process path: reuse the browser context already created by cli-agent.ts if available.
+    // This avoids re-initializing the browser service (which fails with auth config issues)
+    // and matches how OpenClaw's gateway dispatches browser requests in-process.
+    const existingCtx = (globalThis as any).__agenticmail_browser_ctx;
+    let dispatcher;
+    if (existingCtx) {
+      dispatcher = createBrowserRouteDispatcher(existingCtx);
+    } else {
+      const started = await startBrowserControlServiceFromConfig();
+      if (!started) {
+        throw new Error("browser control disabled");
+      }
+      dispatcher = createBrowserRouteDispatcher(createBrowserControlContext());
     }
-    const dispatcher = createBrowserRouteDispatcher(createBrowserControlContext());
     const parsed = new URL(url, "http://localhost");
     const query: Record<string, unknown> = {};
     for (const [key, value] of parsed.searchParams.entries()) {

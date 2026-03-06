@@ -718,6 +718,7 @@ export async function runAgent(_args: string[]) {
     });
     const browserPort = browserServer.address().port;
     (globalThis as any).__agenticmail_browser_port = browserPort;
+    (globalThis as any).__agenticmail_browser_ctx = browserCtx;
     console.log(`[browser] ✅ Enterprise browser server on 127.0.0.1:${browserPort}`);
 
     // Clean up on shutdown
