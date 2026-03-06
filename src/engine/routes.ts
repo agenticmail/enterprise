@@ -317,7 +317,7 @@ engine.get('/agent-status-stream', (c) => {
       });
 
       // Keepalive
-      const hb = setInterval(() => send(JSON.stringify({ type: 'heartbeat' })), 30_000);
+      const hb = setInterval(() => send(JSON.stringify({ type: 'heartbeat' })), 15_000);
 
       c.req.raw.signal.addEventListener('abort', () => { unsub(); clearInterval(hb); });
     },
@@ -479,7 +479,7 @@ engine.get('/cluster/stream', (c) => {
       // Send current state
       for (const n of cluster.getAllNodes()) send(JSON.stringify({ type: 'node', event: 'snapshot', ...n }));
       const unsub = cluster.subscribe((_nodeId, node, event) => send(JSON.stringify({ type: 'node', event, ...node })));
-      const hb = setInterval(() => send(JSON.stringify({ type: 'heartbeat' })), 30_000);
+      const hb = setInterval(() => send(JSON.stringify({ type: 'heartbeat' })), 15_000);
       c.req.raw.signal.addEventListener('abort', () => { unsub(); clearInterval(hb); });
     },
   });
