@@ -675,6 +675,10 @@ export async function runAgent(_args: string[]) {
     const browserApp = express();
     installBrowserCommonMiddleware(browserApp);
     // No auth needed — localhost only, agent process internal
+    // Pick a deterministic CDP port for this agent (18800 + hash of agentId)
+    const cdpPortOffset = [...agentId].reduce((acc, ch) => (acc + ch.charCodeAt(0)) % 200, 0);
+    const agentCdpPort = 18800 + cdpPortOffset;
+
     const browserCtx = createBrowserRouteContext({
       getState: () => ({
         server: null,
@@ -683,7 +687,12 @@ export async function runAgent(_args: string[]) {
           enabled: true,
           controlPort: 0,
           evaluateEnabled: true,
-          profiles: {},
+          profiles: {
+            [agentId]: {
+              cdpPort: agentCdpPort,
+              color: '#4A90D9',
+            },
+          },
           defaultProfile: agentId,
           cdpProtocol: 'http' as const,
           cdpHost: '127.0.0.1',
