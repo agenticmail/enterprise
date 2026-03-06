@@ -14,6 +14,21 @@ import { mkdir, readFile, stat } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import type { ToolDefinition } from '../../types.js';
 
+/** Strip markdown formatting from agent responses — plain text only for messaging */
+function stripMarkdown(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, '').trim())
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .trim();
+}
+
 var connections = new Map<string, WhatsAppConnection>();
 
 interface WhatsAppConnection {
@@ -345,14 +360,15 @@ export function createWhatsAppTools(config: WhatsAppConfig): ToolDefinition[] {
         var conn = connections.get(config.agentId);
         if (conn?.connected) {
           var jid = toJid(input.to);
+          var cleanText = stripMarkdown(input.text);
           try { await conn?.sock?.sendPresenceUpdate('composing', jid); } catch {}
-          var r = await conn.sock.sendMessage(jid, { text: input.text });
+          var r = await conn.sock.sendMessage(jid, { text: cleanText });
           try { await conn?.sock?.sendPresenceUpdate('paused', jid); } catch {}
           if (config.onOutbound) try { config.onOutbound(input.to, input.text); } catch {}
           return { ok: true, id: r?.key?.id };
         }
         // Proxy through enterprise server if no local connection
-        return proxySend(config.agentId, { to: input.to, text: input.text });
+        return proxySend(config.agentId, { to: input.to, text: stripMarkdown(input.text) });
       },
     },
     {

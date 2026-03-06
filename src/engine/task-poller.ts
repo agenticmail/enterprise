@@ -59,6 +59,8 @@ export class TaskPoller {
   private timer: ReturnType<typeof setInterval> | null = null;
   private retries = new Map<string, RetryState>();
   private processing = false;
+  /** Tasks currently being recovered — prevents duplicate spawns */
+  private recovering = new Set<string>();
 
   constructor(deps: TaskPollerDeps, config?: TaskPollerConfig) {
     this.deps = deps;
@@ -161,7 +163,14 @@ export class TaskPoller {
             continue;
           }
 
+          // Skip if already being recovered
+          if (this.recovering.has(task.id)) {
+            this.log(`Task ${task.id.slice(0, 8)} already being recovered, skipping`);
+            continue;
+          }
+
           // Try to recover
+          this.recovering.add(task.id);
           const didRecover = await this.recover(task, stuck);
           this.retries.set(task.id, {
             count: retryCount + 1,
@@ -312,6 +321,8 @@ export class TaskPoller {
     try {
       const sessionId = await spawnForTask(task);
       if (sessionId) {
+        // Keep in recovering set until task completes — prevent duplicate spawns
+        // It will be cleaned up by cleanupRetryState when task is completed/failed
         const retryCount = (this.retries.get(task.id)?.count ?? 0) + 1;
         await taskQueue.updateTask(task.id, {
           status: 'in_progress',
@@ -379,6 +390,14 @@ export class TaskPoller {
       const task = this.deps.taskQueue.getTask(taskId);
       if (!task || task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
         this.retries.delete(taskId);
+        this.recovering.delete(taskId);
+      }
+    }
+    // Also clean recovering set
+    for (const taskId of this.recovering) {
+      const task = this.deps.taskQueue.getTask(taskId);
+      if (!task || task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+        this.recovering.delete(taskId);
       }
     }
   }

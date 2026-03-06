@@ -198,6 +198,10 @@ function App() {
           var s = await apiCall('/settings');
           if (s && s.name) setCompanyName(s.name);
         } catch {}
+        // Check for updates (admin/owner only)
+        if (u.role === 'admin' || u.role === 'owner') {
+          apiCall('/system/update-check').then(ui => { if (ui?.updateAvailable) setUpdateInfo(ui); }).catch(() => {});
+        }
         setAuthed(true);
         setAuthChecked(true);
       }).catch(() => setAuthChecked(true));
@@ -334,10 +338,6 @@ function App() {
     if (d?.user) {
       setUser(d.user);
       if (!d.user.totpEnabled) setShow2faReminder(true);
-      // Check for updates (admin only)
-      if (d.user.role === 'admin' || d.user.role === 'owner') {
-        apiCall('/admin/system/update-check').then(u => { if (u?.updateAvailable) setUpdateInfo(u); }).catch(() => {});
-      }
     }
     if (d?.mustResetPassword) setMustResetPassword(true);
     // Init encryption before enabling dashboard
@@ -349,6 +349,10 @@ function App() {
         if (window.__transportEncryption) await window.__transportEncryption.waitForReady();
       }
     } catch {}
+    // Check for updates AFTER encryption is ready (admin only)
+    if (d?.user && (d.user.role === 'admin' || d.user.role === 'owner')) {
+      apiCall('/system/update-check').then(u => { if (u?.updateAvailable) setUpdateInfo(u); }).catch(() => {});
+    }
     setAuthed(true);
   } });
 
@@ -554,35 +558,50 @@ function App() {
             h('button', { className: 'btn btn-ghost btn-sm', onClick: () => setShow2faReminder(false), style: { padding: '2px 6px', minWidth: 0 } }, '\u00d7')
           ),
           // Update available banner
-          updateInfo && h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', margin: '0 0 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 8, fontSize: 13 } },
-            h('span', { style: { fontSize: 18 } }, '\uD83C\uDF80'),
-            h('div', { style: { flex: 1 } },
-              h('strong', null, 'Update Available'),
-              h('span', { style: { color: 'var(--text-secondary)', marginLeft: 6 } },
-                'v' + updateInfo.current + ' \u2192 v' + updateInfo.latest
-              )
-            ),
-            h('button', {
-              className: 'btn btn-sm',
-              disabled: updating,
-              style: { background: 'rgba(16,185,129,0.9)', color: '#fff', border: 'none' },
-              onClick: async () => {
-                setUpdating(true);
-                try {
-                  const r = await apiCall('/admin/system/update', { method: 'POST' });
-                  if (r?.success) {
-                    setUpdateInfo(null);
-                    showToast && showToast('Updated to v' + r.to + ' — services restarting...', 'success');
-                  } else {
-                    showToast && showToast('Update failed: ' + (r?.message || 'unknown'), 'error');
+          updateInfo && h('div', { style: { padding: '12px 16px', margin: '0 0 16px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, fontSize: 13 } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+              h('span', { style: { fontSize: 18 } }, '\uD83C\uDF80'),
+              h('div', { style: { flex: 1 } },
+                h('strong', null, 'Update Available'),
+                h('span', { style: { color: 'var(--text-secondary)', marginLeft: 6 } },
+                  'v' + updateInfo.current + ' \u2192 v' + updateInfo.latest
+                )
+              ),
+              h('button', {
+                className: 'btn btn-sm',
+                disabled: updating,
+                style: { background: 'rgba(16,185,129,0.9)', color: '#fff', border: 'none' },
+                onClick: async () => {
+                  setUpdating(true);
+                  try {
+                    const r = await apiCall('/system/update', { method: 'POST' });
+                    if (r?.success) {
+                      setUpdateInfo(null);
+                      toast('Updated to v' + r.to + ' — services restarting...', 'success');
+                    } else {
+                      toast('Update failed: ' + (r?.message || 'unknown'), 'error');
+                    }
+                  } catch (e) {
+                    toast('Update failed: ' + e.message, 'error');
                   }
-                } catch (e) {
-                  showToast && showToast('Update failed: ' + e.message, 'error');
+                  setUpdating(false);
                 }
-                setUpdating(false);
-              }
-            }, updating ? 'Updating...' : 'Update Now'),
-            h('button', { className: 'btn btn-ghost btn-sm', onClick: () => setUpdateInfo(null), style: { padding: '2px 6px', minWidth: 0 } }, '\u00d7')
+              }, updating ? 'Updating...' : 'Update Now'),
+              h('button', { className: 'btn btn-ghost btn-sm', onClick: () => setUpdateInfo(null), style: { padding: '2px 6px', minWidth: 0 } }, '\u00d7')
+            ),
+            updateInfo.releaseNotes && h('div', { style: { marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(16,185,129,0.2)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.6, maxHeight: 200, overflowY: 'auto' } },
+              h('div', { dangerouslySetInnerHTML: { __html: updateInfo.releaseNotes
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/^### (.+)$/gm, '<div style="font-weight:700;color:var(--text-primary);font-size:12px;margin:8px 0 4px">$1</div>')
+                .replace(/^## (.+)$/gm, '<div style="font-weight:700;color:var(--text-primary);font-size:13px;margin:8px 0 4px">$1</div>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text-primary)">$1</strong>')
+                .replace(/`(.+?)`/g, '<code style="background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;font-size:11px">$1</code>')
+                .replace(/^- (.+)$/gm, '<div style="padding-left:12px;margin:2px 0">\u2022 $1</div>')
+                .replace(/\n\n/g, '<div style="height:6px"></div>')
+                .replace(/\n/g, '')
+              } })
+            ),
+            updateInfo.releaseUrl && h('a', { href: updateInfo.releaseUrl, target: '_blank', style: { display: 'inline-block', marginTop: 6, fontSize: 11, color: 'rgba(16,185,129,0.9)' } }, 'View full release notes \u2192')
           ),
           selectedAgentId
             ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { _setSelectedAgentId(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); } })

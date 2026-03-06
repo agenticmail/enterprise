@@ -20,6 +20,8 @@ interface VersionInfo {
   latest: string;
   updateAvailable: boolean;
   checkedAt: string;
+  releaseNotes?: string;
+  releaseUrl?: string;
 }
 
 // ─── Version Check ──────────────────────────────────────
@@ -64,11 +66,30 @@ export async function checkForUpdate(): Promise<VersionInfo> {
   const latest = await getLatestVersion();
   const updateAvailable = latest !== 'unknown' && current !== 'unknown' && latest !== current;
   
+  // Fetch release notes from GitHub if update available
+  let releaseNotes: string | undefined;
+  let releaseUrl: string | undefined;
+  if (updateAvailable) {
+    try {
+      const ghRes = await fetch(`https://api.github.com/repos/agenticmail/enterprise/releases/tags/v${latest}`, {
+        headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'AgenticMail-Enterprise' },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (ghRes.ok) {
+        const gh = await ghRes.json() as any;
+        releaseNotes = gh.body || undefined;
+        releaseUrl = gh.html_url || undefined;
+      }
+    } catch {}
+  }
+
   const info: VersionInfo = {
     current,
     latest,
     updateAvailable,
     checkedAt: new Date().toISOString(),
+    releaseNotes,
+    releaseUrl,
   };
 
   // Cache the check result
@@ -140,10 +161,17 @@ export async function performUpdate(options?: { restart?: boolean }): Promise<{ 
       });
 
       if (amProcs.length > 0) {
-        const names = amProcs.map((p: any) => p.name).join(' ');
-        console.log(`  Restarting: ${names}`);
-        execSync(`pm2 restart ${names}`, { stdio: 'inherit', timeout: 30_000 });
-        execSync('pm2 save', { stdio: 'ignore', timeout: 10_000 });
+        // Restart agents first, enterprise last (since restarting enterprise kills this process)
+        const sorted = amProcs.sort((a: any, b: any) => {
+          const aIsServer = a.name === 'enterprise' || a.name === 'agenticmail';
+          const bIsServer = b.name === 'enterprise' || b.name === 'agenticmail';
+          return aIsServer ? 1 : bIsServer ? -1 : 0;
+        });
+        for (const proc of sorted) {
+          console.log(`  Restarting: ${proc.name}`);
+          try { execSync(`pm2 restart ${proc.name}`, { stdio: 'inherit', timeout: 15_000 }); } catch {}
+        }
+        try { execSync('pm2 save', { stdio: 'ignore', timeout: 10_000 }); } catch {}
         console.log(`  ✅ All services restarted`);
       } else {
         console.log(`  ⚠️  No PM2 processes found — restart manually if needed`);

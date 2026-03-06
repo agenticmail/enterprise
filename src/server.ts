@@ -536,6 +536,8 @@ export function createServer(config: ServerConfig): ServerInstance {
     let html = getDashboardHtml();
     // Inject version
     html = html.replace('</head>', `<script>window.__ENTERPRISE_VERSION__="${ENTERPRISE_VERSION}";</script></head>`);
+    // Cache-bust all JS imports with current version
+    html = html.replace(/\.js\?v=\d+/g, `.js?v=${ENTERPRISE_VERSION}`);
 
     if (!_setupComplete) {
       const injection = `<script>window.__EM_SETUP_STATE__=${JSON.stringify({ needsBootstrap: true })};</script>`;
@@ -617,8 +619,16 @@ export function createServer(config: ServerConfig): ServerInstance {
       if (!filePath.startsWith(join(dir, 'dashboard'))) {
         return c.json({ error: 'Forbidden' }, 403);
       }
-      if (existsSync(filePath)) {
-        const content = readFileSync(filePath);
+      // Strip ?v= from the file path (cache buster in URL)
+      const cleanPath = filePath.replace(/\?.*$/, '');
+      if (existsSync(cleanPath)) {
+        let content: any = readFileSync(cleanPath);
+        // For JS files, rewrite ?v=N imports to current version
+        if (ext === '.js') {
+          let text = content.toString('utf-8');
+          text = text.replace(/\.js\?v=\d+/g, `.js?v=${ENTERPRISE_VERSION}`);
+          content = text;
+        }
         return new Response(content, { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': 'no-cache, no-store, must-revalidate' } });
       }
       // Static asset not found — return 404, NOT the SPA HTML

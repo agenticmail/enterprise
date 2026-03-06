@@ -8,6 +8,23 @@
 
 import type { ToolDefinition } from '../../types.js';
 
+/** Strip markdown formatting from agent responses — plain text only for messaging */
+function stripMarkdown(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')       // **bold** → bold
+    .replace(/\*(.+?)\*/g, '$1')            // *italic* → italic
+    .replace(/__(.+?)__/g, '$1')            // __underline__ → underline
+    .replace(/~~(.+?)~~/g, '$1')            // ~~strike~~ → strike
+    .replace(/^#{1,6}\s+/gm, '')            // ## headers → plain
+    .replace(/^[-*+]\s+/gm, '- ')           // Keep list items but normalize
+    .replace(/```[\s\S]*?```/g, (m) =>      // ```code blocks``` → content only
+      m.replace(/```\w*\n?/g, '').trim())
+    .replace(/`([^`]+)`/g, '$1')            // `inline code` → plain
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) → link text
+    .trim();
+}
+
 interface TelegramConfig {
   botToken: string;
   onOutbound?: (chatId: string, text: string) => void;
@@ -54,8 +71,10 @@ export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
         required: ['chatId', 'text'],
       },
       execute: async (_id: string, input: any) => {
+        // Strip markdown formatting — agents should send plain text
+        var cleanText = stripMarkdown(input.text);
         var r = await tgApi(botToken, 'sendMessage', {
-          chat_id: input.chatId, text: input.text, parse_mode: 'HTML',
+          chat_id: input.chatId, text: cleanText,
           ...(input.replyTo ? { reply_parameters: { message_id: input.replyTo } } : {}),
         });
         if (onOutbound) try { onOutbound(input.chatId, input.text); } catch {}
