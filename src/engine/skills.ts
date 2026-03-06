@@ -110,7 +110,13 @@ export type SideEffect =
   | 'creates-account'
   | 'configures-email'
   | 'database_write'
-  | 'external_api';
+  | 'external_api'
+  | 'terminates-process'
+  | 'installs-software'
+  | 'uninstalls-software'
+  | 'installs-packages'
+  | 'starts-process'
+  | 'cpu-intensive';
 
 // ─── Individual Skill File Imports ──────────────────────
 import { Emoji } from './emoji.js';

@@ -86,3 +86,4 @@ export { buildTaskPrompt, type TaskContext } from './task.js';
 export { buildCatchupPrompt, type CatchupContext } from './catchup.js';
 export { buildTriagePrompt, type TriageContext } from './triage.js';
 export { BROWSER_RULES } from './shared-blocks.js';
+export { buildRemotonPrompt } from './remotion.js';

@@ -281,7 +281,7 @@ engine.post('/agent-status/:agentId', async (c) => {
     // Also update DB state so dashboard shows correct status without SSE
     if (body.status === 'online' || body.status === 'idle') {
       const agent = lifecycle.getAgent(agentId);
-      if (agent && agent.state !== 'running' && agent.state !== 'active') {
+      if (agent && agent.state !== 'running' && (agent.state as string) !== 'active') {
         (agent as any).state = 'running';
         (agent as any).stateMessage = 'Agent online (heartbeat)';
         lifecycle.saveAgent(agentId).catch(() => {});
@@ -1076,11 +1076,10 @@ async function startChatPoller(engineDb: any): Promise<void> {
   let chatClientSecret = emailConfig.oauthClientSecret;
   if (!chatClientId || !chatClientSecret) {
     try {
-      const adminDb = (await import('./admin-db.js')).getAdminDb();
-      if (adminDb) {
-        const orgSettings = await adminDb.getSettings();
-        chatClientId = chatClientId || orgSettings?.oauthClientId;
-        chatClientSecret = chatClientSecret || orgSettings?.oauthClientSecret;
+      if (_adminDb) {
+        const orgSettings = await _adminDb.getSettings();
+        chatClientId = chatClientId || (orgSettings as any)?.oauthClientId;
+        chatClientSecret = chatClientSecret || (orgSettings as any)?.oauthClientSecret;
       }
     } catch {}
   }

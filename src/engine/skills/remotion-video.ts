@@ -7,7 +7,7 @@ export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   description: 'Create professional marketing videos, social media reels, animations, and motion graphics programmatically using Remotion. Build React-based video compositions, render to MP4/WebM/GIF, and manage video projects. Supports text animations, image slideshows, data visualizations, branded intros/outros, and more.',
   category: 'media',
   risk: 'medium',
-  icon: Emoji.movie,
+  icon: Emoji.video,
   source: 'builtin',
   version: '1.0.0',
   author: 'AgenticMail',

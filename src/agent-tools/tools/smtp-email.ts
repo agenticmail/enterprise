@@ -62,14 +62,14 @@ function getImapConfig(ctx: ToolContext) {
     host: imapHost,
     port: ec.imapPort || 993,
     secure: true,
-    auth: { user: ec.smtpUser || ec.imapUser || ec.email, pass },
+    auth: { user: (ec as any).smtpUser || (ec as any).imapUser || ec.email || '', pass },
     logger: false,
   };
 }
 
 async function withImap<T>(ctx: ToolContext, fn: (client: any) => Promise<T>): Promise<T> {
   const config = getImapConfig(ctx);
-  const client = new ImapFlow({ ...config, socketTimeout: 30000, greetingTimeout: 15000 });
+  const client = new ImapFlow({ ...config, socketTimeout: 30000, greetingTimeout: 15000 } as any);
   // Suppress uncaught errors from socket timeouts
   client.on('error', (err: any) => {
     console.warn(`[smtp-email] IMAP error (suppressed): ${err.message}`);

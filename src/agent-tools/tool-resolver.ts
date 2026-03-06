@@ -70,6 +70,7 @@ export type ToolSet =
   | 'ent_code'
   | 'ent_diff'
   | 'remotion_video'
+  | 'smtp_email'
   | 'ent_knowledge'
   // Local system
   | 'local_filesystem'
@@ -832,6 +833,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   ent_security: 'Security scanning — secrets, PII, deps (6 tools)',
   ent_code: 'Code sandbox — JS, Python, shell (5 tools)',
   ent_diff: 'Text/JSON/spreadsheet diffs (4 tools)',
+  remotion_video: 'Create videos programmatically — Remotion React framework (9 tools)',
   ent_knowledge: 'Knowledge base + hub search (3 tools)',
   agenticmail: 'Full email management (40 tools)',
   local_filesystem: 'File read/write/edit/move/delete/search (7 tools)',

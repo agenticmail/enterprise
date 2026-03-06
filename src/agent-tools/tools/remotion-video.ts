@@ -274,7 +274,7 @@ const TSCONFIG = JSON.stringify({
 
 // ─── Tool Executors ───────────────────────────────────────
 
-const createProject: ToolExecutor = async (_id, params) => {
+const createProject = async (_id: any, params: any) => {
   const { projectDir, name, template = 'blank' } = params;
 
   if (!projectDir) return { error: 'projectDir is required' };
@@ -322,7 +322,7 @@ const createProject: ToolExecutor = async (_id, params) => {
   };
 };
 
-const createComposition: ToolExecutor = async (_id, params) => {
+const createComposition = async (_id: any, params: any) => {
   const { projectDir, compositionId, code, width = 1080, height = 1920, fps = 30, durationInSeconds = 15 } = params;
 
   if (!projectDir || !compositionId || !code) return { error: 'projectDir, compositionId, and code are required' };
@@ -371,7 +371,7 @@ ${compositions.map(c => {
   };
 };
 
-const renderVideo: ToolExecutor = async (_id, params) => {
+const renderVideo = async (_id: any, params: any) => {
   const { projectDir, compositionId, outputPath, codec = 'h264', quality, inputProps, concurrency, scale } = params;
 
   if (!projectDir || !compositionId || !outputPath) return { error: 'projectDir, compositionId, and outputPath are required' };
@@ -428,7 +428,7 @@ const renderVideo: ToolExecutor = async (_id, params) => {
   }
 };
 
-const renderStill: ToolExecutor = async (_id, params) => {
+const renderStill = async (_id: any, params: any) => {
   const { projectDir, compositionId, outputPath, frame = 0, inputProps, format = 'png', scale } = params;
 
   if (!projectDir || !compositionId || !outputPath) return { error: 'projectDir, compositionId, and outputPath are required' };
@@ -453,7 +453,7 @@ const renderStill: ToolExecutor = async (_id, params) => {
   }
 };
 
-const listCompositions: ToolExecutor = async (_id, params) => {
+const listCompositions = async (_id: any, params: any) => {
   const { projectDir } = params;
   if (!projectDir) return { error: 'projectDir is required' };
   if (!existsSync(projectDir)) return { error: `Project directory not found: ${projectDir}` };
@@ -470,7 +470,7 @@ const listCompositions: ToolExecutor = async (_id, params) => {
   return { compositions, projectDir };
 };
 
-const startPreview: ToolExecutor = async (_id, params) => {
+const startPreview = async (_id: any, params: any) => {
   const { projectDir, port = 3333 } = params;
   if (!projectDir) return { error: 'projectDir is required' };
   if (!existsSync(projectDir)) return { error: `Project directory not found: ${projectDir}` };
@@ -493,7 +493,7 @@ const startPreview: ToolExecutor = async (_id, params) => {
   };
 };
 
-const addAsset: ToolExecutor = async (_id, params) => {
+const addAsset = async (_id: any, params: any) => {
   const { projectDir, source, filename } = params;
   if (!projectDir || !source || !filename) return { error: 'projectDir, source, and filename are required' };
 
@@ -522,7 +522,7 @@ const addAsset: ToolExecutor = async (_id, params) => {
   };
 };
 
-const installPackage: ToolExecutor = async (_id, params) => {
+const installPackage = async (_id: any, params: any) => {
   const { projectDir, packages } = params;
   if (!projectDir || !packages?.length) return { error: 'projectDir and packages are required' };
   if (!existsSync(projectDir)) return { error: `Project directory not found: ${projectDir}` };
@@ -539,7 +539,7 @@ const installPackage: ToolExecutor = async (_id, params) => {
   }
 };
 
-const shareFile: ToolExecutor = async (_id, params) => {
+const shareFile = async (_id: any, params: any) => {
   const { filePath, ttl = 72 } = params;
   if (!filePath) return { error: 'filePath is required' };
   if (!existsSync(filePath)) return { error: `File not found: ${filePath}` };
@@ -563,10 +563,10 @@ const shareFile: ToolExecutor = async (_id, params) => {
 
 function tool(name: string, label: string, description: string, params: any, executor: Function): AnyAgentTool {
   return {
-    name, label, description, category: 'media', risk: 'medium' as any,
+    name, label, description, category: 'productivity' as any, risk: 'medium' as any,
     parameters: params,
     execute: async (_id: string, args: any) => executor(_id, args),
-  } as AnyAgentTool;
+  } as unknown as AnyAgentTool;
 }
 
 export function createRemotonTools(): AnyAgentTool[] {

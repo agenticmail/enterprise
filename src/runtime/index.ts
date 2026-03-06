@@ -50,6 +50,9 @@ import { SubAgentManager, type SpawnSubAgentResult } from './subagent.js';
 import { EmailChannel, type InboundEmail, type InboundEmailResult } from './email-channel.js';
 import { FollowUpScheduler } from './followup.js';
 import { resolveApiKeyForProvider, PROVIDER_REGISTRY, type CustomProviderDef } from './providers.js';
+import { buildRemotonPrompt } from '../system-prompts/remotion.js';
+
+const _remotionPrompt = buildRemotonPrompt();
 
 // ─── Re-exports ──────────────────────────────────────────
 
@@ -1074,6 +1077,9 @@ Current time: ${new Date().toISOString()}`;
   if (hierarchyContext) {
     base += '\n\n' + hierarchyContext;
   }
+
+  // Inject Remotion video prompt
+  base += '\n' + _remotionPrompt;
 
   // Language enforcement — if agent has a configured language, enforce it
   if (agentIdentity?.language && agentIdentity.language !== 'en-us') {

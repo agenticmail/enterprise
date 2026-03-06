@@ -24,6 +24,12 @@ export interface AgentEmailIdentity {
   refreshToken?: () => Promise<string>;
   /** Provider type */
   provider: EmailProvider;
+  /** IMAP/SMTP fields (for non-OAuth agents) */
+  imapHost?: string;
+  imapPort?: number;
+  smtpHost?: string;
+  smtpPort?: number;
+  password?: string;
 }
 
 export type EmailProvider = 'microsoft' | 'google' | 'imap';

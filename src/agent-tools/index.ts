@@ -195,6 +195,14 @@ export interface AllToolsOptions extends ToolCreationOptions {
     oauthClientId?: string;
     oauthClientSecret?: string;
     email?: string;
+    provider?: string;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpUser?: string;
+    smtpPass?: string;
+    password?: string;
+    imapHost?: string;
+    imapPort?: number;
   };
   /** Callback to persist updated tokens after refresh */
   onTokenRefresh?: (tokens: Partial<OAuthTokens>) => void;
