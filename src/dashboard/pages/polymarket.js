@@ -190,14 +190,14 @@ export function PolymarketPage() {
 
   return h('div', { className: 'page-content' },
     h('div', { className: 'page-header' },
-      h('div', { style: 'display:flex;align-items:center;gap:12px' },
+      h('div', { style: { display: "flex", alignItems: "center", gap: "12px" } },
         h('h1', null, I('trending-up'), ' Polymarket Trading'),
         h(HelpButton, { topic: 'polymarket' })
       ),
-      h('div', { style: 'display:flex;gap:8px;align-items:center' },
+      h('div', { style: { display: "flex", gap: "8px", alignItems: "center" } },
         agents.length > 0 && h('select', {
           value: selectedAgent || '', onChange: function(e) { setSelectedAgent(e.target.value); },
-          className: 'form-select', style: 'min-width:200px'
+          className: 'form-select', style: { minWidth: "200px" }
         }, agents.map(function(a) { return h('option', { key: a.id, value: a.id }, a.name || a.id); })),
         selectedAgent && h('button', { className: 'btn btn-outline', onClick: togglePause },
           I(dashboard?.dailyCounters?.some(function(c) { return c.agent_id === selectedAgent && c.paused; }) ? 'play' : 'pause'),
@@ -208,11 +208,11 @@ export function PolymarketPage() {
     ),
 
     // Grouped tabs
-    h('div', { style: 'margin-bottom:16px' },
+    h('div', { style: { marginBottom: "16px" } },
       tabGroups.map(function(g) {
-        return h('div', { key: g.label, style: 'display:flex;align-items:center;gap:4px;margin-bottom:4px;flex-wrap:wrap' },
-          h('span', { style: 'font-size:10px;color:var(--text-muted);text-transform:uppercase;width:80px;flex-shrink:0;letter-spacing:1px' }, g.label),
-          h('div', { className: 'tabs', style: 'margin:0;flex-wrap:wrap' },
+        return h('div', { key: g.label, style: { display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px", flexWrap: "wrap" } },
+          h('span', { style: { fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", width: "80px", flexShrink: "0", letterSpacing: "1px" } }, g.label),
+          h('div', { className: 'tabs', style: { margin: "0", flexWrap: "wrap" } },
             g.tabs.map(function(t) {
               return h('button', { key: t.id, className: 'tab' + (tab === t.id ? ' active' : ''), onClick: function() { setTab(t.id); } }, t.label);
             })
@@ -223,7 +223,7 @@ export function PolymarketPage() {
 
     // ═══ OVERVIEW ═══
     tab === 'overview' && h('div', null,
-      h('div', { className: 'stats-grid', style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px' },
+      h('div', { className: 'stats-grid', style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: "12px", marginBottom: "24px" } },
         statCard('Wallet', wallet ? shortAddr(wallet.address) : 'Not set', wallet ? 'Connected' : null),
         statCard('Mode', config?.mode || 'N/A'),
         statCard('Pending', pendingTrades.length),
@@ -240,10 +240,10 @@ export function PolymarketPage() {
         statCard('Social Signals', socialSignals.length),
         statCard('Events', events.length),
       ),
-      agents.length === 0 && h('div', { className: 'empty-state card', style: 'padding:40px;text-align:center' },
+      agents.length === 0 && h('div', { className: 'empty-state card', style: { padding: "40px", textAlign: "center" } },
         h('h3', null, 'No Polymarket Agents'),
         h('p', null, 'Create an agent with the Polymarket Trader template to get started.'),
-        h('p', { style: 'color:var(--text-muted)' }, 'Agents \u2192 Create Agent \u2192 "Polymarket Trader" (Finance)')
+        h('p', { style: { color: "var(--text-muted)" } }, 'Agents \u2192 Create Agent \u2192 "Polymarket Trader" (Finance)')
       )
     ),
 
@@ -251,12 +251,12 @@ export function PolymarketPage() {
     tab === 'pending' && renderTable(pendingTrades, 'No pending trades',
       ['Market', 'Side', 'Size', 'Price', 'Urgency', 'Created', 'Actions'],
       function(t) { return [
-        h('td', null, h('div', { style: 'max-width:280px' }, h('strong', null, t.outcome || '?'), h('div', { className: 'text-muted small' }, t.market_question || ''))),
+        h('td', null, h('div', { style: { maxWidth: "280px" } }, h('strong', null, t.outcome || '?'), h('div', { className: 'text-muted small' }, t.market_question || ''))),
         h('td', null, sideBadge(t.side)), h('td', null, '$' + (t.size || 0).toFixed(2)),
         h('td', null, t.price ? t.price.toFixed(2) + '\u00a2' : 'Market'),
         h('td', null, h('span', { className: 'badge badge-' + (t.urgency === 'high' ? 'warning' : 'secondary') }, t.urgency || 'normal')),
         h('td', null, fmtDate(t.created_at)),
-        h('td', null, h('div', { style: 'display:flex;gap:4px' },
+        h('td', null, h('div', { style: { display: "flex", gap: "4px" } },
           h('button', { className: 'btn btn-sm btn-success', onClick: function() { decideTrade(t.id, 'approve'); } }, I('check')),
           h('button', { className: 'btn btn-sm btn-danger', onClick: function() { decideTrade(t.id, 'reject'); } }, I('x'))
         )),
@@ -267,7 +267,7 @@ export function PolymarketPage() {
     tab === 'history' && renderTable(tradeHistory, 'No trade history',
       ['Market', 'Side', 'Size', 'Price', 'Status', 'P&L', 'Date'],
       function(t) { return [
-        h('td', null, h('div', { style: 'max-width:280px' }, t.market_question || shortId(t.token_id))),
+        h('td', null, h('div', { style: { maxWidth: "280px" } }, t.market_question || shortId(t.token_id))),
         h('td', null, sideBadge(t.side)), h('td', null, '$' + (t.size || 0).toFixed(2)),
         h('td', null, (t.fill_price || t.price || 0).toFixed(2) + '\u00a2'),
         h('td', null, h('span', { className: 'badge badge-secondary' }, t.status)),
@@ -278,13 +278,13 @@ export function PolymarketPage() {
     // ═══ CONFIG ═══
     tab === 'config' && h('div', null,
       !config ?
-        h('div', { className: 'empty-state card', style: 'padding:24px;text-align:center' },
+        h('div', { className: 'empty-state card', style: { padding: "24px", textAlign: "center" } },
           'No config yet.', h('br'), h('br'),
           h('button', { className: 'btn btn-primary', onClick: function() { setEditConfig({ mode: 'approval', max_position_size: 100, max_order_size: 50, max_total_exposure: 500, max_daily_trades: 10, max_daily_loss: 50, max_drawdown_pct: 20, stop_loss_pct: 0, take_profit_pct: 0, cash_reserve_pct: 20 }); } }, 'Create Config')
         ) :
-        h('div', { className: 'card', style: 'padding:24px' },
-          h('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px' },
-            h('h3', { style: 'margin:0' }, 'Trading Configuration'),
+        h('div', { className: 'card', style: { padding: "24px" } },
+          h('div', { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" } },
+            h('h3', { style: { margin: "0" } }, 'Trading Configuration'),
             h('button', { className: 'btn btn-secondary', onClick: function() { setEditConfig({
               mode: config.mode, max_position_size: config.max_position_size, max_order_size: config.max_order_size,
               max_total_exposure: config.max_total_exposure, max_daily_trades: config.max_daily_trades,
@@ -292,7 +292,7 @@ export function PolymarketPage() {
               stop_loss_pct: config.stop_loss_pct, take_profit_pct: config.take_profit_pct, cash_reserve_pct: config.cash_reserve_pct,
             }); } }, I('edit'), ' Edit')
           ),
-          h('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px' },
+          h('div', { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: "12px" } },
             cfgField('Mode', config.mode), cfgField('Max Position', '$' + config.max_position_size),
             cfgField('Max Order', '$' + config.max_order_size), cfgField('Max Exposure', '$' + config.max_total_exposure),
             cfgField('Daily Trades', config.max_daily_trades), cfgField('Daily Loss', '$' + config.max_daily_loss),
@@ -309,7 +309,7 @@ export function PolymarketPage() {
       renderTable(whales, 'No whale wallets tracked yet. The agent auto-detects them when using poly_whale_tracker.',
         ['Address', 'Label', 'Volume', 'Markets', 'Win Rate', 'Last Seen'],
         function(w) { return [
-          h('td', null, h('code', { style: 'font-size:12px' }, shortAddr(w.address))),
+          h('td', null, h('code', { style: { fontSize: "12px" } }, shortAddr(w.address))),
           h('td', null, w.label || 'Unknown'),
           h('td', null, '$' + (w.total_volume || 0).toFixed(0)),
           h('td', null, w.markets_traded || 0),
@@ -338,11 +338,11 @@ export function PolymarketPage() {
     // ═══ EVENTS ═══
     tab === 'events' && h('div', null,
       h('h3', null, I('calendar'), ' Event Calendar'),
-      h('div', { style: 'margin-bottom:16px;color:var(--text-muted)' }, 'Market-moving events tracked by the agent. Elections, court rulings, fed meetings, earnings, sports.'),
+      h('div', { style: { marginBottom: "16px", color: "var(--text-muted)" } }, 'Market-moving events tracked by the agent. Elections, court rulings, fed meetings, earnings, sports.'),
       renderTable(events, 'No events tracked yet. The agent adds them with poly_calendar_events.',
         ['Title', 'Category', 'Date', 'Impact', 'Status', ''],
         function(ev) { return [
-          h('td', null, h('div', { style: 'max-width:300px' }, h('strong', null, ev.title), ev.description ? h('div', { className: 'text-muted small' }, ev.description.slice(0, 100)) : null)),
+          h('td', null, h('div', { style: { maxWidth: "300px" } }, h('strong', null, ev.title), ev.description ? h('div', { className: 'text-muted small' }, ev.description.slice(0, 100)) : null)),
           h('td', null, h('span', { className: 'badge badge-secondary' }, ev.category)),
           h('td', null, fmtDate(ev.event_date)),
           h('td', null, h('span', { className: 'badge badge-' + (ev.impact === 'critical' ? 'danger' : ev.impact === 'high' ? 'warning' : 'secondary') }, ev.impact)),
@@ -353,12 +353,12 @@ export function PolymarketPage() {
         ]; }
       ),
       // News alerts
-      newsAlerts.length > 0 && h('div', { style: 'margin-top:24px' },
+      newsAlerts.length > 0 && h('div', { style: { marginTop: "24px" } },
         h('h3', null, I('zap'), ' Recent News Alerts'),
         renderTable(newsAlerts.slice(0, 20), '',
           ['Headline', 'Source', 'Relevance', 'Time'],
           function(n) { return [
-            h('td', null, h('div', { style: 'max-width:400px' }, n.url ? h('a', { href: n.url, target: '_blank', style: 'color:inherit' }, n.headline) : n.headline)),
+            h('td', null, h('div', { style: { maxWidth: "400px" } }, n.url ? h('a', { href: n.url, target: '_blank', style: { color: "inherit" } }, n.headline) : n.headline)),
             h('td', null, n.source),
             h('td', null, n.relevance > 0.5 ? h('span', { className: 'badge badge-warning' }, 'High') : h('span', { className: 'badge badge-secondary' }, 'Low')),
             h('td', null, fmtDate(n.timestamp)),
@@ -374,32 +374,32 @@ export function PolymarketPage() {
       renderTable(correlations, 'No correlations detected yet. Agent discovers them with poly_market_correlation.',
         ['Market A', 'Market B', 'Correlation', 'Strength', 'Time'],
         function(c) { return [
-          h('td', null, h('code', { style: 'font-size:11px' }, shortId(c.market_a))),
-          h('td', null, h('code', { style: 'font-size:11px' }, shortId(c.market_b))),
-          h('td', null, h('strong', { style: 'color:' + (Math.abs(c.correlation) > 0.7 ? 'var(--success)' : 'var(--text)') }, c.correlation.toFixed(3))),
+          h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(c.market_a))),
+          h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(c.market_b))),
+          h('td', null, h('strong', { style: { color: "" } + (Math.abs(c.correlation) > 0.7 ? 'var(--success)' : 'var(--text)') }, c.correlation.toFixed(3))),
           h('td', null, Math.abs(c.correlation) > 0.8 ? 'Strong' : Math.abs(c.correlation) > 0.5 ? 'Moderate' : 'Weak'),
           h('td', null, fmtDate(c.timestamp)),
         ]; }
       ),
       // Arbitrage
-      h('h3', { style: 'margin-top:24px' }, I('shuffle'), ' Arbitrage Opportunities'),
+      h('h3', { style: { marginTop: "24px" } }, I('shuffle'), ' Arbitrage Opportunities'),
       renderTable(arbitrage, 'No arbitrage opportunities found yet. Agent scans with poly_arbitrage_scanner.',
         ['Type', 'Expected Profit', 'Confidence', 'Status', 'Time'],
         function(a) { return [
           h('td', null, h('span', { className: 'badge badge-secondary' }, a.type)),
-          h('td', null, h('strong', { style: 'color:var(--success)' }, a.expected_profit.toFixed(2) + '%')),
+          h('td', null, h('strong', { style: { color: "var(--success)" } }, a.expected_profit.toFixed(2) + '%')),
           h('td', null, a.confidence ? (a.confidence * 100).toFixed(0) + '%' : '-'),
           h('td', null, h('span', { className: 'badge badge-' + (a.status === 'open' ? 'success' : 'secondary') }, a.status)),
           h('td', null, fmtDate(a.timestamp)),
         ]; }
       ),
       // Regime signals
-      regimes.length > 0 && h('div', { style: 'margin-top:24px' },
+      regimes.length > 0 && h('div', { style: { marginTop: "24px" } },
         h('h3', null, I('activity'), ' Regime Detection'),
         renderTable(regimes.slice(0, 20), '',
           ['Token', 'Regime', 'Confidence', 'Hurst', 'Volatility', 'Time'],
           function(r) { return [
-            h('td', null, h('code', { style: 'font-size:11px' }, shortId(r.token_id))),
+            h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(r.token_id))),
             h('td', null, regimeBadge(r.regime)),
             h('td', null, (r.confidence * 100).toFixed(0) + '%'),
             h('td', null, r.hurst ? r.hurst.toFixed(3) : '-'),
@@ -416,7 +416,7 @@ export function PolymarketPage() {
       renderTable(snipers, 'No sniper orders. Agent creates them with poly_sniper.',
         ['Token', 'Side', 'Target', 'Max', 'Size', 'Trail', 'Status', ''],
         function(s) { return [
-          h('td', null, h('code', { style: 'font-size:11px' }, shortId(s.token_id))),
+          h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(s.token_id))),
           h('td', null, sideBadge(s.side)),
           h('td', null, s.target_price?.toFixed(2) + '\u00a2'),
           h('td', null, s.max_price ? s.max_price.toFixed(2) + '\u00a2' : '-'),
@@ -428,11 +428,11 @@ export function PolymarketPage() {
           }}, I('x'))),
         ]; }
       ),
-      h('h3', { style: 'margin-top:24px' }, I('layers'), ' Scale-In Orders (TWAP/VWAP)'),
+      h('h3', { style: { marginTop: "24px" } }, I('layers'), ' Scale-In Orders (TWAP/VWAP)'),
       renderTable(scaleOrders, 'No scale orders. Agent creates them with poly_scale_in.',
         ['Token', 'Side', 'Total', 'Slices', 'Completed', 'Strategy', 'Avg Price', 'Status'],
         function(s) { return [
-          h('td', null, h('code', { style: 'font-size:11px' }, shortId(s.token_id))),
+          h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(s.token_id))),
           h('td', null, sideBadge(s.side)),
           h('td', null, '$' + (s.total_size || 0).toFixed(2)),
           h('td', null, s.slices),
@@ -450,8 +450,8 @@ export function PolymarketPage() {
       renderTable(hedges, 'No hedges. Agent creates them with poly_hedge.',
         ['Primary', 'Hedge', 'P. Side', 'H. Side', 'P. Size', 'H. Size', 'Ratio', 'Status'],
         function(hg) { return [
-          h('td', null, h('code', { style: 'font-size:11px' }, shortId(hg.primary_token))),
-          h('td', null, h('code', { style: 'font-size:11px' }, shortId(hg.hedge_token))),
+          h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(hg.primary_token))),
+          h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(hg.hedge_token))),
           h('td', null, sideBadge(hg.primary_side)), h('td', null, sideBadge(hg.hedge_side)),
           h('td', null, '$' + (hg.primary_size || 0).toFixed(2)),
           h('td', null, '$' + (hg.hedge_size || 0).toFixed(2)),
@@ -467,10 +467,10 @@ export function PolymarketPage() {
       renderTable(exitRules, 'No exit rules. Agent sets them with poly_exit_strategy after every trade.',
         ['Token', 'Entry', 'Take Profit', 'Stop Loss', 'Trailing', 'Time Exit', 'Highest', ''],
         function(r) { return [
-          h('td', null, h('code', { style: 'font-size:11px' }, shortId(r.token_id))),
+          h('td', null, h('code', { style: { fontSize: "11px" } }, shortId(r.token_id))),
           h('td', null, r.entry_price?.toFixed(2) + '\u00a2'),
-          h('td', null, r.take_profit ? h('span', { style: 'color:var(--success)' }, r.take_profit.toFixed(2) + '\u00a2') : '-'),
-          h('td', null, r.stop_loss ? h('span', { style: 'color:var(--danger)' }, r.stop_loss.toFixed(2) + '\u00a2') : '-'),
+          h('td', null, r.take_profit ? h('span', { style: { color: "var(--success)" } }, r.take_profit.toFixed(2) + '\u00a2') : '-'),
+          h('td', null, r.stop_loss ? h('span', { style: { color: "var(--danger)" } }, r.stop_loss.toFixed(2) + '\u00a2') : '-'),
           h('td', null, r.trailing_stop_pct ? r.trailing_stop_pct + '%' : '-'),
           h('td', null, r.time_exit ? fmtDate(r.time_exit) : '-'),
           h('td', null, r.highest_price ? r.highest_price.toFixed(2) + '\u00a2' : '-'),
@@ -508,7 +508,7 @@ export function PolymarketPage() {
 
     // ═══ JOURNAL ═══
     tab === 'journal' && h('div', null,
-      h('div', { style: 'display:flex;gap:8px;margin-bottom:16px' },
+      h('div', { style: { display: "flex", gap: "8px", marginBottom: "16px" } },
         ['all', 'unresolved', 'resolved'].map(function(f) {
           return h('button', { key: f, className: 'btn btn-sm ' + (predFilter === f ? 'btn-primary' : 'btn-outline'),
             onClick: function() { setPredFilter(f); } }, f === 'all' ? 'All' : f === 'unresolved' ? 'Open' : 'Resolved');
@@ -521,7 +521,7 @@ export function PolymarketPage() {
         function(p) {
           var wasRight = p.resolved && p.was_correct;
           return [
-            h('td', null, h('div', { style: 'max-width:240px' }, p.market_question || shortId(p.token_id))),
+            h('td', null, h('div', { style: { maxWidth: "240px" } }, p.market_question || shortId(p.token_id))),
             h('td', null, h('span', { className: 'badge badge-secondary' }, p.predicted_outcome)),
             h('td', null, pct(p.predicted_probability)), h('td', null, pct(p.market_price_at_prediction)),
             h('td', null, h('strong', null, pct(p.confidence))),
@@ -535,25 +535,25 @@ export function PolymarketPage() {
     // ═══ CALIBRATION ═══
     tab === 'calibration' && h('div', null,
       calibration.length === 0 ?
-        h('div', { className: 'empty-state card', style: 'padding:24px;text-align:center' }, 'No calibration data yet. Builds automatically as predictions resolve.') :
+        h('div', { className: 'empty-state card', style: { padding: "24px", textAlign: "center" } }, 'No calibration data yet. Builds automatically as predictions resolve.') :
         h('div', null,
-          h('div', { className: 'card', style: 'padding:24px;margin-bottom:24px' },
-            h('h3', { style: 'margin:0 0 16px 0' }, 'Prediction Calibration'),
-            h('p', { style: 'color:var(--text-muted);margin:0 0 16px 0' }, 'A well-calibrated agent at "70% confident" should be right ~70% of the time.'),
-            h('div', { style: 'display:flex;align-items:flex-end;gap:8px;height:200px;padding:0 20px' },
+          h('div', { className: 'card', style: { padding: "24px", marginBottom: "24px" } },
+            h('h3', { style: { margin: "0 0 16px 0" } }, 'Prediction Calibration'),
+            h('p', { style: { color: "var(--text-muted)", margin: "0 0 16px 0" } }, 'A well-calibrated agent at "70% confident" should be right ~70% of the time.'),
+            h('div', { style: { display: "flex", alignItems: "flex-end", gap: "8px", height: "200px", padding: "0 20px" } },
               calibration.map(function(c) {
                 var expected = parseInt(c.bucket) + 5, actual = c.predictions > 0 ? Math.round(c.correct / c.predictions * 100) : 0, maxH = 180;
-                return h('div', { key: c.bucket, style: 'flex:1;display:flex;flex-direction:column;align-items:center;gap:4px' },
-                  h('div', { style: 'width:100%;display:flex;flex-direction:column;align-items:center;position:relative;height:' + maxH + 'px;justify-content:flex-end' },
-                    h('div', { title: 'Actual: ' + actual + '%', style: 'width:60%;background:' + (Math.abs(actual - expected) <= 5 ? 'var(--success)' : actual < expected ? 'var(--danger)' : 'var(--info)') + ';border-radius:4px 4px 0 0;height:' + Math.max(4, actual / 100 * maxH) + 'px;opacity:0.8' }),
-                    h('div', { title: 'Expected: ' + expected + '%', style: 'position:absolute;bottom:' + (expected / 100 * maxH) + 'px;left:10%;width:80%;height:2px;background:var(--text-muted);opacity:0.5' }),
+                return h('div', { key: c.bucket, style: { flex: "1", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" } },
+                  h('div', { style: { width: "100%", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", height: "" } + maxH + 'px;justify-content:flex-end' },
+                    h('div', { title: 'Actual: ' + actual + '%', style: { width: "60%", background: "" } + (Math.abs(actual - expected) <= 5 ? 'var(--success)' : actual < expected ? 'var(--danger)' : 'var(--info)') + ';border-radius:4px 4px 0 0;height:' + Math.max(4, actual / 100 * maxH) + 'px;opacity:0.8' }),
+                    h('div', { title: 'Expected: ' + expected + '%', style: { position: "absolute", bottom: "" } + (expected / 100 * maxH) + 'px;left:10%;width:80%;height:2px;background:var(--text-muted);opacity:0.5' }),
                   ),
-                  h('div', { style: 'font-size:11px;font-weight:600' }, c.bucket),
-                  h('div', { style: 'font-size:10px;color:var(--text-muted)' }, c.predictions + ' pred'),
+                  h('div', { style: { fontSize: "11px", fontWeight: "600" } }, c.bucket),
+                  h('div', { style: { fontSize: "10px", color: "var(--text-muted)" } }, c.predictions + ' pred'),
                 );
               })
             ),
-            h('div', { style: 'display:flex;gap:16px;margin-top:12px;justify-content:center;font-size:12px;color:var(--text-muted)' },
+            h('div', { style: { display: "flex", gap: "16px", marginTop: "12px", justifyContent: "center", fontSize: "12px", color: "var(--text-muted)" } },
               h('span', null, colorDot('var(--success)'), ' Calibrated'),
               h('span', null, colorDot('var(--danger)'), ' Overconfident'),
               h('span', null, colorDot('var(--info)'), ' Underconfident'),
@@ -565,7 +565,7 @@ export function PolymarketPage() {
               return [
                 h('td', null, h('strong', null, c.bucket)), h('td', null, c.predictions), h('td', null, c.correct),
                 h('td', null, h('strong', null, actual + '%')), h('td', null, '~' + expected + '%'),
-                h('td', null, h('span', { style: 'color:' + (Math.abs(diff) <= 5 ? 'var(--success)' : diff < 0 ? 'var(--danger)' : 'var(--info)') },
+                h('td', null, h('span', { style: { color: "" } + (Math.abs(diff) <= 5 ? 'var(--success)' : diff < 0 ? 'var(--danger)' : 'var(--info)') },
                   Math.abs(diff) <= 5 ? 'Calibrated' : diff < 0 ? 'Overconfident (' + diff + '%)' : 'Underconfident (+' + diff + '%)')),
               ];
             }
@@ -576,14 +576,14 @@ export function PolymarketPage() {
     // ═══ STRATEGIES ═══
     tab === 'strategies' && h('div', null,
       strategies.length === 0 ?
-        h('div', { className: 'empty-state card', style: 'padding:24px;text-align:center' }, 'No strategy data yet.') :
+        h('div', { className: 'empty-state card', style: { padding: "24px", textAlign: "center" } }, 'No strategy data yet.') :
         renderTable(strategies, '', ['Strategy', 'Trades', 'Wins', 'Win Rate', 'P&L', 'Avg Conf.', 'Verdict'],
           function(s) {
             var wr = parseFloat(s.win_rate || 0);
             return [
               h('td', null, h('strong', null, s.strategy_name)), h('td', null, s.total_predictions),
               h('td', null, s.correct_predictions),
-              h('td', null, h('span', { style: 'font-weight:600;color:' + (wr > 55 ? 'var(--success)' : wr < 45 ? 'var(--danger)' : 'var(--text)') }, wr + '%')),
+              h('td', null, h('span', { style: { fontWeight: "600", color: "" } + (wr > 55 ? 'var(--success)' : wr < 45 ? 'var(--danger)' : 'var(--text)') }, wr + '%')),
               h('td', null, pnlCell(s.total_pnl)), h('td', null, Math.round((s.avg_confidence || 0) * 100) + '%'),
               h('td', null, h('span', { className: 'badge ' + (wr > 60 ? 'badge-success' : wr > 45 ? 'badge-warning' : 'badge-danger') }, wr > 60 ? 'Keep' : wr > 45 ? 'Neutral' : 'Drop')),
             ];
@@ -594,20 +594,20 @@ export function PolymarketPage() {
     // ═══ LESSONS ═══
     tab === 'lessons' && h('div', null,
       lessons.length === 0 ?
-        h('div', { className: 'empty-state card', style: 'padding:24px;text-align:center' }, 'No lessons yet. The agent records them after reviewing trades.') :
+        h('div', { className: 'empty-state card', style: { padding: "24px", textAlign: "center" } }, 'No lessons yet. The agent records them after reviewing trades.') :
         h('div', null, lessons.map(function(l) {
-          return h('div', { key: l.id, className: 'card', style: 'padding:16px;margin-bottom:12px' },
-            h('div', { style: 'display:flex;justify-content:space-between;align-items:start' },
-              h('div', { style: 'flex:1' },
-                h('div', { style: 'display:flex;gap:8px;align-items:center;margin-bottom:8px' },
+          return h('div', { key: l.id, className: 'card', style: { padding: "16px", marginBottom: "12px" } },
+            h('div', { style: { display: "flex", justifyContent: "space-between", alignItems: "start" } },
+              h('div', { style: { flex: "1" } },
+                h('div', { style: { display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" } },
                   h('span', { className: 'badge badge-' + (l.importance === 'critical' ? 'danger' : l.importance === 'high' ? 'warning' : 'secondary') }, l.importance || 'normal'),
                   h('span', { className: 'badge badge-secondary' }, l.category || 'general'),
-                  l.times_applied > 0 && h('span', { style: 'font-size:12px;color:var(--text-muted)' }, 'Applied ' + l.times_applied + 'x'),
+                  l.times_applied > 0 && h('span', { style: { fontSize: "12px", color: "var(--text-muted)" } }, 'Applied ' + l.times_applied + 'x'),
                 ),
-                h('p', { style: 'margin:0;line-height:1.5' }, l.lesson),
-                h('div', { style: 'font-size:12px;color:var(--text-muted);margin-top:8px' }, fmtDate(l.created_at)),
+                h('p', { style: { margin: "0", lineHeight: "1.5" } }, l.lesson),
+                h('div', { style: { fontSize: "12px", color: "var(--text-muted)", marginTop: "8px" } }, fmtDate(l.created_at)),
               ),
-              h('button', { className: 'btn btn-sm btn-outline', style: 'margin-left:12px', onClick: async function() {
+              h('button', { className: 'btn btn-sm btn-outline', style: { marginLeft: "12px" }, onClick: async function() {
                 if (await showConfirm('Delete this lesson?')) {
                   await apiCall('/polymarket/lessons/' + l.id, { method: 'DELETE' }); toast('Deleted', 'success'); loadAgentData(selectedAgent);
                 }
@@ -621,9 +621,9 @@ export function PolymarketPage() {
     tab === 'drawdown_tab' && h('div', null,
       h('h3', null, I('trending-down'), ' Portfolio Drawdown Monitor'),
       !drawdown || !drawdown.snapshots?.length ?
-        h('div', { className: 'empty-state card', style: 'padding:24px;text-align:center' }, 'No portfolio snapshots yet. The agent records them with poly_drawdown_monitor.') :
+        h('div', { className: 'empty-state card', style: { padding: "24px", textAlign: "center" } }, 'No portfolio snapshots yet. The agent records them with poly_drawdown_monitor.') :
         h('div', null,
-          h('div', { className: 'stats-grid', style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px' },
+          h('div', { className: 'stats-grid', style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: "12px", marginBottom: "24px" } },
             statCard('Current Value', '$' + (drawdown.current || 0).toFixed(2)),
             statCard('Peak Value', '$' + (drawdown.peak || 0).toFixed(2)),
             statCard('Drawdown', drawdown.drawdown_pct + '%', drawdown.drawdown_pct > 15 ? 'DANGER' : drawdown.drawdown_pct > 10 ? 'WARNING' : 'OK'),
@@ -633,7 +633,7 @@ export function PolymarketPage() {
             function(s) { return [
               h('td', null, '$' + (s.total_value || 0).toFixed(2)),
               h('td', null, '$' + (s.peak_value || 0).toFixed(2)),
-              h('td', null, h('span', { style: 'color:' + (s.drawdown_pct > 15 ? 'var(--danger)' : s.drawdown_pct > 10 ? 'var(--warning)' : 'var(--success)') }, s.drawdown_pct?.toFixed(1) + '%')),
+              h('td', null, h('span', { style: { color: "" } + (s.drawdown_pct > 15 ? 'var(--danger)' : s.drawdown_pct > 10 ? 'var(--warning)' : 'var(--success)') }, s.drawdown_pct?.toFixed(1) + '%')),
               h('td', null, pnlCell(s.unrealized_pnl)),
               h('td', null, fmtDate(s.timestamp)),
             ]; }
@@ -645,9 +645,9 @@ export function PolymarketPage() {
     tab === 'attribution' && h('div', null,
       h('h3', null, I('pie-chart'), ' P&L Attribution'),
       !pnlAttrib || (!pnlAttrib.byStrategy?.length && !pnlAttrib.byCategory?.length) ?
-        h('div', { className: 'empty-state card', style: 'padding:24px;text-align:center' }, 'No P&L attribution data yet. Agent records with poly_pnl_attribution.') :
+        h('div', { className: 'empty-state card', style: { padding: "24px", textAlign: "center" } }, 'No P&L attribution data yet. Agent records with poly_pnl_attribution.') :
         h('div', null,
-          pnlAttrib.byStrategy?.length > 0 && h('div', { style: 'margin-bottom:24px' },
+          pnlAttrib.byStrategy?.length > 0 && h('div', { style: { marginBottom: "24px" } },
             h('h4', null, 'By Strategy'),
             renderTable(pnlAttrib.byStrategy, '', ['Strategy', 'Trades', 'Wins', 'Win Rate', 'P&L', 'Avg Hold'],
               function(s) { return [
@@ -659,7 +659,7 @@ export function PolymarketPage() {
               ]; }
             )
           ),
-          pnlAttrib.byCategory?.length > 0 && h('div', { style: 'margin-bottom:24px' },
+          pnlAttrib.byCategory?.length > 0 && h('div', { style: { marginBottom: "24px" } },
             h('h4', null, 'By Category'),
             renderTable(pnlAttrib.byCategory, '', ['Category', 'Trades', 'Wins', 'Win Rate', 'P&L'],
               function(c) { return [
@@ -696,9 +696,9 @@ function statCard(label, value, sub) {
   );
 }
 function cfgField(label, value) {
-  return h('div', { style: 'padding:10px;background:var(--bg-secondary);border-radius:8px' },
-    h('div', { style: 'font-size:11px;color:var(--text-muted);margin-bottom:2px' }, label),
-    h('div', { style: 'font-size:15px;font-weight:600' }, value)
+  return h('div', { style: { padding: "10px", background: "var(--bg-secondary)", borderRadius: "8px" } },
+    h('div', { style: { fontSize: "11px", color: "var(--text-muted)", marginBottom: "2px" } }, label),
+    h('div', { style: { fontSize: "15px", fontWeight: "600" } }, value)
   );
 }
 function sideBadge(side) { return h('span', { className: 'badge ' + (side === 'BUY' ? 'badge-success' : 'badge-danger') }, side); }
@@ -718,16 +718,16 @@ function regimeBadge(regime) {
 }
 function pnlCell(pnl) {
   if (pnl == null) return '-';
-  return h('span', { style: 'font-weight:600;color:' + (pnl >= 0 ? 'var(--success)' : 'var(--danger)') }, (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2));
+  return h('span', { style: { fontWeight: "600", color: "" } + (pnl >= 0 ? 'var(--success)' : 'var(--danger)') }, (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2));
 }
 function pct(v) { return v == null ? '-' : (v * 100).toFixed(1) + '%'; }
 function fmtDate(d) { return d ? new Date(d).toLocaleString() : ''; }
 function shortAddr(addr) { return addr ? addr.slice(0, 6) + '...' + addr.slice(-4) : '?'; }
 function shortId(id) { return id ? id.slice(0, 10) + '...' : '?'; }
-function colorDot(color) { return h('span', { style: 'display:inline-block;width:10px;height:10px;background:' + color + ';border-radius:2px;margin-right:4px;vertical-align:middle' }); }
+function colorDot(color) { return h('span', { style: { display: "inline-block", width: "10px", height: "10px", background: "" } + color + ';border-radius:2px;margin-right:4px;vertical-align:middle' }); }
 
 function renderTable(data, emptyMsg, headers, rowFn) {
-  if (!data || data.length === 0) return h('div', { className: 'empty-state card', style: 'padding:24px;text-align:center' }, emptyMsg);
+  if (!data || data.length === 0) return h('div', { className: 'empty-state card', style: { padding: "24px", textAlign: "center" } }, emptyMsg);
   return h('div', { className: 'table-container' },
     h('table', { className: 'data-table' },
       h('thead', null, h('tr', null, headers.map(function(hdr) { return h('th', { key: hdr }, hdr); }))),
@@ -744,12 +744,12 @@ function numberField(label, key, obj, setter) {
 }
 function configModal(editConfig, setEditConfig, updateConfig) {
   return h('div', { className: 'modal-backdrop', onClick: function() { setEditConfig(null); } },
-    h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: 'max-width:500px' },
+    h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: "500px" } },
       h('div', { className: 'modal-header' },
         h('h3', null, 'Trading Configuration'),
         h('button', { className: 'btn-close', onClick: function() { setEditConfig(null); } }, '\u00d7')
       ),
-      h('div', { className: 'modal-body', style: 'display:grid;gap:12px' },
+      h('div', { className: 'modal-body', style: { display: "grid", gap: "12px" } },
         h('div', { className: 'form-group' },
           h('label', null, 'Trading Mode'),
           h('select', { className: 'form-select', value: editConfig.mode,
