@@ -11,7 +11,7 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
-import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry } from './polymarket-shared.js';
+import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId } from './polymarket-shared.js';
 
 const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
@@ -26,7 +26,7 @@ async function initAnalyticsDB(db: any): Promise<void> {
   if (!db?.exec) return;
   const stmts = [
     `CREATE TABLE IF NOT EXISTS poly_correlations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       agent_id TEXT NOT NULL,
       market_a TEXT NOT NULL,
       market_b TEXT NOT NULL,
@@ -35,7 +35,7 @@ async function initAnalyticsDB(db: any): Promise<void> {
       timestamp TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS poly_arb_opportunities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       agent_id TEXT NOT NULL,
       type TEXT NOT NULL,
       markets TEXT NOT NULL,
@@ -45,7 +45,7 @@ async function initAnalyticsDB(db: any): Promise<void> {
       timestamp TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS poly_regime_signals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       token_id TEXT NOT NULL,
       regime TEXT NOT NULL,
       confidence REAL NOT NULL,

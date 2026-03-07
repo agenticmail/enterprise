@@ -8,6 +8,12 @@
  * - Retry logic
  */
 
+// ─── Dialect Detection ───────────────────────────────────────
+
+let _pgFlag = false;
+export function setPostgresFlag(v: boolean) { _pgFlag = v; }
+export function autoId() { return _pgFlag ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY'; }
+
 // ─── Response Cache ──────────────────────────────────────────
 
 const responseCache = new Map<string, { data: any; ts: number }>();

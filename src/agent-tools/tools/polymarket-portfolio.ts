@@ -9,7 +9,7 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
-import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry } from './polymarket-shared.js';
+import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId } from './polymarket-shared.js';
 
 const CLOB_API = 'https://clob.polymarket.com';
 
@@ -19,7 +19,7 @@ async function initPortfolioDB(db: any): Promise<void> {
   if (!db?.exec) return;
   const stmts = [
     `CREATE TABLE IF NOT EXISTS poly_portfolio_snapshots (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       agent_id TEXT NOT NULL,
       total_value REAL NOT NULL,
       positions_count INTEGER NOT NULL,
@@ -29,7 +29,7 @@ async function initPortfolioDB(db: any): Promise<void> {
       timestamp TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS poly_pnl_attribution (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       agent_id TEXT NOT NULL,
       period TEXT NOT NULL,
       strategy TEXT,

@@ -12,7 +12,8 @@
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
 import { initPolymarketDB, getClobClient } from './polymarket-runtime.js';
-import { cachedFetchJSON, validateTokenId, validateAddress, safeDbExec, safeDbQuery, safeDbGet, clampNumber } from './polymarket-shared.js';
+import { isPostgresDB } from './polymarket-runtime.js';
+import { cachedFetchJSON, validateTokenId, validateAddress, safeDbExec, safeDbQuery, safeDbGet, clampNumber ,  autoId } from './polymarket-shared.js';
 
 const CLOB_API = 'https://clob.polymarket.com';
 const POLYGON_RPC = 'https://polygon-rpc.com';
@@ -55,7 +56,7 @@ async function initOnchainDB(db: any): Promise<void> {
       FOREIGN KEY (wallet) REFERENCES poly_whale_wallets(address)
     )`,
     `CREATE TABLE IF NOT EXISTS poly_flow_snapshots (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       token_id TEXT NOT NULL,
       window TEXT NOT NULL,
       net_buy REAL DEFAULT 0,

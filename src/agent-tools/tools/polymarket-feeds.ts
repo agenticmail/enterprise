@@ -11,7 +11,7 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
-import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry } from './polymarket-shared.js';
+import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId } from './polymarket-shared.js';
 
 // ─── DB Tables ───────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ async function initFeedsDB(db: any): Promise<void> {
       created_at TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS poly_odds_snapshots (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       market_id TEXT NOT NULL,
       source TEXT NOT NULL,
       odds_yes REAL,
@@ -40,7 +40,7 @@ async function initFeedsDB(db: any): Promise<void> {
       timestamp TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS poly_news_alerts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       agent_id TEXT NOT NULL,
       headline TEXT NOT NULL,
       source TEXT NOT NULL,

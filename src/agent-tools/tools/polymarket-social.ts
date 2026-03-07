@@ -11,7 +11,7 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
-import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry } from './polymarket-shared.js';
+import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId } from './polymarket-shared.js';
 
 const CACHE_TTL = 2 * 60_000; // 2min for social data
 const sentimentCache = new Map<string, { data: any; ts: number }>();
@@ -22,7 +22,7 @@ async function initSocialDB(db: any): Promise<void> {
   if (!db?.exec) return;
   const stmts = [
     `CREATE TABLE IF NOT EXISTS poly_social_signals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       source TEXT NOT NULL,
       topic TEXT NOT NULL,
       sentiment REAL DEFAULT 0,
@@ -32,7 +32,7 @@ async function initSocialDB(db: any): Promise<void> {
       timestamp TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS poly_social_watchlist (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${autoId()},
       agent_id TEXT NOT NULL,
       keyword TEXT NOT NULL,
       platforms TEXT DEFAULT '["twitter","reddit"]',

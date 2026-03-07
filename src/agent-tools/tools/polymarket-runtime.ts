@@ -175,11 +175,18 @@ export async function getClobClient(agentId: string, db: any): Promise<ClobClien
 // ─── DB Schema & Persistence ─────────────────────────────────
 
 let dbInitialized = false;
+let _isPostgres = false;
+export function isPostgresDB() { return _isPostgres; }
 
 export async function initPolymarketDB(db: any): Promise<void> {
   if (dbInitialized || !db) return;
 
   try {
+    // Detect dialect
+    try { await db.execute(`SELECT NOW()`); _isPostgres = true; } catch { _isPostgres = false; }
+    const { setPostgresFlag } = await import('./polymarket-shared.js');
+    setPostgresFlag(_isPostgres);
+    const autoId = _isPostgres ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY';
     await db.execute(`
       CREATE TABLE IF NOT EXISTS poly_wallet_credentials (
         agent_id TEXT PRIMARY KEY,
@@ -291,7 +298,7 @@ export async function initPolymarketDB(db: any): Promise<void> {
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS poly_paper_positions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id ${autoId},
         agent_id TEXT NOT NULL,
         token_id TEXT NOT NULL,
         side TEXT NOT NULL,
