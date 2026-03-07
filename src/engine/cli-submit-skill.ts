@@ -125,9 +125,15 @@ export async function runSubmitSkill(args: string[]) {
     pushSpinner.text = 'Copying skill files...';
     const destDir = path.join(tmpDir, 'community-skills', skillId);
     await fs.mkdir(destDir, { recursive: true });
+    const SKILL_FILES = new Set(['agenticmail-skill.json', 'README.md', 'types.d.ts', 'CHANGELOG.md', 'LICENSE']);
     const files = await fs.readdir(skillDir);
     for (const file of files) {
-      await fs.copyFile(path.join(skillDir, file), path.join(destDir, file));
+      const srcPath = path.join(skillDir, file);
+      const stat = await fs.lstat(srcPath);
+      // Only copy regular files that are part of the skill
+      if (!stat.isFile()) continue;
+      if (!SKILL_FILES.has(file)) continue;
+      await fs.copyFile(srcPath, path.join(destDir, file));
     }
 
     // Commit

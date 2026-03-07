@@ -2700,8 +2700,8 @@ function LLMProvidersTab(props) {
                 ),
                 h('button', {
                   className: 'btn btn-ghost btn-sm',
-                  onClick: function() { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: s[p.id] === null ? '' : null }); }); }
-                }, apiKeyInputs[p.id] === null ? 'Cancel' : 'Update Key'),
+                  onClick: function() { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: s[p.id] == null ? '' : null }); }); }
+                }, apiKeyInputs[p.id] != null ? 'Cancel' : 'Update Key'),
                 typeof apiKeyInputs[p.id] === 'string' && apiKeyInputs[p.id] !== null && h('div', { style: { display: 'flex', gap: 8, marginLeft: 8 } },
                   h('input', { className: 'input', type: 'password', value: apiKeyInputs[p.id], onChange: function(e) { setApiKeyInputs(function(s) { return Object.assign({}, s, { [p.id]: e.target.value }); }); }, placeholder: meta.placeholder || 'New API key', style: { width: 240, fontSize: 13 } }),
                   h('button', { className: 'btn btn-primary btn-sm', disabled: saving[p.id], onClick: function() { saveKey(p.id, p.name); } }, saving[p.id] ? (savingMsg[p.id] || 'Saving...') : 'Save')
