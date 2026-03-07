@@ -73,7 +73,7 @@ function createSqliteDb(dbPath: string): RegistryDb {
       contact_email TEXT,
       status TEXT NOT NULL DEFAULT 'pending_dns',
       verified_at TEXT,
-      registered_at TEXT NOT NULL DEFAULT (datetime('now')),
+      registered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       last_verify_attempt TEXT,
       verify_attempts INTEGER NOT NULL DEFAULT 0
     );
@@ -100,7 +100,7 @@ function createSqliteDb(dbPath: string): RegistryDb {
         UPDATE domain_registrations
         SET key_hash = ?, dns_challenge = ?, registration_id = ?,
             org_name = ?, contact_email = ?, status = 'pending_dns',
-            registered_at = datetime('now'), verified_at = NULL,
+            registered_at = CURRENT_TIMESTAMP, verified_at = NULL,
             verify_attempts = 0
         WHERE domain = ?
       `).run(r.keyHash, r.dnsChallenge, r.registrationId, r.orgName, r.contactEmail, r.domain);
@@ -108,14 +108,14 @@ function createSqliteDb(dbPath: string): RegistryDb {
     async setVerified(domain) {
       db.prepare(`
         UPDATE domain_registrations
-        SET status = 'verified', verified_at = datetime('now')
+        SET status = 'verified', verified_at = CURRENT_TIMESTAMP
         WHERE domain = ?
       `).run(domain);
     },
     async updateVerifyAttempt(domain) {
       db.prepare(`
         UPDATE domain_registrations
-        SET last_verify_attempt = datetime('now'), verify_attempts = verify_attempts + 1
+        SET last_verify_attempt = CURRENT_TIMESTAMP, verify_attempts = verify_attempts + 1
         WHERE domain = ?
       `).run(domain);
     },

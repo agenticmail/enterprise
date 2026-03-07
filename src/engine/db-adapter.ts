@@ -106,7 +106,7 @@ export class EngineDatabase {
     // Post-migration: ensure critical tables exist (handles partial first-install or re-install scenarios)
     const settingsDDL = this.dialect === 'postgres'
       ? `CREATE TABLE IF NOT EXISTS engine_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMP DEFAULT NOW())`
-      : `CREATE TABLE IF NOT EXISTS engine_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT (datetime('now')))`;
+      : `CREATE TABLE IF NOT EXISTS engine_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`;
     try { await this.db.run(settingsDDL); } catch { /* ok — may already exist */ }
 
     // Post-migration: fix version columns that were incorrectly created as BOOLEAN on Postgres

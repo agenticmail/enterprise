@@ -1318,7 +1318,7 @@ export function createAgentRoutes(opts: {
             const cfg = JSON.parse((row as any).config || '{}');
             delete cfg.emailConfig;
             delete cfg.email;
-            await db.run(`UPDATE managed_agents SET config = ?, updated_at = datetime('now') WHERE id = ?`, [JSON.stringify(cfg), agentId]);
+            await db.run(`UPDATE managed_agents SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [JSON.stringify(cfg), agentId]);
           }
         }
       }

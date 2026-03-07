@@ -2384,7 +2384,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         values.push(JSON.stringify(body.allowed_skills));
       }
       if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400);
-      fields.push(isPostgres ? `updated_at = NOW()` : `updated_at = datetime('now')`);
+      fields.push(isPostgres ? `updated_at = NOW()` : `updated_at = CURRENT_TIMESTAMP`);
       values.push(id);
       const where = isPostgres ? `$${idx}` : '?';
       const sql = `UPDATE client_organizations SET ${fields.join(', ')} WHERE id = ${where}`;
@@ -2420,7 +2420,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         const org = await engineDb!.get<any>(`SELECT is_active FROM client_organizations WHERE id = ?`, [id]);
         if (!org) return c.json({ error: 'Organization not found' }, 404);
         const newActive = !(org.is_active);
-        await engineDb!.run(`UPDATE client_organizations SET is_active = ?, updated_at = datetime('now') WHERE id = ?`, [newActive ? 1 : 0, id]);
+        await engineDb!.run(`UPDATE client_organizations SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [newActive ? 1 : 0, id]);
         const newStatus = newActive ? 'active' : 'suspended';
         await engineDb!.run(`UPDATE agents SET status = ? WHERE client_org_id = ?`, [newStatus, id]);
         return c.json({ is_active: newActive });
@@ -2484,7 +2484,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           if (isPostgres) {
             await (db as any)._query(`UPDATE managed_agents SET client_org_id = $1, updated_at = NOW() WHERE id = $2`, [orgId, agentId]);
           } else {
-            await engineDb.run(`UPDATE managed_agents SET client_org_id = ?, updated_at = datetime('now') WHERE id = ?`, [orgId, agentId]);
+            await engineDb.run(`UPDATE managed_agents SET client_org_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [orgId, agentId]);
           }
         } catch { /* column may not exist yet before migration */ }
       }
@@ -2507,7 +2507,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
               const cfg = JSON.parse((row as any).config || '{}');
               delete cfg.emailConfig;
               delete cfg.email;
-              await db.getEngineDB()!.run(`UPDATE managed_agents SET config = ?, updated_at = datetime('now') WHERE id = ?`, [JSON.stringify(cfg), agentId]);
+              await db.getEngineDB()!.run(`UPDATE managed_agents SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [JSON.stringify(cfg), agentId]);
             }
           }
           // Clear per-agent vault secrets from previous org (if reassignment)
@@ -2581,7 +2581,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           if (isPostgres) {
             await (db as any)._query(`UPDATE managed_agents SET client_org_id = NULL, updated_at = NOW() WHERE id = $1`, [agentId]);
           } else {
-            await engineDb.run(`UPDATE managed_agents SET client_org_id = NULL, updated_at = datetime('now') WHERE id = ?`, [agentId]);
+            await engineDb.run(`UPDATE managed_agents SET client_org_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [agentId]);
           }
         } catch { /* column may not exist yet before migration */ }
       }
@@ -2601,7 +2601,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
               const cfg = JSON.parse((row as any).config || '{}');
               delete cfg.emailConfig;
               delete cfg.email;
-              await db.getEngineDB()!.run(`UPDATE managed_agents SET config = ?, updated_at = datetime('now') WHERE id = ?`, [JSON.stringify(cfg), agentId]);
+              await db.getEngineDB()!.run(`UPDATE managed_agents SET config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [JSON.stringify(cfg), agentId]);
             }
           }
           if ((globalThis as any).__vault) {

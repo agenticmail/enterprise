@@ -69,7 +69,7 @@ export function createMemoryTransferRoutes(memory: AgentMemoryManager, engineDb:
         total_conflicts INTEGER DEFAULT 0,
         filters TEXT,
         results TEXT,
-        created_at TEXT DEFAULT (datetime('now'))
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`);
       await engineDb.execute(`CREATE TABLE IF NOT EXISTS memory_transfer_schedules (
         id TEXT PRIMARY KEY,
@@ -82,7 +82,7 @@ export function createMemoryTransferRoutes(memory: AgentMemoryManager, engineDb:
         schedule_time TEXT,
         schedule_day TEXT,
         enabled INTEGER DEFAULT 1,
-        created_at TEXT DEFAULT (datetime('now'))
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`);
       tablesReady = true;
     } catch (_) { /* tables may already exist */ tablesReady = true; }
