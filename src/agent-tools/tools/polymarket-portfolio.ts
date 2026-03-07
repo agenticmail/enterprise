@@ -9,7 +9,7 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
-import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId } from './polymarket-shared.js';
+import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId, getDialect } from './polymarket-shared.js';
 
 const CLOB_API = 'https://clob.polymarket.com';
 
@@ -26,7 +26,7 @@ async function initPortfolioDB(db: any): Promise<void> {
       unrealized_pnl REAL DEFAULT 0,
       drawdown_pct REAL DEFAULT 0,
       peak_value REAL DEFAULT 0,
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_pnl_attribution (
       id ${autoId()},
@@ -40,7 +40,7 @@ async function initPortfolioDB(db: any): Promise<void> {
       gross_pnl REAL DEFAULT 0,
       net_pnl REAL DEFAULT 0,
       avg_hold_hours REAL DEFAULT 0,
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
   ];
   for (const sql of stmts) {
@@ -234,7 +234,8 @@ export function createPolymarketPortfolioTools(options: ToolCreationOptions): An
         // Daily P&L check
         let dailyPnl: any = null;
         try {
-          const todaySnapshots = db.prepare(`SELECT total_value FROM poly_portfolio_snapshots WHERE agent_id = ? AND timestamp >= datetime('now', '-1 day') ORDER BY timestamp ASC`).all(agentId);
+          const pastDay = getDialect() === 'postgres' ? `CURRENT_TIMESTAMP - INTERVAL '1 day'` : getDialect() === 'mysql' ? `DATE_SUB(NOW(), INTERVAL 1 DAY)` : `datetime('now', '-1 day')`;
+          const todaySnapshots = db.prepare(`SELECT total_value FROM poly_portfolio_snapshots WHERE agent_id = ? AND timestamp >= ${pastDay} ORDER BY timestamp ASC`).all(agentId);
           if (todaySnapshots.length >= 2) {
             const startValue = todaySnapshots[0].total_value;
             dailyPnl = {

@@ -182,11 +182,12 @@ export async function initPolymarketDB(db: any): Promise<void> {
   if (dbInitialized || !db) return;
 
   try {
-    // Detect dialect
-    try { await db.execute(`SELECT NOW()`); _isPostgres = true; } catch { _isPostgres = false; }
-    const { setPostgresFlag } = await import('./polymarket-shared.js');
-    setPostgresFlag(_isPostgres);
-    const autoId = _isPostgres ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY';
+    // Detect dialect (Postgres, MySQL, or SQLite)
+    const { detectDialect, setDialect, autoId: getAutoId } = await import('./polymarket-shared.js');
+    const dialect = await detectDialect(db);
+    setDialect(dialect);
+    _isPostgres = dialect === 'postgres';
+    const autoId = getAutoId();
     await db.execute(`
       CREATE TABLE IF NOT EXISTS poly_wallet_credentials (
         agent_id TEXT PRIMARY KEY,

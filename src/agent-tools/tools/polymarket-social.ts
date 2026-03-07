@@ -29,7 +29,7 @@ async function initSocialDB(db: any): Promise<void> {
       volume INTEGER DEFAULT 0,
       velocity REAL DEFAULT 0,
       sample_texts TEXT DEFAULT '[]',
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_social_watchlist (
       id ${autoId()},
@@ -37,7 +37,7 @@ async function initSocialDB(db: any): Promise<void> {
       keyword TEXT NOT NULL,
       platforms TEXT DEFAULT '["twitter","reddit"]',
       active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
   ];
   for (const sql of stmts) {

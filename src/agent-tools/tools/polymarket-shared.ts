@@ -10,9 +10,72 @@
 
 // ─── Dialect Detection ───────────────────────────────────────
 
-let _pgFlag = false;
-export function setPostgresFlag(v: boolean) { _pgFlag = v; }
-export function autoId() { return _pgFlag ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY'; }
+export type DbDialect = 'sqlite' | 'postgres' | 'mysql';
+let _dialect: DbDialect = 'sqlite';
+export function setDialect(d: DbDialect) { _dialect = d; }
+export function getDialect() { return _dialect; }
+/** @deprecated use setDialect */ export function setPostgresFlag(v: boolean) { _dialect = v ? 'postgres' : 'sqlite'; }
+
+export function autoId(): string {
+  switch (_dialect) {
+    case 'postgres': return 'SERIAL PRIMARY KEY';
+    case 'mysql': return 'INTEGER PRIMARY KEY AUTO_INCREMENT';
+    default: return 'INTEGER PRIMARY KEY';
+  }
+}
+
+export function timestampDefault(): string {
+  switch (_dialect) {
+    case 'postgres': return 'TIMESTAMP DEFAULT NOW()';
+    case 'mysql': return 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP';
+    default: return 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP';
+  }
+}
+
+export function jsonType(): string {
+  return _dialect === 'postgres' ? 'JSONB' : 'TEXT';
+}
+
+export function boolVal(v: boolean): string {
+  if (_dialect === 'postgres') return v ? 'TRUE' : 'FALSE';
+  return v ? '1' : '0';
+}
+
+/**
+ * Cross-dialect UPSERT helper. Returns the appropriate INSERT statement.
+ * - SQLite: INSERT OR REPLACE / INSERT OR IGNORE
+ * - Postgres: INSERT ... ON CONFLICT (col) DO UPDATE SET ... / DO NOTHING
+ * - MySQL: INSERT IGNORE / REPLACE INTO
+ */
+export function insertOrReplace(table: string, cols: string[], conflictCol: string, updateCols?: string[]): string {
+  const placeholders = cols.map(() => '?').join(', ');
+  const colList = cols.join(', ');
+  if (_dialect === 'mysql') {
+    // MySQL: REPLACE INTO does a delete+insert on duplicate key
+    return `REPLACE INTO ${table} (${colList}) VALUES (${placeholders})`;
+  }
+  // SQLite and Postgres both support ON CONFLICT
+  const updates = (updateCols || cols.filter(c => c !== conflictCol)).map(c => `${c} = EXCLUDED.${c}`).join(', ');
+  return `INSERT INTO ${table} (${colList}) VALUES (${placeholders}) ON CONFLICT(${conflictCol}) DO UPDATE SET ${updates}`;
+}
+
+export function insertOrIgnore(table: string, cols: string[]): string {
+  const placeholders = cols.map(() => '?').join(', ');
+  const colList = cols.join(', ');
+  if (_dialect === 'mysql') return `INSERT IGNORE INTO ${table} (${colList}) VALUES (${placeholders})`;
+  if (_dialect === 'postgres') return `INSERT INTO ${table} (${colList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`;
+  return `INSERT OR IGNORE INTO ${table} (${colList}) VALUES (${placeholders})`;
+}
+
+export async function detectDialect(db: any): Promise<DbDialect> {
+  try { await db.execute(`SELECT NOW()`); return 'postgres'; } catch {}
+  try {
+    const r = await db.execute(`SELECT VERSION() as v`);
+    const ver = r?.rows?.[0]?.v || r?.[0]?.v || '';
+    if (/mysql|maria/i.test(String(ver))) return 'mysql';
+  } catch {}
+  return 'sqlite';
+}
 
 // ─── Response Cache ──────────────────────────────────────────
 

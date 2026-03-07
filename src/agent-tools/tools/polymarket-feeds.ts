@@ -11,7 +11,7 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
-import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId } from './polymarket-shared.js';
+import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry ,  autoId, getDialect } from './polymarket-shared.js';
 
 // ─── DB Tables ───────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ async function initFeedsDB(db: any): Promise<void> {
       related_markets TEXT DEFAULT '[]',
       impact TEXT DEFAULT 'medium',
       status TEXT DEFAULT 'upcoming',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_odds_snapshots (
       id ${autoId()},
@@ -37,7 +37,7 @@ async function initFeedsDB(db: any): Promise<void> {
       source TEXT NOT NULL,
       odds_yes REAL,
       odds_no REAL,
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_news_alerts (
       id ${autoId()},
@@ -47,7 +47,7 @@ async function initFeedsDB(db: any): Promise<void> {
       url TEXT,
       relevance REAL DEFAULT 0,
       processed INTEGER DEFAULT 0,
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
   ];
   for (const sql of stmts) {
@@ -128,7 +128,8 @@ export function createPolymarketFeedTools(options: ToolCreationOptions): AnyAgen
       if (action === 'upcoming') {
         const days = params.days_ahead || 7;
         try {
-          const rows = db.prepare(`SELECT * FROM poly_event_calendar WHERE agent_id = ? AND event_date >= datetime('now') AND event_date <= datetime('now', '+${days} days') AND status = 'upcoming' ORDER BY event_date ASC`)
+          const futureDate = getDialect() === 'postgres' ? `CURRENT_TIMESTAMP + INTERVAL '${days} days'` : getDialect() === 'mysql' ? `DATE_ADD(NOW(), INTERVAL ${days} DAY)` : `datetime('now', '+${days} days')`;
+          const rows = db.prepare(`SELECT * FROM poly_event_calendar WHERE agent_id = ? AND event_date >= CURRENT_TIMESTAMP AND event_date <= ${futureDate} AND status = 'upcoming' ORDER BY event_date ASC`)
             .all(agentId);
           return jsonResult({
             upcoming_events: rows.map((r: any) => ({ ...r, related_markets: JSON.parse(r.related_markets || '[]') })),
@@ -246,7 +247,7 @@ export function createPolymarketFeedTools(options: ToolCreationOptions): AnyAgen
         if (db && filtered.length > 0) {
           try {
             for (const item of filtered.slice(0, 5)) {
-              db.prepare(`INSERT OR IGNORE INTO poly_news_alerts (agent_id, headline, source, url) VALUES (?, ?, ?, ?)`)
+              db.prepare(`INSERT INTO poly_news_alerts (agent_id, headline, source, url) VALUES (?, ?, ?, ?)`)
                 .run(agentId, item.title, params.source, item.link);
             }
           } catch {}
@@ -517,7 +518,7 @@ export function createPolymarketFeedTools(options: ToolCreationOptions): AnyAgen
       if (db) {
         for (const item of allItems.filter(i => i.relevance >= 0.4)) {
           try {
-            db.prepare(`INSERT OR IGNORE INTO poly_news_alerts (agent_id, headline, source, url, relevance) VALUES (?, ?, ?, ?, ?)`)
+            db.prepare(`INSERT INTO poly_news_alerts (agent_id, headline, source, url, relevance) VALUES (?, ?, ?, ?, ?)`)
               .run(agentId, item.title, item.source, item.link, item.relevance);
           } catch {}
         }

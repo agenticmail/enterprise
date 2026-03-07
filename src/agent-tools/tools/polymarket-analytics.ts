@@ -32,7 +32,7 @@ async function initAnalyticsDB(db: any): Promise<void> {
       market_b TEXT NOT NULL,
       correlation REAL NOT NULL,
       period TEXT NOT NULL,
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_arb_opportunities (
       id ${autoId()},
@@ -42,7 +42,7 @@ async function initAnalyticsDB(db: any): Promise<void> {
       expected_profit REAL NOT NULL,
       confidence REAL DEFAULT 0,
       status TEXT DEFAULT 'open',
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_regime_signals (
       id ${autoId()},
@@ -51,7 +51,7 @@ async function initAnalyticsDB(db: any): Promise<void> {
       confidence REAL NOT NULL,
       hurst REAL,
       volatility REAL,
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
   ];
   for (const sql of stmts) {

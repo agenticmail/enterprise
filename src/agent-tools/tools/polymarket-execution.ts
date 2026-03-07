@@ -33,8 +33,8 @@ async function initExecutionDB(db: any): Promise<void> {
       status TEXT DEFAULT 'active',
       filled_size REAL DEFAULT 0,
       filled_avg_price REAL DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_scale_orders (
       id TEXT PRIMARY KEY,
@@ -49,7 +49,7 @@ async function initExecutionDB(db: any): Promise<void> {
       filled_size REAL DEFAULT 0,
       avg_price REAL DEFAULT 0,
       status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_exit_rules (
       id TEXT PRIMARY KEY,
@@ -63,7 +63,7 @@ async function initExecutionDB(db: any): Promise<void> {
       time_exit TEXT,
       highest_price REAL,
       status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_hedges (
       id TEXT PRIMARY KEY,
@@ -77,7 +77,7 @@ async function initExecutionDB(db: any): Promise<void> {
       hedge_ratio REAL NOT NULL,
       correlation REAL,
       status TEXT DEFAULT 'active',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
   ];
   for (const sql of stmts) {
@@ -171,7 +171,7 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
       if (action === 'cancel') {
         if (!params.id) return errorResult('id required');
         try {
-          db.prepare("UPDATE poly_sniper_orders SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND agent_id = ?")
+          db.prepare("UPDATE poly_sniper_orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND agent_id = ?")
             .run(params.id, agentId);
           return jsonResult({ cancelled: params.id });
         } catch (e: any) { return errorResult(e.message); }

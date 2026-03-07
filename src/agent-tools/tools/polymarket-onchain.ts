@@ -41,7 +41,7 @@ async function initOnchainDB(db: any): Promise<void> {
       last_seen TEXT,
       pnl REAL DEFAULT 0,
       tags TEXT DEFAULT '[]',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS poly_whale_trades (
       id TEXT PRIMARY KEY,
@@ -63,7 +63,7 @@ async function initOnchainDB(db: any): Promise<void> {
       net_sell REAL DEFAULT 0,
       trade_count INTEGER DEFAULT 0,
       whale_count INTEGER DEFAULT 0,
-      timestamp TEXT DEFAULT (datetime('now'))
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     )`,
   ];
   for (const sql of stmts) {
@@ -167,7 +167,7 @@ export function createPolymarketOnchainTools(options: ToolCreationOptions): AnyA
         if (!params.wallet) return errorResult('wallet address required');
         if (!db) return errorResult('No DB');
         try {
-          db.prepare(`INSERT OR REPLACE INTO poly_whale_wallets (address, label, last_seen) VALUES (?, ?, datetime('now'))`)
+          db.prepare(`INSERT INTO poly_whale_wallets (address, label, last_seen) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(address) DO UPDATE SET label = EXCLUDED.label, last_seen = CURRENT_TIMESTAMP`)
             .run(params.wallet.toLowerCase(), params.label || 'Unknown');
           return jsonResult({ added: params.wallet, label: params.label });
         } catch (e: any) { return errorResult(e.message); }
@@ -213,8 +213,8 @@ export function createPolymarketOnchainTools(options: ToolCreationOptions): AnyA
           for (const w of wallets) {
             try {
               db.prepare(`INSERT INTO poly_whale_wallets (address, label, last_seen, total_volume)
-                VALUES (?, 'Auto-detected', datetime('now'), ?)
-                ON CONFLICT(address) DO UPDATE SET last_seen = datetime('now'),
+                VALUES (?, 'Auto-detected', CURRENT_TIMESTAMP, ?)
+                ON CONFLICT(address) DO UPDATE SET last_seen = CURRENT_TIMESTAMP,
                 total_volume = total_volume + ?`)
                 .run(w, minSize, minSize);
             } catch {}
@@ -456,8 +456,8 @@ export function createPolymarketOnchainTools(options: ToolCreationOptions): AnyA
         if (db) {
           try {
             db.prepare(`INSERT INTO poly_whale_wallets (address, label, total_volume, markets_traded, last_seen)
-              VALUES (?, 'Profiled', ?, ?, datetime('now'))
-              ON CONFLICT(address) DO UPDATE SET total_volume = ?, markets_traded = ?, last_seen = datetime('now')`)
+              VALUES (?, 'Profiled', ?, ?, CURRENT_TIMESTAMP)
+              ON CONFLICT(address) DO UPDATE SET total_volume = ?, markets_traded = ?, last_seen = CURRENT_TIMESTAMP`)
               .run(wallet, totalVolume, markets.size, totalVolume, markets.size);
           } catch {}
         }
