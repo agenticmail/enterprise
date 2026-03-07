@@ -1,5 +1,7 @@
 import { h, useState, useEffect, Fragment, useApp, apiCall, showConfirm } from '../components/utils.js';
-import { I } from '../components/icons.js';
+import { I as Icons } from '../components/icons.js';
+var iconMap = { 'trending-up': 'activity', 'refresh-cw': 'refresh', 'play': 'play', 'pause': 'pause', 'check': 'check', 'x': 'x', 'edit': 'settings', 'link': 'link', 'message-circle': 'messages', 'calendar': 'calendar', 'trash-2': 'trash', 'zap': 'warning', 'git-branch': 'link', 'shuffle': 'refresh', 'activity': 'activity', 'crosshair': 'search', 'layers': 'folder', 'shield': 'shield', 'log-out': 'logout', 'pie-chart': 'dashboard', 'trending-down': 'activity' };
+function I(name) { var k = iconMap[name] || name; var fn = Icons[k]; return fn ? fn() : ''; }
 import { HelpButton } from '../components/help-button.js';
 import { useOrgContext } from '../components/org-switcher.js';
 

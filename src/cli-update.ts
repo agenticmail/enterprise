@@ -143,7 +143,7 @@ export async function performUpdate(options?: { restart?: boolean }): Promise<{ 
   console.log(`\n  📦 Installing ${PKG_NAME}@${latest}...`);
   
   try {
-    execSync(`npm install -g ${PKG_NAME}@${latest}`, { 
+    execSync(`npm install -g --loglevel=error ${PKG_NAME}@${latest}`, { 
       stdio: 'inherit', 
       timeout: 120_000,
     });
