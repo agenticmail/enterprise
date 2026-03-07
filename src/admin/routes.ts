@@ -2992,5 +2992,459 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     }
   });
 
+  // ═══ POLYMARKET TRADING MANAGEMENT ═══════════════════════════
+
+  // Get trading config for an agent
+  api.get('/polymarket/:agentId/config', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`SELECT * FROM poly_trading_config WHERE agent_id = $1`, [agentId])
+        || await (db as any).query?.(`SELECT * FROM poly_trading_config WHERE agent_id = $1`, [agentId]);
+      const row = rows?.rows?.[0] || rows?.[0];
+      return c.json({ config: row || null });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Update trading config
+  api.put('/polymarket/:agentId/config', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      const fields = ['mode', 'max_position_size', 'max_order_size', 'max_total_exposure', 'max_daily_trades',
+        'max_daily_loss', 'max_drawdown_pct', 'stop_loss_pct', 'take_profit_pct', 'cash_reserve_pct'];
+      const sets: string[] = [];
+      const vals: any[] = [agentId];
+      let idx = 2;
+      for (const f of fields) {
+        if (body[f] !== undefined) { sets.push(`${f} = $${idx}`); vals.push(body[f]); idx++; }
+      }
+      if (sets.length === 0) return c.json({ error: 'No fields to update' }, 400);
+      sets.push('updated_at = CURRENT_TIMESTAMP');
+      // Upsert
+      await (db as any).execute?.(`
+        INSERT INTO poly_trading_config (agent_id, ${fields.filter(f => body[f] !== undefined).join(',')}, updated_at)
+        VALUES ($1, ${vals.slice(1).map((_: any, i: number) => '$' + (i + 2)).join(',')}, CURRENT_TIMESTAMP)
+        ON CONFLICT (agent_id) DO UPDATE SET ${sets.join(', ')}
+      `, vals).catch(() => {
+        // Fallback: just update
+        return (db as any).execute?.(`UPDATE poly_trading_config SET ${sets.join(', ')} WHERE agent_id = $1`, vals);
+      });
+      return c.json({ status: 'ok' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get pending trades for an agent
+  api.get('/polymarket/:agentId/pending', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`SELECT * FROM poly_pending_trades WHERE agent_id = $1 AND status = 'pending' ORDER BY created_at DESC`, [agentId]);
+      return c.json({ trades: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Approve or reject a pending trade
+  api.post('/polymarket/trades/:tradeId/decide', requireRole('admin'), async (c) => {
+    try {
+      const tradeId = c.req.param('tradeId');
+      const { decision, reason } = await c.req.json();
+      await (db as any).execute?.(`UPDATE poly_pending_trades SET status = $1, resolved_at = CURRENT_TIMESTAMP, resolved_by = $2 WHERE id = $3`,
+        [decision === 'approve' ? 'approved' : 'rejected', reason || 'admin', tradeId]);
+      return c.json({ status: 'ok', decision });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get trade history for an agent
+  api.get('/polymarket/:agentId/trades', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const limit = parseInt(c.req.query('limit') || '50');
+      const rows = await (db as any).execute?.(`SELECT * FROM poly_trade_log WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2`, [agentId, limit]);
+      return c.json({ trades: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get wallet status (address only, never expose private key)
+  api.get('/polymarket/:agentId/wallet', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`SELECT agent_id, funder_address, signature_type, created_at, updated_at FROM poly_wallet_credentials WHERE agent_id = $1`, [agentId]);
+      const row = rows?.rows?.[0] || rows?.[0];
+      return c.json({ wallet: row ? { address: row.funder_address, signatureType: row.signature_type, connected: true, createdAt: row.created_at } : null });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get alerts for an agent
+  api.get('/polymarket/:agentId/alerts', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`SELECT * FROM poly_price_alerts WHERE agent_id = $1 ORDER BY created_at DESC`, [agentId]);
+      return c.json({ alerts: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Delete an alert
+  api.delete('/polymarket/alerts/:alertId', requireRole('admin'), async (c) => {
+    try {
+      await (db as any).execute?.(`DELETE FROM poly_price_alerts WHERE id = $1`, [c.req.param('alertId')]);
+      return c.json({ status: 'ok' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get paper positions for an agent
+  api.get('/polymarket/:agentId/paper', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`SELECT * FROM poly_paper_positions WHERE agent_id = $1 ORDER BY created_at DESC`, [agentId]);
+      return c.json({ positions: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Pause/resume trading
+  api.post('/polymarket/:agentId/pause', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const { action, reason } = await c.req.json();
+      const today = new Date().toISOString().split('T')[0];
+      if (action === 'pause') {
+        await (db as any).execute?.(`
+          INSERT INTO poly_daily_counters (agent_id, date, paused, pause_reason) VALUES ($1, $2, 1, $3)
+          ON CONFLICT (agent_id, date) DO UPDATE SET paused = 1, pause_reason = $3
+        `, [agentId, today, reason || 'Admin paused']);
+      } else {
+        await (db as any).execute?.(`
+          UPDATE poly_daily_counters SET paused = 0, pause_reason = '' WHERE agent_id = $1 AND date = $2
+        `, [agentId, today]);
+      }
+      return c.json({ status: 'ok', action });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Dashboard summary — all polymarket agents
+  api.get('/polymarket/dashboard', requireRole('admin'), async (c) => {
+    try {
+      const configs = await (db as any).execute?.(`SELECT * FROM poly_trading_config`).catch(() => ({ rows: [] }));
+      const wallets = await (db as any).execute?.(`SELECT agent_id, funder_address, signature_type FROM poly_wallet_credentials`).catch(() => ({ rows: [] }));
+      const pendingCount = await (db as any).execute?.(`SELECT agent_id, COUNT(*) as cnt FROM poly_pending_trades WHERE status = 'pending' GROUP BY agent_id`).catch(() => ({ rows: [] }));
+      const today = new Date().toISOString().split('T')[0];
+      const counters = await (db as any).execute?.(`SELECT * FROM poly_daily_counters WHERE date = $1`, [today]).catch(() => ({ rows: [] }));
+      return c.json({
+        configs: configs?.rows || configs || [],
+        wallets: wallets?.rows || wallets || [],
+        pendingTrades: pendingCount?.rows || pendingCount || [],
+        dailyCounters: counters?.rows || counters || [],
+      });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ═══ POLYMARKET REAL-TIME STREAM ══════════════════════════════
+
+  // SSE stream for polymarket dashboard updates
+  api.get('/polymarket/stream', requireRole('admin'), async (c) => {
+    const agentId = c.req.query('agentId');
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const send = (data: string) => {
+          try { controller.enqueue(encoder.encode(`data: ${data}\n\n`)); }
+          catch { clearInterval(poll); }
+        };
+
+        // Send initial heartbeat
+        send(JSON.stringify({ type: 'connected' }));
+
+        // Poll for changes every 5 seconds (lightweight — just counts + status)
+        let lastPendingCount = -1;
+        let lastTradeCount = -1;
+        let lastAlertCount = -1;
+        let lastPredCount = -1;
+        let lastPaused = false;
+
+        const poll = setInterval(async () => {
+          try {
+            // Lightweight queries — just counts
+            const pendingQ = agentId
+              ? `SELECT COUNT(*) as cnt FROM poly_pending_trades WHERE agent_id = '${agentId}' AND status = 'pending'`
+              : `SELECT COUNT(*) as cnt FROM poly_pending_trades WHERE status = 'pending'`;
+            const pendingRows = await (db as any).execute?.(pendingQ).catch(() => ({ rows: [{ cnt: 0 }] }));
+            const pendingCount = pendingRows?.rows?.[0]?.cnt ?? pendingRows?.[0]?.cnt ?? 0;
+
+            const tradeQ = agentId
+              ? `SELECT COUNT(*) as cnt FROM poly_trade_log WHERE agent_id = '${agentId}'`
+              : `SELECT COUNT(*) as cnt FROM poly_trade_log`;
+            const tradeRows = await (db as any).execute?.(tradeQ).catch(() => ({ rows: [{ cnt: 0 }] }));
+            const tradeCount = tradeRows?.rows?.[0]?.cnt ?? tradeRows?.[0]?.cnt ?? 0;
+
+            const alertQ = agentId
+              ? `SELECT COUNT(*) as cnt FROM poly_price_alerts WHERE agent_id = '${agentId}' AND triggered = 0`
+              : `SELECT COUNT(*) as cnt FROM poly_price_alerts WHERE triggered = 0`;
+            const alertRows = await (db as any).execute?.(alertQ).catch(() => ({ rows: [{ cnt: 0 }] }));
+            const alertCount = alertRows?.rows?.[0]?.cnt ?? alertRows?.[0]?.cnt ?? 0;
+
+            const predQ = agentId
+              ? `SELECT COUNT(*) as cnt FROM poly_predictions WHERE agent_id = '${agentId}'`
+              : `SELECT COUNT(*) as cnt FROM poly_predictions`;
+            const predRows = await (db as any).execute?.(predQ).catch(() => ({ rows: [{ cnt: 0 }] }));
+            const predCount = predRows?.rows?.[0]?.cnt ?? predRows?.[0]?.cnt ?? 0;
+
+            const today = new Date().toISOString().split('T')[0];
+            const pauseQ = agentId
+              ? `SELECT paused FROM poly_daily_counters WHERE agent_id = '${agentId}' AND date = '${today}'`
+              : `SELECT paused FROM poly_daily_counters WHERE date = '${today}' LIMIT 1`;
+            const pauseRows = await (db as any).execute?.(pauseQ).catch(() => ({ rows: [] }));
+            const isPaused = !!(pauseRows?.rows?.[0]?.paused ?? pauseRows?.[0]?.paused);
+
+            // Only send if something changed
+            const changed = pendingCount !== lastPendingCount || tradeCount !== lastTradeCount ||
+                            alertCount !== lastAlertCount || predCount !== lastPredCount || isPaused !== lastPaused;
+
+            if (changed) {
+              lastPendingCount = pendingCount;
+              lastTradeCount = tradeCount;
+              lastAlertCount = alertCount;
+              lastPredCount = predCount;
+              lastPaused = isPaused;
+
+              send(JSON.stringify({
+                type: 'update',
+                pending: pendingCount,
+                trades: tradeCount,
+                alerts: alertCount,
+                predictions: predCount,
+                paused: isPaused,
+                timestamp: new Date().toISOString(),
+              }));
+            } else {
+              // Keepalive
+              send(JSON.stringify({ type: 'heartbeat' }));
+            }
+          } catch (err: any) {
+            send(JSON.stringify({ type: 'error', message: err.message }));
+          }
+        }, 5000);
+
+        // Cleanup
+        c.req.raw.signal?.addEventListener('abort', () => { clearInterval(poll); });
+      },
+    });
+
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+    });
+  });
+
+  // ═══ POLYMARKET LEARNING / JOURNAL ════════════════════════════
+
+  // Get predictions for an agent
+  api.get('/polymarket/:agentId/predictions', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const resolved = c.req.query('resolved');
+      const limit = parseInt(c.req.query('limit') || '50');
+      const query = resolved !== undefined
+        ? `SELECT * FROM poly_predictions WHERE agent_id = $1 AND resolved = $2 ORDER BY created_at DESC LIMIT $3`
+        : `SELECT * FROM poly_predictions WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2`;
+      const params = resolved !== undefined ? [agentId, resolved === 'true' ? 1 : 0, limit] : [agentId, limit];
+      const rows = await (db as any).execute?.(query, params).catch(() => ({ rows: [] }));
+      return c.json({ predictions: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get calibration data
+  api.get('/polymarket/:agentId/calibration', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`SELECT * FROM poly_calibration WHERE agent_id = $1 ORDER BY bucket`, [agentId]).catch(() => ({ rows: [] }));
+      return c.json({ calibration: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get strategy performance
+  api.get('/polymarket/:agentId/strategies', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`
+        SELECT *, CASE WHEN total_predictions > 0 THEN ROUND(CAST(correct_predictions AS REAL) / total_predictions * 100, 1) ELSE 0 END as win_rate
+        FROM poly_strategy_stats WHERE agent_id = $1 ORDER BY total_pnl DESC
+      `, [agentId]).catch(() => ({ rows: [] }));
+      return c.json({ strategies: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Get lessons
+  api.get('/polymarket/:agentId/lessons', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await (db as any).execute?.(`SELECT * FROM poly_lessons WHERE agent_id = $1 ORDER BY importance DESC, created_at DESC`, [agentId]).catch(() => ({ rows: [] }));
+      return c.json({ lessons: rows?.rows || rows || [] });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Delete a lesson
+  api.delete('/polymarket/lessons/:lessonId', requireRole('admin'), async (c) => {
+    try {
+      await (db as any).execute?.(`DELETE FROM poly_lessons WHERE id = $1`, [c.req.param('lessonId')]);
+      return c.json({ status: 'ok' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── Polymarket: On-Chain Intelligence ──────────────────────
+  api.get('/polymarket/:agentId/whales', requireRole('admin'), async (c) => {
+    try {
+      const rows = (db as any).prepare?.('SELECT * FROM poly_whale_wallets ORDER BY total_volume DESC LIMIT 50')?.all() || [];
+      return c.json({ whales: rows });
+    } catch { return c.json({ whales: [] }); }
+  });
+
+  api.get('/polymarket/:agentId/flow', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_flow_snapshots ORDER BY timestamp DESC LIMIT 50')?.all() || [];
+      return c.json({ snapshots: rows });
+    } catch { return c.json({ snapshots: [] }); }
+  });
+
+  // ─── Polymarket: Social Intelligence ──────────────────────
+  api.get('/polymarket/:agentId/social', requireRole('admin'), async (c) => {
+    try {
+      const rows = (db as any).prepare?.('SELECT * FROM poly_social_signals ORDER BY timestamp DESC LIMIT 100')?.all() || [];
+      return c.json({ signals: rows });
+    } catch { return c.json({ signals: [] }); }
+  });
+
+  api.get('/polymarket/:agentId/social/watchlist', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_social_watchlist WHERE agent_id = ? AND active = 1')?.all(agentId) || [];
+      return c.json({ watchlist: rows });
+    } catch { return c.json({ watchlist: [] }); }
+  });
+
+  // ─── Polymarket: Event Calendar ──────────────────────
+  api.get('/polymarket/:agentId/events', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_event_calendar WHERE agent_id = ? ORDER BY event_date ASC')?.all(agentId) || [];
+      return c.json({ events: rows.map((r: any) => ({ ...r, related_markets: JSON.parse(r.related_markets || '[]') })) });
+    } catch { return c.json({ events: [] }); }
+  });
+
+  api.delete('/polymarket/events/:eventId', requireRole('admin'), async (c) => {
+    try {
+      (db as any).prepare?.('DELETE FROM poly_event_calendar WHERE id = ?')?.run(c.req.param('eventId'));
+      return c.json({ status: 'ok' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.get('/polymarket/:agentId/news-alerts', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_news_alerts WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 50')?.all(agentId) || [];
+      return c.json({ alerts: rows });
+    } catch { return c.json({ alerts: [] }); }
+  });
+
+  // ─── Polymarket: Analytics ──────────────────────
+  api.get('/polymarket/:agentId/correlations', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_correlations WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 50')?.all(agentId) || [];
+      return c.json({ correlations: rows });
+    } catch { return c.json({ correlations: [] }); }
+  });
+
+  api.get('/polymarket/:agentId/arbitrage', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.("SELECT * FROM poly_arb_opportunities WHERE agent_id = ? AND status = 'open' ORDER BY timestamp DESC LIMIT 30")?.all(agentId) || [];
+      return c.json({ opportunities: rows.map((r: any) => ({ ...r, markets: JSON.parse(r.markets || '{}') })) });
+    } catch { return c.json({ opportunities: [] }); }
+  });
+
+  api.get('/polymarket/:agentId/regimes', requireRole('admin'), async (c) => {
+    try {
+      const rows = (db as any).prepare?.('SELECT * FROM poly_regime_signals ORDER BY timestamp DESC LIMIT 50')?.all() || [];
+      return c.json({ regimes: rows });
+    } catch { return c.json({ regimes: [] }); }
+  });
+
+  // ─── Polymarket: Execution ──────────────────────
+  api.get('/polymarket/:agentId/snipers', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_sniper_orders WHERE agent_id = ? ORDER BY created_at DESC')?.all(agentId) || [];
+      return c.json({ snipers: rows });
+    } catch { return c.json({ snipers: [] }); }
+  });
+
+  api.delete('/polymarket/snipers/:sniperId', requireRole('admin'), async (c) => {
+    try {
+      (db as any).prepare?.("UPDATE poly_sniper_orders SET status = 'cancelled' WHERE id = ?")?.run(c.req.param('sniperId'));
+      return c.json({ status: 'ok' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.get('/polymarket/:agentId/scale-orders', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_scale_orders WHERE agent_id = ? ORDER BY created_at DESC')?.all(agentId) || [];
+      return c.json({ orders: rows });
+    } catch { return c.json({ orders: [] }); }
+  });
+
+  api.get('/polymarket/:agentId/hedges', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_hedges WHERE agent_id = ? ORDER BY created_at DESC')?.all(agentId) || [];
+      return c.json({ hedges: rows });
+    } catch { return c.json({ hedges: [] }); }
+  });
+
+  api.get('/polymarket/:agentId/exit-rules', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.("SELECT * FROM poly_exit_rules WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC")?.all(agentId) || [];
+      return c.json({ rules: rows });
+    } catch { return c.json({ rules: [] }); }
+  });
+
+  api.delete('/polymarket/exit-rules/:ruleId', requireRole('admin'), async (c) => {
+    try {
+      (db as any).prepare?.("UPDATE poly_exit_rules SET status = 'removed' WHERE id = ?")?.run(c.req.param('ruleId'));
+      return c.json({ status: 'ok' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── Polymarket: Portfolio ──────────────────────
+  api.get('/polymarket/:agentId/drawdown', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = (db as any).prepare?.('SELECT * FROM poly_portfolio_snapshots WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 100')?.all(agentId) || [];
+      const peak = rows.length ? Math.max(...rows.map((r: any) => r.total_value)) : 0;
+      const current = rows[0]?.total_value || 0;
+      return c.json({ snapshots: rows, peak, current, drawdown_pct: peak > 0 ? +((peak - current) / peak * 100).toFixed(2) : 0 });
+    } catch { return c.json({ snapshots: [], peak: 0, current: 0, drawdown_pct: 0 }); }
+  });
+
+  api.get('/polymarket/:agentId/pnl-attribution', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const byStrategy = (db as any).prepare?.(`SELECT strategy, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl, AVG(avg_hold_hours) as avg_hold
+        FROM poly_pnl_attribution WHERE agent_id = ? AND strategy IS NOT NULL GROUP BY strategy ORDER BY total_pnl DESC`)?.all(agentId) || [];
+      const byCategory = (db as any).prepare?.(`SELECT category, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl
+        FROM poly_pnl_attribution WHERE agent_id = ? AND category IS NOT NULL GROUP BY category ORDER BY total_pnl DESC`)?.all(agentId) || [];
+      const bySignal = (db as any).prepare?.(`SELECT signal_source, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl
+        FROM poly_pnl_attribution WHERE agent_id = ? AND signal_source IS NOT NULL GROUP BY signal_source ORDER BY total_pnl DESC`)?.all(agentId) || [];
+      return c.json({ byStrategy, byCategory, bySignal });
+    } catch { return c.json({ byStrategy: [], byCategory: [], bySignal: [] }); }
+  });
+
+  // ─── Polymarket: Counter-Intelligence ──────────────────────
+  api.get('/polymarket/:agentId/odds-snapshots', requireRole('admin'), async (c) => {
+    try {
+      const rows = (db as any).prepare?.('SELECT * FROM poly_odds_snapshots ORDER BY timestamp DESC LIMIT 100')?.all() || [];
+      return c.json({ snapshots: rows });
+    } catch { return c.json({ snapshots: [] }); }
+  });
+
   return api;
 }

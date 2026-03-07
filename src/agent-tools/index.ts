@@ -123,6 +123,13 @@ export { createKnowledgeSearchTools } from './tools/knowledge-search.js';
 export { createCodeSandboxTools } from './tools/enterprise-code-sandbox.js';
 export { createDiffTools } from './tools/enterprise-diff.js';
 export { createRemotonTools } from './tools/remotion-video.js';
+export { createPolymarketOnchainTools } from './tools/polymarket-onchain.js';
+export { createPolymarketSocialTools } from './tools/polymarket-social.js';
+export { createPolymarketFeedTools } from './tools/polymarket-feeds.js';
+export { createPolymarketAnalyticsTools } from './tools/polymarket-analytics.js';
+export { createPolymarketExecutionTools } from './tools/polymarket-execution.js';
+export { createPolymarketCounterintelTools } from './tools/polymarket-counterintel.js';
+export { createPolymarketPortfolioTools } from './tools/polymarket-portfolio.js';
 
 // --- Web utilities (useful standalone) ---
 export { htmlToMarkdown, markdownToText, truncateText } from './tools/web-fetch-utils.js';
@@ -169,6 +176,15 @@ import { createTokenProvider } from './tools/oauth-token-provider.js';
 import type { OAuthTokens, TokenProvider } from './tools/oauth-token-provider.js';
 import { createMeetingLifecycleTools } from './tools/meeting-lifecycle.js';
 import { createVisualMemoryTools } from './tools/visual-memory/index.js';
+import { createPolymarketTools } from './tools/polymarket.js';
+import { createPolymarketQuantTools } from './tools/polymarket-quant.js';
+import { createPolymarketOnchainTools } from './tools/polymarket-onchain.js';
+import { createPolymarketSocialTools } from './tools/polymarket-social.js';
+import { createPolymarketFeedTools } from './tools/polymarket-feeds.js';
+import { createPolymarketAnalyticsTools } from './tools/polymarket-analytics.js';
+import { createPolymarketExecutionTools } from './tools/polymarket-execution.js';
+import { createPolymarketCounterintelTools } from './tools/polymarket-counterintel.js';
+import { createPolymarketPortfolioTools } from './tools/polymarket-portfolio.js';
 import { initVisualStorage } from './tools/visual-memory/storage.js';
 import { detectCapabilities } from '../runtime/environment.js';
 
@@ -342,6 +358,15 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     ...createDiffTools(options),
     ...createRemotonTools(),
     ...createKnowledgeSearchTools(options || {} as any),
+    ...createPolymarketTools(options || {}),
+    ...createPolymarketQuantTools(options || {}),
+    ...createPolymarketOnchainTools(options || {}),
+    ...createPolymarketSocialTools(options || {}),
+    ...createPolymarketFeedTools(options || {}),
+    ...createPolymarketAnalyticsTools(options || {}),
+    ...createPolymarketExecutionTools(options || {}),
+    ...createPolymarketCounterintelTools(options || {}),
+    ...createPolymarketPortfolioTools(options || {}),
   ];
 
   // AgenticMail tools (if manager + agentId provided)

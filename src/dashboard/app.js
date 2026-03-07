@@ -30,6 +30,7 @@ import { TaskPipelinePage } from './pages/task-pipeline.js';
 import { DatabaseAccessPage } from './pages/database-access.js';
 import { OrganizationsPage } from './pages/organizations.js';
 import { RolesPage } from './pages/roles.js';
+import { PolymarketPage } from './pages/polymarket.js';
 import { MemoryTransferPage } from './pages/memory-transfer.js';
 import { ClusterPage } from './pages/cluster.js';
 
@@ -259,7 +260,7 @@ function App() {
         setUser(d.user);
         // Immediately restrict permissions for client org users (before async fetch)
         if (d.user.clientOrgId) {
-          setPermissions({ dashboard: true, agents: true, roles: true, skills: true, 'community-skills': true, 'skill-connections': true, 'database-access': true, knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true, approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true, messages: true, guardrails: true, journal: true, activity: true, dlp: true, compliance: true, vault: true, audit: true, settings: true });
+          setPermissions({ dashboard: true, agents: true, roles: true, polymarket: true, skills: true, 'community-skills': true, 'skill-connections': true, 'database-access': true, knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true, approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true, messages: true, guardrails: true, journal: true, activity: true, dlp: true, compliance: true, vault: true, audit: true, settings: true });
         }
         // Then fetch computed permissions for the definitive set
         apiCall('/me/permissions').then(function(p) { if (p && p.permissions) setPermissions(p.permissions); }).catch(function() {});
@@ -405,6 +406,7 @@ function App() {
     { section: 'Management', items: [
       { id: 'agents', icon: I.agents, label: 'Agents' },
       { id: 'roles', icon: I.agents, label: 'Roles' },
+      { id: 'polymarket', icon: I.activity, label: 'Polymarket' },
       { id: 'organizations', icon: I.building, label: 'Organizations' },
       { id: 'skills', icon: I.skills, label: 'Skills' },
       { id: 'community-skills', icon: I.marketplace, label: 'Community Skills' },
@@ -461,6 +463,7 @@ function App() {
     'database-access': DatabaseAccessPage,
     organizations: OrganizationsPage,
     roles: RolesPage,
+    polymarket: PolymarketPage,
     'memory-transfer': MemoryTransferPage,
     cluster: ClusterPage,
   };

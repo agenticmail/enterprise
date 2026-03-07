@@ -1,0 +1,379 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket Trading — AgenticMail Enterprise</title>
+<link rel="stylesheet" href="/docs/docs-style.css">
+<script>document.documentElement.setAttribute('data-theme', localStorage.getItem('em_theme') || 'dark');</script>
+</head><body>
+<a href="javascript:history.back()" class="back">← Back to Dashboard</a>
+<h1>Polymarket Trading</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Institutional-grade prediction market trading with 108 tools across 9 skills — on-chain intelligence, social analysis, quantitative modeling, smart execution, counter-intelligence, and self-improving AI agents that learn from every trade.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#getting-started">Getting Started</a></li>
+<li><a href="#architecture">Architecture (9 Skills)</a></li>
+<li><a href="#trading-modes">Trading Modes</a></li>
+<li><a href="#onchain">On-Chain Intelligence</a></li>
+<li><a href="#social">Social Intelligence</a></li>
+<li><a href="#feeds">Event & Data Feeds</a></li>
+<li><a href="#analytics">Advanced Analytics</a></li>
+<li><a href="#execution">Execution Edge</a></li>
+<li><a href="#counterintel">Counter-Intelligence</a></li>
+<li><a href="#portfolio">Portfolio Management</a></li>
+<li><a href="#quant-engine">Quant Engine</a></li>
+<li><a href="#learning-system">Learning System</a></li>
+<li><a href="#risk-management">Risk Management</a></li>
+<li><a href="#dashboard">Dashboard (17 Tabs)</a></li>
+<li><a href="#system-prompt">System Prompt</a></li>
+<li><a href="#tools-reference">Tools Reference (108)</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</div>
+
+<h2 id="overview">Overview</h2>
+<div class="card">
+<p>The Polymarket system gives AI agents the ability to trade prediction markets on <a href="https://polymarket.com" target="_blank">Polymarket</a> — the world's largest prediction market platform. It combines:</p>
+<ul>
+<li><strong>108 specialized tools</strong> across 9 skills — trading, on-chain analysis, social intelligence, event feeds, advanced analytics, smart execution, counter-intelligence, portfolio management, and quantitative modeling</li>
+<li><strong>Real-time on-chain intelligence</strong> — whale tracking, orderbook depth, net flow analysis, wallet profiling, liquidity mapping</li>
+<li><strong>Social sentiment analysis</strong> — Twitter, Reddit, Telegram, Polymarket comments, cross-platform velocity detection</li>
+<li><strong>Smart execution</strong> — sniper orders, TWAP/VWAP scale-in, correlation hedging, automated exit strategies</li>
+<li><strong>Counter-intelligence</strong> — manipulation detection, resolution risk scoring, counterparty analysis</li>
+<li><strong>14 quant tools</strong> — Kelly criterion, Black-Scholes, Bayesian inference, Monte Carlo simulation, regime detection</li>
+<li><strong>Self-improving agents</strong> — prediction journaling, calibration tracking, strategy performance, P&L attribution</li>
+<li><strong>Full dashboard</strong> — 17 tabs across 5 groups (Core, Intelligence, Execution, Learning, Portfolio)</li>
+<li><strong>Auto-SDK install</strong> — the Polymarket CLOB SDK installs automatically, zero manual setup</li>
+<li><strong>DB persistence</strong> — 25+ tables for config, trades, signals, whales, events, predictions, calibration</li>
+<li><strong>Dedicated system prompt</strong> — 6-phase trading loop, 10 risk commandments, tool choreography</li>
+</ul>
+<p>Everything goes through the standard enterprise permission pipeline — risk levels, side-effect checks, approval queues, guardrails, and audit logging.</p>
+</div>
+
+<h2 id="getting-started">Getting Started</h2>
+<div class="card">
+<h3>1. Create a Polymarket Agent</h3>
+<p>Go to <strong>Agents → Create Agent</strong> and select the <strong>"Polymarket Trader"</strong> template from the Finance category. This pre-assigns all 9 skills (108 tools). Or assign skills individually:</p>
+<table>
+<tr><th>Skill</th><th>Tools</th><th>Purpose</th></tr>
+<tr><td><code>polymarket</code></td><td>63</td><td>Trading infrastructure, learning</td></tr>
+<tr><td><code>polymarket-quant</code></td><td>14</td><td>Mathematical analysis engine</td></tr>
+<tr><td><code>polymarket-onchain</code></td><td>6</td><td>Blockchain intelligence</td></tr>
+<tr><td><code>polymarket-social</code></td><td>5</td><td>Social media sentiment</td></tr>
+<tr><td><code>polymarket-feeds</code></td><td>5</td><td>Event calendar, news, odds</td></tr>
+<tr><td><code>polymarket-analytics</code></td><td>5</td><td>Correlation, arbitrage, regime</td></tr>
+<tr><td><code>polymarket-execution</code></td><td>4</td><td>Smart order execution</td></tr>
+<tr><td><code>polymarket-counterintel</code></td><td>3</td><td>Manipulation detection</td></tr>
+<tr><td><code>polymarket-portfolio</code></td><td>3</td><td>Portfolio optimization</td></tr>
+</table>
+
+<h3>2. Connect a Wallet</h3>
+<p>The agent needs an Ethereum wallet with USDC on Polygon. Two options:</p>
+<ul>
+<li><strong>Auto-create:</strong> <code>poly_create_account method="auto"</code> — generates a fresh wallet</li>
+<li><strong>Import:</strong> <code>poly_create_account method="import"</code> — use your existing private key</li>
+</ul>
+
+<h3>3. Configure Risk Limits</h3>
+<p>Use the <strong>Config</strong> tab on the dashboard or <code>poly_set_config</code>. Set trading mode, max position, daily loss limit, drawdown threshold.</p>
+
+<h3>4. Fund & Start</h3>
+<p>Send USDC to the wallet on Polygon. Start with <strong>paper trading</strong> mode to test strategies risk-free.</p>
+</div>
+
+<h2 id="architecture">Architecture (9 Skills)</h2>
+<div class="card">
+<pre>
+┌─────────────────────────────────────────────────────────────────────┐
+│                        POLYMARKET TRADING SYSTEM                     │
+│                         108 tools · 9 skills                         │
+├─────────────┬──────────────┬──────────────┬──────────────────────────┤
+│  INTELLIGENCE               │   EXECUTION                 │ LEARNING │
+│                             │                             │          │
+│  On-Chain (6)               │  Trading (63)               │ Journal  │
+│  · Whale tracking           │  · Orders, positions        │ Calibr.  │
+│  · Orderbook depth          │  · Risk controls            │ Strategy │
+│  · Net flow analysis        │  · Wallet management        │ Lessons  │
+│  · Wallet profiling         │                             │ P&L Attr │
+│  · Liquidity mapping        │  Execution Edge (4)         │          │
+│  · TX decoding              │  · Sniper orders            │          │
+│                             │  · TWAP/VWAP scale-in       │          │
+│  Social (5)                 │  · Hedging                  │          │
+│  · Twitter sentiment        │  · Exit strategies          │          │
+│  · Reddit pulse             │                             │          │
+│  · Telegram monitor         │  Portfolio (3)              │          │
+│  · Polymarket comments      │  · Optimizer                │          │
+│  · Velocity tracking        │  · Drawdown monitor         │          │
+│                             │  · P&L attribution          │          │
+│  Feeds (5)                  │                             │          │
+│  · Event calendar           │  Counter-Intel (3)          │          │
+│  · Official sources         │  · Manipulation detector    │          │
+│  · Odds aggregator          │  · Resolution risk          │          │
+│  · Breaking news            │  · Counterparty analysis    │          │
+│  · Resolution tracking      │                             │          │
+│                             │  Quant Engine (14)          │          │
+│  Analytics (5)              │  · Kelly, Black-Scholes     │          │
+│  · Correlation detection    │  · Monte Carlo, Bayesian    │          │
+│  · Arbitrage scanning       │  · RSI, MACD, Bollinger     │          │
+│  · Regime detection         │  · VaR, Entropy, Hurst      │          │
+│  · Smart money index        │  · Signal generator         │          │
+│  · Microstructure           │                             │          │
+└─────────────┴──────────────┴──────────────┴──────────────────────────┘
+</pre>
+
+<h3>Data Flow</h3>
+<pre>
+Breaking News ──→ Social Velocity ──→ Sentiment Analysis ──→ ┐
+Official Sources ──→ Event Calendar ──→ Resolution Track ──→ ├→ Smart Money Index ──→ Signal Generation
+Whale Tracker ──→ Orderbook Depth ──→ On-Chain Flow ─────→ ┘        │
+                                                                     ↓
+Manipulation Check ──→ Resolution Risk ──→ Counterparty ──→ Risk Gate
+                                                                     ↓
+Kelly Criterion ──→ Position Sizing ──→ Execution (Sniper/TWAP) ──→ Trade
+                                                                     ↓
+Exit Strategy ──→ Drawdown Monitor ──→ Portfolio Optimizer       Record Prediction
+                                                                     ↓
+                            Resolve → Review → Lesson → Calibrate → Improve
+</pre>
+
+<h3>Performance</h3>
+<ul>
+<li><strong>Shared response cache</strong> — all external API calls cached with configurable TTL (15s–60s)</li>
+<li><strong>Rate limiting</strong> — 30 requests/minute per domain to prevent API bans</li>
+<li><strong>Parallel fetches</strong> — <code>Promise.all</code> for multi-token analysis, cross-platform sentiment</li>
+<li><strong>Retry logic</strong> — automatic retry with exponential backoff for transient failures</li>
+<li><strong>Config reads from DB</strong> — no stale in-memory state; dashboard config changes take effect on next tool call</li>
+</ul>
+</div>
+
+<h2 id="trading-modes">Trading Modes</h2>
+<div class="card">
+<table>
+<tr><th>Mode</th><th>How It Works</th><th>Best For</th></tr>
+<tr><td><strong>Approval</strong></td><td>Agent queues trades → humans approve/reject on dashboard. Auto-approve rules for small trades.</td><td>Production, compliance, learning the system</td></tr>
+<tr><td><strong>Autonomous</strong></td><td>Agent trades within risk limits. Circuit breakers auto-pause on loss limits.</td><td>Proven strategies, experienced users</td></tr>
+<tr><td><strong>Paper</strong></td><td>Simulated trading with real data. All logged for strategy evaluation.</td><td>Testing, new agents, strategy development</td></tr>
+</table>
+</div>
+
+<h2 id="onchain">On-Chain Intelligence (6 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th></tr>
+<tr><td><code>poly_whale_tracker</code></td><td>Monitor large trades, detect whale wallets, track accumulation/distribution. Actions: scan, list_whales, add_whale, remove_whale</td></tr>
+<tr><td><code>poly_orderbook_depth</code></td><td>L2 orderbook analysis — bid/ask walls, liquidity depth, imbalance ratio, spoofing indicators</td></tr>
+<tr><td><code>poly_onchain_flow</code></td><td>Net buy/sell flow over 5m/1h/4h/24h windows. Separates whale flow from retail</td></tr>
+<tr><td><code>poly_wallet_profiler</code></td><td>Profile any wallet — trade count, volume, win rate, markets traded. Evaluate if a whale is worth following</td></tr>
+<tr><td><code>poly_liquidity_map</code></td><td>Map liquidity across multiple tokens. Ranks tradability, identifies thin markets</td></tr>
+<tr><td><code>poly_transaction_decoder</code></td><td>Decode Polygon transactions — CTF minting, redeeming, splitting, merging</td></tr>
+</table>
+</div>
+
+<h2 id="social">Social Intelligence (5 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th></tr>
+<tr><td><code>poly_twitter_sentiment</code></td><td>Twitter/X sentiment via Google News proxy. Keyword-based scoring with spike detection</td></tr>
+<tr><td><code>poly_polymarket_comments</code></td><td>Scrape market comment sections — often contains insider-tier info before price moves</td></tr>
+<tr><td><code>poly_reddit_pulse</code></td><td>Monitor r/polymarket, r/politics, r/sports, custom subs. Reddit surfaces info 6-12h before MSM</td></tr>
+<tr><td><code>poly_telegram_monitor</code></td><td>Scrape public Telegram channels for prediction market alpha</td></tr>
+<tr><td><code>poly_social_velocity</code></td><td>Cross-platform mention velocity — detects spikes from 10→1000 mentions/hour</td></tr>
+</table>
+</div>
+
+<h2 id="feeds">Event & Data Feeds (5 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th></tr>
+<tr><td><code>poly_calendar_events</code></td><td>Structured event calendar — elections, courts, fed, earnings, sports. Actions: list, add, remove, upcoming, auto_discover</td></tr>
+<tr><td><code>poly_official_sources</code></td><td>First-party data from White House, SCOTUS, SEC, Fed, ESPN, NOAA, Congress. RSS/Atom feeds</td></tr>
+<tr><td><code>poly_odds_aggregator</code></td><td>Compare Polymarket prices vs betting odds from other platforms. Divergence = opportunity</td></tr>
+<tr><td><code>poly_resolution_tracker</code></td><td>Track how markets resolve. Monitor resolution sources directly for early signals</td></tr>
+<tr><td><code>poly_breaking_news</code></td><td>AP, Reuters, BBC, CNN via RSS. Flags headlines most likely to move prediction markets</td></tr>
+</table>
+</div>
+
+<h2 id="analytics">Advanced Analytics (5 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th><th>Math</th></tr>
+<tr><td><code>poly_market_correlation</code></td><td>Pearson correlation between token price histories</td><td>r = Σ(x-x̄)(y-ȳ) / √(Σ(x-x̄)²·Σ(y-ȳ)²)</td></tr>
+<tr><td><code>poly_arbitrage_scanner</code></td><td>YES+NO≠$1, multi-outcome sums, cross-market divergence</td><td>Price sum deviation analysis</td></tr>
+<tr><td><code>poly_regime_detector</code></td><td>Trending (H>0.55), mean-reverting (H<0.45), random walk</td><td>Hurst exponent via R/S analysis</td></tr>
+<tr><td><code>poly_smart_money_index</code></td><td>Composite: orderbook imbalance + flow + momentum + news</td><td>Weighted signal aggregation (-1 to 1)</td></tr>
+<tr><td><code>poly_market_microstructure</code></td><td>Spread, fill probability, slippage simulation at various sizes</td><td>Orderbook walk simulation</td></tr>
+</table>
+</div>
+
+<h2 id="execution">Execution Edge (4 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th></tr>
+<tr><td><code>poly_sniper</code></td><td>Trailing limit order — auto-adjusts to trail best bid/ask. Actions: create, list, cancel, status</td></tr>
+<tr><td><code>poly_scale_in</code></td><td>TWAP/VWAP execution — split large orders into time-weighted slices. Minimizes market impact</td></tr>
+<tr><td><code>poly_hedge</code></td><td>Create hedges in correlated markets. Actions: create, list, close, analyze</td></tr>
+<tr><td><code>poly_exit_strategy</code></td><td>Take-profit, stop-loss, trailing stop, time-based exit. Actions: create, list, remove, check</td></tr>
+</table>
+</div>
+
+<h2 id="counterintel">Counter-Intelligence (3 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th></tr>
+<tr><td><code>poly_manipulation_detector</code></td><td>Detect wash trading, spoofing, layering, volume concentration, rapid-fire bot activity</td></tr>
+<tr><td><code>poly_resolution_risk</code></td><td>Score ambiguity risk — vague language, subjective resolution, missing sources, no end date</td></tr>
+<tr><td><code>poly_counterparty_analysis</code></td><td>Who's on the other side? Whale vs retail distribution. Shows if you're trading against smart money</td></tr>
+</table>
+</div>
+
+<h2 id="portfolio">Portfolio Management (3 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th></tr>
+<tr><td><code>poly_portfolio_optimizer</code></td><td>Mean-variance optimization across positions. Optimal weights for max Sharpe ratio</td></tr>
+<tr><td><code>poly_drawdown_monitor</code></td><td>Real-time drawdown tracking with circuit breaker. Daily P&L tracking. Actions: check, history</td></tr>
+<tr><td><code>poly_pnl_attribution</code></td><td>P&L by strategy, category, and signal source. Kill losers, double winners. Actions: analyze, record, summary</td></tr>
+</table>
+</div>
+
+<h2 id="quant-engine">Quant Engine (14 tools)</h2>
+<div class="card">
+<table>
+<tr><th>Tool</th><th>What It Does</th><th>Math</th></tr>
+<tr><td><code>poly_kelly_criterion</code></td><td>Optimal position sizing</td><td>f* = (bp - q) / b</td></tr>
+<tr><td><code>poly_binary_pricing</code></td><td>Fair value estimation</td><td>Black-Scholes adapted for binary options</td></tr>
+<tr><td><code>poly_bayesian_update</code></td><td>Update beliefs with evidence</td><td>P(H|E) = P(E|H)P(H) / P(E)</td></tr>
+<tr><td><code>poly_monte_carlo</code></td><td>Simulate 10,000 price paths</td><td>Ornstein-Uhlenbeck process</td></tr>
+<tr><td><code>poly_technical_indicators</code></td><td>RSI, MACD, Bollinger, VWAP, EMA</td><td>Standard TA formulas</td></tr>
+<tr><td><code>poly_volatility</code></td><td>Realized vol, EWMA, Hurst</td><td>R/S analysis, Cornish-Fisher VaR</td></tr>
+<tr><td><code>poly_stat_arb</code></td><td>Pairs trading signals</td><td>Engle-Granger cointegration</td></tr>
+<tr><td><code>poly_value_at_risk</code></td><td>Downside risk</td><td>Historical, Parametric, MC VaR</td></tr>
+<tr><td><code>poly_entropy</code></td><td>Information theory</td><td>Shannon entropy, KL divergence</td></tr>
+<tr><td><code>poly_generate_signal</code></td><td>Master signal combiner</td><td>Weighted aggregation + Kelly sizing</td></tr>
+<tr><td><code>poly_correlation_matrix</code></td><td>Portfolio diversification</td><td>Pairwise correlation + PCA</td></tr>
+</table>
+</div>
+
+<h2 id="learning-system">Learning System (8 tools)</h2>
+<div class="card">
+<h3>The Learning Loop</h3>
+<ol>
+<li><strong>Recall:</strong> <code>poly_recall_lessons</code> — check past lessons for this market type</li>
+<li><strong>Predict:</strong> <code>poly_record_prediction</code> — journal prediction with reasoning BEFORE trading</li>
+<li><strong>Execute:</strong> <code>poly_place_order</code> + <code>poly_exit_strategy</code></li>
+<li><strong>Resolve:</strong> <code>poly_resolve_prediction</code> — log outcome → auto-updates calibration</li>
+<li><strong>Review:</strong> <code>poly_trade_review</code> → <code>poly_record_lesson</code> — extract insights</li>
+<li><strong>Calibrate:</strong> <code>poly_calibration</code> — "Am I overconfident at 80%?"</li>
+<li><strong>Rank:</strong> <code>poly_strategy_performance</code> — which signals make money?</li>
+<li><strong>Attribute:</strong> <code>poly_pnl_attribution</code> — P&L by strategy/category/signal</li>
+</ol>
+</div>
+
+<h2 id="risk-management">Risk Management</h2>
+<div class="card">
+<p>Every trade goes through a 9-step permission pipeline, plus Polymarket-specific risk checks:</p>
+<ol>
+<li>Sandbox → Working hours → IP check → Tool blocks → Skill membership → Risk level → Side effects → Approval → Guardrails</li>
+</ol>
+<p>Plus: circuit breaker, daily trade/loss limits, position size caps, category restrictions, manipulation screening, resolution risk check, liquidity verification, slippage estimation.</p>
+</div>
+
+<h2 id="dashboard">Dashboard (17 Tabs)</h2>
+<div class="card">
+<table>
+<tr><th>Group</th><th>Tabs</th></tr>
+<tr><td><strong>Core</strong></td><td>Overview · Pending Trades · Trade History · Risk Config</td></tr>
+<tr><td><strong>Intelligence</strong></td><td>On-Chain (whales) · Social (sentiment) · Events (calendar + news) · Analytics (correlations, arb, regimes)</td></tr>
+<tr><td><strong>Execution</strong></td><td>Orders (snipers + scale-in) · Hedges · Exit Rules · Alerts · Paper</td></tr>
+<tr><td><strong>Learning</strong></td><td>Journal · Calibration (visual chart) · Strategies · Lessons</td></tr>
+<tr><td><strong>Portfolio</strong></td><td>Drawdown Monitor · P&L Attribution</td></tr>
+</table>
+<p>All data loads in parallel via <code>Promise.all</code> (23 API calls batched). SSE stream provides real-time updates.</p>
+<p><strong>Config changes are instant</strong> — editing risk limits on the dashboard takes effect on the agent's very next tool call (no restart needed).</p>
+</div>
+
+<h2 id="system-prompt">System Prompt</h2>
+<div class="card">
+<p>Agents with Polymarket skills get an injected system prompt (<code>buildPolymarketPrompt()</code>) containing:</p>
+<ul>
+<li><strong>6-phase trading loop:</strong> Scan → Analyze → Decide → Execute → Monitor → Learn</li>
+<li><strong>10 risk commandments:</strong> Never risk >5% on one market, never trade without checking liquidity, always set exit rules, etc.</li>
+<li><strong>Anti-patterns:</strong> Don't revenge trade, don't chase, don't anchor to entry price</li>
+<li><strong>Tool choreography:</strong> Which tools to use together for each strategy type</li>
+<li><strong>Category-specific edge sources:</strong> What signals work for politics, sports, crypto, economics, legal, science</li>
+</ul>
+</div>
+
+<h2 id="tools-reference">All 108 Tools</h2>
+<div class="card">
+<h3>polymarket (63 tools)</h3>
+<p>Market Discovery (11) · Wallet & Account (6) · Funds (2) · Portfolio (4) · Order Management (8) · Analytics (6) · Config (4) · Alerts (3) · Approval Queue (4) · Social (3) · Paper (2) · System (2) · Learning (8)</p>
+
+<h3>polymarket-quant (14 tools)</h3>
+<p>Kelly · Black-Scholes · Bayesian · Monte Carlo · RSI/MACD/Bollinger · Volatility/Hurst · Stat Arb · VaR · Entropy · News Feed · Sentiment · Signal Generator · Correlation Matrix</p>
+
+<h3>polymarket-onchain (6 tools)</h3>
+<p>Whale Tracker · Orderbook Depth · On-Chain Flow · Wallet Profiler · Liquidity Map · Transaction Decoder</p>
+
+<h3>polymarket-social (5 tools)</h3>
+<p>Twitter Sentiment · Polymarket Comments · Reddit Pulse · Telegram Monitor · Social Velocity</p>
+
+<h3>polymarket-feeds (5 tools)</h3>
+<p>Event Calendar · Official Sources · Odds Aggregator · Resolution Tracker · Breaking News</p>
+
+<h3>polymarket-analytics (5 tools)</h3>
+<p>Market Correlation · Arbitrage Scanner · Regime Detector · Smart Money Index · Market Microstructure</p>
+
+<h3>polymarket-execution (4 tools)</h3>
+<p>Sniper Order · Scale In (TWAP/VWAP) · Hedge Position · Exit Strategy</p>
+
+<h3>polymarket-counterintel (3 tools)</h3>
+<p>Manipulation Detector · Resolution Risk · Counterparty Analysis</p>
+
+<h3>polymarket-portfolio (3 tools)</h3>
+<p>Portfolio Optimizer · Drawdown Monitor · P&L Attribution</p>
+</div>
+
+<h2 id="best-practices">Best Practices</h2>
+<div class="card">
+<ul>
+<li><strong>Start with paper trading</strong> — test strategies before real money</li>
+<li><strong>Always run pre-trade checks</strong> — resolution_risk + manipulation_detector + microstructure + recall_lessons</li>
+<li><strong>Use scale-in for large orders</strong> — $500+ in thin markets should use TWAP/VWAP</li>
+<li><strong>Set exit rules immediately</strong> — every position needs take-profit, stop-loss, or trailing stop</li>
+<li><strong>Check calibration weekly</strong> — if overconfident, reduce position sizes</li>
+<li><strong>Review P&L attribution monthly</strong> — kill strategies with <45% win rate over 20+ trades</li>
+<li><strong>Track whale wallets</strong> — add consistently profitable wallets to your watchlist</li>
+<li><strong>Monitor social velocity</strong> — spikes of 3x+ acceleration precede market moves</li>
+<li><strong>Use hedges for large positions</strong> — reduce directional risk via correlated markets</li>
+<li><strong>Record every prediction</strong> — the learning system only works with data</li>
+</ul>
+</div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<div class="card">
+<table>
+<tr><th>Issue</th><th>Solution</th></tr>
+<tr><td>SDK not installing</td><td>Run <code>poly_check_sdk</code>. Check npm connectivity and disk space.</td></tr>
+<tr><td>Trades failing</td><td><code>poly_wallet_status</code> — may need USDC or MATIC for gas.</td></tr>
+<tr><td>No dashboard data</td><td>Tables auto-create on first tool use. Run any poly_ tool to initialize.</td></tr>
+<tr><td>Circuit breaker stuck</td><td><code>poly_circuit_breaker action=reset_daily</code> or Pause/Resume button.</td></tr>
+<tr><td>Rate limited</td><td>Built-in rate limiter (30 req/min/domain). Wait 60 seconds.</td></tr>
+<tr><td>Stale data on dashboard</td><td>Click Refresh. SSE stream auto-updates on changes.</td></tr>
+<tr><td>Config not taking effect</td><td>Config reads from DB on every call — changes are instant. No restart needed.</td></tr>
+<tr><td>Manipulation detector false positive</td><td>Single-wallet concentration is normal in low-volume markets. Check volume.</td></tr>
+</table>
+</div>
+
+<div class="related">
+<h3>Related Pages</h3>
+<ul>
+<li><a href="/docs/agent-tools.html">Agent Tools</a></li>
+<li><a href="/docs/agent-permissions.html">Agent Permissions</a></li>
+<li><a href="/docs/agent-memory.html">Agent Memory</a></li>
+<li><a href="/docs/approvals.html">Approvals</a></li>
+</ul>
+</div>
+
+</body></html>

@@ -567,13 +567,27 @@ Each adapter provides:
 
 ## Enterprise Skills
 
-52 pre-built skill definitions:
+59 pre-built skill definitions:
 
 ### Google Workspace Suite (14)
 Gmail · Calendar · Drive · Docs · Sheets · Slides · Forms · Meet · Chat · Keep · Sites · Groups · Admin · Vault
 
 ### Microsoft 365 Suite (13 services, 90+ tools)
 Outlook Mail (20 tools) · Outlook Calendar (7) · Teams (15) · OneDrive (12) · Excel (16) · SharePoint (10) · OneNote (6) · Planner (6) · To Do (6) · PowerPoint (5) · Power BI (8) · Contacts (5) · Each with dedicated system prompts and Graph API integration with retry, rate-limit handling, pagination, and batch support.
+
+### Polymarket Trading Suite (9 skills, 108 tools)
+Institutional-grade prediction market trading on [Polymarket](https://polymarket.com):
+- **polymarket** (63 tools) — Trading infrastructure, orders, wallet, risk controls, learning system
+- **polymarket-quant** (14) — Kelly criterion, Black-Scholes, Bayesian, Monte Carlo, RSI/MACD/Bollinger, VaR
+- **polymarket-onchain** (6) — Whale tracking, orderbook depth, on-chain flow, wallet profiling, liquidity mapping
+- **polymarket-social** (5) — Twitter/Reddit/Telegram sentiment, Polymarket comments, social velocity
+- **polymarket-feeds** (5) — Event calendar, official sources (SCOTUS/SEC/Fed/ESPN), odds aggregation, breaking news
+- **polymarket-analytics** (5) — Market correlation, arbitrage scanning, regime detection, smart money index
+- **polymarket-execution** (4) — Sniper orders, TWAP/VWAP scale-in, hedging, automated exit strategies
+- **polymarket-counterintel** (3) — Manipulation detection, resolution risk scoring, counterparty analysis
+- **polymarket-portfolio** (3) — Portfolio optimization, drawdown monitoring, P&L attribution
+
+Full dashboard with 17 tabs, dedicated system prompt, auto-SDK install, 25+ DB tables, SSE real-time updates.
 
 ### Enterprise Custom Suite (16+)
 Calendar · Code Sandbox · Database · Diff · Documents · Finance · HTTP · Knowledge Search · Logs · Notifications · Security Scan · Spreadsheet · Translation · Vision · Web Research · Workflow

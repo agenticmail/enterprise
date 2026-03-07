@@ -211,6 +211,19 @@ export const PAGE_REGISTRY: Record<string, PageDef> = {
     section: 'management',
     description: 'Create and manage agent role templates for the Create Agent wizard',
   },
+  polymarket: {
+    label: 'Polymarket',
+    section: 'management',
+    description: 'Polymarket prediction market trading dashboard — manage wallets, approve trades, configure risk limits',
+    tabs: {
+      overview: 'Overview',
+      pending: 'Pending Trades',
+      history: 'Trade History',
+      config: 'Risk Config',
+      alerts: 'Price Alerts',
+      paper: 'Paper Positions',
+    },
+  },
   vault: {
     label: 'Vault',
     section: 'administration',

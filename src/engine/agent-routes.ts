@@ -1575,6 +1575,37 @@ export function createAgentRoutes(opts: {
       tools: ['powerbi_list_workspaces', 'powerbi_list_reports', 'powerbi_list_dashboards', 'powerbi_list_datasets',
               'powerbi_refresh_dataset', 'powerbi_refresh_history', 'powerbi_execute_query', 'powerbi_dashboard_tiles'],
     },
+    // ── Polymarket Trading ─────────────────────────────
+    {
+      id: 'polymarket', name: 'Polymarket Trading', description: 'Prediction market trading — search markets, place orders, manage positions, risk controls, price alerts',
+      icon: Emoji.barChart,
+      tools: ['poly_create_account', 'poly_check_sdk', 'poly_search_markets', 'poly_get_market', 'poly_get_event',
+              'poly_get_prices', 'poly_get_orderbook', 'poly_get_trades', 'poly_price_history', 'poly_trending_markets',
+              'poly_market_comments', 'poly_related_markets', 'poly_market_news',
+              'poly_setup_wallet', 'poly_wallet_status', 'poly_set_allowances', 'poly_get_balance',
+              'poly_deposit', 'poly_withdraw', 'poly_get_positions', 'poly_get_closed_positions', 'poly_redeem',
+              'poly_portfolio_summary', 'poly_place_order', 'poly_place_batch_orders',
+              'poly_get_open_orders', 'poly_get_order', 'poly_cancel_order', 'poly_cancel_orders', 'poly_cancel_all',
+              'poly_replace_order', 'poly_trade_history', 'poly_export_trades',
+              'poly_analyze_market', 'poly_compare_markets', 'poly_estimate_fill', 'poly_scan_opportunities',
+              'poly_set_config', 'poly_get_config', 'poly_circuit_breaker',
+              'poly_set_alert', 'poly_list_alerts', 'poly_delete_alert',
+              'poly_pending_trades', 'poly_approve_trade', 'poly_reject_trade', 'poly_auto_approve_rule',
+              'poly_leaderboard', 'poly_top_holders', 'poly_track_wallet',
+              'poly_paper_trade', 'poly_paper_portfolio',
+              'poly_api_status', 'poly_gas_price', 'poly_heartbeat',
+              'poly_record_prediction', 'poly_resolve_prediction', 'poly_trade_review',
+              'poly_record_lesson', 'poly_recall_lessons', 'poly_calibration',
+              'poly_strategy_performance', 'poly_unresolved_predictions'],
+    },
+    {
+      id: 'polymarket_quant', name: 'Polymarket Quant Engine', description: 'Quantitative analysis — Kelly criterion, Black-Scholes, Bayesian updates, Monte Carlo, technical indicators, sentiment, signal generation',
+      icon: Emoji.brain || Emoji.barChart,
+      tools: ['poly_kelly_criterion', 'poly_binary_pricing', 'poly_bayesian_update', 'poly_monte_carlo',
+              'poly_technical_indicators', 'poly_volatility', 'poly_stat_arb', 'poly_value_at_risk',
+              'poly_entropy', 'poly_news_feed', 'poly_sentiment_analysis', 'poly_generate_signal',
+              'poly_correlation_matrix'],
+    },
   ];
 
   // ═══════════════════════════════════════════════════════════
