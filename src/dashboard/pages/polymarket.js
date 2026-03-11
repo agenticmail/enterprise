@@ -2752,7 +2752,7 @@ export function PolymarketPage() {
 
       // Transaction detail modal
       selectedTx && h('div', { className: 'modal-overlay', onMouseMove: hideTip, onClick: function() { setSelectedTx(null); }, style: { zIndex: 1100 } },
-        h('div', { className: 'modal-content', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: 520, padding: 24 } },
+        h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { maxWidth: 520, padding: 24 } },
           h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } },
             h('h3', { style: { margin: 0, fontSize: 16, fontWeight: 600 } }, 'Transaction Details'),
             h('button', { className: 'btn btn-sm', onClick: function() { setSelectedTx(null); } }, '\u2715')
