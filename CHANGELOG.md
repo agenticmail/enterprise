@@ -2,6 +2,40 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.443] - 2026-03-11
+
+### Added
+- **Trading Optimizer Suite** — 6 new high-frequency trading tools (`polymarket-optimizer` skill):
+  - `poly_daily_scorecard` — Real-time P&L vs daily target, win rate, capital utilization, trading status (AHEAD/ON_TRACK/BEHIND/TARGET_HIT/STOP_TRADING)
+  - `poly_momentum_scanner` — Find markets with significant price movement in real-time; replaces static search for discovering active opportunities
+  - `poly_quick_edge` — One-call GO/NO-GO trade decision with edge %, Kelly size, and action (STRONG_BUY/BUY/MARGINAL/NO_TRADE/SELL); replaces 6+ separate tool calls
+  - `poly_position_heatmap` — All positions ranked by urgency (CRITICAL/HIGH/MEDIUM/LOW) with specific action needed for each
+  - `poly_profit_lock` — Auto-conservative mode after hitting daily target; returns adjusted position sizes and trading mode
+  - `poly_capital_recycler` — Redeploy freed capital to best opportunities after position closes; keeps capital working
+- **Daily Scorecard Dashboard** — New section in Polymarket Overview tab showing real-time daily P&L progress bar, target tracking, realized/unrealized P&L, trade count, win rate, and available capital
+- **Daily Scorecard API** — `GET /polymarket/:agentId/daily-scorecard` endpoint returning comprehensive daily trading metrics
+- **Browser Market Discovery** — Agents can browse polymarket.com to find market IDs when API returns stale results (system prompt guidance, no login required)
+- **Universal Message Trimmer** — Extracted stale aging + inline truncation into standalone `message-trimmer.ts` module; applies to ALL tools (web, browser, email, polymarket) not just polymarket
+- **Market Freshness Tracking** — Per-agent tracking of recently-analyzed markets with 30-min TTL; prevents agents from repeatedly analyzing the same stale markets
+- **Dead Market Filtering** — Markets with all-zero prices, zero liquidity, or resolved status are automatically filtered from search/screen results
+- **CLOB Rate Limit Resilience** — Gamma API fallbacks for orderbook depth, whale tracking, flow analysis, and price discovery when CLOB API is rate-limited
+- **Cross-DB Date Helpers** — `dateAgo()`, `dateAgoMin()`, `dateAhead()` for watcher SQL queries; replaces PostgreSQL-specific `::timestamptz`/`INTERVAL` syntax
+- **Comprehensive Topic Extraction** — `extractTopics()` expanded from 6 patterns to 25+ groups covering US/global politics, crypto, sports, AI, regulation, and more
+
+### Fixed
+- **PostgreSQL-only SQL in watcher** — Fixed 15+ queries using `::timestamptz`, `NOW()`, `INTERVAL` that failed on SQLite; all now use parameterized ISO date strings
+- **PostgreSQL DDL in portfolio** — Fixed `SERIAL PRIMARY KEY` → `INTEGER PRIMARY KEY AUTOINCREMENT` and `TIMESTAMPTZ` → `TEXT`
+- **Dead CLOB endpoints** — Replaced 3 dead `CLOB_API/markets/` calls with working `GAMMA_API/markets?clob_token_ids=` in watcher
+- **`poly_approve_trade`** — Fixed trade fetching AFTER resolution (trade disappeared); now fetches BEFORE resolving
+- **`poly_place_batch_orders`** — Fixed tool that validated but never executed orders; now creates pending trades and executes in autonomous mode
+- **`poly_resolution_risk` "Market not found"** — Auto-detects 0x condition IDs passed as slug parameter; added Gamma search fallback
+- **`poly_quick_analysis` null values** — Added fallback data when CLOB is rate-limited instead of returning null for orderbook/regime/kelly
+- **`poly_get_open_orders` / `poly_get_order`** — Fixed to check database as fallback, not just in-memory Map
+- **`poly_leaderboard` / `poly_top_holders`** — Fixed dead Gamma endpoints; now uses data-api fallback
+- **Proactive wake channel routing** — Uses manager's configured communication channel (telegram/whatsapp/email) instead of hardcoded values
+- **Hardcoded identity in proactive wake** — Replaced hardcoded `senderName: 'Ope'` with dynamic manager info
+- **Unused code cleanup** — Removed `_TradingConfig`, `PriceAlert`, `PaperPosition` interfaces, `priceAlerts`/`paperPositions`/`autoApproveRules` Maps, `getConfig()`/`checkAutoApprove()` functions, `_pricingCache` from agent-loop
+
 ## [0.5.320] - 2026-03-05
 
 ### Added

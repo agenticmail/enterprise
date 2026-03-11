@@ -5,7 +5,7 @@
  * but the agent can take real actions (join meetings, send emails, browse, etc.)
  */
 
-import { buildScheduleBlock, type PromptContext, type ScheduleInfo } from '../index.js';
+import { buildScheduleBlock, type PromptContext } from '../index.js';
 import { BROWSER_RULES, buildTrustBlock, NO_AI_DISCLOSURE, KNOWLEDGE_SEARCH_PRIORITY } from '../shared-blocks.js';
 
 export interface GoogleChatContext extends PromptContext {

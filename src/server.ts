@@ -49,7 +49,6 @@ import {
   requireHttps,
   errorHandler,
   auditLogger,
-  requireRole,
 } from './middleware/index.js';
 import { ipAccessControl } from './middleware/firewall.js';
 import { setNetworkDb, invalidateNetworkConfig } from './middleware/network-config.js';

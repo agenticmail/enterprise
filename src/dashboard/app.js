@@ -56,7 +56,7 @@ export function ConfirmDialog() {
         h('button', { className: 'btn btn-ghost btn-icon', onClick: () => close(false) }, I.x())
       ),
       h('div', { className: 'modal-body' },
-        h('p', { style: { fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 } }, state.message),
+        h('p', { style: { fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' } }, state.message),
         state.warning && h('div', { style: { marginTop: 12, padding: 12, background: 'var(--danger-soft)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--danger)' } }, state.warning)
       ),
       h('div', { className: 'modal-footer' },

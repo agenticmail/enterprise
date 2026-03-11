@@ -10,15 +10,14 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
-import { cachedFetchJSON, cachedFetchText, validateTokenId, validateSlug, validateAddress, clampNumber, safeDbExec, safeDbQuery, safeDbGet, parseRSSItems as sharedParseRSS, withRetry } from './polymarket-shared.js';
-import { initPolymarketDB, getClobClient, loadConfig, logTrade } from './polymarket-runtime.js';
+import { cachedFetchJSON, safeDbExec, safeDbQuery, safeDbGet, safeDbDDL } from './polymarket-shared.js';
 
 const CLOB_API = 'https://clob.polymarket.com';
 
 // ─── DB Tables ───────────────────────────────────────────────
 
 async function initExecutionDB(db: any): Promise<void> {
-  if (!db?.exec) return;
+  if (!db) return;
   const stmts = [
     `CREATE TABLE IF NOT EXISTS poly_sniper_orders (
       id TEXT PRIMARY KEY,
@@ -81,7 +80,7 @@ async function initExecutionDB(db: any): Promise<void> {
     )`,
   ];
   for (const sql of stmts) {
-    try { db.exec(sql); } catch {}
+    await safeDbDDL(db, sql);
   }
 }
 
@@ -136,9 +135,9 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
         }
         const id = `snipe_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         try {
-          db.prepare(`INSERT INTO poly_sniper_orders (id, agent_id, token_id, side, target_price, max_price, trail_amount, size_usdc, cancel_price)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(id, agentId, params.token_id, params.side, params.target_price,
+          await safeDbExec(db, `INSERT INTO poly_sniper_orders (id, agent_id, token_id, side, target_price, max_price, trail_amount, size_usdc, cancel_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, agentId, params.token_id, params.side, params.target_price,
                  params.max_price || null, params.trail_amount || 0.01, params.size_usdc, params.cancel_price || null);
 
           // Get current book to show where we'd be placed
@@ -171,8 +170,8 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
       if (action === 'cancel') {
         if (!params.id) return errorResult('id required');
         try {
-          db.prepare("UPDATE poly_sniper_orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND agent_id = ?")
-            .run(params.id, agentId);
+          await safeDbExec(db, "UPDATE poly_sniper_orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND agent_id = ?",
+            params.id, agentId);
           return jsonResult({ cancelled: params.id });
         } catch (e: any) { return errorResult(e.message); }
       }
@@ -180,7 +179,7 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
       if (action === 'status') {
         if (!params.id) return errorResult('id required');
         try {
-          const row = db.prepare('SELECT * FROM poly_sniper_orders WHERE id = ? AND agent_id = ?').get(params.id, agentId);
+          const row = await safeDbGet(db, 'SELECT * FROM poly_sniper_orders WHERE id = ? AND agent_id = ?', params.id, agentId);
           if (!row) return errorResult('Sniper order not found');
           return jsonResult(row);
         } catch (e: any) { return errorResult(e.message); }
@@ -188,7 +187,7 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
 
       // list
       try {
-        const rows = db.prepare("SELECT * FROM poly_sniper_orders WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC").all(agentId);
+        const rows = await safeDbQuery(db, "SELECT * FROM poly_sniper_orders WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC", agentId);
         return jsonResult({ active_snipers: rows, total: rows.length });
       } catch (e: any) { return errorResult(e.message); }
     },
@@ -230,9 +229,9 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
         const id = `scale_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
         try {
-          db.prepare(`INSERT INTO poly_scale_orders (id, agent_id, token_id, side, total_size, slices, interval_seconds, strategy)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(id, agentId, params.token_id, params.side, params.total_size, slices, intervalSec, params.strategy || 'twap');
+          await safeDbExec(db, `INSERT INTO poly_scale_orders (id, agent_id, token_id, side, total_size, slices, interval_seconds, strategy)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, agentId, params.token_id, params.side, params.total_size, slices, intervalSec, params.strategy || 'twap');
 
           const totalDuration = slices * (params.interval_minutes || 5);
 
@@ -259,7 +258,7 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
       if (action === 'cancel') {
         if (!params.id) return errorResult('id required');
         try {
-          db.prepare("UPDATE poly_scale_orders SET status = 'cancelled' WHERE id = ? AND agent_id = ?").run(params.id, agentId);
+          await safeDbExec(db, "UPDATE poly_scale_orders SET status = 'cancelled' WHERE id = ? AND agent_id = ?", params.id, agentId);
           return jsonResult({ cancelled: params.id });
         } catch (e: any) { return errorResult(e.message); }
       }
@@ -267,7 +266,7 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
       if (action === 'status') {
         if (!params.id) return errorResult('id required');
         try {
-          const row = db.prepare('SELECT * FROM poly_scale_orders WHERE id = ? AND agent_id = ?').get(params.id, agentId);
+          const row = await safeDbGet(db, 'SELECT * FROM poly_scale_orders WHERE id = ? AND agent_id = ?', params.id, agentId);
           if (!row) return errorResult('Scale order not found');
           const remaining = row.slices - row.completed_slices;
           return jsonResult({
@@ -281,7 +280,7 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
 
       // list
       try {
-        const rows = db.prepare("SELECT * FROM poly_scale_orders WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC").all(agentId);
+        const rows = await safeDbQuery(db, "SELECT * FROM poly_scale_orders WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC", agentId);
         return jsonResult({ active_scales: rows, total: rows.length });
       } catch (e: any) { return errorResult(e.message); }
     },
@@ -323,9 +322,9 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
         const id = `hedge_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
         try {
-          db.prepare(`INSERT INTO poly_hedges (id, agent_id, primary_token, hedge_token, primary_side, hedge_side, primary_size, hedge_size, hedge_ratio)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(id, agentId, params.primary_token, params.hedge_token, params.primary_side, hedgeSide,
+          await safeDbExec(db, `INSERT INTO poly_hedges (id, agent_id, primary_token, hedge_token, primary_side, hedge_side, primary_size, hedge_size, hedge_ratio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, agentId, params.primary_token, params.hedge_token, params.primary_side, hedgeSide,
                  params.primary_size, hedgeSize, hedgeRatio);
 
           return jsonResult({
@@ -365,14 +364,14 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
       if (action === 'close') {
         if (!params.id) return errorResult('id required');
         try {
-          db.prepare("UPDATE poly_hedges SET status = 'closed' WHERE id = ? AND agent_id = ?").run(params.id, agentId);
+          await safeDbExec(db, "UPDATE poly_hedges SET status = 'closed' WHERE id = ? AND agent_id = ?", params.id, agentId);
           return jsonResult({ closed: params.id, note: 'Hedge marked as closed. Unwind both legs manually using poly_place_order.' });
         } catch (e: any) { return errorResult(e.message); }
       }
 
       // list
       try {
-        const rows = db.prepare("SELECT * FROM poly_hedges WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC").all(agentId);
+        const rows = await safeDbQuery(db, "SELECT * FROM poly_hedges WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC", agentId);
         return jsonResult({ active_hedges: rows, total: rows.length });
       } catch (e: any) { return errorResult(e.message); }
     },
@@ -424,9 +423,9 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
         }
 
         try {
-          db.prepare(`INSERT INTO poly_exit_rules (id, agent_id, token_id, entry_price, position_size, take_profit, stop_loss, trailing_stop_pct, time_exit, highest_price)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(id, agentId, params.token_id, params.entry_price, params.position_size || 0,
+          await safeDbExec(db, `INSERT INTO poly_exit_rules (id, agent_id, token_id, entry_price, position_size, take_profit, stop_loss, trailing_stop_pct, time_exit, highest_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, agentId, params.token_id, params.entry_price, params.position_size || 0,
                  params.take_profit || null, params.stop_loss || null, params.trailing_stop_pct || null,
                  timeExit, params.entry_price);
 
@@ -449,8 +448,8 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
         // Check all active exit rules against current prices
         try {
           const rules = params.token_id
-            ? db.prepare("SELECT * FROM poly_exit_rules WHERE agent_id = ? AND token_id = ? AND status = 'active'").all(agentId, params.token_id)
-            : db.prepare("SELECT * FROM poly_exit_rules WHERE agent_id = ? AND status = 'active'").all(agentId);
+            ? await safeDbQuery(db, "SELECT * FROM poly_exit_rules WHERE agent_id = ? AND token_id = ? AND status = 'active'", agentId, params.token_id)
+            : await safeDbQuery(db, "SELECT * FROM poly_exit_rules WHERE agent_id = ? AND status = 'active'", agentId);
 
           if (!rules.length) return jsonResult({ triggers: [], note: 'No active exit rules' });
 
@@ -477,7 +476,7 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
             // Update highest price for trailing stop
             if (currentPrice > (rule.highest_price || 0)) {
               try {
-                db.prepare("UPDATE poly_exit_rules SET highest_price = ? WHERE id = ?").run(currentPrice, rule.id);
+                await safeDbExec(db, "UPDATE poly_exit_rules SET highest_price = ? WHERE id = ?", currentPrice, rule.id);
               } catch {}
             }
 
@@ -552,14 +551,14 @@ export function createPolymarketExecutionTools(options: ToolCreationOptions): An
       if (action === 'remove') {
         if (!params.id) return errorResult('id required');
         try {
-          db.prepare("UPDATE poly_exit_rules SET status = 'removed' WHERE id = ? AND agent_id = ?").run(params.id, agentId);
+          await safeDbExec(db, "UPDATE poly_exit_rules SET status = 'removed' WHERE id = ? AND agent_id = ?", params.id, agentId);
           return jsonResult({ removed: params.id });
         } catch (e: any) { return errorResult(e.message); }
       }
 
       // list
       try {
-        const rows = db.prepare("SELECT * FROM poly_exit_rules WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC").all(agentId);
+        const rows = await safeDbQuery(db, "SELECT * FROM poly_exit_rules WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC", agentId);
         return jsonResult({ active_rules: rows, total: rows.length });
       } catch (e: any) { return errorResult(e.message); }
     },

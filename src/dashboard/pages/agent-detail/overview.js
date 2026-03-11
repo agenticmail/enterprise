@@ -427,9 +427,11 @@ export function OverviewSection(props) {
             h('li', null, h('strong', null, 'Pause / Resume'), ' — Temporarily stop the agent from processing tasks. Existing sessions are preserved.'),
             h('li', null, h('strong', null, 'Clock In / Out'), ' — Toggle the agent\'s workforce availability.'),
             h('li', null, h('strong', null, 'Restart'), ' — Restart the agent\'s engine if it\'s stuck or behaving unexpectedly.'),
-            h('li', null, h('strong', null, 'Redeploy'), ' — Re-deploy with the latest configuration changes.')
+            h('li', null, h('strong', null, 'Redeploy'), ' — Re-deploy with the latest configuration changes.'),
+            h('li', null, h('strong', null, 'Hot Update'), ' — Push config changes to the running agent without restarting. Updates in-memory state and database simultaneously.'),
+            h('li', null, h('strong', null, 'Flush Queue'), ' — Cancel all pending/queued tasks in the agent\'s pipeline. Use when stuck messages are blocking the agent.')
           ),
-          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Pause is instant and safe — it doesn\'t lose any context. Use it when you need to make config changes.')
+          h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Hot Update is the fastest way to push config changes — no downtime. Use Flush Queue if the agent has stuck pending messages.')
         )
       )),
       h('div', { className: 'card-body', style: { display: 'flex', flexWrap: 'wrap', gap: 10 } },
@@ -491,6 +493,52 @@ export function OverviewSection(props) {
           disabled: !!acting,
           onClick: clockOut
         }, I.clock(), ' Clock Out'),
+
+        // Divider
+        h('div', { style: { width: 1, height: 28, background: 'var(--border)', margin: '0 4px' } }),
+
+        // Hot Update Runtime
+        (agentState === 'running' || agentState === 'active') && h('button', {
+          className: 'btn btn-sm',
+          style: { background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#6366f1', fontWeight: 600 },
+          disabled: !!acting,
+          onClick: async function() {
+            if (!(await showConfirm('Hot Update Agent Runtime?\n\nThis will push the current config to the running agent process in-memory AND update the database. No restart required.\n\nUse this after making config changes (identity, skills, model, etc.) to apply them immediately.'))) return;
+            setActing('hotUpdate');
+            try {
+              var currentConfig = engineAgent?.config || {};
+              await engineCall('/agents/' + agentId + '/hot-update', {
+                method: 'POST',
+                body: JSON.stringify({ updates: currentConfig, updatedBy: 'dashboard' })
+              });
+              toast('Hot update applied — runtime updated in-memory + DB', 'success');
+              reload();
+            } catch (err) {
+              toast('Hot update failed: ' + err.message, 'error');
+            }
+            setActing('');
+          }
+        }, acting === 'hotUpdate' ? '...' : [I.zap(), ' Hot Update']),
+
+        // Flush Pipeline Queue
+        h('button', {
+          className: 'btn btn-sm',
+          style: { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: 600 },
+          disabled: !!acting,
+          onClick: async function() {
+            if (!(await showConfirm('Flush Pipeline Queue?\n\nThis will cancel ALL pending and queued tasks/messages for this agent. Use this if the agent has stuck messages blocking its pipeline.\n\nThis cannot be undone.'))) return;
+            setActing('flushQueue');
+            try {
+              var res = await engineCall('/agents/' + agentId + '/flush-queue', { method: 'POST' });
+              var count = res?.cancelled || 0;
+              toast('Queue flushed — ' + count + ' pending task(s) cancelled', 'success');
+              reload();
+            } catch (err) {
+              toast('Flush failed: ' + err.message, 'error');
+            }
+            setActing('');
+          }
+        }, acting === 'flushQueue' ? '...' : [I.trash(), ' Flush Queue']),
 
         // Spacer
         h('div', { style: { flex: 1 } })

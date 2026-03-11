@@ -122,13 +122,16 @@ import * as PolymarketAnalytics from './polymarket-analytics.js';
 import * as PolymarketExecution from './polymarket-execution.js';
 import * as PolymarketCounterintel from './polymarket-counterintel.js';
 import * as PolymarketPortfolio from './polymarket-portfolio.js';
+import * as PolymarketWatcher from './polymarket-watcher.js';
+import * as PolymarketPipeline from './polymarket-pipeline.js';
 
 export const ENTERPRISE_MODULES = [
   EntDatabase, DatabaseAccess, EntSpreadsheet, EntDocuments, EntHttp,
   EntSecurityScan, EntCodeSandbox, EntDiff, RemotionVideo,
   Polymarket, PolymarketQuant, PolymarketOnchain, PolymarketSocial,
   PolymarketFeeds, PolymarketAnalytics, PolymarketExecution,
-  PolymarketCounterintel, PolymarketPortfolio,
+  PolymarketCounterintel, PolymarketPortfolio, PolymarketWatcher,
+  PolymarketPipeline,
 ] as const;
 
 // ─── Combined enterprise skill definitions ─────────────
@@ -179,7 +182,7 @@ export {
   EntSecurityScan, EntCodeSandbox, EntDiff,
   Polymarket, PolymarketQuant, PolymarketOnchain, PolymarketSocial,
   PolymarketFeeds, PolymarketAnalytics, PolymarketExecution,
-  PolymarketCounterintel, PolymarketPortfolio,
+  PolymarketCounterintel, PolymarketPortfolio, PolymarketWatcher,
   CoreTools, MeetingLifecycle, AgentMemory, VisualMemory, KnowledgeSearch,
   SmtpEmail,
 };

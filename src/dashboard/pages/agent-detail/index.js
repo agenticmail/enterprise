@@ -226,9 +226,14 @@ export function AgentDetailPage(props) {
       marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24,
       marginBottom: 20,
     } },
-    h('div', { className: 'tabs', style: { marginBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' } },
+    h('style', null, '.agent-pill-tabs::-webkit-scrollbar{height:8px}.agent-pill-tabs::-webkit-scrollbar-track{background:var(--bg-secondary);border-radius:4px}.agent-pill-tabs::-webkit-scrollbar-thumb{background:var(--text-muted);border-radius:4px;min-width:40px}.agent-pill-tabs::-webkit-scrollbar-thumb:hover{background:var(--text)}'),
+    h('div', { className: 'agent-pill-tabs', style: { display: 'flex', gap: 8, overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch', paddingBottom: 8, scrollbarWidth: 'auto', scrollbarColor: 'var(--text-muted) var(--bg-secondary)' } },
       TABS.map(function(t) {
-        return h('div', { key: t, className: 'tab' + (tab === t ? ' active' : ''), onClick: function() { setTab(t); } }, TAB_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1));
+        var isActive = tab === t;
+        var label = TAB_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1);
+        return h('button', { key: t, onClick: function() { setTab(t); }, style: {
+          padding: '8px 18px', borderRadius: 999, border: isActive ? '1.5px solid var(--brand-color, #6366f1)' : '1.5px solid var(--border)', background: isActive ? 'var(--brand-color, #6366f1)' : 'transparent', color: isActive ? '#fff' : 'var(--text-secondary)', fontSize: 13, fontWeight: isActive ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0
+        }, onMouseEnter: function(e) { if (!isActive) { e.currentTarget.style.borderColor = 'var(--brand-color, #6366f1)'; e.currentTarget.style.color = 'var(--text)'; } }, onMouseLeave: function(e) { if (!isActive) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; } } }, label);
       })
     ),
     ), // close tab bar sticky wrapper

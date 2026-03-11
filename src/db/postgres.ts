@@ -161,6 +161,16 @@ export class PostgresAdapter extends DatabaseAdapter {
         const result = await self._query(pgSql(sql), params);
         return result.rows as T[];
       },
+      // Raw query with $N params (no ?→$N conversion) — for SQL that reuses params (ON CONFLICT etc.)
+      rawQuery: async (sql: string, params?: any[]) => {
+        if (self.ended) return [];
+        const result = await self._query(sql, params);
+        return result.rows || [];
+      },
+      rawExec: async (sql: string, params?: any[]) => {
+        if (self.ended) return;
+        await self._query(sql, params);
+      },
     };
   }
 
@@ -256,6 +266,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       await client.query(`
         ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS billing_rate_per_agent NUMERIC(10,2) DEFAULT 0;
         ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
+        ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS allowed_pages JSONB;
         ALTER TABLE agents ADD COLUMN IF NOT EXISTS client_org_id TEXT REFERENCES client_organizations(id);
 
         CREATE TABLE IF NOT EXISTS org_billing_records (

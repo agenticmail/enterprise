@@ -86,7 +86,25 @@ export type ToolSet =
   | 'mcp_bridge'
   // Aliases (legacy/shorthand)
   | 'filesystem'
-  | 'web';
+  | 'web'
+  // Polymarket Trading
+  | 'polymarket'
+  | 'polymarket_quant'
+  | 'polymarket_onchain'
+  | 'polymarket_social'
+  | 'polymarket_feeds'
+  | 'polymarket_analytics'
+  | 'polymarket_execution'
+  | 'polymarket_counterintel'
+  | 'polymarket_portfolio'
+  | 'polymarket_watcher'
+  | 'polymarket_pipeline'
+  // Database Access (external DBs)
+  | 'db_access'
+  // Coding
+  | 'coding'
+  // Agent Control
+  | 'agent_control';
 
 // ─── Tier Classification ─────────────────────────────────
 
@@ -140,6 +158,20 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   filesystem: 2,
   web: 2,
   smtp_email: 2,
+  polymarket: 2,            // Core trading (20 tools) — always loaded for polymarket agents
+  polymarket_watcher: 2,     // Watcher system — always loaded (session start protocol)
+  polymarket_execution: 3,   // Execution specialist — on-demand (batch orders, history, export)
+  polymarket_quant: 3,       // Specialist — on-demand (Kelly, Monte Carlo, Bayesian, etc.)
+  polymarket_onchain: 3,     // Specialist — on-demand (whale tracking, orderbook, flows)
+  polymarket_social: 3,      // Specialist — on-demand (Twitter, Reddit, Telegram sentiment)
+  polymarket_feeds: 3,       // Specialist — on-demand (calendar, news, odds, resolution)
+  polymarket_analytics: 3,   // Specialist — on-demand (correlation, arbitrage, regime)
+  polymarket_counterintel: 3, // Specialist — on-demand (manipulation, resolution risk)
+  polymarket_portfolio: 3,   // Specialist — on-demand (optimization, drawdown, P&L)
+  polymarket_pipeline: 3,    // Specialist — on-demand (full/quick analysis, batch screen)
+  db_access: 3,
+  coding: 2,
+  agent_control: 2,
 };
 
 // ─── Exhaustive Tool Registry ────────────────────────────
@@ -496,6 +528,181 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   task_update: 'management',
   my_tasks: 'management',
   escalate: 'management',
+
+  // ── Polymarket Core (20) — essential for every trading session ──
+  poly_get_balance: 'polymarket',
+  poly_get_positions: 'polymarket',
+  poly_search_markets: 'polymarket',
+  poly_get_market: 'polymarket',
+  poly_get_prices: 'polymarket',
+  poly_place_order: 'polymarket',
+  poly_cancel_order: 'polymarket',
+  poly_get_open_orders: 'polymarket',
+  poly_set_config: 'polymarket',
+  poly_get_config: 'polymarket',
+  poly_set_alert: 'polymarket',
+  poly_list_alerts: 'polymarket',
+  poly_screen_markets: 'polymarket',
+  poly_record_prediction: 'polymarket',
+  poly_recall_lessons: 'polymarket',
+  poly_goals: 'polymarket',
+  poly_record_lesson: 'polymarket',
+  poly_circuit_breaker: 'polymarket',
+  poly_pending_trades: 'polymarket',
+  poly_approve_trade: 'polymarket',
+
+  // ── Polymarket Data (on-demand — market research, history, analysis) ──
+  poly_get_event: 'polymarket_feeds',
+  poly_get_orderbook: 'polymarket_feeds',
+  poly_get_trades: 'polymarket_feeds',
+  poly_price_history: 'polymarket_feeds',
+  poly_trending_markets: 'polymarket_feeds',
+  poly_market_comments: 'polymarket_feeds',
+  poly_related_markets: 'polymarket_feeds',
+  poly_market_news: 'polymarket_feeds',
+  poly_analyze_market: 'polymarket_feeds',
+  poly_compare_markets: 'polymarket_feeds',
+  poly_estimate_fill: 'polymarket_feeds',
+  poly_leaderboard: 'polymarket_feeds',
+  poly_top_holders: 'polymarket_feeds',
+
+  // ── Polymarket Wallet (on-demand — setup, funding, transfers) ──
+  poly_create_account: 'polymarket_portfolio',
+  poly_check_sdk: 'polymarket_portfolio',
+  poly_setup_wallet: 'polymarket_portfolio',
+  poly_wallet_status: 'polymarket_portfolio',
+  poly_set_allowances: 'polymarket_portfolio',
+  poly_deposit: 'polymarket_portfolio',
+  poly_swap_to_usdce: 'polymarket_portfolio',
+  poly_withdraw: 'polymarket_portfolio',
+  poly_transfer_funds: 'polymarket_portfolio',
+  poly_redeem: 'polymarket_portfolio',
+  poly_gas_price: 'polymarket_portfolio',
+  poly_api_status: 'polymarket_portfolio',
+
+  // ── Polymarket Orders (on-demand — batch, cancel-all, history, export) ──
+  poly_place_batch_orders: 'polymarket_execution',
+  poly_get_order: 'polymarket_execution',
+  poly_cancel_orders: 'polymarket_execution',
+  poly_cancel_all: 'polymarket_execution',
+  poly_replace_order: 'polymarket_execution',
+  poly_trade_history: 'polymarket_execution',
+  poly_export_trades: 'polymarket_execution',
+  poly_auto_approve_rule: 'polymarket_execution',
+  poly_reject_trade: 'polymarket_execution',
+
+  // ── Polymarket Learning (on-demand — review, calibration, paper trading) ──
+  poly_resolve_prediction: 'polymarket_analytics',
+  poly_trade_review: 'polymarket_analytics',
+  poly_calibration: 'polymarket_analytics',
+  poly_strategy_performance: 'polymarket_analytics',
+  poly_unresolved_predictions: 'polymarket_analytics',
+  poly_paper_trade: 'polymarket_analytics',
+  poly_paper_portfolio: 'polymarket_analytics',
+  poly_portfolio_summary: 'polymarket_analytics',
+  poly_get_closed_positions: 'polymarket_analytics',
+  poly_delete_alert: 'polymarket_analytics',
+  poly_track_wallet: 'polymarket_onchain',
+  poly_heartbeat: 'polymarket_pipeline',
+
+  // ── Polymarket Quant (14) ──
+  poly_kelly_criterion: 'polymarket_quant',
+  poly_binary_pricing: 'polymarket_quant',
+  poly_bayesian_update: 'polymarket_quant',
+  poly_monte_carlo: 'polymarket_quant',
+  poly_technical_indicators: 'polymarket_quant',
+  poly_volatility: 'polymarket_quant',
+  poly_stat_arb: 'polymarket_quant',
+  poly_value_at_risk: 'polymarket_quant',
+  poly_entropy: 'polymarket_quant',
+  poly_news_feed: 'polymarket_quant',
+  poly_sentiment_analysis: 'polymarket_quant',
+  poly_generate_signal: 'polymarket_quant',
+  poly_correlation_matrix: 'polymarket_quant',
+  poly_efficiency_test: 'polymarket_quant',
+
+  // ── Polymarket On-Chain (6) ──
+  poly_whale_tracker: 'polymarket_onchain',
+  poly_orderbook_depth: 'polymarket_onchain',
+  poly_onchain_flow: 'polymarket_onchain',
+  poly_wallet_profiler: 'polymarket_onchain',
+  poly_liquidity_map: 'polymarket_onchain',
+  poly_transaction_decoder: 'polymarket_onchain',
+
+  // ── Polymarket Social (5) ──
+  poly_twitter_sentiment: 'polymarket_social',
+  poly_polymarket_comments: 'polymarket_social',
+  poly_reddit_pulse: 'polymarket_social',
+  poly_telegram_monitor: 'polymarket_social',
+  poly_social_velocity: 'polymarket_social',
+
+  // ── Polymarket Feeds (5) ──
+  poly_calendar_events: 'polymarket_feeds',
+  poly_official_sources: 'polymarket_feeds',
+  poly_odds_aggregator: 'polymarket_feeds',
+  poly_resolution_tracker: 'polymarket_feeds',
+  poly_breaking_news: 'polymarket_feeds',
+
+  // ── Polymarket Analytics (5) ──
+  poly_market_correlation: 'polymarket_analytics',
+  poly_arbitrage_scanner: 'polymarket_analytics',
+  poly_regime_detector: 'polymarket_analytics',
+  poly_smart_money_index: 'polymarket_analytics',
+  poly_market_microstructure: 'polymarket_analytics',
+
+  // ── Polymarket Execution (4) ──
+  poly_sniper: 'polymarket_execution',
+  poly_scale_in: 'polymarket_execution',
+  poly_hedge: 'polymarket_execution',
+  poly_exit_strategy: 'polymarket_execution',
+
+  // ── Polymarket Counter-Intel (3) ──
+  poly_manipulation_detector: 'polymarket_counterintel',
+  poly_resolution_risk: 'polymarket_counterintel',
+  poly_counterparty_analysis: 'polymarket_counterintel',
+
+  // ── Polymarket Portfolio (3) ──
+  poly_portfolio_optimizer: 'polymarket_portfolio',
+  poly_drawdown_monitor: 'polymarket_portfolio',
+  poly_pnl_attribution: 'polymarket_portfolio',
+  poly_watcher: 'polymarket_watcher',
+  poly_watcher_config: 'polymarket_watcher',
+  poly_watcher_events: 'polymarket_watcher',
+  poly_setup_monitors: 'polymarket_watcher',
+
+  // ── Polymarket Pipeline (4) ──
+  poly_full_analysis: 'polymarket_pipeline',
+  poly_quick_analysis: 'polymarket_pipeline',
+  poly_batch_screen: 'polymarket_pipeline',
+  poly_portfolio_review: 'polymarket_pipeline',
+
+  // ── Polymarket Bracket Orders (2) ──
+  poly_bracket_config: 'polymarket_execution',
+  poly_list_brackets: 'polymarket_execution',
+
+  // ── Database Access (external DBs via DatabaseConnectionManager) (4) ──
+  db_list_connections: 'db_access',
+  db_query: 'db_access',
+  db_describe_table: 'db_access',
+  db_list_tables: 'db_access',
+
+  // ── Google Drive Download (1) ──
+  google_drive_download: 'gws_drive',
+
+  // ── Coding (10) ──
+  code_plan: 'coding',
+  code_search: 'coding',
+  code_read: 'coding',
+  code_multi_edit: 'coding',
+  code_build: 'coding',
+  code_test: 'coding',
+  code_git: 'coding',
+  code_create: 'coding',
+  code_diff: 'coding',
+  code_pm2: 'coding',
+
+  // ── Agent Control (1) ──
+  agent_stop: 'agent_control',
 };
 
 // ─── Session Context Types ───────────────────────────────
@@ -636,6 +843,36 @@ const SIGNAL_RULES: SignalRule[] = [
   // Remotion Video
   { patterns: [/\bremotion\b/i, /\bcreate.*video\b/i, /\brender.*video\b/i, /\bvideo\s*project\b/i, /\bmarketing\s*video\b/i, /\bsocial\s*reel\b/i, /\banimation\b/i, /\bmotion\s*graphics?\b/i],
     sets: ['remotion_video'] },
+  // Polymarket — core trading
+  { patterns: [/\bpolymarket\b/i, /\bprediction\s*market\b/i, /\btrad(e|ing)\b/i, /\bmarket\s*odds\b/i, /\bbet\b/i, /\bwager\b/i, /\bposition\b/i, /\bportfolio\b/i],
+    sets: ['polymarket'] },
+  // Polymarket — quant (specialist, Tier 3)
+  { patterns: [/\bkelly\b/i, /\bmonte\s*carlo\b/i, /\bblack.scholes\b/i, /\bbayesian\b/i, /\bvolatility\b/i, /\bvalue.at.risk\b/i, /\bsignal\s*generat/i, /\bquant\b/i, /\bposition\s*siz/i, /\boptimal\s*size/i, /\bentropy\b/i, /\bstat\s*arb\b/i, /\bcorrelation\s*matrix\b/i, /\btechnical\s*indicator/i, /\befficiency\s*test/i],
+    sets: ['polymarket_quant'] },
+  // Polymarket — on-chain (specialist, Tier 3)
+  { patterns: [/\bwhale\b/i, /\bon.chain\b/i, /\borderbook\b/i, /\bliquidity\s*map\b/i, /\bwallet.*track\b/i, /\bwallet.*profil/i, /\btransaction\s*decod/i, /\bflow\s*analys/i, /\borderbook\s*depth\b/i],
+    sets: ['polymarket_onchain'] },
+  // Polymarket — social intel (specialist, Tier 3)
+  { patterns: [/\bsentiment\b/i, /\btwitter\b/i, /\breddit\b/i, /\bsocial.*signal\b/i, /\btelegram.*monitor\b/i, /\bsocial\s*velocity\b/i, /\breddit\s*pulse\b/i],
+    sets: ['polymarket_social'] },
+  // Polymarket — feeds (specialist, Tier 3 — market data, history, events, leaderboard)
+  { patterns: [/\bcalendar\s*event/i, /\bofficial\s*source/i, /\bodds\s*aggregat/i, /\bresolution\s*track/i, /\bbreaking\s*news\b/i, /\bnews\s*feed\b/i, /\bupcoming\s*event/i, /\bprice\s*history\b/i, /\bhistoric/i, /\btrending\b/i, /\bleaderboard\b/i, /\btop\s*holder/i, /\bmarket\s*comment/i, /\brelated\s*market/i, /\bcompare\s*market/i, /\bfill\s*estimat/i, /\bget_event\b/i, /\bget_trades\b/i, /\borderbook\b/i],
+    sets: ['polymarket_feeds'] },
+  // Polymarket — analytics (specialist, Tier 3 — calibration, strategy, paper trading)
+  { patterns: [/\bcorrelat/i, /\barbitrage\b/i, /\bregime\s*detect/i, /\bsmart\s*money\b/i, /\bmicrostructure\b/i, /\bslippage\b/i, /\bcalibrat/i, /\bstrategy\s*perf/i, /\bpaper\s*trad/i, /\btrade\s*review/i, /\bclosed\s*position/i, /\bportfolio\s*summary/i, /\bunresolved/i],
+    sets: ['polymarket_analytics'] },
+  // Polymarket — counterintel (specialist, Tier 3)
+  { patterns: [/\bmanipulat/i, /\bresolution\s*risk\b/i, /\bcounterparty\b/i, /\bwash\s*trad/i],
+    sets: ['polymarket_counterintel'] },
+  // Polymarket — portfolio (specialist, Tier 3 — wallet, funding, transfers, setup)
+  { patterns: [/\bdrawdown\b/i, /\bpnl\b/i, /\bp&l\b/i, /\battribution\b/i, /\bportfolio\s*optim/i, /\brebalance\b/i, /\bwallet\b/i, /\bdeposit\b/i, /\bwithdraw\b/i, /\btransfer\b/i, /\bswap\b/i, /\ballowance\b/i, /\bsetup\s*wallet\b/i, /\bgas\s*price\b/i, /\bredeem\b/i, /\bcreate\s*account\b/i],
+    sets: ['polymarket_portfolio'] },
+  // Polymarket — pipeline (specialist, Tier 3)
+  { patterns: [/\bfull\s*analysis\b/i, /\bquick\s*analysis\b/i, /\bbatch\s*screen/i, /\bportfolio\s*review\b/i],
+    sets: ['polymarket_pipeline'] },
+  // Polymarket — execution (Tier 3, on-demand — batch, export, sniper, scale-in, hedge)
+  { patterns: [/\bsniper\b/i, /\bscale.in\b/i, /\bhedge\b/i, /\bexit.*strateg\b/i, /\btwap\b/i, /\bvwap\b/i, /\bbracket\b/i, /\bbatch\s*order/i, /\bexport\s*trade/i, /\btrade\s*history\b/i, /\bcancel\s*all\b/i, /\breplace\s*order/i],
+    sets: ['polymarket_execution'] },
 ];
 
 /**
@@ -703,12 +940,41 @@ function resolveSetsForContext(
 /**
  * Filter tools based on active sets.
  */
+// Map skill names (from agent config) to tool sets
+const SKILL_TO_TOOLSET: Record<string, ToolSet[]> = {
+  'polymarket': ['polymarket'],
+  'polymarket-quant': ['polymarket_quant'],
+  'polymarket-onchain': ['polymarket_onchain'],
+  'polymarket-social': ['polymarket_social'],
+  'polymarket-feeds': ['polymarket_feeds'],
+  'polymarket-analytics': ['polymarket_analytics'],
+  'polymarket-execution': ['polymarket_execution'],
+  'polymarket-counterintel': ['polymarket_counterintel'],
+  'polymarket-portfolio': ['polymarket_portfolio'],
+  'polymarket-watcher': ['polymarket_watcher'],
+  'polymarket-pipeline': ['polymarket_pipeline'],
+};
+
 export function filterToolsForContext(
   allTools: AnyAgentTool[],
   context: SessionContext,
-  options?: { additionalSets?: ToolSet[]; sessionId?: string; userMessage?: string }
+  options?: { additionalSets?: ToolSet[]; sessionId?: string; userMessage?: string; agentSkills?: string[] }
 ): AnyAgentTool[] {
   const activeSets = resolveSetsForContext(context, options?.additionalSets);
+
+  // Auto-promote tool sets based on agent's assigned skills (Tier 1 & 2 only)
+  // Tier 3 specialist sets are loaded on-demand via request_tools or signal detection
+  if (options?.agentSkills) {
+    for (const skill of options.agentSkills) {
+      const sets = SKILL_TO_TOOLSET[skill];
+      if (sets) {
+        for (const s of sets) {
+          const tier = TIER_MAP[s];
+          if (tier !== undefined && tier <= 2) activeSets.add(s);
+        }
+      }
+    }
+  }
 
   // Auto-promote from user message signals
   if (options?.userMessage) {
@@ -844,6 +1110,20 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   mcp_bridge: 'MCP integration adapters',
   filesystem: 'File system tools (alias)',
   web: 'Web tools (alias)',
+  polymarket: 'Polymarket trading — markets, orders, wallet, config, predictions (63 tools)',
+  polymarket_quant: 'Quant engine — Kelly, Black-Scholes, Bayesian, Monte Carlo, signals (14 tools)',
+  polymarket_onchain: 'On-chain intelligence — whales, orderbook, flows, liquidity (6 tools)',
+  polymarket_social: 'Social intelligence — Twitter, Reddit, Telegram sentiment (5 tools)',
+  polymarket_feeds: 'Event feeds — calendar, news, odds, resolution tracking (5 tools)',
+  polymarket_analytics: 'Advanced analytics — correlations, arbitrage, regime detection (5 tools)',
+  polymarket_execution: 'Execution — snipers, scale-in, hedging, exit strategies (4 tools)',
+  polymarket_counterintel: 'Counter-intelligence — manipulation, resolution risk (3 tools)',
+  polymarket_portfolio: 'Portfolio management — optimization, drawdown, P&L attribution (3 tools)',
+  polymarket_watcher: 'AI-powered market surveillance — monitors, alerts, signals (4 tools)',
+  polymarket_pipeline: 'Unified analysis pipeline — full/quick analysis, batch screening, portfolio review (4 tools)',
+  db_access: 'External database access — query, describe, list tables (4 tools)',
+  coding: 'Code editing — plan, search, read, edit, build, test, git (10 tools)',
+  agent_control: 'Agent lifecycle — stop running sessions (1 tool)',
 };
 
 function createRequestToolsTool(
@@ -930,7 +1210,7 @@ function createRequestToolsTool(
 export async function createToolsForContext(
   options: AllToolsOptions,
   context: SessionContext,
-  opts?: { additionalSets?: ToolSet[]; sessionId?: string; userMessage?: string },
+  opts?: { additionalSets?: ToolSet[]; sessionId?: string; userMessage?: string; agentSkills?: string[] },
 ): Promise<AnyAgentTool[]> {
   const { createAllTools } = await import('./index.js');
 
@@ -943,6 +1223,7 @@ export async function createToolsForContext(
     additionalSets: opts?.additionalSets,
     sessionId: opts?.sessionId,
     userMessage: opts?.userMessage,
+    agentSkills: opts?.agentSkills,
   });
 }
 
@@ -953,7 +1234,7 @@ export async function createToolsForContext(
 export async function getToolsForSession(
   sessionId: string,
   options: AllToolsOptions,
-  opts?: { context?: SessionContext; userMessage?: string },
+  opts?: { context?: SessionContext; userMessage?: string; agentSkills?: string[] },
 ): Promise<AnyAgentTool[]> {
   const state = sessionToolStates.get(sessionId);
 
@@ -995,6 +1276,7 @@ export async function getToolsForSession(
   return createToolsForContext(options, context, {
     sessionId,
     userMessage: opts?.userMessage,
+    agentSkills: opts?.agentSkills,
   });
 }
 

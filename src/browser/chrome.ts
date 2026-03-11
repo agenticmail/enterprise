@@ -276,7 +276,7 @@ export async function launchAgenticMailChrome(
         name: profile.name,
         color: profile.color,
       });
-      log.info(`🦞 agenticmail browser profile decorated (${profile.color})`);
+      log.info(`Agenticmail browser profile decorated (${profile.color})`);
     } catch (err) {
       log.warn(`agenticmail browser profile decoration failed: ${String(err)}`);
     }

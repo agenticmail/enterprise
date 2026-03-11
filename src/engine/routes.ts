@@ -963,6 +963,7 @@ export async function setEngineDb(
     memoryManager.setDb(db),
     onboarding.setDb(db),
     vault.setDb(db),
+    agentStatus.setDb(db),
     (async () => { orgIntegrations.setDb(db); orgIntegrations.setLifecycle(lifecycle); (globalThis as any).__orgIntegrations = orgIntegrations; })(),
     storageManager.setDb(db),
     policyImporter.setDb(db),
@@ -1261,6 +1262,10 @@ export function mountRuntimeApp(app: import('hono').Hono): void {
 
 export function setRuntime(runtime: any): void {
   _runtime = runtime;
+}
+
+export function getRuntime(): any | null {
+  return _runtime;
 }
 
 export { engine as engineRoutes };

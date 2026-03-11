@@ -6,7 +6,6 @@
  */
 
 import { exec } from 'node:child_process';
-import path from 'node:path';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { readStringParam, readNumberParam, textResult, errorResult } from '../common.js';
 import type { CommandSanitizer } from '../security.js';

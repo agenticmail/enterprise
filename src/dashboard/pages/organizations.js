@@ -80,6 +80,37 @@ export function OrganizationsPage() {
   var _roleSearch = useState('');
   var roleSearch = _roleSearch[0]; var setRoleSearch = _roleSearch[1];
 
+  // Pages tab state
+  var _orgAllowedPages = useState([]);
+  var orgAllowedPages = _orgAllowedPages[0]; var setOrgAllowedPages = _orgAllowedPages[1];
+  var _pagesSaving = useState(false);
+  var pagesSaving = _pagesSaving[0]; var setPagesSaving = _pagesSaving[1];
+  // All extra pages that can be granted to client orgs (not in default set)
+  var EXTRA_PAGES = [
+    { id: 'polymarket', label: 'Polymarket', desc: 'Prediction market trading dashboard' },
+    { id: 'cluster', label: 'Cluster', desc: 'Multi-node cluster management' },
+    { id: 'organizations', label: 'Organizations', desc: 'Organization management' },
+  ];
+
+  var loadOrgPages = function(org) {
+    var ap = org.allowed_pages;
+    if (typeof ap === 'string') try { ap = JSON.parse(ap); } catch { ap = null; }
+    setOrgAllowedPages(Array.isArray(ap) ? ap : []);
+  };
+
+  var saveOrgPages = async function() {
+    setPagesSaving(true);
+    try {
+      await apiCall('/organizations/' + detailOrg.id, {
+        method: 'PUT',
+        body: JSON.stringify({ allowed_pages: orgAllowedPages })
+      });
+      toast('Page access updated', 'success');
+      setDetailOrg(Object.assign({}, detailOrg, { allowed_pages: orgAllowedPages }));
+    } catch (e) { toast(e.message || 'Failed', 'error'); }
+    setPagesSaving(false);
+  };
+
   var loadOrgRoles = function(org) {
     setRolesLoading(true);
     Promise.all([
@@ -536,12 +567,12 @@ export function OrganizationsPage() {
 
         // Tabs
         h('div', { style: { display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16 } },
-          ['agents', 'roles', 'skills', 'integrations', 'billing'].map(function(t) {
-            var label = t === 'agents' ? 'Agents (' + detailAgents.length + ')' : t === 'roles' ? 'Visible Roles' : t === 'skills' ? 'Visible Skills' : t === 'integrations' ? 'Integrations' : 'Billing & Costs';
+          ['agents', 'roles', 'skills', 'pages', 'integrations', 'billing'].map(function(t) {
+            var label = t === 'agents' ? 'Agents (' + detailAgents.length + ')' : t === 'roles' ? 'Visible Roles' : t === 'skills' ? 'Visible Skills' : t === 'pages' ? 'Visible Pages' : t === 'integrations' ? 'Integrations' : 'Billing & Costs';
             return h('button', {
               key: t, type: 'button',
               style: { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', color: detailTab === t ? 'var(--primary)' : 'var(--text-muted)', borderBottom: detailTab === t ? '2px solid var(--primary)' : '2px solid transparent', fontFamily: 'var(--font)' },
-              onClick: function() { setDetailTab(t); if (t === 'roles' && availableRoles.length === 0) loadOrgRoles(detailOrg); if (t === 'skills' && availableSkills.length === 0) loadOrgSkills(detailOrg); }
+              onClick: function() { setDetailTab(t); if (t === 'roles' && availableRoles.length === 0) loadOrgRoles(detailOrg); if (t === 'skills' && availableSkills.length === 0) loadOrgSkills(detailOrg); if (t === 'pages') loadOrgPages(detailOrg); }
             }, label);
           })
         ),
@@ -720,6 +751,31 @@ export function OrganizationsPage() {
                   })
                 );
               })()
+        ),
+
+        // ── Pages Tab ──────────────────────────
+        detailTab === 'pages' && h(Fragment, null,
+          h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 4 } }, 'Visible Pages'),
+          h('div', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 } }, 'Grant access to additional dashboard pages beyond the default set. Client org users always see core pages (Dashboard, Agents, Skills, etc). Toggle extra pages here.'),
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 } },
+            EXTRA_PAGES.map(function(pg) {
+              var enabled = orgAllowedPages.indexOf(pg.id) !== -1;
+              return h('label', { key: pg.id, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 'var(--radius)', border: '1px solid ' + (enabled ? 'var(--primary)' : 'var(--border)'), background: enabled ? 'rgba(99,102,241,0.06)' : 'var(--bg-secondary)', cursor: 'pointer', transition: 'all 0.15s' } },
+                h('input', { type: 'checkbox', checked: enabled, onChange: function() {
+                  if (enabled) {
+                    setOrgAllowedPages(orgAllowedPages.filter(function(p) { return p !== pg.id; }));
+                  } else {
+                    setOrgAllowedPages(orgAllowedPages.concat([pg.id]));
+                  }
+                }, style: { cursor: 'pointer', width: 16, height: 16 } }),
+                h('div', null,
+                  h('div', { style: { fontSize: 13, fontWeight: 600 } }, pg.label),
+                  h('div', { style: { fontSize: 11, color: 'var(--text-muted)' } }, pg.desc)
+                )
+              );
+            })
+          ),
+          h('button', { className: 'btn btn-primary btn-sm', disabled: pagesSaving, onClick: saveOrgPages }, pagesSaving ? 'Saving...' : 'Save Page Access')
         ),
 
         // ── Integrations Tab ──────────────────────

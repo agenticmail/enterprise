@@ -11,7 +11,8 @@ import { configBus } from '../engine/config-bus.js';
 import type { AppEnv } from '../types/hono-env.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 import { validate, requireRole, ValidationError, transportEncryptionMiddleware } from '../middleware/index.js';
-import { PROVIDER_REGISTRY, type ProviderDef, type CustomProviderDef } from '../runtime/providers.js';
+import { PROVIDER_REGISTRY, type ProviderDef } from '../runtime/providers.js';
+import { USDC_ADDRESS as USDC_E_SHARED } from '../polymarket-engines/shared.js';
 
 /**
  * Validate an API key by making a lightweight request to the provider.
@@ -191,6 +192,9 @@ async function validateProviderApiKey(
 }
 import { deployToFly, getAppStatus, destroyApp, type FlyConfig, type AppConfig } from '../deploy/fly.js';
 import { SecureVault } from '../engine/vault.js';
+import { getWatcherEngineStatus, controlWatcherEngine } from '../agent-tools/tools/polymarket-watcher.js';
+import { importSDK, getProxyState, loadProxyConfig, saveProxyConfig, startProxy, stopProxy, deployProxyToVPS, autoConnectProxy } from '../agent-tools/tools/polymarket-runtime.js';
+import { executeOrder } from '../agent-tools/tools/polymarket.js';
 
 // Shared vault instance for encrypting/decrypting provider API keys
 const vault = new SecureVault();
@@ -800,19 +804,38 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     // Client org users get restricted page access by default
     if (clientOrgId) {
       const userPerms = user?.permissions;
-      if (!userPerms || userPerms === '*') {
-        // Default client org pages — hide internal-only pages
-        const clientPages: Record<string, boolean> = {
-          dashboard: true, agents: true, roles: true, skills: true,
-          'community-skills': true, 'skill-connections': true, 'database-access': true,
-          knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true,
-          approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true,
-          messages: true, guardrails: true, journal: true, activity: true,
-          dlp: true, compliance: true, vault: true, audit: true, settings: true,
-        };
-        return c.json({ permissions: clientPages, role: userRole, clientOrgId });
+      // Default client org pages — hide internal-only pages
+      const clientPages: Record<string, boolean> = {
+        dashboard: true, agents: true, roles: true, skills: true,
+        'community-skills': true, 'skill-connections': true, 'database-access': true,
+        knowledge: true, 'knowledge-contributions': true, 'memory-transfer': true,
+        approvals: true, 'org-chart': true, 'task-pipeline': true, workforce: true,
+        messages: true, guardrails: true, journal: true, activity: true,
+        dlp: true, compliance: true, vault: true, audit: true, settings: true,
+      };
+
+      // Check org-level allowed_pages — merge additional pages granted by parent org
+      try {
+        const engineDb = db.getEngineDB();
+        let orgRow: any;
+        if ((db as any)._query) {
+          const { rows } = await (db as any)._query(`SELECT allowed_pages FROM client_organizations WHERE id = $1`, [clientOrgId]);
+          orgRow = rows?.[0];
+        } else if (engineDb) {
+          orgRow = await engineDb.get(`SELECT allowed_pages FROM client_organizations WHERE id = ?`, [clientOrgId]);
+        }
+        if (orgRow?.allowed_pages) {
+          const extraPages = typeof orgRow.allowed_pages === 'string' ? JSON.parse(orgRow.allowed_pages) : orgRow.allowed_pages;
+          if (Array.isArray(extraPages)) {
+            extraPages.forEach((p: string) => { clientPages[p] = true; });
+          }
+        }
+      } catch {}
+
+      if (userPerms && userPerms !== '*') {
+        return c.json({ permissions: userPerms, role: userRole, clientOrgId });
       }
-      return c.json({ permissions: userPerms, role: userRole, clientOrgId });
+      return c.json({ permissions: clientPages, role: userRole, clientOrgId });
     }
 
     return c.json({ permissions: user?.permissions ?? '*', role: userRole, clientOrgId });
@@ -2383,6 +2406,10 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         fields.push(isPostgres ? `allowed_skills = $${idx++}` : `allowed_skills = ?`);
         values.push(JSON.stringify(body.allowed_skills));
       }
+      if (body.allowed_pages !== undefined) {
+        fields.push(isPostgres ? `allowed_pages = $${idx++}` : `allowed_pages = ?`);
+        values.push(JSON.stringify(body.allowed_pages));
+      }
       if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400);
       fields.push(isPostgres ? `updated_at = NOW()` : `updated_at = CURRENT_TIMESTAMP`);
       values.push(id);
@@ -2994,13 +3021,156 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
   // ═══ POLYMARKET TRADING MANAGEMENT ═══════════════════════════
 
+  // Helper: get engine DB for raw SQL queries (works across SQLite, Postgres, MySQL)
+  const edb = () => db.getEngineDB();
+
   // Get trading config for an agent
+  // ─── SOCKS Proxy Management ─────────────────────────────────
+  // Ensure polymarket proxy table exists
+  let _polyProxyTableInit = false;
+  async function ensurePolyDB() {
+    if (_polyProxyTableInit) return;
+    const db = edb();
+    if (!db) return;
+    try {
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS poly_proxy_config (
+          id INTEGER PRIMARY KEY DEFAULT 1,
+          enabled INTEGER DEFAULT 0,
+          proxy_mode TEXT DEFAULT 'http',
+          proxy_url TEXT,
+          encrypted_proxy_token TEXT,
+          vps_host TEXT,
+          vps_user TEXT DEFAULT 'root',
+          vps_port INTEGER DEFAULT 22,
+          socks_port INTEGER DEFAULT 1080,
+          auth_method TEXT DEFAULT 'password',
+          ssh_key_path TEXT,
+          encrypted_ssh_key TEXT,
+          encrypted_password TEXT,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          CHECK (id = 1)
+        )
+      `);
+      _polyProxyTableInit = true;
+    } catch (e: any) {
+      // Table might already exist, that's fine
+      if (e.message?.includes('already exists')) { _polyProxyTableInit = true; return; }
+      console.error('[proxy] Failed to create proxy table:', e.message);
+    }
+  }
+
+  api.get('/polymarket/proxy/status', requireRole('admin'), async (c) => {
+    await ensurePolyDB();
+    await autoConnectProxy(edb());
+    const state = getProxyState();
+    const config = await loadProxyConfig(edb());
+    return c.json({
+      ...state,
+      configured: !!config,
+      config: config ? { proxyMode: config.proxyMode, proxyUrl: config.proxyUrl, vpsHost: config.vpsHost, vpsUser: config.vpsUser, vpsPort: config.vpsPort, socksPort: config.socksPort, authMethod: config.authMethod, enabled: config.enabled } : null,
+    });
+  });
+
+  api.post('/polymarket/proxy/config', requireRole('owner'), async (c) => {
+    await ensurePolyDB();
+    try {
+      const body = await c.req.json();
+      await saveProxyConfig(edb(), {
+        enabled: body.enabled ?? false,
+        proxyMode: body.proxyMode || 'http',
+        proxyUrl: body.proxyUrl || undefined,
+        proxyToken: body.proxyToken || undefined,
+        vpsHost: body.vpsHost || '',
+        vpsUser: body.vpsUser || 'root',
+        vpsPort: body.vpsPort || 22,
+        socksPort: body.socksPort || 1080,
+        authMethod: body.authMethod || 'password',
+        sshKeyPath: body.sshKeyPath || undefined,
+        sshKeyContent: body.sshKeyContent || undefined,
+        password: body.password || undefined,
+      });
+      return c.json({ status: 'saved' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/proxy/connect', requireRole('owner'), async (c) => {
+    try {
+      const state = await startProxy(edb());
+      return c.json(state);
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/proxy/disconnect', requireRole('owner'), async (c) => {
+    await stopProxy();
+    return c.json({ status: 'disconnected' });
+  });
+
+  api.post('/polymarket/proxy/test', requireRole('admin'), async (c) => {
+    const state = getProxyState();
+    if (!state.connected) return c.json({ error: 'Proxy not connected' }, 400);
+    try {
+      const config = await loadProxyConfig(edb());
+      if (config?.proxyMode === 'http' && config.proxyUrl) {
+        // Test HTTP proxy by hitting /time through it
+        const headers: Record<string, string> = {};
+        if (config.proxyToken) headers['x-proxy-token'] = config.proxyToken;
+        const res = await fetch(config.proxyUrl.replace(/\/$/, '') + '/time', { headers, signal: AbortSignal.timeout(10000) });
+        const time = await res.text();
+        return c.json({ status: 'ok', clobTime: time, geoblock: { blocked: false } });
+      }
+      // SOCKS tunnel test
+      const { SocksProxyAgent } = await import('socks-proxy-agent');
+      const agent = new SocksProxyAgent(`socks5://127.0.0.1:${state.socksPort}`);
+      const res = await fetch('https://clob.polymarket.com/time', { agent } as any);
+      const time = await res.text();
+      const geoRes = await fetch('https://polymarket.com/api/geoblock', { agent } as any);
+      const geo = await geoRes.json();
+      return c.json({ status: 'ok', clobTime: time, geoblock: geo });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Auto-deploy proxy to VPS
+  api.post('/polymarket/proxy/setup', requireRole('owner'), async (c) => {
+    await ensurePolyDB();
+    try {
+      const body = await c.req.json();
+      if (!body.host) return c.json({ error: 'Server address is required' }, 400);
+
+      const result = await deployProxyToVPS({
+        host: body.host,
+        user: body.user || 'root',
+        password: body.password || undefined,
+        sshKeyPath: body.sshKeyPath || undefined,
+        sshKeyContent: body.sshKeyContent || undefined,
+        port: body.sshPort || 22,
+      });
+
+      if (result.success) {
+        // Auto-save the proxy config
+        await saveProxyConfig(edb(), {
+          enabled: true,
+          proxyMode: 'http',
+          proxyUrl: result.proxyUrl,
+          proxyToken: result.proxyToken,
+          vpsHost: body.host,
+          vpsUser: body.user || 'root',
+          vpsPort: body.sshPort || 22,
+          authMethod: body.password ? 'password' : 'key',
+          password: body.password || undefined,
+          sshKeyPath: body.sshKeyPath || undefined,
+          sshKeyContent: body.sshKeyContent || undefined,
+        });
+      }
+
+      return c.json(result);
+    } catch (e: any) { return c.json({ error: e.message, logs: [] }, 500); }
+  });
+
   api.get('/polymarket/:agentId/config', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`SELECT * FROM poly_trading_config WHERE agent_id = $1`, [agentId])
-        || await (db as any).query?.(`SELECT * FROM poly_trading_config WHERE agent_id = $1`, [agentId]);
-      const row = rows?.rows?.[0] || rows?.[0];
+      const row = await edb()?.get(`SELECT * FROM poly_trading_config WHERE agent_id = ?`, [agentId]);
       return c.json({ config: row || null });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3013,22 +3183,23 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const fields = ['mode', 'max_position_size', 'max_order_size', 'max_total_exposure', 'max_daily_trades',
         'max_daily_loss', 'max_drawdown_pct', 'stop_loss_pct', 'take_profit_pct', 'cash_reserve_pct'];
       const sets: string[] = [];
-      const vals: any[] = [agentId];
-      let idx = 2;
+      const vals: any[] = [];
       for (const f of fields) {
-        if (body[f] !== undefined) { sets.push(`${f} = $${idx}`); vals.push(body[f]); idx++; }
+        if (body[f] !== undefined) { sets.push(`${f} = ?`); vals.push(body[f]); }
       }
       if (sets.length === 0) return c.json({ error: 'No fields to update' }, 400);
       sets.push('updated_at = CURRENT_TIMESTAMP');
-      // Upsert
-      await (db as any).execute?.(`
-        INSERT INTO poly_trading_config (agent_id, ${fields.filter(f => body[f] !== undefined).join(',')}, updated_at)
-        VALUES ($1, ${vals.slice(1).map((_: any, i: number) => '$' + (i + 2)).join(',')}, CURRENT_TIMESTAMP)
+      const changedFields = fields.filter(f => body[f] !== undefined);
+      const insertPlaceholders = changedFields.map(() => '?').join(',');
+      // Params: [agentId, ...insertVals, ...updateVals, agentId_for_fallback]
+      // For the upsert: INSERT needs agentId + vals, ON CONFLICT SET needs vals again
+      await edb()?.run(`
+        INSERT INTO poly_trading_config (agent_id, ${changedFields.join(',')}, updated_at)
+        VALUES (?, ${insertPlaceholders}, CURRENT_TIMESTAMP)
         ON CONFLICT (agent_id) DO UPDATE SET ${sets.join(', ')}
-      `, vals).catch(() => {
-        // Fallback: just update
-        return (db as any).execute?.(`UPDATE poly_trading_config SET ${sets.join(', ')} WHERE agent_id = $1`, vals);
-      });
+      `, [agentId, ...vals, ...vals]).catch(() =>
+        edb()?.run(`UPDATE poly_trading_config SET ${sets.join(', ')} WHERE agent_id = ?`, [...vals, agentId])
+      );
       return c.json({ status: 'ok' });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3037,8 +3208,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/pending', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`SELECT * FROM poly_pending_trades WHERE agent_id = $1 AND status = 'pending' ORDER BY created_at DESC`, [agentId]);
-      return c.json({ trades: rows?.rows || rows || [] });
+      const rows = await edb()?.all(`SELECT * FROM poly_pending_trades WHERE agent_id = ? AND status = 'pending' ORDER BY created_at DESC`, [agentId]) || [];
+      return c.json({ trades: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3047,9 +3218,35 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     try {
       const tradeId = c.req.param('tradeId');
       const { decision, reason } = await c.req.json();
-      await (db as any).execute?.(`UPDATE poly_pending_trades SET status = $1, resolved_at = CURRENT_TIMESTAMP, resolved_by = $2 WHERE id = $3`,
-        [decision === 'approve' ? 'approved' : 'rejected', reason || 'admin', tradeId]);
-      return c.json({ status: 'ok', decision });
+
+      if (decision === 'approve') {
+        // Load trade BEFORE resolving
+        const trade = await edb()?.get(`SELECT * FROM poly_pending_trades WHERE id = ? AND status = 'pending'`, [tradeId]) as any;
+        if (!trade) return c.json({ error: 'Trade not found or already resolved' }, 404);
+
+        await edb()?.run(`UPDATE poly_pending_trades SET status = 'approved', resolved_at = CURRENT_TIMESTAMP, resolved_by = ? WHERE id = ?`,
+          [reason || 'admin', tradeId]);
+
+        // Execute the trade on-chain
+        try {
+          const db = { execute: (sql: string, params: any[]) => edb()?.all(sql.replace(/\$(\d+)/g, '?'), params), query: (sql: string, params: any[]) => edb()?.all(sql.replace(/\$(\d+)/g, '?'), params) };
+          const result = await executeOrder(trade.agent_id, db, tradeId, {
+            token_id: trade.token_id, side: trade.side,
+            price: trade.price, size: trade.size,
+            order_type: trade.order_type, tick_size: trade.tick_size,
+            neg_risk: trade.neg_risk, market_question: trade.market_question,
+            outcome: trade.outcome, rationale: trade.rationale,
+          }, 'admin_approved');
+          const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+          return c.json({ status: 'ok', decision: 'approve', execution: parsed });
+        } catch (execErr: any) {
+          return c.json({ status: 'ok', decision: 'approve', execution_error: execErr.message });
+        }
+      } else {
+        await edb()?.run(`UPDATE poly_pending_trades SET status = 'rejected', resolved_at = CURRENT_TIMESTAMP, resolved_by = ? WHERE id = ?`,
+          [reason || 'admin', tradeId]);
+        return c.json({ status: 'ok', decision: 'reject' });
+      }
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3058,8 +3255,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     try {
       const agentId = c.req.param('agentId');
       const limit = parseInt(c.req.query('limit') || '50');
-      const rows = await (db as any).execute?.(`SELECT * FROM poly_trade_log WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2`, [agentId, limit]);
-      return c.json({ trades: rows?.rows || rows || [] });
+      const rows = await edb()?.all(`SELECT * FROM poly_trade_log WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
+      return c.json({ trades: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3067,25 +3264,1259 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/wallet', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`SELECT agent_id, funder_address, signature_type, created_at, updated_at FROM poly_wallet_credentials WHERE agent_id = $1`, [agentId]);
-      const row = rows?.rows?.[0] || rows?.[0];
+      const row = await edb()?.get(`SELECT agent_id, funder_address, signature_type, created_at, updated_at FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
       return c.json({ wallet: row ? { address: row.funder_address, signatureType: row.signature_type, connected: true, createdAt: row.created_at } : null });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Generate a new wallet (OWNER ONLY)
+  api.post('/polymarket/:agentId/wallet/create', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+
+      // Check if wallet already exists
+      const existing = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (existing?.funder_address) return c.json({ error: 'Wallet already exists at ' + existing.funder_address + '. Delete it first or use import to replace.' }, 400);
+
+      // Generate wallet using ethersproject
+      let address: string, privateKey: string;
+      try {
+        const { createRequire } = await import('module');
+        const sdkDir = (await import('path')).join((await import('os')).homedir(), '.agenticmail/polymarket-sdk');
+        const req = createRequire(sdkDir + '/node_modules/.package.json');
+        const { Wallet } = req('@ethersproject/wallet');
+        const wallet = Wallet.createRandom();
+        address = wallet.address;
+        privateKey = wallet.privateKey;
+      } catch {
+        try {
+          const { Wallet } = await import('ethers' as any);
+          const wallet = Wallet.createRandom();
+          address = wallet.address;
+          privateKey = wallet.privateKey;
+        } catch {
+          return c.json({ error: 'SDK not installed. Run the agent once to auto-install.' }, 500);
+        }
+      }
+
+      // Encrypt and store
+      const { SecureVault } = await import('../engine/vault.js');
+      let vault: any;
+      try { vault = new SecureVault(); } catch {}
+      const encrypt = (val: string) => { try { return vault ? vault.encrypt(val) : val; } catch { return val; } };
+
+      await edb()?.run(`
+        INSERT INTO poly_wallet_credentials (agent_id, private_key_encrypted, funder_address, signature_type, updated_at)
+        VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+      `, [agentId, encrypt(privateKey), address]);
+
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.created', resourceType: 'agent', resourceId: agentId, details: { address }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+
+      return c.json({ status: 'ok', address, privateKey });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Import API credentials only (OWNER ONLY) — for existing Polymarket users
+  api.post('/polymarket/:agentId/wallet/import-api-creds', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      if (!body.api_key || !body.api_secret || !body.api_passphrase) return c.json({ error: 'api_key, api_secret, and api_passphrase are required' }, 400);
+
+      const { SecureVault } = await import('../engine/vault.js');
+      let vault: any;
+      try { vault = new SecureVault(); } catch {}
+      const encrypt = (val: string) => { try { return vault ? vault.encrypt(val) : val; } catch { return val; } };
+
+      // Check if wallet row exists
+      const existing = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (existing) {
+        // Update API creds on existing wallet
+        await edb()?.run(`UPDATE poly_wallet_credentials SET api_key = ?, api_secret = ?, api_passphrase = ?, updated_at = CURRENT_TIMESTAMP WHERE agent_id = ?`,
+          [encrypt(body.api_key), encrypt(body.api_secret), encrypt(body.api_passphrase), agentId]);
+      } else {
+        // Create new row with just API creds (no private key)
+        await edb()?.run(`INSERT INTO poly_wallet_credentials (agent_id, api_key, api_secret, api_passphrase, funder_address, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+          [agentId, encrypt(body.api_key), encrypt(body.api_secret), encrypt(body.api_passphrase), body.wallet_address || '']);
+      }
+
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.api_creds_imported', resourceType: 'agent', resourceId: agentId, details: { hasKey: true }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+
+      return c.json({ status: 'ok', message: 'API credentials imported. Agent can now trade using your existing Polymarket account.' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Import wallet private key (OWNER ONLY)
+  api.post('/polymarket/:agentId/wallet/import', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      if (!body.private_key) return c.json({ error: 'private_key is required' }, 400);
+
+      const pk = body.private_key.startsWith('0x') ? body.private_key : `0x${body.private_key}`;
+
+      // Validate the private key by deriving the address
+      let address: string;
+      try {
+        const { createRequire } = await import('module');
+        const sdkDir = (await import('path')).join((await import('os')).homedir(), '.agenticmail/polymarket-sdk');
+        const req = createRequire(sdkDir + '/node_modules/.package.json');
+        const { Wallet } = req('@ethersproject/wallet');
+        const wallet = new Wallet(pk);
+        address = wallet.address;
+      } catch {
+        // Fallback: try ethers from enterprise node_modules
+        try {
+          const { Wallet } = await import('ethers' as any);
+          const wallet = new Wallet(pk);
+          address = wallet.address;
+        } catch {
+          return c.json({ error: 'Invalid private key or SDK not installed' }, 400);
+        }
+      }
+
+      // Encrypt and store
+      const { SecureVault } = await import('../engine/vault.js');
+      let vault: any;
+      try { vault = new SecureVault(); } catch {}
+
+      const encrypt = (val: string) => {
+        if (!val) return val;
+        try { return vault ? vault.encrypt(val) : val; } catch { return val; }
+      };
+
+      await edb()?.run(`
+        INSERT INTO poly_wallet_credentials (agent_id, private_key_encrypted, funder_address, signature_type, updated_at)
+        VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+        ON CONFLICT (agent_id) DO UPDATE SET
+          private_key_encrypted = ?, funder_address = ?, signature_type = 0, api_key = NULL, api_secret = NULL, api_passphrase = NULL, updated_at = CURRENT_TIMESTAMP
+      `, [agentId, encrypt(pk), address, encrypt(pk), address]);
+
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.imported', resourceType: 'agent', resourceId: agentId, details: { address }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+
+      return c.json({ status: 'ok', address, message: 'Wallet imported successfully. API keys will be derived automatically on first use.' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Export wallet private key (OWNER ONLY — requires password confirmation)
+  api.post('/polymarket/:agentId/wallet/export', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      if (!body.confirm || body.confirm !== 'EXPORT') {
+        return c.json({ error: 'Must send { confirm: "EXPORT" } to confirm private key export' }, 400);
+      }
+      const row = await edb()?.get(`SELECT private_key_encrypted, funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (!row) return c.json({ error: 'No wallet found for this agent' }, 404);
+
+      // Audit log this sensitive action
+      try {
+        await (db as any).createAuditLog({
+          userId: c.get('userId' as any),
+          action: 'wallet.private_key_exported',
+          resourceType: 'agent',
+          resourceId: agentId,
+          details: { address: row.funder_address },
+          ipAddress: c.req.header('x-forwarded-for') || 'unknown',
+        });
+      } catch {}
+
+      return c.json({
+        address: row.funder_address,
+        privateKey: (() => { try { return vault.decrypt(row.private_key_encrypted); } catch { return row.private_key_encrypted; } })(),
+        warning: 'This private key controls all funds in this wallet. Store it securely. Anyone with this key can drain the wallet.',
+        importInstructions: {
+          metamask: '1. Open MetaMask → Import Account → Paste private key',
+          rabby: '1. Open Rabby → Add Address → Import Private Key → Paste',
+          polymarket: 'Use this key to sign into polymarket.com via wallet connect',
+        }
+      });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── Whitelisted Withdrawal Addresses ──────────────────────
+  api.get('/polymarket/:agentId/wallet/whitelist', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await edb()?.all(`SELECT * FROM poly_whitelisted_addresses WHERE agent_id = ? ORDER BY created_at DESC`, [agentId]).catch(() => []) || [];
+      return c.json({ addresses: rows });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/:agentId/wallet/whitelist', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      if (!body.label || !body.address) return c.json({ error: 'label and address are required' }, 400);
+      // Validate Ethereum address format
+      const addr = body.address.trim();
+      if (!/^0x[a-fA-F0-9]{40}$/.test(addr)) return c.json({ error: 'Invalid Ethereum address format. Must be 0x followed by 40 hex characters.' }, 400);
+      // Check for duplicate
+      const existing = await edb()?.get(`SELECT id FROM poly_whitelisted_addresses WHERE agent_id = ? AND address = ?`, [agentId, addr.toLowerCase()]);
+      if (existing) return c.json({ error: 'This address is already whitelisted' }, 409);
+      // Configurable cooling period (default 24h, min 0)
+      const coolingHours = Math.max(0, body.cooling_hours != null ? body.cooling_hours : 24);
+      const coolingUntil = new Date(Date.now() + coolingHours * 3600000).toISOString();
+      const id = crypto.randomUUID();
+      await edb()?.run(
+        `INSERT INTO poly_whitelisted_addresses (id, agent_id, label, address, added_by, per_tx_limit, daily_limit, cooling_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, agentId, body.label.trim(), addr.toLowerCase(), c.get('userId' as any) || 'unknown', body.per_tx_limit || 100, body.daily_limit || 500, coolingUntil]
+      );
+      // Audit log
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.whitelist_added', resourceType: 'agent', resourceId: agentId, details: { label: body.label, address: addr, coolingUntil }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+      return c.json({ success: true, id, coolingUntil, coolingHours, message: (coolingHours > 0 ? coolingHours + '-hour cooling period active. Transfers to this address will be blocked until ' + coolingUntil : 'Address added with no cooling period.') });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.delete('/polymarket/:agentId/wallet/whitelist/:addrId', requireRole('owner'), async (c) => {
+    try {
+      const addrId = c.req.param('addrId');
+      const agentId = c.req.param('agentId');
+      // Check for pending transfers first
+      const pending = await edb()?.get(`SELECT COUNT(*) as cnt FROM poly_transfer_requests WHERE whitelist_id = ? AND status = 'pending'`, [addrId]);
+      if (pending?.cnt > 0) return c.json({ error: 'Cannot remove: there are pending transfers to this address. Reject them first.' }, 400);
+      const row = await edb()?.get(`SELECT label, address FROM poly_whitelisted_addresses WHERE id = ?`, [addrId]);
+      await edb()?.run(`DELETE FROM poly_whitelisted_addresses WHERE id = ? AND agent_id = ?`, [addrId, agentId]);
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.whitelist_removed', resourceType: 'agent', resourceId: agentId, details: { label: row?.label, address: row?.address }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.put('/polymarket/:agentId/wallet/whitelist/:addrId', requireRole('owner'), async (c) => {
+    try {
+      const addrId = c.req.param('addrId');
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      const updates: string[] = []; const vals: any[] = [];
+      if (body.label) { updates.push('label = ?'); vals.push(body.label); }
+      if (body.per_tx_limit != null) { updates.push('per_tx_limit = ?'); vals.push(body.per_tx_limit); }
+      if (body.daily_limit != null) { updates.push('daily_limit = ?'); vals.push(body.daily_limit); }
+      if (body.is_active != null) { updates.push('is_active = ?'); vals.push(body.is_active ? 1 : 0); }
+      if (updates.length === 0) return c.json({ error: 'No fields to update' }, 400);
+      vals.push(addrId, agentId);
+      await edb()?.run(`UPDATE poly_whitelisted_addresses SET ${updates.join(', ')} WHERE id = ? AND agent_id = ?`, vals);
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.whitelist_updated', resourceType: 'agent', resourceId: agentId, details: body, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── Transfer Requests ──────────────────────
+  api.get('/polymarket/:agentId/transfers', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await edb()?.all(`SELECT * FROM poly_transfer_requests WHERE agent_id = ? ORDER BY created_at DESC`, [agentId]).catch(() => []) || [];
+      return c.json({ transfers: rows });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/:agentId/transfers/:txId/approve', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const txId = c.req.param('txId');
+      const tx = await edb()?.get(`SELECT * FROM poly_transfer_requests WHERE id = ? AND agent_id = ?`, [txId, agentId]) as any;
+      if (!tx) return c.json({ error: 'Transfer not found' }, 404);
+      if (tx.status !== 'pending') return c.json({ error: 'Transfer is not pending (status: ' + tx.status + ')' }, 400);
+      if (tx.expires_at < new Date().toISOString()) {
+        await edb()?.run(`UPDATE poly_transfer_requests SET status = 'expired', resolved_at = CURRENT_TIMESTAMP WHERE id = ?`, [txId]);
+        return c.json({ error: 'Transfer has expired' }, 400);
+      }
+
+      // Execute on-chain transfer
+      try {
+        const creds = await edb()?.get(`SELECT private_key_encrypted, funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+        if (!creds) { await edb()?.run(`UPDATE poly_transfer_requests SET status = 'failed', error = 'No wallet credentials', resolved_at = CURRENT_TIMESTAMP WHERE id = ?`, [txId]); return c.json({ error: 'No wallet configured' }, 400); }
+
+        // Use ethers to send transaction
+        let txHash = '';
+        const decryptedKey = (() => { try { return vault.decrypt(creds.private_key_encrypted); } catch { return creds.private_key_encrypted; } })();
+        try {
+          const { Wallet, JsonRpcProvider } = await importSDK('ethers');
+          const provider = new JsonRpcProvider('https://polygon.drpc.org');
+          const wallet = new Wallet(decryptedKey, provider);
+          if (tx.token === 'MATIC') {
+            const sendTx = await wallet.sendTransaction({ to: tx.to_address, value: BigInt(Math.floor(tx.amount * 1e18)).toString() });
+            txHash = sendTx.hash;
+          } else {
+            // USDC transfer (ERC-20)
+            const USDC_POLYGON = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
+            const iface = new (await importSDK('ethers')).Interface(['function transfer(address to, uint256 amount) returns (bool)']);
+            const data = iface.encodeFunctionData('transfer', [tx.to_address, BigInt(Math.floor(tx.amount * 1e6)).toString()]);
+            const sendTx = await wallet.sendTransaction({ to: USDC_POLYGON, data });
+            txHash = sendTx.hash;
+          }
+        } catch (ethersErr: any) {
+          // Fallback: try ethers v5
+          try {
+            const { Wallet: W5 } = await importSDK('@ethersproject/wallet');
+            const { JsonRpcProvider: P5 } = await importSDK('@ethersproject/providers');
+            const { Contract: C5 } = await importSDK('@ethersproject/contracts');
+            const provider5 = new P5('https://polygon.drpc.org');
+            const wallet5 = new W5(decryptedKey, provider5);
+            if (tx.token === 'MATIC') {
+              const sendTx = await wallet5.sendTransaction({ to: tx.to_address, value: (BigInt(Math.floor(tx.amount * 1e18))).toString() });
+              txHash = sendTx.hash;
+            } else {
+              const USDC_POLYGON = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
+              const usdc = new C5(USDC_POLYGON, ['function transfer(address to, uint256 amount) returns (bool)'], wallet5);
+              const sendTx = await usdc.transfer(tx.to_address, (BigInt(Math.floor(tx.amount * 1e6))).toString());
+              txHash = sendTx.hash;
+            }
+          } catch (v5Err: any) {
+            throw new Error(`Transfer execution failed: ${ethersErr.message}. Fallback: ${v5Err.message}`);
+          }
+        }
+
+        // Update transfer record
+        await edb()?.run(`UPDATE poly_transfer_requests SET status = 'completed', approved_by = ?, tx_hash = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?`, [c.get('userId' as any), txHash, txId]);
+        // Update daily tracking
+        const today = new Date().toISOString().slice(0, 10);
+        await edb()?.run(
+          `INSERT INTO poly_transfer_daily (agent_id, address, date, total_transferred, tx_count) VALUES (?, ?, ?, ?, 1) ON CONFLICT(agent_id, address, date) DO UPDATE SET total_transferred = total_transferred + ?, tx_count = tx_count + 1`,
+          [agentId, tx.to_address, today, tx.amount, tx.amount]
+        );
+        // Audit
+        try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.transfer_approved', resourceType: 'agent', resourceId: agentId, details: { amount: tx.amount, token: tx.token, to: tx.to_address, label: tx.to_label, txHash }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+        return c.json({ success: true, txHash, status: 'completed' });
+      } catch (execErr: any) {
+        await edb()?.run(`UPDATE poly_transfer_requests SET status = 'failed', error = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?`, [execErr.message, txId]);
+        try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.transfer_failed', resourceType: 'agent', resourceId: agentId, details: { amount: tx.amount, error: execErr.message }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+        return c.json({ error: 'Transfer execution failed: ' + execErr.message }, 500);
+      }
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/:agentId/transfers/:txId/reject', requireRole('owner'), async (c) => {
+    try {
+      const txId = c.req.param('txId');
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json().catch(() => ({}));
+      await edb()?.run(`UPDATE poly_transfer_requests SET status = 'rejected', approved_by = ?, error = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ? AND agent_id = ?`,
+        [c.get('userId' as any), body.reason || 'Rejected by owner', txId, agentId]);
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.transfer_rejected', resourceType: 'agent', resourceId: agentId, details: { txId, reason: body.reason }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── Wallet Security: 2FA/PIN for transfers ──────────────
+  api.get('/polymarket/:agentId/wallet/security-status', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const userId = c.get('userId' as any);
+      // Check if user has 2FA enabled
+      const user = await db.getUser(userId);
+      const has2fa = !!(user as any)?.totpEnabled;
+      // Check if wallet PIN exists for this agent
+      const pinRow = await edb()?.get(`SELECT id FROM poly_wallet_pins WHERE agent_id = ?`, [agentId]) as any;
+      const hasPin = !!pinRow;
+      return c.json({ has2fa, hasPin });
+    } catch (e: any) { return c.json({ has2fa: false, hasPin: false }); }
+  });
+
+  api.post('/polymarket/:agentId/wallet/setup-pin', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      // Sanitize: extract pin, coerce to string, strip non-digits
+      const rawPin = String(body?.pin ?? '').replace(/\D/g, '').slice(0, 6);
+      if (!rawPin || rawPin.length !== 6) return c.json({ error: 'PIN must be exactly 6 digits' }, 400);
+      // Reject trivial PINs
+      if (/^(.)\1{5}$/.test(rawPin) || rawPin === '123456' || rawPin === '654321') {
+        return c.json({ error: 'PIN is too simple. Choose a less predictable 6-digit PIN.' }, 400);
+      }
+      // Encrypt PIN using the shared vault instance (same key used for wallet credentials)
+      const crypto = await import('node:crypto');
+      const encryptedPin = vault.encrypt(rawPin);
+      // Ensure table exists (cross-DB compatible)
+      await edb()?.run(`CREATE TABLE IF NOT EXISTS poly_wallet_pins (
+        id TEXT PRIMARY KEY, agent_id TEXT NOT NULL UNIQUE, encrypted_pin TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`);
+      // Upsert — ON CONFLICT works on both SQLite 3.24+ and Postgres
+      const id = crypto.randomUUID();
+      await edb()?.run(
+        `INSERT INTO poly_wallet_pins (id, agent_id, encrypted_pin, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT (agent_id) DO UPDATE SET encrypted_pin = ?, updated_at = CURRENT_TIMESTAMP`,
+        [id, agentId, encryptedPin, encryptedPin]);
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.pin_setup', resourceType: 'agent', resourceId: agentId, details: {}, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+      return c.json({ ok: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/:agentId/wallet/verify-transfer', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      const method = String(body?.method ?? '');
+      const code = String(body?.code ?? '').replace(/\D/g, '').slice(0, 6);
+      if (!code || code.length !== 6) return c.json({ ok: false, error: 'Code must be exactly 6 digits' }, 400);
+      if (method === '2fa') {
+        const userId = c.get('userId' as any);
+        const user = await db.getUser(userId) as any;
+        if (!user?.totpSecret) return c.json({ ok: false, error: '2FA not set up' }, 400);
+        // Verify TOTP
+        const crypto = await import('node:crypto');
+        const epoch = Math.floor(Date.now() / 30000);
+        let valid = false;
+        for (let i = -1; i <= 1; i++) {
+          const counter = epoch + i;
+          const buf = Buffer.alloc(8);
+          buf.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
+          buf.writeUInt32BE(counter & 0xFFFFFFFF, 4);
+          let secret = user.totpSecret;
+          // Decode base32
+          const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+          let bits = '', bytes: number[] = [];
+          for (const ch of secret.toUpperCase().replace(/=+$/, '')) {
+            const val = base32chars.indexOf(ch);
+            if (val >= 0) bits += val.toString(2).padStart(5, '0');
+          }
+          for (let b = 0; b + 8 <= bits.length; b += 8) bytes.push(parseInt(bits.slice(b, b + 8), 2));
+          const keyBuf = Buffer.from(bytes);
+          const hmac = crypto.createHmac('sha1', keyBuf).update(buf).digest();
+          const offset = hmac[hmac.length - 1] & 0xf;
+          const otp = ((hmac[offset] & 0x7f) << 24 | hmac[offset + 1] << 16 | hmac[offset + 2] << 8 | hmac[offset + 3]) % 1000000;
+          if (otp.toString().padStart(6, '0') === code) { valid = true; break; }
+        }
+        if (!valid) return c.json({ ok: false, error: 'Invalid 2FA code' }, 401);
+        try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.2fa_verified', resourceType: 'agent', resourceId: agentId, details: {}, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+        return c.json({ ok: true });
+      } else if (method === 'pin') {
+        const pinRow = await edb()?.get(`SELECT encrypted_pin FROM poly_wallet_pins WHERE agent_id = ?`, [agentId]) as any;
+        if (!pinRow) return c.json({ ok: false, error: 'No wallet PIN set up' }, 400);
+        // Decrypt and verify using the shared vault instance
+        const decrypted = vault.decrypt(pinRow.encrypted_pin);
+        if (decrypted !== code) return c.json({ ok: false, error: 'Invalid PIN' }, 401);
+        try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.pin_verified', resourceType: 'agent', resourceId: agentId, details: {}, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+        return c.json({ ok: true });
+      }
+      return c.json({ ok: false, error: 'Invalid verification method' }, 400);
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/:agentId/wallet/swap', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const { direction, amount } = await c.req.json();
+      if (!direction || !amount || amount <= 0) return c.json({ error: 'Invalid swap parameters' }, 400);
+
+      // Load wallet credentials
+      const creds = await edb()?.get(`SELECT private_key_encrypted, funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (!creds?.funder_address) return c.json({ error: 'No wallet configured' }, 404);
+
+      const decryptedKey = (() => { try { return vault.decrypt(creds.private_key_encrypted); } catch { return creds.private_key_encrypted; } })();
+
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.swap_initiated', resourceType: 'agent', resourceId: agentId, details: { direction, amount }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+
+      // Direct on-chain swap via Uniswap V3 — no agent/LLM needed
+      const { Wallet, JsonRpcProvider, Contract } = await import('ethers');
+      const USDC_NATIVE = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
+      const USDC_BRIDGED = USDC_E_SHARED;
+      const SWAP_ROUTER = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45'; // Uniswap V3 SwapRouter02
+
+      // Connect to Polygon with RPC fallback
+      let provider: any = null;
+      for (const rpc of ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com']) {
+        try { provider = new JsonRpcProvider(rpc); await provider.getNetwork(); break; } catch { provider = null; }
+      }
+      if (!provider) return c.json({ error: 'Cannot connect to Polygon RPC' }, 502);
+
+      const wallet = new Wallet(decryptedKey, provider);
+
+      const erc20Abi = [
+        'function balanceOf(address) view returns (uint256)',
+        'function approve(address,uint256) returns (bool)',
+        'function allowance(address,address) view returns (uint256)',
+      ];
+      const swapRouterAbi = [
+        'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)',
+      ];
+
+      const tokenIn = direction === 'native_to_bridged' ? USDC_NATIVE : USDC_BRIDGED;
+      const tokenOut = direction === 'native_to_bridged' ? USDC_BRIDGED : USDC_NATIVE;
+      const tokenContract = new Contract(tokenIn, erc20Abi, wallet);
+
+      // Check balance
+      const balance = await tokenContract.balanceOf(wallet.address);
+      if (balance === BigInt(0)) {
+        return c.json({ error: direction === 'native_to_bridged' ? 'No native USDC to swap' : 'No USDC.e to swap' }, 400);
+      }
+
+      let swapAmount = BigInt(Math.floor(amount * 1e6));
+      if (swapAmount > balance) swapAmount = balance;
+      const swapUSD = (Number(swapAmount) / 1e6).toFixed(2);
+
+      // Approve router if needed
+      const currentAllowance = await tokenContract.allowance(wallet.address, SWAP_ROUTER);
+      if (currentAllowance < swapAmount) {
+        const approveTx = await tokenContract.approve(SWAP_ROUTER, '115792089237316195423570985008687907853269984665640564039457584007913129639935');
+        await approveTx.wait();
+      }
+
+      // Execute swap with fee tier fallback (0.01% → 0.05%)
+      const router = new Contract(SWAP_ROUTER, swapRouterAbi, wallet);
+      let receipt: any;
+      let feeTier = '0.01%';
+
+      // Helper: wait for tx with RPC retry (Polygon RPCs flake on getTransactionReceipt)
+      const waitWithRetry = async (tx: any, retries = 3) => {
+        for (let attempt = 0; attempt < retries; attempt++) {
+          try { return await tx.wait(); } catch (waitErr: any) {
+            if (attempt === retries - 1) throw waitErr;
+            // Temporary RPC error — retry with fresh provider
+            if (waitErr.code === 'UNKNOWN_ERROR' || waitErr.message?.includes('Temporary internal error')) {
+              await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
+              continue;
+            }
+            throw waitErr;
+          }
+        }
+      };
+
+      try {
+        const minOut = swapAmount * BigInt(995) / BigInt(1000); // 0.5% slippage
+        const tx = await router.exactInputSingle({
+          tokenIn, tokenOut, fee: 100, recipient: wallet.address,
+          amountIn: swapAmount, amountOutMinimum: minOut, sqrtPriceLimitX96: BigInt(0),
+        });
+        receipt = await waitWithRetry(tx);
+      } catch (swapErr: any) {
+        if (swapErr.message?.includes('revert') || swapErr.message?.includes('STF') || swapErr.message?.includes('Too little received')) {
+          const minOut = swapAmount * BigInt(990) / BigInt(1000); // 1% slippage
+          const tx = await router.exactInputSingle({
+            tokenIn, tokenOut, fee: 500, recipient: wallet.address,
+            amountIn: swapAmount, amountOutMinimum: minOut, sqrtPriceLimitX96: BigInt(0),
+          });
+          receipt = await waitWithRetry(tx);
+          feeTier = '0.05%';
+        } else {
+          throw swapErr;
+        }
+      }
+
+      // Get new balance of output token
+      const outContract = new Contract(tokenOut, ['function balanceOf(address) view returns (uint256)'], provider);
+      const newBal = await outContract.balanceOf(wallet.address);
+      const label = direction === 'native_to_bridged' ? 'Native USDC → USDC.e' : 'USDC.e → Native USDC';
+
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.swap_completed', resourceType: 'agent', resourceId: agentId, details: { direction, amount: swapUSD, txHash: receipt.hash, feeTier }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+
+      return c.json({
+        ok: true,
+        message: `Swapped $${swapUSD} ${label}`,
+        txHash: receipt.hash,
+        feeTier,
+        newBalance: (Number(newBal) / 1e6).toFixed(2),
+      });
+    } catch (e: any) { return c.json({ error: `Swap failed: ${e.message}` }, 500); }
+  });
+
+  api.post('/polymarket/:agentId/wallet/transfer', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const { to_address, amount, token, reason } = await c.req.json();
+      if (!to_address || !amount || amount <= 0) return c.json({ error: 'Invalid transfer parameters' }, 400);
+      // Verify address is whitelisted
+      const wl = await edb()?.get(`SELECT id, label, per_tx_limit, daily_limit FROM poly_withdrawal_addresses WHERE agent_id = ? AND address = ? AND cooling_until < CURRENT_TIMESTAMP`, [agentId, to_address]) as any;
+      if (!wl) return c.json({ error: 'Address not whitelisted or still in cooling period' }, 403);
+      if (wl.per_tx_limit && amount > wl.per_tx_limit) return c.json({ error: `Exceeds per-transaction limit of $${wl.per_tx_limit}` }, 400);
+      // Check daily limit
+      const todayTotal = await edb()?.get(`SELECT COALESCE(SUM(amount), 0) as total FROM poly_transfer_requests WHERE agent_id = ? AND to_address = ? AND status = 'completed' AND created_at > datetime('now', '-1 day')`, [agentId, to_address]) as any;
+      if (wl.daily_limit && (todayTotal?.total || 0) + amount > wl.daily_limit) return c.json({ error: `Exceeds daily limit of $${wl.daily_limit}` }, 400);
+      // Create transfer request
+      const crypto = await import('node:crypto');
+      const txId = crypto.randomUUID();
+      await edb()?.run(`INSERT INTO poly_transfer_requests (id, agent_id, to_address, to_label, amount, token, reason, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, datetime('now', '+4 hours'))`,
+        [txId, agentId, to_address, wl.label, amount, token || 'USDC.e', reason || '']);
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.transfer_created', resourceType: 'agent', resourceId: agentId, details: { txId, to_address, amount, token, reason }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+      return c.json({ ok: true, txId, message: `Transfer of ${amount} ${token || 'USDC.e'} to ${wl.label} submitted. Awaiting execution.` });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Balance cache to prevent flickering when RPC calls fail
+  const balanceCache = new Map<string, { usdc: number; usdce?: number; usdcNative?: number; matic: number; ts: number }>();
+
+  // Get live wallet balance from Polymarket + Polygon
+  api.get('/polymarket/:agentId/wallet/balance', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const row = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (!row?.funder_address) return c.json({ error: 'No wallet configured' }, 404);
+      const address = row.funder_address;
+
+      // Parallel fetch: USDC.e (bridged) + USDC (native) + POL balance
+      const USDC_E_CONTRACT = USDC_E_SHARED;
+      const USDC_NATIVE_CONTRACT = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // Native USDC — NOT directly usable on Polymarket
+      const POLYGON_RPCS = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org', 'https://polygon-rpc.com'];
+      let POLYGON_RPC = POLYGON_RPCS[0];
+      // Find a working RPC
+      for (const rpc of POLYGON_RPCS) {
+        try {
+          const test = await fetch(rpc, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'eth_blockNumber', params: [] }),
+            signal: AbortSignal.timeout(3000) }).then(r => r.json());
+          if (test?.result) { POLYGON_RPC = rpc; break; }
+        } catch {}
+      }
+      const addrHex = address.slice(2).toLowerCase();
+      const balanceOfData = '0x70a08231000000000000000000000000' + addrHex;
+
+      const [usdceRes, usdcNativeRes, maticRes] = await Promise.all([
+        fetch(POLYGON_RPC, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [
+            { to: USDC_E_CONTRACT, data: balanceOfData }, 'latest'
+          ] })
+        }).then(r => r.json()).catch(() => null),
+        fetch(POLYGON_RPC, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'eth_call', params: [
+            { to: USDC_NATIVE_CONTRACT, data: balanceOfData }, 'latest'
+          ] })
+        }).then(r => r.json()).catch(() => null),
+        fetch(POLYGON_RPC, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'eth_getBalance', params: [address, 'latest'] })
+        }).then(r => r.json()).catch(() => null),
+      ]);
+
+      const cached = balanceCache.get(address);
+
+      let usdceBalance = cached?.usdce ?? 0;
+      let usdcNativeBalance = cached?.usdcNative ?? 0;
+      let maticBalance = cached?.matic ?? 0;
+
+      if (usdceRes?.result && usdceRes.result !== '0x' && !usdceRes.error) {
+        usdceBalance = Number(BigInt(usdceRes.result)) / 1e6;
+      }
+      if (usdcNativeRes?.result && usdcNativeRes.result !== '0x' && !usdcNativeRes.error) {
+        usdcNativeBalance = Number(BigInt(usdcNativeRes.result)) / 1e6;
+      }
+      if (maticRes?.result && maticRes.result !== '0x' && !maticRes.error) {
+        maticBalance = Number(BigInt(maticRes.result)) / 1e18;
+      }
+
+      // Cache the good values
+      balanceCache.set(address, { usdce: usdceBalance, usdcNative: usdcNativeBalance, usdc: usdceBalance + usdcNativeBalance, matic: maticBalance, ts: Date.now() });
+
+      // Get open positions from Polymarket Data API for accurate portfolio values
+      const paperPos = await edb()?.all(`SELECT SUM(entry_price * size) as total_invested, COUNT(*) as open_count FROM poly_paper_positions WHERE agent_id = ? AND closed = 0`, [agentId]) as any[] || [];
+      const pp = paperPos[0] || { total_invested: 0, open_count: 0 };
+
+      let liveInvested = 0, liveCurrentValue = 0, liveCount = 0, livePnl = 0;
+      try {
+        const posResp = await fetch(`https://data-api.polymarket.com/positions?user=${address}`);
+        const posData = await posResp.json();
+        if (Array.isArray(posData)) {
+          for (const p of posData) {
+            if (parseFloat(p.size) <= 0) continue;
+            liveInvested += parseFloat(p.initialValue) || 0;
+            liveCurrentValue += parseFloat(p.currentValue) || 0;
+            livePnl += parseFloat(p.cashPnl) || 0;
+            liveCount++;
+          }
+        }
+      } catch {}
+
+      const pos = {
+        total_invested: (pp.total_invested || 0) + liveInvested,
+        current_value: liveCurrentValue,
+        pnl: livePnl,
+        open_count: (pp.open_count || 0) + liveCount,
+      };
+
+      const totalUsdc = usdceBalance + usdcNativeBalance;
+      const needsSwap = usdceBalance < 1 && usdcNativeBalance > 1;
+
+      return c.json({
+        address,
+        balances: {
+          usdc: +totalUsdc.toFixed(6),
+          usdce: +usdceBalance.toFixed(6),
+          usdcNative: +usdcNativeBalance.toFixed(6),
+          matic: +maticBalance.toFixed(6),
+        },
+        needsSwap,
+        portfolio: {
+          investedValue: +pos.total_invested.toFixed(2),
+          currentValue: +pos.current_value.toFixed(2),
+          pnl: +pos.pnl.toFixed(2),
+          openPositions: pos.open_count || 0,
+          totalValue: +pos.current_value.toFixed(2),
+        },
+        network: 'Polygon',
+        depositAddress: address,
+        depositInstructions: 'Send USDC.e (bridged USDC) on Polygon network to ' + address,
+      });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // On-chain transaction history — real USDC wallet transfers
+  api.get('/polymarket/:agentId/wallet/transactions', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const row = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (!row?.funder_address) return c.json({ error: 'No wallet configured' }, 404);
+      const address = row.funder_address.toLowerCase();
+      const page = parseInt(c.req.query('page') || '1');
+      const pageSize = parseInt(c.req.query('pageSize') || '25');
+
+      const RPC = 'https://polygon-bor-rpc.publicnode.com';
+      const USDC_BRIDGED = USDC_E_SHARED;
+      const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+      const addrPadded = '0x000000000000000000000000' + address.slice(2);
+
+      // Get current block
+      const blockRes = await fetch(RPC, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_blockNumber', params: [] })
+      }).then(r => r.json()).catch(() => ({ result: '0x0' }));
+      const currentBlock = parseInt(blockRes?.result || '0x0', 16);
+
+      // Scan 50k-block chunks, up to 500k blocks back (~6 days on Polygon)
+      const allLogs: any[] = [];
+      const maxScan = 500000;
+      const chunkSize = 49999;
+
+      const fetches: Promise<void>[] = [];
+      for (let to = currentBlock; to > currentBlock - maxScan; to -= chunkSize) {
+        const fromBlock = Math.max(currentBlock - maxScan, to - chunkSize);
+        const toBlock = to;
+        const fromHex = '0x' + fromBlock.toString(16);
+        const toHex = '0x' + toBlock.toString(16);
+
+        fetches.push(
+          Promise.all([
+            fetch(RPC, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getLogs', params: [{ fromBlock: fromHex, toBlock: toHex, address: USDC_BRIDGED, topics: [TRANSFER_TOPIC, null, addrPadded] }] })
+            }).then(r => r.json()).then(d => { if (d?.result) allLogs.push(...d.result.map((l: any) => ({ ...l, direction: 'in' }))); }).catch(() => {}),
+            fetch(RPC, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getLogs', params: [{ fromBlock: fromHex, toBlock: toHex, address: USDC_BRIDGED, topics: [TRANSFER_TOPIC, addrPadded, null] }] })
+            }).then(r => r.json()).then(d => { if (d?.result) allLogs.push(...d.result.map((l: any) => ({ ...l, direction: 'out' }))); }).catch(() => {}),
+          ]).then(() => {})
+        );
+      }
+      await Promise.all(fetches);
+
+      // Parse logs into transactions
+      const transactions = allLogs.map((log: any) => {
+        const from = '0x' + (log.topics[1] || '').slice(26);
+        const to = '0x' + (log.topics[2] || '').slice(26);
+        const rawValue = BigInt(log.data || '0x0');
+        const value = Number(rawValue) / 1e6;
+        const blockNum = parseInt(log.blockNumber || '0x0', 16);
+        return {
+          hash: log.transactionHash,
+          type: 'erc20',
+          token: 'USDC.e',
+          from, to,
+          value: +value.toFixed(6),
+          direction: log.direction,
+          timestamp: blockNum, // Will use block as sort key
+          block: blockNum,
+          gas: null,
+          status: 'confirmed',
+        };
+      });
+
+      // Sort by block desc
+      transactions.sort((a, b) => b.block - a.block);
+
+      // Try to get timestamps from blocks (batch the unique blocks)
+      const uniqueBlocks = [...new Set(transactions.map(t => t.block))];
+      const blockTimestamps: Record<number, number> = {};
+      await Promise.all(uniqueBlocks.slice(0, 25).map(async (b) => {
+        try {
+          const res = await fetch(RPC, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByNumber', params: ['0x' + b.toString(16), false] })
+          }).then(r => r.json());
+          if (res?.result?.timestamp) blockTimestamps[b] = parseInt(res.result.timestamp, 16) * 1000;
+        } catch {}
+      }));
+      for (const tx of transactions) {
+        if (blockTimestamps[tx.block]) tx.timestamp = blockTimestamps[tx.block];
+      }
+
+      return c.json({ address, transactions, page, pageSize, total: transactions.length, hasMore: transactions.length >= pageSize });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ── Archive System ──────────────────────────────────────────
+
+  // Create archive tables on first use (lazy init in the archive endpoint below)
+
+  // Archive completed/closed data for a specific tab
+  api.post('/polymarket/:agentId/archive', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const { tab } = await c.req.json();
+      const e = edb();
+      const results: Record<string, number> = {};
+
+      // Lazy-create archive tables
+      for (const t of ['poly_trade_log', 'poly_price_alerts', 'poly_watcher_events', 'poly_exit_rules', 'poly_watchers']) {
+        await e?.run(`CREATE TABLE IF NOT EXISTS ${t}_archive (LIKE ${t} INCLUDING ALL)`).catch(() => {
+          // Fallback for older Postgres or SQLite: create with same columns manually
+        });
+      }
+
+      if (tab === 'trades' || tab === 'all') {
+        // Archive non-active trades (filled, failed, rejected, cancelled, no_position, no_wallet)
+        await e?.run(`
+          INSERT INTO poly_trade_log_archive SELECT * FROM poly_trade_log 
+          WHERE agent_id = $1 AND status NOT IN ('placed', 'pending')
+        `, [agentId]).catch(() => {});
+        await e?.run(`
+          DELETE FROM poly_trade_log WHERE agent_id = $1 AND status NOT IN ('placed', 'pending')
+        `, [agentId]).catch(() => {});
+
+        // Also archive 'placed' trades for positions that no longer exist on-chain
+        let closedCount = 0;
+        try {
+          const wallet = await e?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = $1`, [agentId]) as any;
+          if (wallet?.funder_address) {
+            const posResp = await fetch(`https://data-api.polymarket.com/positions?user=${wallet.funder_address}`);
+            const posData = await posResp.json();
+            const liveTokens = new Set(
+              (Array.isArray(posData) ? posData : []).filter((p: any) => parseFloat(p.size) > 0).map((p: any) => p.asset)
+            );
+            // Get all placed trades
+            const placedTrades = await e?.all(
+              `SELECT id, token_id FROM poly_trade_log WHERE agent_id = $1 AND status = 'placed'`, [agentId]
+            ) || [];
+            const closedIds = (placedTrades as any[]).filter(t => !liveTokens.has(t.token_id)).map(t => t.id);
+            if (closedIds.length > 0) {
+              const placeholders = closedIds.map((_: any, i: number) => `$${i + 1}`).join(',');
+              await e?.run(`INSERT INTO poly_trade_log_archive SELECT * FROM poly_trade_log WHERE id IN (${placeholders})`, closedIds).catch(() => {});
+              const del = await e?.run(`DELETE FROM poly_trade_log WHERE id IN (${placeholders})`, closedIds).catch(() => ({ changes: 0 }));
+              closedCount = (del as any)?.rowCount || (del as any)?.changes || 0;
+            }
+          }
+        } catch {}
+        results.trades = closedCount;
+      }
+
+      if (tab === 'alerts' || tab === 'all') {
+        // Archive triggered alerts
+        const moved = await e?.run(`
+          INSERT INTO poly_price_alerts_archive SELECT * FROM poly_price_alerts 
+          WHERE agent_id = $1 AND triggered = 1
+        `, [agentId]).catch(() => ({ changes: 0 }));
+        const deleted = await e?.run(`
+          DELETE FROM poly_price_alerts WHERE agent_id = $1 AND triggered = 1
+        `, [agentId]).catch(() => ({ changes: 0 }));
+        results.alerts = (deleted as any)?.rowCount || (deleted as any)?.changes || 0;
+      }
+
+      if (tab === 'signals' || tab === 'all') {
+        // Archive acknowledged watcher events
+        const moved = await e?.run(`
+          INSERT INTO poly_watcher_events_archive SELECT * FROM poly_watcher_events 
+          WHERE agent_id = $1 AND acknowledged = 1
+        `, [agentId]).catch(() => ({ changes: 0 }));
+        const deleted = await e?.run(`
+          DELETE FROM poly_watcher_events WHERE agent_id = $1 AND acknowledged = 1
+        `, [agentId]).catch(() => ({ changes: 0 }));
+        results.signals = (deleted as any)?.rowCount || (deleted as any)?.changes || 0;
+      }
+
+      if (tab === 'exits' || tab === 'all') {
+        // Archive inactive exit rules
+        const moved = await e?.run(`
+          INSERT INTO poly_exit_rules_archive SELECT * FROM poly_exit_rules 
+          WHERE agent_id = $1 AND status IN ('fired', 'cancelled', 'expired')
+        `, [agentId]).catch(() => ({ changes: 0 }));
+        const deleted = await e?.run(`
+          DELETE FROM poly_exit_rules WHERE agent_id = $1 AND status IN ('fired', 'cancelled', 'expired')
+        `, [agentId]).catch(() => ({ changes: 0 }));
+        results.exits = (deleted as any)?.rowCount || (deleted as any)?.changes || 0;
+      }
+
+      if (tab === 'watchers' || tab === 'all') {
+        // Archive paused/disabled watchers whose tokens no longer have positions
+        // For 'all' tab: archive paused watchers. For 'watchers' tab: archive paused ones.
+        await e?.run(`
+          INSERT INTO poly_watchers_archive SELECT * FROM poly_watchers 
+          WHERE agent_id = $1 AND status IN ('paused', 'disabled')
+        `, [agentId]).catch(() => {});
+        const deleted = await e?.run(`
+          DELETE FROM poly_watchers WHERE agent_id = $1 AND status IN ('paused', 'disabled')
+        `, [agentId]).catch(() => ({ changes: 0 }));
+        results.watchers = (deleted as any)?.rowCount || (deleted as any)?.changes || 0;
+      }
+
+      return c.json({ status: 'ok', archived: results });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // View archived data
+  api.get('/polymarket/:agentId/archive/:tab', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const tab = c.req.param('tab');
+      const limit = parseInt(c.req.query('limit') || '50');
+      const offset = parseInt(c.req.query('offset') || '0');
+      const tableMap: Record<string, string> = {
+        trades: 'poly_trade_log_archive',
+        alerts: 'poly_price_alerts_archive',
+        signals: 'poly_watcher_events_archive',
+        exits: 'poly_exit_rules_archive',
+        watchers: 'poly_watchers_archive',
+      };
+      const table = tableMap[tab];
+      if (!table) return c.json({ error: 'Invalid tab' }, 400);
+      const rows = await edb()?.all(`SELECT * FROM ${table} WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, [agentId, limit, offset]) || [];
+      const countRow = await edb()?.get(`SELECT COUNT(*) as cnt FROM ${table} WHERE agent_id = $1`, [agentId]) as any;
+      return c.json({ rows, total: countRow?.cnt || 0 });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ── Performance Goals System ──────────────────────────────
+
+  // Init goals table
+  try {
+    edb()?.run(`CREATE TABLE IF NOT EXISTS poly_goals (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      period TEXT NOT NULL DEFAULT 'daily',
+      target_value REAL NOT NULL,
+      current_value REAL DEFAULT 0,
+      met INTEGER DEFAULT 0,
+      met_at TEXT,
+      streak INTEGER DEFAULT 0,
+      best_streak INTEGER DEFAULT 0,
+      times_met INTEGER DEFAULT 0,
+      times_missed INTEGER DEFAULT 0,
+      last_evaluated TEXT,
+      enabled INTEGER DEFAULT 1,
+      notify_on_met INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch {}
+
+  // List goals
+  api.get('/polymarket/:agentId/goals', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await edb()?.all(`SELECT * FROM poly_goals WHERE agent_id = ? ORDER BY created_at DESC`, [agentId]) || [];
+      return c.json({ goals: rows });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Create goal
+  api.post('/polymarket/:agentId/goals', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      const id = 'goal_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      await edb()?.run(
+        `INSERT INTO poly_goals (id, agent_id, name, type, period, target_value, notify_on_met, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, agentId, body.name, body.type, body.period || 'daily', body.target_value, body.notify_on_met !== false ? 1 : 0, 1]
+      );
+      return c.json({ id, status: 'created' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Update goal
+  api.put('/polymarket/:agentId/goals/:goalId', requireRole('admin'), async (c) => {
+    try {
+      const { goalId } = c.req.param() as any;
+      const body = await c.req.json();
+      const sets: string[] = [];
+      const vals: any[] = [];
+      for (const k of ['name', 'type', 'period', 'target_value', 'notify_on_met', 'enabled']) {
+        if (body[k] !== undefined) { sets.push(`${k} = ?`); vals.push(body[k]); }
+      }
+      if (sets.length === 0) return c.json({ error: 'Nothing to update' }, 400);
+      sets.push("updated_at = CURRENT_TIMESTAMP");
+      vals.push(goalId);
+      await edb()?.run(`UPDATE poly_goals SET ${sets.join(', ')} WHERE id = ?`, vals);
+      return c.json({ status: 'updated' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Delete goal
+  api.delete('/polymarket/:agentId/goals/:goalId', requireRole('admin'), async (c) => {
+    try {
+      const { goalId } = c.req.param() as any;
+      await edb()?.run(`DELETE FROM poly_goals WHERE id = ?`, [goalId]);
+      return c.json({ status: 'deleted' });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Evaluate all goals for an agent (called by agent tool or on dashboard load)
+  api.post('/polymarket/:agentId/goals/evaluate', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const goals = await edb()?.all(`SELECT * FROM poly_goals WHERE agent_id = ? AND enabled = 1`, [agentId]) as any[] || [];
+      if (goals.length === 0) return c.json({ evaluated: 0, results: [] });
+
+      // Gather current portfolio data
+      const POLYGON_RPC = 'https://polygon.drpc.org';
+      const USDC_CONTRACT = USDC_E_SHARED;
+      const walletRow = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      let usdcBalance = 0;
+      if (walletRow?.funder_address) {
+        try {
+          const balRes = await fetch(POLYGON_RPC, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [
+              { to: USDC_CONTRACT, data: '0x70a08231000000000000000000000000' + walletRow.funder_address.slice(2).toLowerCase() }, 'latest'
+            ] })
+          }).then(r => r.json());
+          usdcBalance = Number(BigInt(balRes?.result || '0x0')) / 1e6;
+        } catch {}
+      }
+
+      // Get paper trading stats
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const weekStart = new Date(now.getTime() - 7 * 86400000).toISOString();
+      const monthStart = new Date(now.getTime() - 30 * 86400000).toISOString();
+
+      const paperPositions = await edb()?.all(`SELECT * FROM poly_paper_positions WHERE agent_id = ?`, [agentId]) as any[] || [];
+      const closedToday = paperPositions.filter((p: any) => p.closed && p.closed_at >= todayStart);
+      const closedWeek = paperPositions.filter((p: any) => p.closed && p.closed_at >= weekStart);
+      const closedMonth = paperPositions.filter((p: any) => p.closed && p.closed_at >= monthStart);
+      const openPositions = paperPositions.filter((p: any) => !p.closed);
+
+      const calcPnl = (positions: any[]) => positions.reduce((sum: number, p: any) => sum + (p.pnl || 0), 0);
+      const calcWinRate = (positions: any[]) => {
+        if (positions.length === 0) return 0;
+        const wins = positions.filter((p: any) => (p.pnl || 0) > 0).length;
+        return (wins / positions.length) * 100;
+      };
+
+      const invested = openPositions.reduce((s: number, p: any) => s + ((p.entry_price || 0) * (p.size || 0)), 0);
+      const portfolioValue = usdcBalance + invested;
+
+      // Count real trades from poly_trade_log (in addition to paper positions)
+      const realTradesToday = await edb()?.get(
+        `SELECT COUNT(*) as cnt FROM poly_trade_log WHERE agent_id = ? AND created_at::timestamptz > ?::timestamptz`,
+        [agentId, todayStart]
+      ).catch(() => ({ cnt: 0 })) as any;
+      const realTradesWeek = await edb()?.get(
+        `SELECT COUNT(*) as cnt FROM poly_trade_log WHERE agent_id = ? AND created_at::timestamptz > ?::timestamptz`,
+        [agentId, weekStart]
+      ).catch(() => ({ cnt: 0 })) as any;
+
+      const paperTradesToday = closedToday.length + openPositions.filter((p: any) => p.created_at >= todayStart).length;
+      const paperTradesWeek = closedWeek.length;
+
+      // Metric lookup
+      const metrics: Record<string, number> = {
+        daily_pnl_pct: invested > 0 ? (calcPnl(closedToday) / invested) * 100 : 0,
+        daily_pnl_usd: calcPnl(closedToday),
+        weekly_pnl_pct: invested > 0 ? (calcPnl(closedWeek) / invested) * 100 : 0,
+        weekly_pnl_usd: calcPnl(closedWeek),
+        monthly_pnl_pct: invested > 0 ? (calcPnl(closedMonth) / invested) * 100 : 0,
+        monthly_pnl_usd: calcPnl(closedMonth),
+        win_rate: calcWinRate([...closedToday, ...closedWeek]),
+        total_trades_today: Math.max(paperTradesToday, parseInt(realTradesToday?.cnt || '0')),
+        total_trades_week: Math.max(paperTradesWeek, parseInt(realTradesWeek?.cnt || '0')),
+        portfolio_value: portfolioValue,
+        balance: usdcBalance,
+        open_positions: openPositions.length,
+        max_drawdown: 0, // TODO: calculate from PnL timeline
+      };
+
+      const results: any[] = [];
+      for (const goal of goals) {
+        // Map goal type to metric
+        let currentValue = 0;
+        const typeMap: Record<string, string> = {
+          daily_pnl_pct: 'daily_pnl_pct', daily_pnl_usd: 'daily_pnl_usd',
+          weekly_pnl_pct: 'weekly_pnl_pct', weekly_pnl_usd: 'weekly_pnl_usd',
+          monthly_pnl_pct: 'monthly_pnl_pct', monthly_pnl_usd: 'monthly_pnl_usd',
+          win_rate: 'win_rate', min_trades_daily: 'total_trades_today',
+          min_trades_weekly: 'total_trades_week', portfolio_value: 'portfolio_value',
+          max_drawdown: 'max_drawdown', balance_target: 'balance',
+        };
+        const metricKey = typeMap[goal.type] || goal.type;
+        currentValue = metrics[metricKey] || 0;
+
+        // For max_drawdown, goal is met when current is BELOW target (inverted)
+        const isMaxType = goal.type === 'max_drawdown';
+        const met = isMaxType ? (currentValue <= goal.target_value) : (currentValue >= goal.target_value);
+        const wasMet = !!goal.met;
+        const newStreak = met ? (goal.streak || 0) + 1 : 0;
+        const bestStreak = Math.max(goal.best_streak || 0, newStreak);
+
+        await edb()?.run(
+          `UPDATE poly_goals SET current_value = ?, met = ?, streak = ?, best_streak = ?, times_met = times_met + ?, times_missed = times_missed + ?, last_evaluated = CURRENT_TIMESTAMP::text, met_at = CASE WHEN ? = 1 AND met = 0 THEN CURRENT_TIMESTAMP::text ELSE met_at END, updated_at = CURRENT_TIMESTAMP::text WHERE id = ?`,
+          [currentValue, met ? 1 : 0, newStreak, bestStreak, (met && !wasMet) ? 1 : 0, (!met && wasMet) ? 1 : 0, met ? 1 : 0, goal.id]
+        );
+
+        const remaining = isMaxType ? 0 : Math.max(0, goal.target_value - currentValue);
+        const progress = isMaxType ? (currentValue <= goal.target_value ? 100 : 0) : Math.min(100, goal.target_value > 0 ? (currentValue / goal.target_value) * 100 : 0);
+
+        results.push({
+          id: goal.id, name: goal.name, type: goal.type,
+          target: goal.target_value, current: +currentValue.toFixed(4),
+          met, justAchieved: met && !wasMet,
+          remaining: +remaining.toFixed(4), progress: +progress.toFixed(1),
+          streak: newStreak, bestStreak,
+        });
+      }
+
+      return c.json({ evaluated: results.length, results, metrics });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // SSE price stream for watched markets
+  api.get('/polymarket/:agentId/price-stream', requireRole('admin'), async (c) => {
+    const agentId = c.req.param('agentId');
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const send = (data: string) => {
+          try { controller.enqueue(encoder.encode(`data: ${data}\n\n`)); }
+          catch { clearInterval(poll); }
+        };
+        send(JSON.stringify({ type: 'connected' }));
+
+        // Poll Polymarket prices every 3 seconds for active positions
+        const poll = setInterval(async () => {
+          try {
+            const e = edb();
+            // Get active paper positions + live trades + alerts
+            const paperRows = await e?.all(
+              `SELECT DISTINCT token_id, market_question, side, entry_price, size FROM poly_paper_positions WHERE agent_id = ? AND closed = 0`, [agentId]
+            ).catch(() => []) || [];
+            // Live positions from Polymarket Data API (real on-chain)
+            let liveTradeRows: any[] = [];
+            const resolvedPrices: Record<string, number> = {}; // token_id → resolved price (1.0 for winner, 0 for loser)
+            try {
+              const wallet = await e?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
+              if (wallet?.funder_address) {
+                const posResp = await fetch(`https://data-api.polymarket.com/positions?user=${wallet.funder_address}&sizeThreshold=0`);
+                const posData = await posResp.json();
+                if (Array.isArray(posData)) {
+                  liveTradeRows = posData.filter((p: any) => parseFloat(p.size) > 0).map((p: any) => {
+                    // If position is redeemable or curPrice is exactly 0 or 1, it's resolved
+                    const curPrice = parseFloat(p.curPrice) || 0;
+                    if (p.redeemable || curPrice === 1 || curPrice === 0) {
+                      resolvedPrices[p.asset] = curPrice;
+                    }
+                    return {
+                      token_id: p.asset,
+                      market_question: p.title || 'Unknown',
+                      outcome: p.outcome || '',
+                      side: 'BUY',
+                      entry_price: parseFloat(p.avgPrice) || 0,
+                      size: parseFloat(p.size) || 0,
+                      redeemable: p.redeemable || false,
+                      resolved_price: p.redeemable ? curPrice : undefined,
+                    };
+                  });
+                }
+              }
+            } catch {
+              // Fallback to trade log netted
+              const rawRows = await e?.all(
+                `SELECT token_id, market_question, outcome, side, price as entry_price, size FROM poly_trade_log WHERE agent_id = ? AND status = 'placed' AND clob_order_id IS NOT NULL`, [agentId]
+              ).catch(() => []) || [];
+              const netMap = new Map<string, any>();
+              for (const r of rawRows as any[]) {
+                if (!netMap.has(r.token_id)) netMap.set(r.token_id, { ...r, size: 0, side: 'BUY' });
+                const entry = netMap.get(r.token_id)!;
+                entry.size += r.side === 'BUY' ? parseFloat(r.size) : -parseFloat(r.size);
+              }
+              liveTradeRows = Array.from(netMap.values()).filter((p: any) => p.size > 0.01);
+            }
+            const alertRows = await e?.all(
+              `SELECT DISTINCT token_id, market_id FROM poly_price_alerts WHERE agent_id = ? AND triggered = 0`, [agentId]
+            ).catch(() => []) || [];
+
+            // Merge paper + live positions
+            const allPositionRows = [...paperRows, ...liveTradeRows];
+
+            if (allPositionRows.length === 0 && alertRows.length === 0) {
+              send(JSON.stringify({ type: 'heartbeat', ts: Date.now() }));
+              return;
+            }
+
+            // Fetch current prices for all unique token IDs
+            const tokenIds = [...new Set([...allPositionRows.map((r: any) => r.token_id), ...alertRows.map((r: any) => r.token_id)].filter(Boolean))];
+            const prices: Record<string, number> = {};
+
+            await Promise.all(tokenIds.map(async (tid: string) => {
+              try {
+                // Use resolved price from Data API if available (market ended)
+                if (resolvedPrices[tid] !== undefined) {
+                  prices[tid] = resolvedPrices[tid];
+                  return;
+                }
+                const res = await fetch(`https://clob.polymarket.com/midpoint?token_id=${tid}`);
+                const data = await res.json();
+                prices[tid] = parseFloat(data?.mid || '0');
+              } catch { /* skip */ }
+            }));
+
+            // Calculate P&L for each position (paper + live)
+            const positions = allPositionRows.map((p: any) => {
+              const currentPrice = prices[p.token_id] || p.entry_price;
+              const pnl = p.side?.toLowerCase() === 'buy'
+                ? (currentPrice - p.entry_price) * p.size
+                : (p.entry_price - currentPrice) * p.size;
+              // Use actual outcome from DB if available, otherwise derive from side
+              const sideLower = (p.side || '').toLowerCase();
+              const outcome = p.outcome
+                ? p.outcome
+                : (sideLower === 'buy' || sideLower === 'sell')
+                  ? (sideLower === 'buy' ? 'YES' : 'NO')
+                  : p.side;
+              return {
+                token_id: p.token_id,
+                market: p.market_question,
+                side: p.side,
+                outcome: outcome,
+                entry: p.entry_price,
+                current: +currentPrice.toFixed(4),
+                size: p.size,
+                pnl: +pnl.toFixed(2),
+                pnlPct: +((pnl / (p.entry_price * p.size)) * 100).toFixed(2),
+                redeemable: p.redeemable || false,
+                resolved: resolvedPrices[p.token_id] !== undefined,
+              };
+            });
+
+            const totalPnl = positions.reduce((s: number, p: any) => s + p.pnl, 0);
+
+            send(JSON.stringify({
+              type: 'prices',
+              positions,
+              totalPnl: +totalPnl.toFixed(2),
+              ts: Date.now(),
+            }));
+          } catch (err: any) {
+            send(JSON.stringify({ type: 'error', message: err.message }));
+          }
+        }, 3000);
+
+        c.req.raw.signal?.addEventListener('abort', () => { clearInterval(poll); });
+      },
+    });
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+    });
   });
 
   // Get alerts for an agent
   api.get('/polymarket/:agentId/alerts', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`SELECT * FROM poly_price_alerts WHERE agent_id = $1 ORDER BY created_at DESC`, [agentId]);
-      return c.json({ alerts: rows?.rows || rows || [] });
+      const rows = await edb()?.all(`SELECT * FROM poly_price_alerts WHERE agent_id = ? ORDER BY created_at DESC`, [agentId]) || [];
+      return c.json({ alerts: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
   // Delete an alert
   api.delete('/polymarket/alerts/:alertId', requireRole('admin'), async (c) => {
     try {
-      await (db as any).execute?.(`DELETE FROM poly_price_alerts WHERE id = $1`, [c.req.param('alertId')]);
+      await edb()?.run(`DELETE FROM poly_price_alerts WHERE id = ?`, [c.req.param('alertId')]);
       return c.json({ status: 'ok' });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3094,8 +4525,309 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/paper', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`SELECT * FROM poly_paper_positions WHERE agent_id = $1 ORDER BY created_at DESC`, [agentId]);
-      return c.json({ positions: rows?.rows || rows || [] });
+      const rows = await edb()?.all(`SELECT * FROM poly_paper_positions WHERE agent_id = ? ORDER BY created_at DESC`, [agentId]) || [];
+      return c.json({ positions: rows });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Live positions (real trades with CLOB order IDs)
+  api.get('/polymarket/:agentId/live-positions', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      // Get wallet address for this agent
+      const wallet = await edb()?.get(
+        `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]
+      );
+      const address = wallet?.funder_address;
+      if (!address) return c.json({ positions: [] });
+
+      // Fetch real positions from Polymarket Data API
+      try {
+        const resp = await fetch(`https://data-api.polymarket.com/positions?user=${address}`);
+        const data = await resp.json();
+        if (Array.isArray(data)) {
+          const positions = data.filter((p: any) => parseFloat(p.size) > 0).map((p: any) => ({
+            id: p.conditionId || p.asset,
+            token_id: p.asset,
+            market_question: p.title || 'Unknown',
+            outcome: p.outcome || '',
+            side: 'BUY',
+            entry_price: parseFloat(p.avgPrice) || 0,
+            size: parseFloat(p.size) || 0,
+            current_price: parseFloat(p.curPrice) || 0,
+            pnl: parseFloat(p.cashPnl) || 0,
+            pnl_pct: parseFloat(p.percentPnl) || 0,
+            initial_value: parseFloat(p.initialValue) || 0,
+            current_value: parseFloat(p.currentValue) || 0,
+            position_type: 'live',
+            created_at: null,
+          }));
+          return c.json({ positions });
+        }
+      } catch (apiErr: any) {
+        console.warn(`[live-positions] Data API failed, falling back to trade log: ${apiErr.message}`);
+      }
+
+      // Fallback: trade log (but net out buys/sells per token)
+      const rows = await edb()?.all(
+        `SELECT token_id, market_question, outcome, side, price as entry_price, size, created_at
+         FROM poly_trade_log WHERE agent_id = ? AND status = 'placed' AND clob_order_id IS NOT NULL
+         ORDER BY created_at DESC`, [agentId]
+      ) || [];
+      // Net positions by token_id
+      const netMap = new Map<string, any>();
+      for (const r of rows as any[]) {
+        const key = r.token_id;
+        if (!netMap.has(key)) netMap.set(key, { ...r, size: 0, side: 'BUY', position_type: 'live' });
+        const entry = netMap.get(key)!;
+        entry.size += r.side === 'BUY' ? parseFloat(r.size) : -parseFloat(r.size);
+      }
+      const positions = Array.from(netMap.values()).filter((p: any) => p.size > 0.01);
+      return c.json({ positions });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Manual trade execution from dashboard
+  api.post('/polymarket/:agentId/manual-trade', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      const { token_id, side, size, market_question, outcome } = body;
+      if (!token_id || !side || !size) return c.json({ error: 'Missing token_id, side, or size' }, 400);
+      if (!['BUY', 'SELL'].includes(side)) return c.json({ error: 'side must be BUY or SELL' }, 400);
+      if (size < 1) return c.json({ error: 'Minimum size is 1 share' }, 400);
+
+      // For BUY orders, validate against wallet balance
+      if (side === 'BUY') {
+        try {
+          const walletRow = await edb()?.get(`SELECT address FROM poly_wallets WHERE agent_id = ?`, [agentId]) as any;
+          if (walletRow?.address) {
+            const USDC_E = USDC_E_SHARED;
+            const balResp = await fetch(`https://polygon-bor-rpc.publicnode.com`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: USDC_E, data: '0x70a08231000000000000000000000000' + walletRow.address.slice(2) }, 'latest'] }),
+              signal: AbortSignal.timeout(6000),
+            });
+            const balData = await balResp.json();
+            const usdcBal = parseInt(balData?.result || '0', 16) / 1e6;
+            // Quick cost estimate: price * size
+            const midResp2 = await fetch(`https://clob.polymarket.com/midpoint?token_id=${token_id}`, { signal: AbortSignal.timeout(6000) });
+            const midData2 = await midResp2.json();
+            const estPrice = parseFloat(midData2?.mid || '0');
+            if (estPrice > 0 && estPrice * size > usdcBal) {
+              return c.json({ error: `Insufficient funds: need $${(estPrice * size).toFixed(2)} but wallet has $${usdcBal.toFixed(2)} USDC` }, 400);
+            }
+          }
+        } catch {} // Don't block trade if balance check fails
+      }
+
+      // Get current midpoint price
+      const midResp = await fetch(`https://clob.polymarket.com/midpoint?token_id=${token_id}`, { signal: AbortSignal.timeout(8000) });
+      const midData = await midResp.json();
+      const price = parseFloat(midData?.mid || '0');
+      if (!price) return c.json({ error: 'Could not fetch current price' }, 400);
+
+      const tradeId = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const e = edb();
+      // The polymarket tools use $N-style params which can be REUSED (e.g. ON CONFLICT SET col=$2).
+      // edb() converts ?→$N internally, which breaks reused params (15 ?'s but 8 values).
+      // Use rawQuery/rawExec which pass $N params directly to Postgres without conversion.
+      const dbIface = {
+        execute: async (sql: string, params?: any[]) => (e as any)?.rawExec?.(sql, params) || e?.run(sql.replace(/\$(\d+)/g, '?'), params),
+        query: async (sql: string, params?: any[]) => (e as any)?.rawQuery?.(sql, params) || e?.all(sql.replace(/\$(\d+)/g, '?'), params),
+        get: async (sql: string, params?: any[]) => { const rows = await ((e as any)?.rawQuery?.(sql, params) || e?.all(sql.replace(/\$(\d+)/g, '?'), params)); return rows?.[0]; },
+        getEngineDB: () => e,
+      };
+
+      // Verify wallet is accessible before attempting trade
+      const testCreds = await e?.all('SELECT agent_id FROM poly_wallet_credentials WHERE agent_id = ?', [agentId]);
+      if (!testCreds || testCreds.length === 0) {
+        return c.json({ error: 'No wallet credentials found for this agent. Set up a wallet first.' }, 400);
+      }
+
+      console.log(`[manual-trade] ${side} ${size} shares, agent=${agentId}, token=${token_id.slice(0,12)}..., price=${price}`);
+
+      // Clear cached CLOB client (may have failed previously with bad db wrapper)
+      try {
+        const { getClobClient } = await import('../agent-tools/tools/polymarket-runtime.js');
+        // clientInstances is module-level cache — if it previously failed, it won't have an entry
+        // so getClobClient will re-derive. Just verify it works now:
+        const testClient = await (getClobClient as any)(agentId, dbIface);
+        if (!testClient) {
+          return c.json({ error: 'Could not initialize trading client. Check wallet setup and SDK.' }, 500);
+        }
+        console.log(`[manual-trade] CLOB client ready for ${agentId}`);
+      } catch (preErr: any) {
+        console.log(`[manual-trade] CLOB client error:`, preErr.message);
+        return c.json({ error: 'Trading client error: ' + preErr.message }, 500);
+      }
+
+      const result = await executeOrder(agentId, dbIface, tradeId, {
+        token_id, side, price, size,
+        order_type: 'GTC',
+        market_question: market_question || 'Manual trade',
+        outcome: outcome || '',
+        rationale: 'Manual trade from dashboard',
+      }, 'manual_dashboard');
+
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      console.log(`[manual-trade] Result status: ${parsed?.status || parsed?.error || 'unknown'}`, JSON.stringify(parsed).slice(0, 200));
+
+      // If executeOrder returned an error status, surface it properly
+      if (parsed?.status === 'no_wallet' || parsed?.status === 'error' || parsed?.error) {
+        return c.json({ error: parsed?.message || parsed?.error || 'Trade failed: ' + (parsed?.status || 'unknown') }, 400);
+      }
+      return c.json({ status: 'ok', trade: parsed });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Search markets for manual trading — full screener analysis + orderbook
+  api.get('/polymarket/markets/search', requireRole('admin'), async (c) => {
+    try {
+      const q = c.req.query('q') || '';
+      const strategy = c.req.query('strategy') || 'best_opportunities';
+      if (!q || q.length < 2) return c.json({ markets: [] });
+
+      // Fetch from screener + direct Gamma search for maximum coverage
+      const { screenMarkets } = await import('../polymarket-engines/screener.js');
+      const { apiFetch, GAMMA_API } = await import('../polymarket-engines/shared.js');
+
+      // Run screener and direct Gamma search in parallel
+      const [result, directMarkets, directEvents] = await Promise.all([
+        (screenMarkets as any)({ query: q, strategy, limit: 20, includeOrderbook: true }).catch(() => ({ markets: [], scanned: 0, qualified: 0 })),
+        apiFetch(`${GAMMA_API}/markets?search=${encodeURIComponent(q)}&active=true&closed=false&limit=50&order=volume&ascending=false`).catch(() => []),
+        apiFetch(`${GAMMA_API}/events?search=${encodeURIComponent(q)}&active=true&closed=false&limit=50&order=volume&ascending=false`).catch(() => []),
+      ]);
+
+      // Extract markets from events
+      const eventMarkets: any[] = [];
+      if (Array.isArray(directEvents)) {
+        for (const ev of directEvents) {
+          if (ev.markets && Array.isArray(ev.markets)) {
+            for (const m of ev.markets) {
+              if (m.active && !m.closed) eventMarkets.push(m);
+            }
+          }
+        }
+      }
+
+      // Merge direct results as extra scored markets (with basic scoring)
+      const screenerIds = new Set((result.markets || []).map((sm: any) => sm.market?.id || sm.market?.conditionId));
+      const allDirect = [...(Array.isArray(directMarkets) ? directMarkets : []), ...eventMarkets];
+      const { parseMarket } = await import('../polymarket-engines/shared.js');
+      for (const raw of allDirect) {
+        const pm = parseMarket(raw);
+        if (!pm.active || pm.clobTokenIds.length === 0 || pm.liquidity < 1) continue;
+        const key = pm.id;
+        if (screenerIds.has(key)) continue;
+        screenerIds.add(key);
+        // Add with basic scores
+        const yesP = pm.outcomePrices[0] || 0.5;
+        result.markets.push({
+          market: pm,
+          scores: { total: Math.min(pm.liquidity / 100, 20) + Math.min(pm.volume / 10000, 20), liquidity: Math.min(pm.liquidity / 100, 20), volume: Math.min(pm.volume / 10000, 20), spread: 0, edge: 0, timing: 0, momentum: 0 },
+          analysis: { overround: (yesP + (pm.outcomePrices[1] || 0.5) - 1) * 100, orderbook: null },
+          recommendation: { action: 'watch', confidence: 0 },
+        });
+      }
+      // Re-sort by score
+      result.markets.sort((a: any, b: any) => (b.scores?.total || 0) - (a.scores?.total || 0));
+
+      // Filter out garbage markets (low scores, extreme spreads, dead liquidity)
+      const filtered = (result.markets || []).filter((sm: any) => {
+        const spreadPct = sm.analysis?.orderbook?.spreadPct ?? 0;
+        const liq = sm.market?.liquidity || 0;
+        const prices = sm.market?.outcomePrices || [];
+        // Kill extreme-price markets (Yes ≤1¢ or ≥99.5¢ = truly decided)
+        const yesP = prices[0] || 0.5;
+        if (yesP <= 0.01 || yesP >= 0.995) return false;
+        // Kill markets with insane spread (>500%)
+        if (spreadPct > 500) return false;
+        // Kill truly dead markets (<$50 liquidity)
+        if (liq < 50) return false;
+        return true;
+      });
+
+      // Run unified pipeline on top results (quick depth: quant + onchain)
+      const { quickAnalysis } = await import('../polymarket-engines/pipeline.js');
+      const top10 = filtered.slice(0, 10).filter((sm: any) => sm.market?.clobTokenIds?.[0]);
+
+      let pipelineResults: any[] = [];
+      try {
+        pipelineResults = await Promise.all(top10.map((sm: any) => {
+          const m = sm.market || {};
+          return quickAnalysis(m.clobTokenIds[0], m.question, 100).then(r => ({ ...r, tokenId: m.clobTokenIds[0] })).catch(() => null);
+        }));
+        pipelineResults = pipelineResults.filter(Boolean);
+      } catch (pipeErr: any) {
+        console.log('[pipeline] Error:', pipeErr.message);
+      }
+
+      // Index pipeline results by tokenId for lookup
+      const pipelineMap = new Map<string, any>();
+      for (const pr of pipelineResults) pipelineMap.set(pr.tokenId, pr);
+
+      // Transform screener output to frontend format
+      const markets = filtered.map((sm: any) => {
+        const m = sm.market || {};
+        const tokens = m.clobTokenIds || [];
+        const outcomes = m.outcomes || ['Yes', 'No'];
+        const prices: Record<string, number> = {};
+        const spread: Record<string, any> = {};
+        for (let i = 0; i < outcomes.length; i++) {
+          prices[outcomes[i]] = m.outcomePrices?.[i] || 0;
+          const ob = sm.analysis?.orderbook;
+          if (ob && i === 0) {
+            spread[outcomes[i]] = { bid: ob.bestBid || 0, ask: ob.bestAsk || 0, depth: Math.min(ob.bidDepth5 || 0, ob.askDepth5 || 0) };
+            // Compute complementary spread for second outcome
+            if (outcomes[1]) spread[outcomes[1]] = { bid: 1 - (ob.bestAsk || 1), ask: 1 - (ob.bestBid || 0), depth: spread[outcomes[0]].depth };
+          }
+        }
+        return {
+          id: m.id, question: m.question, slug: m.slug,
+          tokens, outcomes, prices, spread,
+          volume24hr: m.volume24hr || m.volume || 0,
+          liquidity: m.liquidity || 0,
+          endDate: m.endDate, startDate: m.startDate,
+          // Screener scores
+          scores: sm.scores || {},
+          analysis: {
+            // Quantitative analysis
+            overround: sm.analysis?.overround,
+            hoursToClose: sm.analysis?.hoursToClose,
+            volumePerHour: sm.analysis?.volumePerHour,
+            priceLevel: sm.analysis?.priceLevel,
+            edgeType: sm.analysis?.edgeType,
+            orderbook: sm.analysis?.orderbook ? {
+              bestBid: sm.analysis.orderbook.bestBid,
+              bestAsk: sm.analysis.orderbook.bestAsk,
+              spreadPct: sm.analysis.orderbook.spreadPct,
+              bidDepth5: sm.analysis.orderbook.bidDepth5,
+              askDepth5: sm.analysis.orderbook.askDepth5,
+              imbalance: sm.analysis.orderbook.imbalance,
+            } : null,
+          },
+          // Screener recommendation
+          recommendation: sm.recommendation || null,
+          // Pipeline enrichment (quant + onchain + composite)
+          pipeline: (() => {
+            const pr = pipelineMap.get(m.clobTokenIds?.[0]);
+            if (!pr) return null;
+            return {
+              score: pr.score,
+              action: pr.action,
+              thesis: pr.thesis,
+              kelly: pr.kelly,
+              regime: pr.regime,
+              smart_money: pr.smart_money,
+              manipulation_risk: pr.manipulation_risk,
+              orderbook: pr.orderbook,
+            };
+          })(),
+        };
+      });
+
+      return c.json({ markets, strategy: result.strategy, scanned: result.scanned, qualified: result.qualified, summary: result.summary });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3106,14 +4838,12 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const { action, reason } = await c.req.json();
       const today = new Date().toISOString().split('T')[0];
       if (action === 'pause') {
-        await (db as any).execute?.(`
-          INSERT INTO poly_daily_counters (agent_id, date, paused, pause_reason) VALUES ($1, $2, 1, $3)
-          ON CONFLICT (agent_id, date) DO UPDATE SET paused = 1, pause_reason = $3
-        `, [agentId, today, reason || 'Admin paused']);
+        await edb()?.run(`
+          INSERT INTO poly_daily_counters (agent_id, date, paused, pause_reason) VALUES (?, ?, 1, ?)
+          ON CONFLICT (agent_id, date) DO UPDATE SET paused = 1, pause_reason = ?
+        `, [agentId, today, reason || 'Admin paused', reason || 'Admin paused']);
       } else {
-        await (db as any).execute?.(`
-          UPDATE poly_daily_counters SET paused = 0, pause_reason = '' WHERE agent_id = $1 AND date = $2
-        `, [agentId, today]);
+        await edb()?.run(`UPDATE poly_daily_counters SET paused = 0, pause_reason = '' WHERE agent_id = ? AND date = ?`, [agentId, today]);
       }
       return c.json({ status: 'ok', action });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
@@ -3122,16 +4852,82 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   // Dashboard summary — all polymarket agents
   api.get('/polymarket/dashboard', requireRole('admin'), async (c) => {
     try {
-      const configs = await (db as any).execute?.(`SELECT * FROM poly_trading_config`).catch(() => ({ rows: [] }));
-      const wallets = await (db as any).execute?.(`SELECT agent_id, funder_address, signature_type FROM poly_wallet_credentials`).catch(() => ({ rows: [] }));
-      const pendingCount = await (db as any).execute?.(`SELECT agent_id, COUNT(*) as cnt FROM poly_pending_trades WHERE status = 'pending' GROUP BY agent_id`).catch(() => ({ rows: [] }));
+      const configs = await edb()?.all(`SELECT * FROM poly_trading_config`).catch(() => []) || [];
+      const wallets = await edb()?.all(`SELECT agent_id, funder_address, signature_type FROM poly_wallet_credentials`).catch(() => []) || [];
+      const pendingTrades = await edb()?.all(`SELECT agent_id, COUNT(*) as cnt FROM poly_pending_trades WHERE status = 'pending' GROUP BY agent_id`).catch(() => []) || [];
       const today = new Date().toISOString().split('T')[0];
-      const counters = await (db as any).execute?.(`SELECT * FROM poly_daily_counters WHERE date = $1`, [today]).catch(() => ({ rows: [] }));
+      const dailyCounters = await edb()?.all(`SELECT * FROM poly_daily_counters WHERE date = ?`, [today]).catch(() => []) || [];
+      return c.json({ configs, wallets, pendingTrades, dailyCounters });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Daily scorecard for a specific agent
+  api.get('/polymarket/:agentId/daily-scorecard', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const today = new Date().toISOString().split('T')[0];
+      const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+
+      // Get wallet balance
+      const walletRow = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      let usdcBalance = 0;
+      if (walletRow?.funder_address) {
+        try {
+          const balRes = await fetch('https://polygon.drpc.org', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [
+              { to: USDC_E_SHARED, data: '0x70a08231000000000000000000000000' + walletRow.funder_address.slice(2).toLowerCase() }, 'latest'
+            ] })
+          }).then(r => r.json());
+          usdcBalance = Number(BigInt(balRes?.result || '0x0')) / 1e6;
+        } catch {}
+      }
+
+      // Daily counters
+      const counter = await edb()?.get(`SELECT * FROM poly_daily_counters WHERE agent_id = ? AND date = ?`, [agentId, today]).catch(() => null) as any;
+
+      // Paper positions (daily P&L)
+      const paperPositions = await edb()?.all(`SELECT * FROM poly_paper_positions WHERE agent_id = ?`, [agentId]).catch(() => []) as any[];
+      const closedToday = (paperPositions || []).filter((p: any) => p.closed && p.closed_at >= todayStart);
+      const openPositions = (paperPositions || []).filter((p: any) => !p.closed);
+      const dailyPnl = closedToday.reduce((s: number, p: any) => s + (p.pnl || 0), 0);
+      const unrealizedPnl = openPositions.reduce((s: number, p: any) => s + (p.pnl || 0), 0);
+      const winsToday = closedToday.filter((p: any) => (p.pnl || 0) > 0).length;
+      const lossesToday = closedToday.filter((p: any) => (p.pnl || 0) < 0).length;
+
+      // Daily goal target
+      const dailyGoal = await edb()?.get(`SELECT target_value FROM poly_goals WHERE agent_id = ? AND type IN ('daily_pnl_usd', 'daily_pnl_pct') AND enabled = 1 ORDER BY type ASC LIMIT 1`, [agentId]).catch(() => null) as any;
+      const dailyTarget = dailyGoal?.target_value || 10;
+
+      const totalPnl = dailyPnl + unrealizedPnl;
+      const progressPct = dailyTarget > 0 ? (totalPnl / dailyTarget) * 100 : 0;
+      const tradesToday = counter?.trade_count || closedToday.length;
+      const winRate = tradesToday > 0 ? (winsToday / tradesToday) * 100 : 0;
+      const invested = openPositions.reduce((s: number, p: any) => s + ((p.entry_price || 0) * (p.size || 0)), 0);
+
+      let status = 'ON_TRACK';
+      if (totalPnl <= -(counter?.max_daily_loss || 50)) status = 'STOP_TRADING';
+      else if (progressPct >= 100) status = 'TARGET_HIT';
+      else if (progressPct >= 70) status = 'AHEAD';
+      else if (progressPct < 30 && tradesToday > 3) status = 'BEHIND';
+
       return c.json({
-        configs: configs?.rows || configs || [],
-        wallets: wallets?.rows || wallets || [],
-        pendingTrades: pendingCount?.rows || pendingCount || [],
-        dailyCounters: counters?.rows || counters || [],
+        date: today,
+        total_pnl: +totalPnl.toFixed(2),
+        realized_pnl: +dailyPnl.toFixed(2),
+        unrealized_pnl: +unrealizedPnl.toFixed(2),
+        daily_target: dailyTarget,
+        target_progress_pct: +progressPct.toFixed(1),
+        trades_today: tradesToday,
+        wins_today: winsToday,
+        losses_today: lossesToday,
+        win_rate_today: +winRate.toFixed(1),
+        open_positions: openPositions.length,
+        available_capital: +usdcBalance.toFixed(2),
+        deployed_capital: +invested.toFixed(2),
+        daily_loss: +(counter?.daily_loss || 0).toFixed(2),
+        paused: !!counter?.paused,
+        status,
       });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3162,36 +4958,32 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         const poll = setInterval(async () => {
           try {
             // Lightweight queries — just counts
-            const pendingQ = agentId
-              ? `SELECT COUNT(*) as cnt FROM poly_pending_trades WHERE agent_id = '${agentId}' AND status = 'pending'`
-              : `SELECT COUNT(*) as cnt FROM poly_pending_trades WHERE status = 'pending'`;
-            const pendingRows = await (db as any).execute?.(pendingQ).catch(() => ({ rows: [{ cnt: 0 }] }));
-            const pendingCount = pendingRows?.rows?.[0]?.cnt ?? pendingRows?.[0]?.cnt ?? 0;
+            const e = edb();
+            const pendingRow = agentId
+              ? await e?.get(`SELECT COUNT(*) as cnt FROM poly_pending_trades WHERE agent_id = ? AND status = 'pending'`, [agentId]).catch(() => ({ cnt: 0 }))
+              : await e?.get(`SELECT COUNT(*) as cnt FROM poly_pending_trades WHERE status = 'pending'`).catch(() => ({ cnt: 0 }));
+            const pendingCount = (pendingRow as any)?.cnt ?? 0;
 
-            const tradeQ = agentId
-              ? `SELECT COUNT(*) as cnt FROM poly_trade_log WHERE agent_id = '${agentId}'`
-              : `SELECT COUNT(*) as cnt FROM poly_trade_log`;
-            const tradeRows = await (db as any).execute?.(tradeQ).catch(() => ({ rows: [{ cnt: 0 }] }));
-            const tradeCount = tradeRows?.rows?.[0]?.cnt ?? tradeRows?.[0]?.cnt ?? 0;
+            const tradeRow = agentId
+              ? await e?.get(`SELECT COUNT(*) as cnt FROM poly_trade_log WHERE agent_id = ?`, [agentId]).catch(() => ({ cnt: 0 }))
+              : await e?.get(`SELECT COUNT(*) as cnt FROM poly_trade_log`).catch(() => ({ cnt: 0 }));
+            const tradeCount = (tradeRow as any)?.cnt ?? 0;
 
-            const alertQ = agentId
-              ? `SELECT COUNT(*) as cnt FROM poly_price_alerts WHERE agent_id = '${agentId}' AND triggered = 0`
-              : `SELECT COUNT(*) as cnt FROM poly_price_alerts WHERE triggered = 0`;
-            const alertRows = await (db as any).execute?.(alertQ).catch(() => ({ rows: [{ cnt: 0 }] }));
-            const alertCount = alertRows?.rows?.[0]?.cnt ?? alertRows?.[0]?.cnt ?? 0;
+            const alertRow = agentId
+              ? await e?.get(`SELECT COUNT(*) as cnt FROM poly_price_alerts WHERE agent_id = ? AND triggered = 0`, [agentId]).catch(() => ({ cnt: 0 }))
+              : await e?.get(`SELECT COUNT(*) as cnt FROM poly_price_alerts WHERE triggered = 0`).catch(() => ({ cnt: 0 }));
+            const alertCount = (alertRow as any)?.cnt ?? 0;
 
-            const predQ = agentId
-              ? `SELECT COUNT(*) as cnt FROM poly_predictions WHERE agent_id = '${agentId}'`
-              : `SELECT COUNT(*) as cnt FROM poly_predictions`;
-            const predRows = await (db as any).execute?.(predQ).catch(() => ({ rows: [{ cnt: 0 }] }));
-            const predCount = predRows?.rows?.[0]?.cnt ?? predRows?.[0]?.cnt ?? 0;
+            const predRow = agentId
+              ? await e?.get(`SELECT COUNT(*) as cnt FROM poly_predictions WHERE agent_id = ?`, [agentId]).catch(() => ({ cnt: 0 }))
+              : await e?.get(`SELECT COUNT(*) as cnt FROM poly_predictions`).catch(() => ({ cnt: 0 }));
+            const predCount = (predRow as any)?.cnt ?? 0;
 
             const today = new Date().toISOString().split('T')[0];
-            const pauseQ = agentId
-              ? `SELECT paused FROM poly_daily_counters WHERE agent_id = '${agentId}' AND date = '${today}'`
-              : `SELECT paused FROM poly_daily_counters WHERE date = '${today}' LIMIT 1`;
-            const pauseRows = await (db as any).execute?.(pauseQ).catch(() => ({ rows: [] }));
-            const isPaused = !!(pauseRows?.rows?.[0]?.paused ?? pauseRows?.[0]?.paused);
+            const pauseRow = agentId
+              ? await e?.get(`SELECT paused FROM poly_daily_counters WHERE agent_id = ? AND date = ?`, [agentId, today]).catch(() => undefined)
+              : await e?.get(`SELECT paused FROM poly_daily_counters WHERE date = ? LIMIT 1`, [today]).catch(() => undefined);
+            const isPaused = !!(pauseRow as any)?.paused;
 
             // Only send if something changed
             const changed = pendingCount !== lastPendingCount || tradeCount !== lastTradeCount ||
@@ -3241,11 +5033,11 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const resolved = c.req.query('resolved');
       const limit = parseInt(c.req.query('limit') || '50');
       const query = resolved !== undefined
-        ? `SELECT * FROM poly_predictions WHERE agent_id = $1 AND resolved = $2 ORDER BY created_at DESC LIMIT $3`
-        : `SELECT * FROM poly_predictions WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2`;
+        ? `SELECT * FROM poly_predictions WHERE agent_id = ? AND resolved = ? ORDER BY created_at DESC LIMIT ?`
+        : `SELECT * FROM poly_predictions WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`;
       const params = resolved !== undefined ? [agentId, resolved === 'true' ? 1 : 0, limit] : [agentId, limit];
-      const rows = await (db as any).execute?.(query, params).catch(() => ({ rows: [] }));
-      return c.json({ predictions: rows?.rows || rows || [] });
+      const rows = await edb()?.all(query, params).catch(() => []) || [];
+      return c.json({ predictions: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3253,8 +5045,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/calibration', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`SELECT * FROM poly_calibration WHERE agent_id = $1 ORDER BY bucket`, [agentId]).catch(() => ({ rows: [] }));
-      return c.json({ calibration: rows?.rows || rows || [] });
+      const rows = await edb()?.all(`SELECT * FROM poly_calibration WHERE agent_id = ? ORDER BY bucket`, [agentId]).catch(() => []) || [];
+      return c.json({ calibration: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3262,11 +5054,11 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/strategies', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`
+      const rows = await edb()?.all(`
         SELECT *, CASE WHEN total_predictions > 0 THEN ROUND(CAST(correct_predictions AS REAL) / total_predictions * 100, 1) ELSE 0 END as win_rate
-        FROM poly_strategy_stats WHERE agent_id = $1 ORDER BY total_pnl DESC
-      `, [agentId]).catch(() => ({ rows: [] }));
-      return c.json({ strategies: rows?.rows || rows || [] });
+        FROM poly_strategy_stats WHERE agent_id = ? ORDER BY total_pnl DESC
+      `, [agentId]).catch(() => []) || [];
+      return c.json({ strategies: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3274,15 +5066,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/lessons', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await (db as any).execute?.(`SELECT * FROM poly_lessons WHERE agent_id = $1 ORDER BY importance DESC, created_at DESC`, [agentId]).catch(() => ({ rows: [] }));
-      return c.json({ lessons: rows?.rows || rows || [] });
+      const rows = await edb()?.all(`SELECT * FROM poly_lessons WHERE agent_id = ? ORDER BY importance DESC, created_at DESC`, [agentId]).catch(() => []) || [];
+      return c.json({ lessons: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
   // Delete a lesson
   api.delete('/polymarket/lessons/:lessonId', requireRole('admin'), async (c) => {
     try {
-      await (db as any).execute?.(`DELETE FROM poly_lessons WHERE id = $1`, [c.req.param('lessonId')]);
+      await edb()?.run(`DELETE FROM poly_lessons WHERE id = ?`, [c.req.param('lessonId')]);
       return c.json({ status: 'ok' });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3290,7 +5082,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   // ─── Polymarket: On-Chain Intelligence ──────────────────────
   api.get('/polymarket/:agentId/whales', requireRole('admin'), async (c) => {
     try {
-      const rows = (db as any).prepare?.('SELECT * FROM poly_whale_wallets ORDER BY total_volume DESC LIMIT 50')?.all() || [];
+      const rows = await edb()?.all('SELECT * FROM poly_whale_wallets ORDER BY total_volume DESC LIMIT 50').catch(() => []) || [];
       return c.json({ whales: rows });
     } catch { return c.json({ whales: [] }); }
   });
@@ -3298,7 +5090,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/flow', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_flow_snapshots ORDER BY timestamp DESC LIMIT 50')?.all() || [];
+      const rows = await edb()?.all('SELECT * FROM poly_flow_snapshots ORDER BY timestamp DESC LIMIT 50').catch(() => []) || [];
       return c.json({ snapshots: rows });
     } catch { return c.json({ snapshots: [] }); }
   });
@@ -3306,7 +5098,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   // ─── Polymarket: Social Intelligence ──────────────────────
   api.get('/polymarket/:agentId/social', requireRole('admin'), async (c) => {
     try {
-      const rows = (db as any).prepare?.('SELECT * FROM poly_social_signals ORDER BY timestamp DESC LIMIT 100')?.all() || [];
+      const rows = await edb()?.all('SELECT * FROM poly_social_signals ORDER BY timestamp DESC LIMIT 100').catch(() => []) || [];
       return c.json({ signals: rows });
     } catch { return c.json({ signals: [] }); }
   });
@@ -3314,7 +5106,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/social/watchlist', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_social_watchlist WHERE agent_id = ? AND active = 1')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_social_watchlist WHERE agent_id = ? AND active = 1', [agentId]).catch(() => []) || [];
       return c.json({ watchlist: rows });
     } catch { return c.json({ watchlist: [] }); }
   });
@@ -3323,14 +5115,14 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/events', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_event_calendar WHERE agent_id = ? ORDER BY event_date ASC')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_event_calendar WHERE agent_id = ? ORDER BY event_date ASC', [agentId]).catch(() => []) || [];
       return c.json({ events: rows.map((r: any) => ({ ...r, related_markets: JSON.parse(r.related_markets || '[]') })) });
     } catch { return c.json({ events: [] }); }
   });
 
   api.delete('/polymarket/events/:eventId', requireRole('admin'), async (c) => {
     try {
-      (db as any).prepare?.('DELETE FROM poly_event_calendar WHERE id = ?')?.run(c.req.param('eventId'));
+      await edb()?.run('DELETE FROM poly_event_calendar WHERE id = ?', [c.req.param('eventId')]);
       return c.json({ status: 'ok' });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3338,7 +5130,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/news-alerts', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_news_alerts WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 50')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_news_alerts WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 50', [agentId]).catch(() => []) || [];
       return c.json({ alerts: rows });
     } catch { return c.json({ alerts: [] }); }
   });
@@ -3347,7 +5139,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/correlations', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_correlations WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 50')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_correlations WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 50', [agentId]).catch(() => []) || [];
       return c.json({ correlations: rows });
     } catch { return c.json({ correlations: [] }); }
   });
@@ -3355,14 +5147,14 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/arbitrage', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.("SELECT * FROM poly_arb_opportunities WHERE agent_id = ? AND status = 'open' ORDER BY timestamp DESC LIMIT 30")?.all(agentId) || [];
+      const rows = await edb()?.all("SELECT * FROM poly_arb_opportunities WHERE agent_id = ? AND status = 'open' ORDER BY timestamp DESC LIMIT 30", [agentId]).catch(() => []) || [];
       return c.json({ opportunities: rows.map((r: any) => ({ ...r, markets: JSON.parse(r.markets || '{}') })) });
     } catch { return c.json({ opportunities: [] }); }
   });
 
   api.get('/polymarket/:agentId/regimes', requireRole('admin'), async (c) => {
     try {
-      const rows = (db as any).prepare?.('SELECT * FROM poly_regime_signals ORDER BY timestamp DESC LIMIT 50')?.all() || [];
+      const rows = await edb()?.all('SELECT * FROM poly_regime_signals ORDER BY timestamp DESC LIMIT 50').catch(() => []) || [];
       return c.json({ regimes: rows });
     } catch { return c.json({ regimes: [] }); }
   });
@@ -3371,14 +5163,14 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/snipers', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_sniper_orders WHERE agent_id = ? ORDER BY created_at DESC')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_sniper_orders WHERE agent_id = ? ORDER BY created_at DESC', [agentId]).catch(() => []) || [];
       return c.json({ snipers: rows });
     } catch { return c.json({ snipers: [] }); }
   });
 
   api.delete('/polymarket/snipers/:sniperId', requireRole('admin'), async (c) => {
     try {
-      (db as any).prepare?.("UPDATE poly_sniper_orders SET status = 'cancelled' WHERE id = ?")?.run(c.req.param('sniperId'));
+      await edb()?.run("UPDATE poly_sniper_orders SET status = 'cancelled' WHERE id = ?", [c.req.param('sniperId')]);
       return c.json({ status: 'ok' });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3386,7 +5178,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/scale-orders', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_scale_orders WHERE agent_id = ? ORDER BY created_at DESC')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_scale_orders WHERE agent_id = ? ORDER BY created_at DESC', [agentId]).catch(() => []) || [];
       return c.json({ orders: rows });
     } catch { return c.json({ orders: [] }); }
   });
@@ -3394,7 +5186,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/hedges', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_hedges WHERE agent_id = ? ORDER BY created_at DESC')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_hedges WHERE agent_id = ? ORDER BY created_at DESC', [agentId]).catch(() => []) || [];
       return c.json({ hedges: rows });
     } catch { return c.json({ hedges: [] }); }
   });
@@ -3402,14 +5194,14 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/exit-rules', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.("SELECT * FROM poly_exit_rules WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC")?.all(agentId) || [];
+      const rows = await edb()?.all("SELECT * FROM poly_exit_rules WHERE agent_id = ? AND status = 'active' ORDER BY created_at DESC", [agentId]).catch(() => []) || [];
       return c.json({ rules: rows });
     } catch { return c.json({ rules: [] }); }
   });
 
   api.delete('/polymarket/exit-rules/:ruleId', requireRole('admin'), async (c) => {
     try {
-      (db as any).prepare?.("UPDATE poly_exit_rules SET status = 'removed' WHERE id = ?")?.run(c.req.param('ruleId'));
+      await edb()?.run("UPDATE poly_exit_rules SET status = 'removed' WHERE id = ?", [c.req.param('ruleId')]);
       return c.json({ status: 'ok' });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -3418,7 +5210,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/drawdown', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = (db as any).prepare?.('SELECT * FROM poly_portfolio_snapshots WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 100')?.all(agentId) || [];
+      const rows = await edb()?.all('SELECT * FROM poly_portfolio_snapshots WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 100', [agentId]).catch(() => []) || [];
       const peak = rows.length ? Math.max(...rows.map((r: any) => r.total_value)) : 0;
       const current = rows[0]?.total_value || 0;
       return c.json({ snapshots: rows, peak, current, drawdown_pct: peak > 0 ? +((peak - current) / peak * 100).toFixed(2) : 0 });
@@ -3428,12 +5220,13 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   api.get('/polymarket/:agentId/pnl-attribution', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const byStrategy = (db as any).prepare?.(`SELECT strategy, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl, AVG(avg_hold_hours) as avg_hold
-        FROM poly_pnl_attribution WHERE agent_id = ? AND strategy IS NOT NULL GROUP BY strategy ORDER BY total_pnl DESC`)?.all(agentId) || [];
-      const byCategory = (db as any).prepare?.(`SELECT category, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl
-        FROM poly_pnl_attribution WHERE agent_id = ? AND category IS NOT NULL GROUP BY category ORDER BY total_pnl DESC`)?.all(agentId) || [];
-      const bySignal = (db as any).prepare?.(`SELECT signal_source, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl
-        FROM poly_pnl_attribution WHERE agent_id = ? AND signal_source IS NOT NULL GROUP BY signal_source ORDER BY total_pnl DESC`)?.all(agentId) || [];
+      const e = edb();
+      const byStrategy = await e?.all(`SELECT strategy, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl, AVG(avg_hold_hours) as avg_hold
+        FROM poly_pnl_attribution WHERE agent_id = ? AND strategy IS NOT NULL GROUP BY strategy ORDER BY total_pnl DESC`, [agentId]).catch(() => []) || [];
+      const byCategory = await e?.all(`SELECT category, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl
+        FROM poly_pnl_attribution WHERE agent_id = ? AND category IS NOT NULL GROUP BY category ORDER BY total_pnl DESC`, [agentId]).catch(() => []) || [];
+      const bySignal = await e?.all(`SELECT signal_source, COUNT(*) as trades, SUM(wins) as wins, SUM(net_pnl) as total_pnl
+        FROM poly_pnl_attribution WHERE agent_id = ? AND signal_source IS NOT NULL GROUP BY signal_source ORDER BY total_pnl DESC`, [agentId]).catch(() => []) || [];
       return c.json({ byStrategy, byCategory, bySignal });
     } catch { return c.json({ byStrategy: [], byCategory: [], bySignal: [] }); }
   });
@@ -3441,10 +5234,162 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   // ─── Polymarket: Counter-Intelligence ──────────────────────
   api.get('/polymarket/:agentId/odds-snapshots', requireRole('admin'), async (c) => {
     try {
-      const rows = (db as any).prepare?.('SELECT * FROM poly_odds_snapshots ORDER BY timestamp DESC LIMIT 100')?.all() || [];
+      const rows = await edb()?.all('SELECT * FROM poly_odds_snapshots ORDER BY timestamp DESC LIMIT 100').catch(() => []) || [];
       return c.json({ snapshots: rows });
     } catch { return c.json({ snapshots: [] }); }
   });
+
+  // ─── Polymarket: Watchers / Automation ────────────────────
+  api.get('/polymarket/:agentId/watchers', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await edb()?.all('SELECT * FROM poly_watchers WHERE agent_id = ? ORDER BY created_at DESC', [agentId]).catch(() => []) || [];
+      return c.json({ watchers: rows.map((r: any) => ({ ...r, config: (() => { try { return JSON.parse(r.config || '{}'); } catch { return {}; } })() })) });
+    } catch { return c.json({ watchers: [] }); }
+  });
+
+  api.get('/polymarket/:agentId/watcher-events', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const rows = await edb()?.all('SELECT * FROM poly_watcher_events WHERE agent_id = ? ORDER BY created_at DESC LIMIT 200', [agentId]).catch(() => []) || [];
+      return c.json({ events: rows.map((r: any) => ({ ...r, data: (() => { try { return JSON.parse(r.data || '{}'); } catch { return {}; } })() })) });
+    } catch { return c.json({ events: [] }); }
+  });
+
+  api.post('/polymarket/watchers/:id/toggle', requireRole('admin'), async (c) => {
+    try {
+      const id = c.req.param('id');
+      const w = await edb()?.get('SELECT status FROM poly_watchers WHERE id = ?', [id]);
+      const newStatus = w?.status === 'active' ? 'paused' : 'active';
+      await edb()?.run('UPDATE poly_watchers SET status = ? WHERE id = ?', [newStatus, id]);
+      return c.json({ success: true, status: newStatus });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.delete('/polymarket/watchers/:id', requireRole('admin'), async (c) => {
+    try {
+      const id = c.req.param('id');
+      await edb()?.run('DELETE FROM poly_watchers WHERE id = ?', [id]);
+      await edb()?.run('DELETE FROM poly_watcher_events WHERE watcher_id = ?', [id]);
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/:agentId/watcher-events/acknowledge-all', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      await edb()?.run('UPDATE poly_watcher_events SET acknowledged = 1 WHERE agent_id = ? AND acknowledged = 0', [agentId]);
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── Polymarket: Watcher AI Config ─────────────────────────
+  api.get('/polymarket/:agentId/watcher-config', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const cfg = await edb()?.get('SELECT * FROM poly_watcher_config WHERE agent_id = ?', [agentId]).catch(() => null);
+      if (!cfg) return c.json({ configured: false });
+      return c.json({
+        configured: true,
+        provider: cfg.ai_provider,
+        model: cfg.ai_model,
+        has_api_key: !!cfg.ai_api_key,
+        has_custom_key: !!(cfg.ai_api_key && !cfg.use_org_key),
+        use_org_key: cfg.use_org_key !== 0,
+        budget_daily: cfg.analysis_budget_daily,
+        used_today: cfg.analysis_count_today,
+        remaining_today: (cfg.analysis_budget_daily || 100) - (cfg.analysis_count_today || 0),
+        max_spawn_per_hour: cfg.max_spawn_per_hour,
+      });
+    } catch { return c.json({ configured: false }); }
+  });
+
+  api.post('/polymarket/:agentId/watcher-config', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json();
+      const existing = await edb()?.get('SELECT * FROM poly_watcher_config WHERE agent_id = ?', [agentId]).catch(() => null);
+      if (existing) {
+        const updates: string[] = []; const vals: any[] = [];
+        if (body.ai_provider) { updates.push('ai_provider = ?'); vals.push(body.ai_provider); }
+        if (body.ai_model) { updates.push('ai_model = ?'); vals.push(body.ai_model); }
+        if (body.ai_api_key) { updates.push('ai_api_key = ?'); vals.push(body.ai_api_key); }
+        if (body.use_org_key != null) { updates.push('use_org_key = ?'); vals.push(body.use_org_key ? 1 : 0); }
+        // When using org key, resolve and store it
+        if (body.use_org_key && body.ai_provider) {
+          const settings2 = await db.getSettings();
+          const pc = (settings2 as any)?.modelPricingConfig || {};
+          const savedKeys = pc.providerApiKeys || {};
+          const encKey = savedKeys[body.ai_provider];
+          if (encKey) {
+            const resolved = vault.decrypt(encKey);
+            updates.push('ai_api_key = ?'); vals.push(resolved);
+          }
+        } else if (!body.use_org_key && !body.ai_api_key) { /* keep existing custom key */ }
+        if (body.analysis_budget_daily != null) { updates.push('analysis_budget_daily = ?'); vals.push(body.analysis_budget_daily); }
+        if (body.max_spawn_per_hour != null) { updates.push('max_spawn_per_hour = ?'); vals.push(body.max_spawn_per_hour); }
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+        vals.push(agentId);
+        await edb()?.run(`UPDATE poly_watcher_config SET ${updates.join(', ')} WHERE agent_id = ?`, vals);
+      } else {
+        // Resolve API key
+        let resolvedKey = body.ai_api_key || '';
+        if (body.use_org_key && body.ai_provider) {
+          const settings2 = await db.getSettings();
+          const pc = (settings2 as any)?.modelPricingConfig || {};
+          const savedKeys = pc.providerApiKeys || {};
+          const encKey = savedKeys[body.ai_provider];
+          if (encKey) resolvedKey = vault.decrypt(encKey);
+        }
+        await edb()?.run(
+          'INSERT INTO poly_watcher_config (agent_id, ai_provider, ai_model, ai_api_key, analysis_budget_daily, max_spawn_per_hour, use_org_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [agentId, body.ai_provider || 'xai', body.ai_model || 'grok-3-mini', resolvedKey, body.analysis_budget_daily || 100, body.max_spawn_per_hour || 6, body.use_org_key ? 1 : 0]
+        );
+      }
+      return c.json({ success: true });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // ─── Polymarket: Watcher Engine Status & Control ──────────
+  api.get('/polymarket/engine/status', requireRole('admin'), async (c) => {
+    try {
+      const status = getWatcherEngineStatus();
+      // Also get counts from DB
+      const totalWatchers = await edb()?.get('SELECT COUNT(*) as cnt FROM poly_watchers').catch(() => ({ cnt: 0 }));
+      const activeWatchers = await edb()?.get(`SELECT COUNT(*) as cnt FROM poly_watchers WHERE status = 'active'`).catch(() => ({ cnt: 0 }));
+      const pausedWatchers = await edb()?.get(`SELECT COUNT(*) as cnt FROM poly_watchers WHERE status = 'paused'`).catch(() => ({ cnt: 0 }));
+      const totalEvents = await edb()?.get('SELECT COUNT(*) as cnt FROM poly_watcher_events').catch(() => ({ cnt: 0 }));
+      const unackEvents = await edb()?.get('SELECT COUNT(*) as cnt FROM poly_watcher_events WHERE acknowledged = 0').catch(() => ({ cnt: 0 }));
+      return c.json({
+        ...status,
+        totalWatchers: totalWatchers?.cnt || 0,
+        activeWatchers: activeWatchers?.cnt || 0,
+        pausedWatchers: pausedWatchers?.cnt || 0,
+        totalEvents: totalEvents?.cnt || 0,
+        unacknowledgedEvents: unackEvents?.cnt || 0,
+      });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  api.post('/polymarket/engine/control', requireRole('admin'), async (c) => {
+    try {
+      const body = await c.req.json();
+      const action = body.action; // 'start' | 'stop'
+      if (action !== 'start' && action !== 'stop') return c.json({ error: 'Invalid action' }, 400);
+      controlWatcherEngine(action);
+      return c.json({ success: true, ...getWatcherEngineStatus() });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Auto-connect polymarket proxy 5s after routes are registered
+  setTimeout(async () => {
+    try {
+      await ensurePolyDB();
+      await autoConnectProxy(edb());
+    } catch (e: any) {
+      console.warn(`[polymarket-proxy] Startup auto-connect failed: ${e.message}`);
+    }
+  }, 5000);
 
   return api;
 }

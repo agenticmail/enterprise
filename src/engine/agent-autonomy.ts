@@ -534,7 +534,48 @@ Work schedule: ${this.config.schedule ? `${this.config.schedule.start}-${this.co
     const period = isWeekly ? 'last week' : 'yesterday';
     const nextPeriod = isWeekly ? 'this week' : 'today';
 
-    const prompt = `You need to send your ${isWeekly ? 'weekly' : 'daily'} catchup email to your manager at ${managerEmail}.
+    // Determine catchup delivery platform from config (Manager & Catch-Up tab)
+    let platform = 'email';
+    let platformTarget = managerEmail;
+    try {
+      const rows = await this.config.engineDb.query<any>(
+        `SELECT config FROM managed_agents WHERE id = $1`, [this.config.agentId]
+      );
+      if (rows?.[0]?.config) {
+        const cfg = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config;
+        if (cfg.dailyCatchUp?.platform) platform = cfg.dailyCatchUp.platform;
+        if (platform === 'telegram' && cfg.manager?.telegramId) platformTarget = cfg.manager.telegramId;
+        else if (platform === 'whatsapp' && cfg.manager?.whatsapp) platformTarget = cfg.manager.whatsapp;
+        // Fallback: check messagingChannels for telegram chat ID
+        if (platform === 'telegram' && (!platformTarget || platformTarget === managerEmail)) {
+          const channels = cfg.messagingChannels || {};
+          platformTarget = channels.managerIdentity?.telegramId
+            || channels.telegram?.chatId
+            || channels.telegram?.trustedChatIds?.[0]
+            || platformTarget;
+        }
+        if (platform === 'whatsapp' && (!platformTarget || platformTarget === managerEmail)) {
+          const channels = cfg.messagingChannels || {};
+          platformTarget = channels.managerIdentity?.whatsappNumber || platformTarget;
+        }
+      }
+    } catch {}
+
+    // Build delivery instructions based on platform
+    let deliveryInstruction: string;
+    let deliveryTools: string;
+    if (platform === 'telegram') {
+      deliveryInstruction = `Send the catchup as a Telegram message using telegram_send to your manager (chat ID: ${platformTarget}). Format it nicely with bold headers and bullet points using Telegram markdown.`;
+      deliveryTools = 'telegram_send (chatId, text, parseMode)';
+    } else if (platform === 'whatsapp') {
+      deliveryInstruction = `Send the catchup as a WhatsApp message to your manager at ${platformTarget}. Format it cleanly with bold headers and bullet points.`;
+      deliveryTools = 'whatsapp_send (to, message)';
+    } else {
+      deliveryInstruction = `Use gmail_send to send the email to ${managerEmail}. Subject: "${isWeekly ? 'Weekly' : 'Daily'} Update — ${agentName}"`;
+      deliveryTools = 'gmail_send (to, subject, body)';
+    }
+
+    const prompt = `You need to send your ${isWeekly ? 'weekly' : 'daily'} catchup to your manager.
 
 Here's what you accomplished ${period}:
 - Emails handled: ${data.emailsHandled}
@@ -544,7 +585,7 @@ Here's what you accomplished ${period}:
 - Issues encountered: ${data.issuesEncountered.length > 0 ? data.issuesEncountered.join('; ') : 'None'}
 - Knowledge gained: ${data.knowledgeGained.length > 0 ? data.knowledgeGained.join('; ') : 'None tracked'}
 
-Write and send a concise, professional ${isWeekly ? 'weekly' : 'daily'} summary email. Include:
+Write and send a concise, professional ${isWeekly ? 'weekly' : 'daily'} summary. Include:
 1. What you accomplished ${period} (be specific, not generic)
 2. Any issues or blockers you encountered
 3. What you plan to focus on ${nextPeriod}
@@ -552,13 +593,13 @@ ${isWeekly ? '4. Goals for the week (create Google Tasks for each goal)' : ''}
 ${isWeekly ? '5. Any suggestions for improvement or areas where you need guidance' : ''}
 
 Keep it under ${isWeekly ? '400' : '250'} words. Be genuine and specific — your manager reads these to stay informed.
-Use gmail_send to send the email. Subject: "${isWeekly ? 'Weekly' : 'Daily'} Update — ${agentName}"
+${deliveryInstruction}
 
-${isWeekly ? 'After sending the email, create Google Tasks for your goals this week using google_tasks_create.' : ''}`;
+${isWeekly ? 'After sending, create Google Tasks for your goals this week using google_tasks_create.' : ''}`;
 
-    const systemPrompt = `You are ${agentName}, a ${role}. You are sending your ${isWeekly ? 'weekly' : 'daily'} catchup email to your manager.
+    const systemPrompt = `You are ${agentName}, a ${role}. You are sending your ${isWeekly ? 'weekly' : 'daily'} catchup to your manager.
 Be professional but genuine. Use real data from the summary — don't make up accomplishments.
-Available tools: gmail_send (to, subject, body), google_tasks_create (listId, title, notes, dueDate).`;
+Available tools: ${deliveryTools}, google_tasks_create (listId, title, notes, dueDate).`;
 
     try {
       const session = await runtime.spawnSession({

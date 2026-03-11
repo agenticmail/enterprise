@@ -3,6 +3,9 @@ import { I } from '../components/icons.js';
 import { Modal } from '../components/modal.js';
 import { HelpButton } from '../components/help-button.js';
 import { KnowledgeLink } from '../components/knowledge-link.js';
+
+var LANGUAGE_NAMES = { 'en-us': 'English (US)', 'en-gb': 'English (UK)', 'es': 'Spanish', 'fr': 'French', 'de': 'German', 'pt': 'Portuguese', 'it': 'Italian', 'nl': 'Dutch', 'ja': 'Japanese', 'ko': 'Korean', 'zh': 'Chinese', 'ar': 'Arabic', 'hi': 'Hindi', 'ru': 'Russian', 'tr': 'Turkish', 'pl': 'Polish', 'sv': 'Swedish', 'da': 'Danish', 'no': 'Norwegian', 'fi': 'Finnish' };
+function getLanguageName(code) { return LANGUAGE_NAMES[code] || code; }
 import { useOrgContext } from '../components/org-switcher.js';
 
 var engineCall = function(path, opts) { return apiCall('/engine' + path, opts); };

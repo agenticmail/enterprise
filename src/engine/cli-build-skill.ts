@@ -12,7 +12,7 @@
  *   3. Intelligent template-based generation
  */
 
-import { validateSkillManifest, VALID_CATEGORIES, VALID_RISK_LEVELS, VALID_SIDE_EFFECTS, VALID_TOOL_CATEGORIES } from './skill-validator.js';
+import { validateSkillManifest, VALID_CATEGORIES, VALID_RISK_LEVELS } from './skill-validator.js';
 
 // ─── Well-Known Service Database ──────────────────────
 

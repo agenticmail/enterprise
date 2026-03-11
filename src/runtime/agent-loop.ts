@@ -15,6 +15,7 @@ import type { AgentConfig, AgentMessage, RuntimeHooks, SessionState, StreamEvent
 import { callLLM, toolsToDefinitions, estimateMessageTokens, type LLMResponse } from './llm-client.js';
 import { ToolRegistry, executeTool } from './tool-executor.js';
 import { compactContext, COMPACTION_THRESHOLD } from './compaction.js';
+import { ageStaleMessages, truncateToolResults } from './message-trimmer.js';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -248,6 +249,12 @@ export async function runAgentLoop(
       console.warn(`[runtime] beforeLLMCall hook error: ${err.message}`);
     }
 
+    // ─── Stale tool result aging (universal — applies to ALL tools) ───
+    var staleTrimCount = ageStaleMessages(messages, turnCount);
+    if (staleTrimCount > 0 && turnCount > 3) {
+      console.log(`[agent-loop] Stale aging: trimmed ${staleTrimCount} old messages at turn ${turnCount}`);
+    }
+
     // Check context window — compact if needed
     var estimatedTokens = estimateMessageTokens(messages);
     if (estimatedTokens > contextWindowSize * COMPACTION_THRESHOLD) {
@@ -411,12 +418,39 @@ export async function runAgentLoop(
 
     // Build assistant message from response
     var assistantMessage = buildAssistantMessage(llmResponse);
+    (assistantMessage as any)._turn = turnCount;
     messages.push(assistantMessage);
     totalTextContent += llmResponse.textContent;
 
     // Handle stop reasons
     if (llmResponse.stopReason === 'end_turn') {
       lastStopReason = 'end_turn';
+
+      // ─── Continuation nudge: if the agent used a messaging tool (telegram_send,
+      // whatsapp_send, etc.) in this turn cycle, it may have sent a status update
+      // while intending to keep working. Don't let the session die — nudge it once
+      // to continue. If it truly has nothing left, it'll end_turn again cleanly.
+      if (turnCount > 1 && turnCount < (maxTurns || 50) - 2 && !(options as any)._continuationNudged) {
+        var usedMessagingTool = false;
+        for (var mi = messages.length - 1; mi >= 0 && mi >= messages.length - 4; mi--) {
+          var msg = messages[mi];
+          if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+            for (var bl of msg.content) {
+              if (bl.type === 'tool_use' && /^(telegram_send|whatsapp_send|gmail_send|signal_send|discord_send|imessage_send|slack_send)$/.test(bl.name)) {
+                usedMessagingTool = true;
+              }
+            }
+          }
+        }
+        if (usedMessagingTool) {
+          console.log(`[agent-loop] Continuation nudge — agent used messaging tool then ended turn, checking if more work needed`);
+          (options as any)._continuationNudged = true; // only nudge once per session
+          messages.push({ role: 'user', content: '[System] You sent a message to the user. If you have more work to do (tool calls, analysis, scanning, etc.), continue now. If you are truly done, respond with just "done".' });
+          turnCount++;
+          continue;
+        }
+      }
+
       var turnEndEvent: StreamEvent = { type: 'turn_end', stopReason: 'end_turn' };
       options.onEvent?.(turnEndEvent);
 
@@ -547,6 +581,7 @@ export async function runAgentLoop(
             if (!existingNames.has(nt.name)) {
               config.tools.push(nt);
               toolDefs.push({ name: nt.name, description: nt.description, input_schema: nt.parameters });
+              registry.register([nt]); // Register in execution registry so tool can actually be called
               existingNames.add(nt.name);
               added++;
             }
@@ -577,16 +612,20 @@ export async function runAgentLoop(
         );
       }
 
+      // Inline truncation — cap each tool result to prevent 17K+ results from snowballing
+      var cappedToolResults = truncateToolResults(toolResults);
+
       // Add tool results as user message (Anthropic format)
       messages.push({
         role: 'user',
-        content: toolResults.map(function(tr) {
+        content: cappedToolResults.map(function(tr) {
           return { type: 'tool_result' as const, tool_use_id: tr.tool_use_id, content: tr.content, is_error: tr.is_error };
         }),
-        tool_results: toolResults.map(function(tr) {
+        tool_results: cappedToolResults.map(function(tr) {
           return { tool_use_id: tr.tool_use_id, content: tr.content, is_error: tr.is_error };
         }),
-      });
+        _turn: turnCount,
+      } as any);
 
       // Incremental checkpoint — persist messages to DB after each turn
       if (options.onCheckpoint) {
@@ -706,10 +745,6 @@ var FALLBACK_PRICES: Record<string, { input: number; output: number }> = {
   'llama-3.1-8b-instant': { input: 0.05, output: 0.08 },
   'meta-llama/Llama-3.3-70B-Instruct-Turbo': { input: 0.88, output: 0.88 },
 };
-
-// In-memory cache for DB pricing (refreshed every 5 min)
-var _pricingCache: { data: Record<string, { input: number; output: number }>; expiresAt: number } | null = null;
-var _PRICING_CACHE_TTL = 5 * 60_000;
 
 async function estimateCostAsync(
   hooks: import('./types.js').RuntimeHooks,

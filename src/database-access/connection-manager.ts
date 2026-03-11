@@ -17,7 +17,7 @@ import type {
   ConnectionPoolStats,
   DatabasePermission,
 } from './types.js';
-import { sanitizeQuery, sanitizeForLogging, type SanitizeResult } from './query-sanitizer.js';
+import { sanitizeQuery, sanitizeForLogging } from './query-sanitizer.js';
 import crypto from 'crypto';
 
 // ─── Driver Interfaces ───────────────────────────────────────────────────────

@@ -10,7 +10,6 @@
  * via the dashboard Tools tab and agent config.
  */
 
-import crypto from "node:crypto";
 import {
   browserAct,
   browserArmDialog,

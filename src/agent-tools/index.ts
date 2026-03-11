@@ -125,11 +125,12 @@ export { createDiffTools } from './tools/enterprise-diff.js';
 export { createRemotonTools } from './tools/remotion-video.js';
 export { createPolymarketOnchainTools } from './tools/polymarket-onchain.js';
 export { createPolymarketSocialTools } from './tools/polymarket-social.js';
-export { createPolymarketFeedTools } from './tools/polymarket-feeds.js';
+export { createPolymarketFeedsTools } from './tools/polymarket-feeds.js';
 export { createPolymarketAnalyticsTools } from './tools/polymarket-analytics.js';
 export { createPolymarketExecutionTools } from './tools/polymarket-execution.js';
 export { createPolymarketCounterintelTools } from './tools/polymarket-counterintel.js';
 export { createPolymarketPortfolioTools } from './tools/polymarket-portfolio.js';
+export { createWatcherTools } from './tools/polymarket-watcher.js';
 
 // --- Web utilities (useful standalone) ---
 export { htmlToMarkdown, markdownToText, truncateText } from './tools/web-fetch-utils.js';
@@ -177,14 +178,6 @@ import type { OAuthTokens, TokenProvider } from './tools/oauth-token-provider.js
 import { createMeetingLifecycleTools } from './tools/meeting-lifecycle.js';
 import { createVisualMemoryTools } from './tools/visual-memory/index.js';
 import { createPolymarketTools } from './tools/polymarket.js';
-import { createPolymarketQuantTools } from './tools/polymarket-quant.js';
-import { createPolymarketOnchainTools } from './tools/polymarket-onchain.js';
-import { createPolymarketSocialTools } from './tools/polymarket-social.js';
-import { createPolymarketFeedTools } from './tools/polymarket-feeds.js';
-import { createPolymarketAnalyticsTools } from './tools/polymarket-analytics.js';
-import { createPolymarketExecutionTools } from './tools/polymarket-execution.js';
-import { createPolymarketCounterintelTools } from './tools/polymarket-counterintel.js';
-import { createPolymarketPortfolioTools } from './tools/polymarket-portfolio.js';
 import { initVisualStorage } from './tools/visual-memory/storage.js';
 import { detectCapabilities } from '../runtime/environment.js';
 
@@ -359,14 +352,8 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     ...createRemotonTools(),
     ...createKnowledgeSearchTools(options || {} as any),
     ...createPolymarketTools(options || {}),
-    ...createPolymarketQuantTools(options || {}),
-    ...createPolymarketOnchainTools(options || {}),
-    ...createPolymarketSocialTools(options || {}),
-    ...createPolymarketFeedTools(options || {}),
-    ...createPolymarketAnalyticsTools(options || {}),
-    ...createPolymarketExecutionTools(options || {}),
-    ...createPolymarketCounterintelTools(options || {}),
-    ...createPolymarketPortfolioTools(options || {}),
+    // Extension tools (quant, onchain, social, feeds, analytics, execution, counterintel, portfolio, watcher)
+    // are now loaded inside createPolymarketTools with deduplication
   ];
 
   // AgenticMail tools (if manager + agentId provided)
@@ -620,6 +607,18 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     .concat(messagingTools)
     .concat(managementTools)
     .concat(localSystemTools);
+
+  // Deduplicate tools by name (keep last occurrence)
+  {
+    const seenNames = new Set<string>();
+    const deduped: AnyAgentTool[] = [];
+    for (let i = enabledTools.length - 1; i >= 0; i--) {
+      const n = (enabledTools[i] as any)?.name;
+      if (n && !seenNames.has(n)) { seenNames.add(n); deduped.unshift(enabledTools[i]); }
+      else if (!n) deduped.unshift(enabledTools[i]);
+    }
+    enabledTools = deduped;
+  }
 
   // Wrap with middleware if configured
   if (options?.middleware) {

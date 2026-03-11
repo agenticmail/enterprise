@@ -11,7 +11,7 @@ import type { ToolCall, ToolCallResult } from './types.js';
 // ─── Constants ───────────────────────────────────────────
 
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
-const MAX_RESULT_CHARS = 200_000;
+const MAX_RESULT_CHARS = 8_000;
 
 // ─── Tool Registry ───────────────────────────────────────
 
@@ -74,10 +74,12 @@ export async function executeTool(
     var content = formatToolResult(toolResult);
     var durationMs = Date.now() - started;
 
-    return {
-      result: { success: true, output: content, durationMs },
-      content: truncateResult(content),
-    };
+    var execResult: any = { result: { success: true, output: content, durationMs }, content: truncateResult(content) };
+    // Pass through _dynamicTools from request_tools for dynamic tool injection
+    if ((toolResult as any)?._dynamicTools) {
+      execResult.result._dynamicTools = (toolResult as any)._dynamicTools;
+    }
+    return execResult;
   } catch (err: any) {
     var durationMs = Date.now() - started;
     var errorMessage = err?.message || String(err);

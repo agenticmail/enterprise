@@ -6,8 +6,8 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
-import { join, basename, extname } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs';
+import { join, basename } from 'node:path';
 import type { AnyAgentTool } from '../types.js';
 
 // ─── Helpers ──────────────────────────────────────────────

@@ -10,9 +10,6 @@
 import type { AgentConfig, DeploymentTarget, DeploymentStatus } from './agent-config.js';
 import { AgentConfigGenerator } from './agent-config.js';
 import { execSync } from 'child_process';
-import { resolve } from 'path';
-import { existsSync } from 'fs';
-import { homedir } from 'os';
 
 /**
  * Derive PM2 process name from agent config.

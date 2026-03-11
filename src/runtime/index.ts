@@ -44,13 +44,14 @@ import { SessionManager } from './session-manager.js';
 import { createRuntimeHooks } from './hooks.js';
 import { runAgentLoop } from './agent-loop.js';
 import { createToolsForContext, detectSessionContext, getToolSetStats, getToolsForSession, clearSessionToolState, type SessionContext } from '../agent-tools/tool-resolver.js';
-import { resolveModelForContext as resolveModel, type ModelRoute, type ModelContext } from './model-router.js';
+import { resolveModelForContext as resolveModel, type ModelContext } from './model-router.js';
 import { createRuntimeGateway, emitSessionEvent } from './gateway.js';
 import { SubAgentManager, type SpawnSubAgentResult } from './subagent.js';
 import { EmailChannel, type InboundEmail, type InboundEmailResult } from './email-channel.js';
 import { FollowUpScheduler } from './followup.js';
 import { resolveApiKeyForProvider, PROVIDER_REGISTRY, type CustomProviderDef } from './providers.js';
 import { buildRemotonPrompt } from '../system-prompts/remotion.js';
+import { buildPolymarketPrompt } from '../system-prompts/polymarket.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -84,6 +85,7 @@ export { createRuntimeHooks, createNoopHooks } from './hooks.js';
 export { runAgentLoop } from './agent-loop.js';
 export { callLLM, toolsToDefinitions, estimateTokens, estimateMessageTokens } from './llm-client.js';
 export { ToolRegistry, executeTool } from './tool-executor.js';
+export { ageStaleMessages, truncateToolResults } from './message-trimmer.js';
 export { SubAgentManager } from './subagent.js';
 export { EmailChannel } from './email-channel.js';
 export { FollowUpScheduler } from './followup.js';
@@ -380,7 +382,7 @@ export class AgentRuntime {
     // Get database connections for this agent
     var _dbConnections: string[] = [];
     try { if (this.config.databaseManager) _dbConnections = this.config.databaseManager.getAgentConnectionSummary(agentId); } catch {}
-    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext, hierarchyContext, _agentIdentity, _dbConnections);
+    var systemPrompt = opts.systemPrompt || buildDefaultSystemPrompt(agentId, memoryContext, hierarchyContext, _agentIdentity, _dbConnections, _agentCfg);
 
     // Detect session context for dynamic tool loading
     var sessionContext = detectSessionContext({
@@ -395,6 +397,7 @@ export class AgentRuntime {
       additionalSets: opts.additionalSets as any,
       sessionId: session.id,
       userMessage: opts.message,
+      agentSkills: _agentCfg?.skills,
     });
     var toolStats = getToolSetStats(tools);
     console.log(`[runtime] Session ${session.id} tools: ${toolStats.total} (context: ${sessionContext})${toolStats.unregistered.length ? `, unregistered: ${toolStats.unregistered.join(',')}` : ''}`);
@@ -456,6 +459,21 @@ export class AgentRuntime {
     // Append user message to DB immediately (always persisted)
     await this.sessionManager!.appendMessage(sessionId, { role: 'user', content: message });
 
+    // Check for stop command — abort the active session loop
+    // Message may be wrapped like "[Chat from X in Y]: Stop" — extract the raw text
+    var rawMsg = message.replace(/^\[.*?\]:\s*/, '').trim();
+    var stopMatch = /^\/?(stop|cancel|abort)$/i.test(rawMsg);
+    if (stopMatch && this.loopRunning.has(sessionId)) {
+      var ac = this.activeSessions.get(sessionId);
+      if (ac) { ac.abort(); this.activeSessions.delete(sessionId); }
+      this.loopRunning.delete(sessionId);
+      this.pendingMessages.delete(sessionId);
+      // Add a system note so agent knows it was stopped
+      await this.sessionManager!.appendMessage(sessionId, { role: 'assistant', content: 'Session stopped by user.' });
+      console.log(`[runtime] Session ${sessionId} STOPPED by user command`);
+      return;
+    }
+
     // If a loop is already running for this session, queue the message instead of starting
     // a concurrent loop. The running loop will pick up queued messages when it finishes its turn.
     if (this.loopRunning.has(sessionId)) {
@@ -494,7 +512,7 @@ export class AgentRuntime {
     var _aCfg2 = this.config.getAgentConfig ? this.config.getAgentConfig(session.agentId) : null;
     var _dbConns2: string[] = [];
     try { if (this.config.databaseManager) _dbConns2 = this.config.databaseManager.getAgentConnectionSummary(session.agentId); } catch {}
-    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext, _hierarchyCtx, _aCfg2?.identity, _dbConns2);
+    var _systemPrompt = buildDefaultSystemPrompt(session.agentId, memoryContext, _hierarchyCtx, _aCfg2?.identity, _dbConns2, _aCfg2);
 
     // Context-aware tool loading — reuses session tool state (preserves dynamically loaded sets)
     // Don't re-detect context for keep-alive sessions (meetings) — they stay in their original context
@@ -508,6 +526,7 @@ export class AgentRuntime {
     var tools = await getToolsForSession(sessionId, this.buildToolOptions(session.agentId, sessionId), {
       context: _sessionContext,
       userMessage: message,
+      agentSkills: _aCfg2?.skills,
     });
 
     var agentConfig: AgentConfig = {
@@ -956,13 +975,14 @@ export class AgentRuntime {
           var _rCfg = this.config.getAgentConfig ? this.config.getAgentConfig(session.agentId) : null;
           var _dbC3: string[] = [];
           try { if (this.config.databaseManager) _dbC3 = this.config.databaseManager.getAgentConnectionSummary(session.agentId); } catch {}
-          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc, _hc, _rCfg?.identity, _dbC3);
+          var _resumePrompt = buildDefaultSystemPrompt(session.agentId, mc, _hc, _rCfg?.identity, _dbC3, _rCfg);
           var _resumeCtx = detectSessionContext({
             systemPrompt: _resumePrompt,
             isKeepAlive: this.keepAliveSessions.has(session.id),
           });
           var tools = await createToolsForContext(this.buildToolOptions(session.agentId, session.id), _resumeCtx, {
             sessionId: session.id,
+            agentSkills: _rCfg?.skills,
           });
 
           var agentConfig: AgentConfig = {
@@ -1073,7 +1093,7 @@ export function createAgentRuntime(config: RuntimeConfig): AgentRuntime {
 
 // ─── Default System Prompt ───────────────────────────────
 
-function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string, agentIdentity?: any, dbConnections?: string[]): string {
+function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string, agentIdentity?: any, dbConnections?: string[], agentConfig?: any): string {
   const wsDir = join(homedir(), '.agenticmail', 'workspaces', agentId);
   var base = `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
 
@@ -1115,6 +1135,19 @@ Current time: ${new Date().toISOString()}`;
 
   // Inject Remotion video prompt
   base += '\n' + _remotionPrompt;
+
+  // Inject Polymarket trading prompt if agent has polymarket skills
+  var _agentSkills = agentConfig?.skills || [];
+  if (_agentSkills.some((s: string) => s.startsWith('polymarket'))) {
+    try {
+      var _polyPrompt = buildPolymarketPrompt({
+        agent: { name: agentConfig?.name || agentId, role: 'trader', personality: '' },
+        tradingMode: 'paper',
+        hasWallet: false,
+      });
+      base += '\n\n' + _polyPrompt;
+    } catch {}
+  }
 
   // Language enforcement — if agent has a configured language, enforce it
   if (agentIdentity?.language && agentIdentity.language !== 'en-us') {

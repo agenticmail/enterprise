@@ -34,7 +34,7 @@ import { createGoogleTasksTools } from './tasks.js';
 import { createGoogleChatTools } from './chat.js';
 import { createGoogleSlidesTools } from './slides.js';
 import { createGoogleFormsTools } from './forms.js';
-import { createGoogleMapsTools, type GoogleMapsConfig } from './maps.js';
+import { createGoogleMapsTools } from './maps.js';
 
 export interface GoogleToolsConfig {
   tokenProvider: TokenProvider;

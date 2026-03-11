@@ -128,7 +128,7 @@ export function formatUptime(seconds) {
 export var DEPLOY_PHASES = ['validate', 'provision', 'configure', 'upload', 'install', 'start', 'healthcheck', 'complete'];
 export var DEPLOY_PHASE_LABELS = { validate: 'Validate Config', provision: 'Provision Infrastructure', configure: 'Configure Environment', upload: 'Upload Agent Files', install: 'Install Dependencies', start: 'Start Agent Process', healthcheck: 'Health Check', complete: 'Complete' };
 
-export async function showConfirm(opts) { return window.__showConfirm ? window.__showConfirm(opts) : confirm(opts.message); }
+export async function showConfirm(opts) { var o = typeof opts === 'string' ? { message: opts } : opts; return window.__showConfirm ? window.__showConfirm(o) : confirm(o.message || o); }
 
 var _uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

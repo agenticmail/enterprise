@@ -138,6 +138,48 @@ export async function runServe(_args: string[]) {
   await server.start();
   console.log(`AgenticMail Enterprise server running on :${PORT}`);
 
+  // Start Polymarket watcher engine (background market surveillance)
+  try {
+    const { startWatcherEngine, initWatcherTables, setWatcherRuntime } = await import('./agent-tools/tools/polymarket-watcher.js');
+    const edb = db.getEngineDB?.();
+    if (edb) {
+      await initWatcherTables(edb);
+      startWatcherEngine(db, {
+        log: (...args: any[]) => console.log(...args),
+        onEvent: (agentId: string, event: any) => {
+          if (event.severity === 'critical') {
+            console.log(`[poly-watcher] CRITICAL signal for agent ${agentId}: ${event.title}`);
+          }
+        },
+      });
+
+      // Inject runtime reference after server fully starts (runtime init is async)
+      setTimeout(async () => {
+        try {
+          const routes = await import('./engine/routes.js');
+          setWatcherRuntime(
+            () => (routes as any).getRuntime?.() || null
+          );
+        } catch (e: any) {
+          console.warn('[poly-watcher] Could not inject runtime:', e.message);
+        }
+      }, 5000);
+
+      console.log('[startup] Polymarket watcher engine started');
+    }
+
+    // Auto-reconnect proxy in background
+    setTimeout(async () => {
+      try {
+        const { autoConnectProxy } = await import('./agent-tools/tools/polymarket-runtime.js');
+        const pdb = db.getEngineDB?.();
+        if (pdb) await autoConnectProxy(pdb);
+      } catch {}
+    }, 8000);
+  } catch (e: any) {
+    console.warn('[startup] Polymarket watcher engine skipped:', e.message);
+  }
+
   // Background update check — non-blocking, runs 30s after startup
   try {
     const { startBackgroundUpdateCheck } = await import('./cli-update.js');

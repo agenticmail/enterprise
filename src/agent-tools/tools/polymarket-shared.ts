@@ -198,34 +198,82 @@ export function clampNumber(val: any, min: number, max: number, defaultVal: numb
 
 // ─── Safe DB Exec ────────────────────────────────────────────
 
-export function safeDbExec(db: any, sql: string, ...args: any[]): any {
+/**
+ * Convert `?` placeholders to `$1, $2, ...` for Postgres.
+ * SQLite uses `?`, Postgres uses `$1`.
+ */
+function pgParams(sql: string): string {
+  if (_dialect !== 'postgres') return sql;
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+/**
+ * Execute a write query (INSERT/UPDATE/DELETE) — works on SQLite + Postgres.
+ */
+export async function safeDbExec(db: any, sql: string, ...args: any[]): Promise<any> {
   if (!db) return null;
   try {
-    if (args.length > 0) {
-      return db.prepare?.(sql)?.run(...args);
+    // SQLite path (better-sqlite3): db.prepare().run()
+    if (db.prepare) {
+      if (args.length > 0) return db.prepare(sql).run(...args);
+      return db.exec(sql);
     }
-    return db.exec?.(sql);
-  } catch {
+    // Postgres/async path: db.execute() or db.query()
+    const qFn = db.query || db.execute;
+    if (qFn) return await qFn.call(db, pgParams(sql), args.length > 0 ? args : undefined);
+    return null;
+  } catch (e) {
     return null;
   }
 }
 
-export function safeDbQuery(db: any, sql: string, ...args: any[]): any[] {
+/**
+ * Query multiple rows — works on SQLite + Postgres.
+ */
+export async function safeDbQuery(db: any, sql: string, ...args: any[]): Promise<any[]> {
   if (!db) return [];
   try {
-    return db.prepare?.(sql)?.all(...args) || [];
+    if (db.prepare) return db.prepare(sql).all(...args) || [];
+    const qFn = db.query || db.execute;
+    if (qFn) {
+      const res = await qFn.call(db, pgParams(sql), args.length > 0 ? args : undefined);
+      return res?.rows || (Array.isArray(res) ? res : []);
+    }
+    return [];
   } catch {
     return [];
   }
 }
 
-export function safeDbGet(db: any, sql: string, ...args: any[]): any | null {
+/**
+ * Query single row — works on SQLite + Postgres.
+ */
+export async function safeDbGet(db: any, sql: string, ...args: any[]): Promise<any | null> {
   if (!db) return null;
   try {
-    return db.prepare?.(sql)?.get(...args) || null;
+    if (db.prepare) return db.prepare(sql).get(...args) || null;
+    const qFn = db.query || db.execute;
+    if (qFn) {
+      const res = await qFn.call(db, pgParams(sql), args.length > 0 ? args : undefined);
+      const rows = res?.rows || (Array.isArray(res) ? res : []);
+      return rows[0] || null;
+    }
+    return null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Execute DDL (CREATE TABLE, etc.) — works on SQLite + Postgres.
+ */
+export async function safeDbDDL(db: any, sql: string): Promise<void> {
+  if (!db) return;
+  try {
+    if (db.exec) { db.exec(sql); return; }
+    if (db.execute) { await db.execute(sql); return; }
+  } catch {}
 }
 
 // ─── RSS Parser ──────────────────────────────────────────────

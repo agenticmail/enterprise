@@ -568,13 +568,15 @@ export async function runAgent(_args: string[]) {
 
   // Parse model from env or agent config
   let defaultModel: any;
-  const modelStr = process.env.AGENTICMAIL_MODEL || `${config.model?.provider}/${config.model?.modelId}`;
+  let _cfgModel = config.model;
+  if (typeof _cfgModel === 'string') { try { _cfgModel = JSON.parse(_cfgModel); } catch {} }
+  const modelStr = process.env.AGENTICMAIL_MODEL || (_cfgModel?.provider && _cfgModel?.modelId ? `${_cfgModel.provider}/${_cfgModel.modelId}` : '');
   if (modelStr && modelStr.includes('/')) {
     const [provider, ...rest] = modelStr.split('/');
     defaultModel = {
       provider,
       modelId: rest.join('/'),
-      thinkingLevel: process.env.AGENTICMAIL_THINKING || config.model?.thinkingLevel,
+      thinkingLevel: process.env.AGENTICMAIL_THINKING || _cfgModel?.thinkingLevel,
     };
   }
 
@@ -736,6 +738,7 @@ export async function runAgent(_args: string[]) {
   // ─── Task Pipeline ──────────────────────────────────────
   const taskQueue = new TaskQueueManager();
   try { (taskQueue as any).db = engineDb; await taskQueue.init(); } catch (e: any) { console.warn(`[task-pipeline] Init: ${e.message}`); }
+  (globalThis as any).__taskQueue = taskQueue;
 
   // ─── Real-Time Status Reporting ─────────────────────────
   // Report status to the enterprise server (separate process)
@@ -752,17 +755,26 @@ export async function runAgent(_args: string[]) {
   };
   // Mark online immediately
   _reportStatus({ status: 'idle', clockedIn: false, activeSessions: 0, currentActivity: null });
+  // On shutdown, report offline so DB gets updated
+  const _reportOffline = () => {
+    _reportStatus({ status: 'offline', clockedIn: false, activeSessions: 0, currentActivity: null });
+  };
+  process.on('SIGTERM', _reportOffline);
+  process.on('SIGINT', _reportOffline);
+  process.on('beforeExit', _reportOffline);
   // Heartbeat every 30s (status + cluster)
   const _agentPort = parseInt(process.env.PORT || '3101');
   const _hostname = process.env.HOSTNAME || process.env.WORKER_HOST || 'localhost';
   setInterval(() => {
     const sessions = (runtime as any).activeSessions?.size || 0;
     _reportStatus({ status: sessions > 0 ? 'online' : 'idle', activeSessions: sessions });
-    // Cluster heartbeat (if registered)
-    fetch(`${ENTERPRISE_URL}/api/engine/cluster/heartbeat/${process.env.WORKER_NODE_ID || AGENT_ID}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agents: [AGENT_ID] }),
-    }).catch(() => {});
+    // Cluster heartbeat (only if registered as cluster worker)
+    if (process.env.WORKER_NODE_ID) {
+      fetch(`${ENTERPRISE_URL}/api/engine/cluster/heartbeat/${process.env.WORKER_NODE_ID}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agents: [AGENT_ID] }),
+      }).catch(() => {});
+    }
   }, 30_000).unref();
   // Register as cluster worker node (if WORKER_NODE_ID is set)
   if (process.env.WORKER_NODE_ID) {
@@ -1398,6 +1410,20 @@ export async function runAgent(_args: string[]) {
           ambientContext ? `\nCONTEXT FROM MEMORY:\n${ambientContext}` : '',
         ].filter(Boolean).join('\n');
 
+        // Inject Polymarket trading prompt if agent has polymarket skills (critical for proactive wakes)
+        const _msgSkills = agent.config?.skills || [];
+        if (_msgSkills.some((s: string) => s.startsWith('polymarket'))) {
+          try {
+            const { buildPolymarketPrompt: _buildPolyPrompt } = await import('./system-prompts/polymarket.js');
+            const _polyCtx: any = {
+              agent: { name: agentName, role: identity?.role || 'trader', personality: identity?.personality || '' },
+              tradingMode: 'autonomous',
+              hasWallet: true,
+            };
+            systemPrompt += '\n\n' + _buildPolyPrompt(_polyCtx);
+          } catch {}
+        }
+
       } else {
         const { buildGoogleChatPrompt, buildScheduleInfo } = await import('./system-prompts/index.js');
         systemPrompt = buildGoogleChatPrompt({
@@ -1413,6 +1439,20 @@ export async function runAgent(_args: string[]) {
           trustLevel,
           ambientContext,
         });
+
+        // Inject Polymarket trading prompt for non-messaging sources too (API, internal, Google Chat)
+        const _nonMsgSkills = agent.config?.skills || [];
+        if (_nonMsgSkills.some((s: string) => s.startsWith('polymarket'))) {
+          try {
+            const { buildPolymarketPrompt: _buildPolyPrompt2 } = await import('./system-prompts/polymarket.js');
+            const _polyCtx2: any = {
+              agent: { name: agentName, role: identity?.role || 'trader', personality: identity?.personality || '' },
+              tradingMode: 'autonomous',
+              hasWallet: true,
+            };
+            systemPrompt += '\n\n' + _buildPolyPrompt2(_polyCtx2);
+          } catch {}
+        }
       }
 
       // Use messaging-specific session context for lean tool loading

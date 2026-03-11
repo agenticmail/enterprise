@@ -4,7 +4,65 @@ import type { SkillDefinition, ToolDefinition } from '../skills.js';
 export const SKILL_DEF: Omit<SkillDefinition, 'tools'> = {
   id: 'polymarket',
   name: 'Polymarket Trading',
-  description: 'Full-featured prediction market trading on Polymarket. Market discovery, order management, portfolio tracking, risk management, price alerts, event analysis, neg-risk support, and autonomous or approval-gated trading. Built on the CLOB API (Polygon/USDC).',
+  description: `Full-featured prediction market trading on Polymarket with a unified analysis pipeline chaining 8+ engines.
+
+## MANDATORY TRADING PIPELINE — Follow This Order EVERY Time
+
+### Pre-Trade Analysis (ALL required before ANY order):
+1. **poly_recall_lessons** — Check past lessons to avoid repeating mistakes
+2. **poly_batch_screen** or **poly_screen_markets** — Find opportunities (8 strategies, scoring 0-120)
+3. **poly_full_analysis** — Run the COMPLETE unified pipeline on top candidates. Chains: screener → quant (Kelly/Black-Scholes/Monte Carlo/VaR) → analytics (regime/smart money/microstructure) → on-chain (orderbook/whales/flow) → social (Twitter/Reddit) → feeds (news/odds) → counter-intel (manipulation/risk). Returns synthesized score (0-100) with action recommendation.
+   - For rapid decisions, use **poly_quick_analysis** instead (fast subset: quant + orderbook + regime + smart money + manipulation)
+4. **poly_estimate_fill** — Simulate the order against the live orderbook (check slippage, liquidity, fill probability)
+
+### Trade Execution (only after analysis passes):
+5. **poly_record_prediction** — Journal your prediction BEFORE placing the trade
+6. **poly_place_order** — Execute the trade
+
+### Post-Trade Learning Loop (run periodically):
+7. **poly_unresolved_predictions** — Check which predictions need resolution
+8. **poly_resolve_prediction** — Log actual outcomes when markets settle
+9. **poly_trade_review** — Review wins/losses, extract patterns
+10. **poly_record_lesson** — Store actionable lessons for future recall
+11. **poly_calibration** — Check if you're overconfident or underconfident
+12. **poly_strategy_performance** — See which signals/strategies actually work
+
+### Portfolio Management:
+- **poly_portfolio_review** — Full portfolio review: position overview + correlation matrix + Kelly sizing + P&L attribution + recommendations
+- **poly_portfolio_optimizer** — Concentration analysis, risk metrics
+- **poly_drawdown_monitor** — Track and alert on drawdowns
+
+### Continuous Monitoring (run poly_heartbeat every 15-30 min):
+- Checks all price alerts and fires triggered ones
+- Monitors open positions for P&L (flags >10% moves for take-profit/stop-loss)
+- Detects settled markets to resolve predictions
+- Verifies balance and API health
+- Optionally scans for new opportunities (run_screener=true)
+
+### Available Analysis Engines (all callable individually):
+- **Quant**: poly_kelly_criterion, poly_binary_pricing, poly_bayesian_update, poly_monte_carlo, poly_technical_indicators, poly_volatility, poly_stat_arb, poly_value_at_risk, poly_entropy, poly_generate_signal
+- **On-Chain**: poly_whale_tracker, poly_orderbook_depth, poly_onchain_flow, poly_wallet_profiler, poly_liquidity_map, poly_transaction_decoder
+- **Social**: poly_twitter_sentiment, poly_polymarket_comments, poly_reddit_pulse, poly_telegram_monitor, poly_social_velocity
+- **Feeds**: poly_official_sources, poly_odds_aggregator, poly_resolution_tracker, poly_breaking_news, poly_calendar_events
+- **Analytics**: poly_market_correlation, poly_arbitrage_scanner, poly_regime_detector, poly_smart_money_index, poly_market_microstructure
+- **Counter-Intel**: poly_manipulation_detector, poly_resolution_risk, poly_counterparty_analysis
+- **Execution**: poly_sniper, poly_scale_in, poly_hedge, poly_exit_strategy
+
+### Goals & Performance Tracking:
+- **poly_goals** — Check performance goals at session start and after trades.
+- Size positions and pick trades to hit targets. Quality over quantity.
+- If drawdown exceeds target, STOP trading and wait.
+
+### RULES:
+- ALWAYS run poly_full_analysis or poly_quick_analysis before placing trades. The pipeline synthesizes data from 8+ engines into one actionable recommendation.
+- If poly_estimate_fill shows slippage > 3% or insufficient liquidity, DO NOT trade.
+- If poly_recall_lessons returns relevant warnings, factor them into your decision.
+- Minimum confidence of 65% required to place a trade.
+- Always include reasoning and signals_used in poly_record_prediction.
+- Run poly_heartbeat regularly to catch alerts, position changes, and settled markets.
+- When poly_heartbeat reports actions_needed, act on them immediately.
+
+Built on the CLOB API (Polygon/USDC). Supports autonomous or approval-gated trading.`,
   category: 'finance',
   risk: 'critical',
   icon: Emoji.chartUp,
@@ -20,18 +78,13 @@ export const TOOLS: ToolDefinition[] = [
 
   {
     id: 'poly_create_account',
-    name: 'Create Account',
-    description: 'Create or import a Polymarket wallet. "auto" generates a fresh wallet and can use the browser to complete signup. "import" lets users provide their existing private key. All credentials persist in the enterprise database — survives server restarts and redeployments.',
-    category: 'write',
-    risk: 'critical',
+    name: 'Wallet Status',
+    description: 'Check if a wallet is configured. Agents cannot create wallets — the user must create a Polymarket account at polymarket.com, then import the wallet private key via the enterprise dashboard Wallet tab.',
+    category: 'read',
+    risk: 'low',
     skillId: 'polymarket',
-    sideEffects: ['accesses-secrets', 'storage'],
-    parameters: { type: 'object', properties: {
-      method: { type: 'string', enum: ['auto', 'import'], description: '"auto" = generate fresh wallet, "import" = use existing key' },
-      private_key: { type: 'string', description: 'For import: existing Ethereum private key' },
-      funder_address: { type: 'string', description: 'For import: Polymarket profile address' },
-      signature_type: { type: 'number', enum: [0, 1, 2], default: 0 },
-    }},
+    sideEffects: [],
+    parameters: { type: 'object', properties: {} },
   },
 
   {
@@ -345,6 +398,22 @@ export const TOOLS: ToolDefinition[] = [
   },
 
   {
+    id: 'poly_swap_to_usdce',
+    name: 'Swap USDC to USDC.e',
+    description: 'Swap native USDC to USDC.e (bridged) on Polygon via Uniswap V3. Polymarket ONLY accepts USDC.e for trading. Run this if wallet has native USDC but no USDC.e.',
+    category: 'write',
+    risk: 'high',
+    skillId: 'polymarket',
+    sideEffects: ['on-chain transaction', 'token swap'],
+    parameters: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'Amount in USD to swap. Leave empty to swap entire native USDC balance.' },
+      },
+    },
+  },
+
+  {
     id: 'poly_withdraw',
     name: 'Withdraw USDC',
     description: 'Withdraw USDC from Polymarket to an external wallet address. Requires explicit confirmation.',
@@ -407,7 +476,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     id: 'poly_redeem',
     name: 'Redeem Winnings',
-    description: 'Redeem winning conditional tokens for USDC after a market resolves. Checks resolution status and redeems all available winning tokens. Can also redeem complementary positions (YES+NO pairs).',
+    description: 'Redeem winning conditional tokens for USDC after a market resolves. Checks Data API for redeemable positions and calls CTF contract redeemPositions(). Use redeem_all=true to claim ALL redeemable positions. MUST be called after markets resolve — check regularly!',
     category: 'write',
     risk: 'medium',
     skillId: 'polymarket',
@@ -415,9 +484,8 @@ export const TOOLS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        market_id: { type: 'string', description: 'Redeem for specific market' },
-        redeem_all: { type: 'boolean', description: 'Redeem all available winning positions', default: false },
-        redeem_pairs: { type: 'boolean', description: 'Also redeem complementary token pairs (YES+NO → USDC)', default: true },
+        condition_id: { type: 'string', description: 'Specific conditionId to redeem' },
+        redeem_all: { type: 'boolean', description: 'Redeem all redeemable positions (default: false)' },
       },
     },
   },
@@ -447,7 +515,7 @@ export const TOOLS: ToolDefinition[] = [
   {
     id: 'poly_place_order',
     name: 'Place Order',
-    description: 'Place a limit or market order. Supports GTC, FOK, GTD order types. Includes pre-trade risk checks (position size, daily limits, balance, slippage protection). In approval mode, queues for human review. In autonomous mode, executes directly. Handles neg-risk markets automatically.',
+    description: 'Place a limit or market order. IMPORTANT: You MUST complete the full analysis pipeline BEFORE calling this — poly_recall_lessons → poly_screen_markets → poly_analyze_market → poly_estimate_fill → poly_record_prediction → THEN poly_place_order. Never skip steps. Supports GTC, FOK, GTD order types. Includes pre-trade risk checks (position size, daily limits, balance, slippage protection). In approval mode, queues for human review. In autonomous mode, executes directly.',
     category: 'write',
     risk: 'critical',
     skillId: 'polymarket',
@@ -639,6 +707,42 @@ export const TOOLS: ToolDefinition[] = [
         end_date: { type: 'string', description: 'ISO date filter end' },
         min_size: { type: 'number' },
       },
+    },
+  },
+
+  {
+    id: 'poly_transfer_funds',
+    name: 'Transfer Funds',
+    description: 'Transfer USDC/MATIC to a whitelisted withdrawal address. Always requires human approval. Destination must be pre-registered with 24h cooling period.',
+    category: 'execute',
+    risk: 'critical',
+    skillId: 'polymarket',
+    sideEffects: ['financial', 'network-request'],
+    parameters: {
+      type: 'object',
+      properties: {
+        to_label: { type: 'string', description: 'Label of whitelisted address' },
+        amount: { type: 'number', description: 'Amount to transfer' },
+        token: { type: 'string', description: 'USDC or MATIC' },
+        reason: { type: 'string', description: 'Reason for transfer' },
+      },
+      required: ['to_label', 'amount'],
+    },
+  },
+
+  {
+    id: 'poly_goals',
+    name: 'Performance Goals',
+    description: 'Check and evaluate your performance goals. Track progress against daily/weekly/monthly targets set by your manager.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'polymarket',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['check', 'evaluate', 'list'], description: 'check/evaluate/list goals' },
+      },
+      required: ['action'],
     },
   },
 
@@ -1073,13 +1177,22 @@ export const TOOLS: ToolDefinition[] = [
 
   {
     id: 'poly_heartbeat',
-    name: 'Trading Heartbeat',
-    description: 'Send a keepalive heartbeat to the CLOB API. Required to keep orders active during extended sessions. Auto-sent by the client, but can be triggered manually.',
-    category: 'write',
+    name: 'Market Watcher',
+    description: 'COMPREHENSIVE MARKET WATCHER — run every 15-30 min. Checks: price alerts (fires triggered), open positions (P&L, stop-loss/take-profit), unresolved predictions (settled markets), balance health, API status. Optional: run quick screener for new opportunities. Returns full status report with prioritized actions needed.',
+    category: 'read',
     risk: 'low',
     skillId: 'polymarket',
     sideEffects: [],
-    parameters: { type: 'object', properties: {} },
+    parameters: {
+      type: 'object',
+      properties: {
+        check_alerts: { type: 'boolean', description: 'Check price alerts (default: true)' },
+        check_positions: { type: 'boolean', description: 'Check open positions (default: true)' },
+        check_predictions: { type: 'boolean', description: 'Check unresolved predictions (default: true)' },
+        check_balance: { type: 'boolean', description: 'Check wallet/exchange balance (default: true)' },
+        run_screener: { type: 'boolean', description: 'Run quick screener for new opportunities (default: false)' },
+      },
+    },
   },
 
   // ═══════════════════════════════════════════════════════════════
@@ -1177,4 +1290,113 @@ export const TOOLS: ToolDefinition[] = [
     sideEffects: [],
     parameters: { type: 'object', properties: { market_id: { type: 'string' } } },
   },
+  {
+    id: 'poly_watcher',
+    name: 'Market Watcher',
+    description: 'Manage automated market monitors (24/7 surveillance). Create, list, pause, resume, delete watchers. 12 types: price_level, price_change, market_scan, news_intelligence, crypto_price, resolution_watch, portfolio_drift, volume_surge, geopolitical, cross_signal, arbitrage_scan, sentiment_shift.',
+    category: 'write',
+    risk: 'medium',
+    skillId: 'polymarket',
+    sideEffects: [],
+    parameters: { type: 'object', properties: { action: { type: 'string' }, watcher_type: { type: 'string' }, config: { type: 'object' } } },
+  },
+  {
+    id: 'poly_watcher_config',
+    name: 'Watcher AI Config',
+    description: 'Configure AI model for background market analysis. Set provider, model, API key, daily budget. Supports xai/grok, openai, groq, deepseek, etc.',
+    category: 'write',
+    risk: 'medium',
+    skillId: 'polymarket',
+    sideEffects: [],
+    parameters: { type: 'object', properties: { action: { type: 'string' }, ai_provider: { type: 'string' }, ai_model: { type: 'string' } } },
+  },
+  {
+    id: 'poly_watcher_events',
+    name: 'Watcher Signals',
+    description: 'Check signals generated by market watchers. ALWAYS check at session start. Actions: check (unread), list, acknowledge, acknowledge_all.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'polymarket',
+    sideEffects: [],
+    parameters: { type: 'object', properties: { action: { type: 'string' } } },
+  },
+  {
+    id: 'poly_setup_monitors',
+    name: 'Quick Monitor Setup',
+    description: 'One-click setup: creates comprehensive monitoring suite (crypto tracker, portfolio drift, resolution watcher, arbitrage scanner, AI news intelligence, geopolitical scanner, cross-signal correlator, sentiment trackers, and auto SL/TP for open positions).',
+    category: 'write',
+    risk: 'medium',
+    skillId: 'polymarket',
+    sideEffects: [],
+    parameters: { type: 'object', properties: { keywords: { type: 'array' }, regions: { type: 'array' } } },
+  },
+  // ═══ EXECUTION ═══
+  { id: 'poly_sniper', name: 'Sniper Order', description: 'Place a sniper order that triggers when price hits target.', category: 'write', risk: 'critical', skillId: 'polymarket', sideEffects: ['financial'], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_scale_in', name: 'Scale-In Order', description: 'DCA into a position with multiple orders at different prices.', category: 'write', risk: 'critical', skillId: 'polymarket', sideEffects: ['financial'], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_hedge', name: 'Hedge Position', description: 'Create a hedge for an existing position to reduce risk.', category: 'write', risk: 'critical', skillId: 'polymarket', sideEffects: ['financial'], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_exit_strategy', name: 'Exit Rules', description: 'Set automated exit rules (stop-loss, take-profit, trailing stop).', category: 'write', risk: 'high', skillId: 'polymarket', sideEffects: ['financial'], parameters: { type: 'object', properties: {} } },
+  // ═══ SOCIAL INTELLIGENCE ═══
+  { id: 'poly_twitter_sentiment', name: 'Twitter Sentiment', description: 'Analyze Twitter/X sentiment for a topic or market.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_polymarket_comments', name: 'Comment Sentiment', description: 'Analyze Polymarket comment sentiment on a market.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_reddit_pulse', name: 'Reddit Pulse', description: 'Check Reddit discussion volume and sentiment for a topic.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_telegram_monitor', name: 'Telegram Monitor', description: 'Monitor Telegram channels for relevant signals.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_social_velocity', name: 'Social Velocity', description: 'Track social mention velocity and acceleration.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  // ═══ FEEDS & EVENTS ═══
+  { id: 'poly_calendar_events', name: 'Event Calendar', description: 'Manage catalytic events that could move markets. Actions: add, remove, list, upcoming.', category: 'write', risk: 'low', skillId: 'polymarket', sideEffects: ['storage'], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_official_sources', name: 'Official Sources', description: 'Check official government/institutional sources for resolution data.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_odds_aggregator', name: 'Odds Aggregator', description: 'Compare Polymarket odds with other prediction platforms/bookmakers.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_resolution_tracker', name: 'Resolution Tracker', description: 'Track markets approaching resolution with countdown and criteria.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_breaking_news', name: 'Breaking News', description: 'Monitor breaking news feeds for market-moving events.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  // ═══ ON-CHAIN INTELLIGENCE ═══
+  { id: 'poly_whale_tracker', name: 'Whale Tracker', description: 'Track large wallet activity on Polymarket contracts.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_orderbook_depth', name: 'Orderbook Depth', description: 'Deep orderbook analysis with heatmap-style depth visualization.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_onchain_flow', name: 'On-Chain Flow', description: 'Analyze USDC flow into/out of Polymarket contracts.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_wallet_profiler', name: 'Wallet Profiler', description: 'Profile a wallet: win rate, volume, favorite markets, PnL.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_liquidity_map', name: 'Liquidity Map', description: 'Map liquidity distribution across price levels.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_transaction_decoder', name: 'Transaction Decoder', description: 'Decode and explain Polymarket on-chain transactions.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  // ═══ ANALYTICS ═══
+  { id: 'poly_market_correlation', name: 'Market Correlation', description: 'Find correlated markets and detect divergences.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_arbitrage_scanner', name: 'Arbitrage Scanner', description: 'Scan for arbitrage opportunities across related markets.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_regime_detector', name: 'Regime Detector', description: 'Detect market regime changes (trending, mean-reverting, volatile).', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_smart_money_index', name: 'Smart Money Index', description: 'Track smart money flow vs retail activity.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_market_microstructure', name: 'Market Microstructure', description: 'Analyze tick-level market microstructure (spread dynamics, fill rates).', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  // ═══ PORTFOLIO ═══
+  { id: 'poly_portfolio_optimizer', name: 'Portfolio Optimizer', description: 'Optimize portfolio allocation using Kelly criterion and risk constraints.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_drawdown_monitor', name: 'Drawdown Monitor', description: 'Monitor portfolio drawdown: record snapshots, check status, view history. Alerts when drawdown exceeds threshold.', category: 'write', risk: 'low', skillId: 'polymarket', sideEffects: ['storage'], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_pnl_attribution', name: 'P&L Attribution', description: 'Attribute P&L to individual trades, strategies, and market categories.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  // ═══ QUANT ═══
+  { id: 'poly_kelly_criterion', name: 'Kelly Criterion', description: 'Calculate optimal position size using Kelly criterion.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_binary_pricing', name: 'Binary Pricing', description: 'Price binary options using Black-Scholes and implied volatility.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_bayesian_update', name: 'Bayesian Update', description: 'Update probability estimates with new evidence using Bayes theorem.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_monte_carlo', name: 'Monte Carlo Simulation', description: 'Run Monte Carlo simulations on portfolio scenarios.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_technical_indicators', name: 'Technical Indicators', description: 'Calculate technical indicators (RSI, MACD, Bollinger, etc.) on price series.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_volatility', name: 'Volatility Analysis', description: 'Analyze historical and implied volatility.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_stat_arb', name: 'Statistical Arbitrage', description: 'Find statistical arbitrage opportunities using cointegration analysis.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_value_at_risk', name: 'Value at Risk', description: 'Calculate portfolio VaR and CVaR at various confidence levels.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_entropy', name: 'Market Entropy', description: 'Measure market entropy and information content of price movements.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_news_feed', name: 'News Feed', description: 'Fetch and analyze news articles related to a market topic. Scores sentiment and assesses market impact.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_sentiment_analysis', name: 'Sentiment Analysis', description: 'Analyze sentiment of text, headlines, or market comments. Returns score (-1 to 1) with confidence.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_generate_signal', name: 'Generate Signal', description: 'Composite trading signal combining orderbook, technicals, momentum, mean-reversion, fundamental edge, and volume analysis.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_correlation_matrix', name: 'Correlation Matrix', description: 'Calculate correlation matrix between multiple prediction market tokens for diversification analysis.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_efficiency_test', name: 'Efficiency Test', description: 'Test if a market is informationally efficient using runs test, autocorrelation, variance ratio, and entropy.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  // ═══ COUNTER-INTELLIGENCE ═══
+  { id: 'poly_manipulation_detector', name: 'Manipulation Detector', description: 'Detect potential market manipulation (wash trading, spoofing, layering).', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_resolution_risk', name: 'Resolution Risk', description: 'Assess risk of disputed or unexpected resolution.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  { id: 'poly_counterparty_analysis', name: 'Counterparty Analysis', description: 'Analyze who is on the other side of a trade and their track record.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: {} } },
+  // ═══ SCREENER ═══
+  {
+    id: 'poly_screen_markets',
+    name: 'Market Screener',
+    description: 'Quant-level market screener with 8 strategies (best_opportunities, high_volume, closing_soon, mispriced, contested, safe_bets, new_markets, momentum). Scores markets 0-100 across liquidity, volume, spread, edge, timing, and momentum signals. Returns actionable trade recommendations.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'polymarket',
+    sideEffects: [],
+    parameters: { type: 'object', properties: { strategy: { type: 'string' }, limit: { type: 'number' }, min_volume: { type: 'number' }, min_liquidity: { type: 'number' } } },
+  },
+  // ═══ UNIFIED PIPELINE ═══
+  { id: 'poly_full_analysis', name: 'Full Analysis Pipeline', description: 'COMPLETE unified analysis: screener → quant (Kelly/Monte Carlo/VaR) → analytics (regime/smart money) → on-chain (orderbook/whales/flow) → social (Twitter/Reddit) → feeds (news/odds) → counter-intel (manipulation/risk). Returns score 0-100 with action recommendation. ALWAYS run before trading.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: { token_id: { type: 'string' }, market_slug: { type: 'string' }, market_question: { type: 'string' }, bankroll: { type: 'number' }, skip_slow: { type: 'boolean' } }, required: ['token_id'] } },
+  { id: 'poly_quick_analysis', name: 'Quick Analysis', description: 'Fast analysis: quant + orderbook + regime + smart money + manipulation. Returns score, action, Kelly sizing, thesis. Use for rapid decisions.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: { token_id: { type: 'string' }, market_question: { type: 'string' }, bankroll: { type: 'number' } }, required: ['token_id'] } },
+  { id: 'poly_batch_screen', name: 'Batch Screen', description: 'Screen and rank multiple markets. 8 strategies: momentum, contested, best_opportunities, high_volume, closing_soon, mispriced, safe_bets, new_markets.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number' }, strategy: { type: 'string' } } } },
+  { id: 'poly_portfolio_review', name: 'Portfolio Review', description: 'Complete portfolio review: positions + correlation matrix + Kelly sizing + P&L attribution + recommendations.', category: 'read', risk: 'low', skillId: 'polymarket', sideEffects: [], parameters: { type: 'object', properties: { positions: { type: 'string' }, bankroll: { type: 'number' } }, required: ['positions', 'bankroll'] } },
 ];

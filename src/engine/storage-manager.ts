@@ -8,7 +8,7 @@
 
 import type { EngineDatabase } from './db-adapter.js';
 import type { SecureVault } from './vault.js';
-import { createStorageProvider, type StorageConfig, type StorageObject, type StorageProvider, type UploadOptions } from './storage.js';
+import { createStorageProvider, type StorageConfig, type StorageProvider } from './storage.js';
 
 // ─── Types ──────────────────────────────────────────────
 

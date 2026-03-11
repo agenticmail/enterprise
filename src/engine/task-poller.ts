@@ -66,9 +66,9 @@ export class TaskPoller {
     this.deps = deps;
     this.intervalMs = config?.intervalMs ?? 2 * 60 * 1000;        // 2 min
     this.stuckThresholdMs = config?.stuckThresholdMs ?? 5 * 60 * 1000;  // 5 min
-    this.staleThresholdMs = config?.staleThresholdMs ?? 15 * 60 * 1000; // 15 min
+    this.staleThresholdMs = config?.staleThresholdMs ?? 30 * 60 * 1000; // 30 min — agent sessions can run 20+ tool calls
     this.maxRetries = config?.maxRetries ?? 3;
-    this.maxTaskAgeMs = config?.maxTaskAgeMs ?? 15 * 60 * 1000; // 15 min — tasks older than this are auto-failed
+    this.maxTaskAgeMs = config?.maxTaskAgeMs ?? 45 * 60 * 1000; // 45 min — trading sessions with analysis can be long
     this.debug = config?.debug ?? false;
   }
 
@@ -203,9 +203,16 @@ export class TaskPoller {
   private isStuck(task: TaskRecord, now: number): string | null {
     const createdMs = new Date(task.createdAt).getTime();
 
-    // Skip tasks older than maxTaskAgeMs — they'll be auto-failed in the main loop
+    // Skip tasks older than maxTaskAgeMs — but only if no recent activity
     if (now - createdMs > this.maxTaskAgeMs) {
-      return `task too old (${Math.round((now - createdMs) / 60000)}min), auto-failing`;
+      const lastLogMs = task.activityLog.length > 0
+        ? new Date(task.activityLog[task.activityLog.length - 1].ts).getTime()
+        : 0;
+      // If there was activity in the last 5 minutes, the session is still working — don't kill it
+      if (lastLogMs && now - lastLogMs < 5 * 60 * 1000) {
+        return null;
+      }
+      return `task too old (${Math.round((now - createdMs) / 60000)}min) with no recent activity, auto-failing`;
     }
 
     const lastActivity = task.startedAt

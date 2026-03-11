@@ -14,11 +14,23 @@
 
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { jsonResult, errorResult } from '../common.js';
+import { createPolymarketScreenerTools as createScreenerTools } from './polymarket-screener.js';
+import { createWatcherTools } from './polymarket-watcher.js';
+import { createPolymarketExecutionTools } from './polymarket-execution.js';
+import { createPolymarketSocialTools } from './polymarket-social.js';
+import { createPolymarketFeedsTools as createPolymarketFeedTools } from './polymarket-feeds.js';
+import { createPolymarketOnchainTools } from './polymarket-onchain.js';
+import { createPolymarketAnalyticsTools } from './polymarket-analytics.js';
+import { createPolymarketPortfolioTools } from './polymarket-portfolio.js';
+import { createPolymarketQuantTools } from './polymarket-quant.js';
+import { createPolymarketCounterintelTools } from './polymarket-counterintel.js';
+import { createPolymarketOptimizerTools } from './polymarket-optimizer.js';
 import {
-  ensureSDK, getClobClient, initPolymarketDB, saveWalletCredentials, generateWallet,
+  ensureSDK, getClobClient, importSDK, initPolymarketDB, loadWalletCredentials, saveWalletCredentials, generateWallet,
   loadConfig, saveConfig, getDailyCounter, incrementDailyCounter, pauseTrading, resumeTrading,
   savePendingTrade, getPendingTrades, resolvePendingTrade, logTrade,
-  saveAlert, getAlerts, deleteAlert, deleteAllAlerts,
+  saveAlert, getAlerts, deleteAlert, deleteAllAlerts, checkAlerts,
+  createBracketAlerts, getBracketConfig,
   savePaperPosition, getPaperPositions,
   getAutoApproveRules, saveAutoApproveRule, deleteAutoApproveRule,
   initLearningDB, recordPrediction, resolvePrediction, storeLesson,
@@ -28,35 +40,65 @@ import {
 } from './polymarket-runtime.js';
 
 const GAMMA_API = 'https://gamma-api.polymarket.com';
-const CLOB_API = 'https://clob.polymarket.com';
-const CHAIN_ID = 137;
+import { CLOB_API, CTF_ADDRESS, USDC_ADDRESS } from '../../polymarket-engines/shared.js';
+const USDC_E = USDC_ADDRESS; // alias for readability
 
 // ─── Caches ──────────────────────────────────────────────────
 const marketCache = new Map<string, { data: any; ts: number }>();
 const CACHE_TTL = 5 * 60_000;
 
-// Keep the local interface for backward compat but delegate to DB
-interface _TradingConfig {
-  mode: 'approval' | 'autonomous' | 'paper';
-  maxPositionSize: number;
-  maxOrderSize: number;
-  maxTotalExposure: number;
-  maxDailyTrades: number;
-  maxDailyLoss: number;
-  maxDrawdownPct: number;
-  allowedCategories: string[];
-  blockedCategories: string[];
-  blockedMarkets: string[];
-  minLiquidity: number;
-  minVolume: number;
-  maxSpreadPct: number;
-  stopLossPct: number;
-  takeProfitPct: number;
-  trailingStopPct: number;
-  rebalanceInterval: string;
-  notificationChannel: string;
-  notifyOn: string[];
-  cashReservePct: number;
+// ─── Market Freshness Tracker ────────────────────────────────
+// Tracks recently-analyzed markets per agent to prevent repeating the same markets
+// Key: agentId, Value: Map<marketId, { ts, count, lastAction }>
+const recentlyAnalyzed = new Map<string, Map<string, { ts: number; count: number; lastAction: string }>>();
+const FRESHNESS_TTL = 30 * 60_000; // 30 min — markets analyzed in last 30min are "fresh"
+const MAX_REPEAT_COUNT = 2; // Allow re-analysis up to 2x, then suppress unless critical
+
+function trackMarketAnalysis(agentId: string, marketId: string, action: string = 'view') {
+  if (!recentlyAnalyzed.has(agentId)) recentlyAnalyzed.set(agentId, new Map());
+  const agent = recentlyAnalyzed.get(agentId)!;
+  const existing = agent.get(marketId);
+  agent.set(marketId, {
+    ts: Date.now(),
+    count: (existing?.count || 0) + 1,
+    lastAction: action,
+  });
+  // Cleanup entries older than TTL
+  for (const [id, entry] of agent) {
+    if (Date.now() - entry.ts > FRESHNESS_TTL) agent.delete(id);
+  }
+}
+
+function isMarketFresh(agentId: string, marketId: string): boolean {
+  const agent = recentlyAnalyzed.get(agentId);
+  if (!agent) return false;
+  const entry = agent.get(marketId);
+  if (!entry) return false;
+  if (Date.now() - entry.ts > FRESHNESS_TTL) return false;
+  return entry.count >= MAX_REPEAT_COUNT;
+}
+
+function filterFreshMarkets(agentId: string, markets: any[]): any[] {
+  return markets.filter(m => {
+    const id = m.conditionId || m.id || m.slug;
+    if (!id) return true;
+    return !isMarketFresh(agentId, id);
+  });
+}
+
+/** Check if a market is dead/resolved (prices all 0 or 1) */
+function isDeadMarket(m: any): boolean {
+  try {
+    const prices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+    if (Array.isArray(prices) && prices.length > 0) {
+      return prices.every((p: any) => parseFloat(p) <= 0.01 || parseFloat(p) >= 0.99);
+    }
+  } catch {}
+  // Also check explicit flags
+  if (m.resolved === true || m.resolved === 'true') return true;
+  if (m.closed === true || m.closed === 'true') return true;
+  if (m.active === false || m.active === 'false') return true;
+  return false;
 }
 
 interface PendingTrade {
@@ -76,38 +118,6 @@ interface PendingTrade {
   createdAt: string;
 }
 
-interface PriceAlert {
-  id: string;
-  tokenId: string;
-  marketQuestion: string;
-  condition: string;
-  targetPrice?: number;
-  pctChange?: number;
-  basePrice?: number;
-  repeat: boolean;
-  autoTrade?: { side: string; size: number; price?: number };
-  createdAt: string;
-  triggered: boolean;
-  triggeredAt?: string;
-}
-
-interface PaperPosition {
-  tokenId: string;
-  side: string;
-  entryPrice: number;
-  size: number;
-  marketQuestion: string;
-  rationale: string;
-  createdAt: string;
-}
-
-interface AutoApproveRule {
-  id: string;
-  maxSize: number;
-  categories: string[];
-  sides: string[];
-}
-
 interface DailyCounter {
   count: number;
   loss: number;
@@ -116,11 +126,12 @@ interface DailyCounter {
 
 const agentConfigs = new Map<string, TradingConfig>();
 const pendingTrades = new Map<string, PendingTrade>();
-const priceAlerts = new Map<string, PriceAlert[]>();
-const paperPositions = new Map<string, PaperPosition[]>();
-const autoApproveRules = new Map<string, AutoApproveRule[]>();
 const dailyCounters = new Map<string, DailyCounter>();
 const circuitBreakerState = new Map<string, { paused: boolean; reason: string; pausedAt?: string }>();
+
+import { createPolymarketPipelineTools } from './polymarket-pipeline.js';
+let _pipelineTools: AnyAgentTool[] = [];
+try { _pipelineTools = createPolymarketPipelineTools() as AnyAgentTool[]; } catch (e: any) { console.warn('[polymarket] Pipeline init:', e.message); }
 const walletState = new Map<string, { connected: boolean; address?: string; sigType?: number }>();
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -148,31 +159,6 @@ function cached(key: string): any | null {
 
 function setCache(key: string, data: any) {
   marketCache.set(key, { data, ts: Date.now() });
-}
-
-function getConfig(agentId: string): TradingConfig {
-  return agentConfigs.get(agentId) || {
-    mode: 'approval',
-    maxPositionSize: 100,
-    maxOrderSize: 50,
-    maxTotalExposure: 500,
-    maxDailyTrades: 10,
-    maxDailyLoss: 50,
-    maxDrawdownPct: 20,
-    allowedCategories: [],
-    blockedCategories: [],
-    blockedMarkets: [],
-    minLiquidity: 0,
-    minVolume: 0,
-    maxSpreadPct: 100,
-    stopLossPct: 0,
-    takeProfitPct: 0,
-    trailingStopPct: 0,
-    rebalanceInterval: 'never',
-    notificationChannel: '',
-    notifyOn: ['trade_filled', 'stop_loss', 'circuit_breaker', 'market_resolved'],
-    cashReservePct: 20,
-  };
 }
 
 function getLocalDailyCounter(agentId: string): DailyCounter {
@@ -213,23 +199,11 @@ function preTradeChecks(agentId: string, config: TradingConfig, params: any): st
   return null;
 }
 
-function checkAutoApprove(agentId: string, trade: PendingTrade): boolean {
-  const rules = autoApproveRules.get(agentId) || [];
-  for (const rule of rules) {
-    if (trade.size <= rule.maxSize) {
-      if (rule.sides.length > 0 && !rule.sides.includes(trade.side)) continue;
-      // Category check would require market metadata
-      return true;
-    }
-  }
-  return false;
-}
-
 /**
  * Execute an order via CLOB SDK. Auto-installs SDK if needed.
  * Logs the trade to DB regardless of outcome.
  */
-async function executeOrder(agentId: string, db: any, tradeId: string, p: any, source: string): Promise<any> {
+export async function executeOrder(agentId: string, db: any, tradeId: string, p: any, source: string): Promise<any> {
   const sdk = await ensureSDK();
   if (!sdk.ready) {
     // SDK not ready — log as pending_sdk and store in DB
@@ -258,9 +232,100 @@ async function executeOrder(agentId: string, db: any, tradeId: string, p: any, s
     return errorResult('No wallet configured. Use poly_create_account or poly_setup_wallet first.');
   }
 
+  // ── Enforce TradingConfig limits ──
   try {
-    // Build the order using CLOB SDK
-    const { Side } = await import('@polymarket/clob-client' as any);
+    const tradingConfig = await loadConfig(agentId, db);
+
+    // Check mode: if approval mode and source is not auto_*, require approval
+    if (tradingConfig.mode === 'approval' && !source.startsWith('auto_') && source !== 'approved') {
+      await savePendingTrade(db, {
+        id: tradeId, agentId, tokenId: p.token_id, marketQuestion: p.market_question || '',
+        outcome: p.outcome || '', side: p.side, price: p.price, size: p.size,
+        rationale: p.rationale || '', source: source as any,
+      } as any);
+      return jsonResult({
+        status: 'pending_approval',
+        trade_id: tradeId,
+        message: `Trading mode is "approval". Order queued for review. Use poly_approve_trade to execute.`,
+        persisted: true,
+      });
+    }
+
+    // Check max order size
+    if (p.size > tradingConfig.maxOrderSize && tradingConfig.maxOrderSize > 0) {
+      return errorResult(`Order size ${p.size} exceeds max_order_size limit of ${tradingConfig.maxOrderSize}. Update config with poly_set_config.`);
+    }
+
+    // Check max position size (total shares in one market)
+    if (p.size > tradingConfig.maxPositionSize && tradingConfig.maxPositionSize > 0) {
+      return errorResult(`Position size ${p.size} exceeds max_position_size limit of ${tradingConfig.maxPositionSize}.`);
+    }
+
+    // Check daily trade count
+    const dailyCounter = await getDailyCounter(agentId, db);
+    const dailyCount = typeof dailyCounter === 'number' ? dailyCounter : (dailyCounter as any)?.count || 0;
+    if (dailyCount >= tradingConfig.maxDailyTrades && tradingConfig.maxDailyTrades > 0 && !source.startsWith('auto_')) {
+      return errorResult(`Daily trade limit reached (${dailyCount}/${tradingConfig.maxDailyTrades}). Wait until tomorrow or adjust max_daily_trades.`);
+    }
+
+    // Check blocked markets
+    if (tradingConfig.blockedMarkets?.length && p.market_question) {
+      const blocked = tradingConfig.blockedMarkets.some((m: string) =>
+        p.market_question.toLowerCase().includes(m.toLowerCase())
+      );
+      if (blocked) return errorResult(`This market is blocked by your trading config.`);
+    }
+  } catch (configErr: any) {
+    console.warn(`[executeOrder] Config check failed (proceeding): ${configErr.message}`);
+  }
+
+  // ── Pre-flight: verify position exists for SELL orders ──
+  if (p.side === 'SELL') {
+    try {
+      const addr = client.funderAddress || client.address;
+      const positions = await fetch(`https://data-api.polymarket.com/positions?user=${addr}`, { signal: AbortSignal.timeout(8000) })
+        .then(r => r.json()).catch(() => []);
+      const pos = (Array.isArray(positions) ? positions : []).find((pos: any) => pos.asset === p.token_id);
+      if (!pos || parseFloat(pos.size) <= 0) {
+        await logTrade(db, {
+          id: tradeId, agentId, tokenId: p.token_id, marketQuestion: p.market_question,
+          outcome: p.outcome, side: p.side, price: p.price, size: p.size,
+          status: 'no_position', rationale: `${p.rationale || ''} [No position found to sell]`,
+        });
+        return errorResult(`Cannot SELL: no position found for this token. You may have already sold or the position was closed.`);
+      }
+      const availableShares = parseFloat(pos.size);
+      if (p.size > availableShares) {
+        console.warn(`[executeOrder] Reducing sell size from ${p.size} to ${availableShares} (available shares)`);
+        p.size = availableShares;
+      }
+    } catch (posErr: any) {
+      console.warn(`[executeOrder] Position pre-check failed (proceeding): ${posErr.message}`);
+    }
+  }
+
+  // Polymarket minimum order size is 5. Round up small sizes or reject if too small.
+  const POLY_MIN_SIZE = 5;
+  if (p.size > 0 && p.size < POLY_MIN_SIZE) {
+    if (p.size >= POLY_MIN_SIZE - 0.1) {
+      // Close enough (e.g. 4.9999) — round up to minimum
+      console.warn(`[executeOrder] Rounding size ${p.size} up to minimum ${POLY_MIN_SIZE}`);
+      p.size = POLY_MIN_SIZE;
+    } else {
+      await logTrade(db, {
+        id: tradeId, agentId, tokenId: p.token_id, marketQuestion: p.market_question,
+        outcome: p.outcome, side: p.side, price: p.price, size: p.size,
+        status: 'rejected', rationale: `${p.rationale || ''} [Size ${p.size} below Polymarket minimum of ${POLY_MIN_SIZE}]`,
+      });
+      return errorResult(`Order size ${p.size} is below Polymarket minimum of ${POLY_MIN_SIZE} shares. Cannot execute.`);
+    }
+  }
+
+  try {
+    // Build the order using CLOB SDK (resolved from SDK install dir)
+    const clobModule = await importSDK('@polymarket/clob-client');
+    if (!clobModule) throw new Error('CLOB SDK not available. Run poly_check_sdk to verify installation.');
+    const { Side } = clobModule;
     const side = p.side === 'BUY' ? Side.BUY : Side.SELL;
 
     const orderArgs: any = {
@@ -276,21 +341,120 @@ async function executeOrder(agentId: string, db: any, tradeId: string, p: any, s
     const signedOrder = await client.client.createOrder(orderArgs);
     const response = await client.client.postOrder(signedOrder, p.order_type || 'GTC');
 
-    // Log success
+    const clobOrderId = response?.orderID || response?.id;
+    const orderStatus = clobOrderId ? 'placed' : 'rejected';
+
     await logTrade(db, {
       id: tradeId, agentId, tokenId: p.token_id, marketQuestion: p.market_question,
       outcome: p.outcome, side: p.side, price: p.price, size: p.size,
-      status: 'placed', rationale: p.rationale, clobOrderId: response?.orderID || response?.id,
+      status: orderStatus, rationale: p.rationale, clobOrderId: clobOrderId || null,
     });
+
+    if (!clobOrderId) {
+      return jsonResult({
+        status: 'rejected',
+        trade_id: tradeId,
+        message: `Order submitted but no order ID returned — likely rejected by exchange.`,
+        response,
+        persisted: true,
+      });
+    }
+
+    // ── Bracket Orders: auto-create take-profit + stop-loss on BUY ──
+    let bracket: any = null;
+    let bracketConfig: any = null;
+    if (p.side === 'BUY') {
+      try {
+        bracketConfig = await getBracketConfig(agentId, db);
+        if (bracketConfig.enabled) {
+          const buyPrice = p.price || 0.5; // fallback to 50c if no price
+          bracket = await createBracketAlerts(db, {
+            agentId,
+            tokenId: p.token_id,
+            marketQuestion: p.market_question || '',
+            buyPrice,
+            size: p.size,
+            takeProfitPct: bracketConfig.takeProfitPct,
+            stopLossPct: bracketConfig.stopLossPct,
+            sourceTradeId: tradeId,
+          });
+        }
+      } catch (bracketErr: any) {
+        console.error(`[bracket] Failed to create bracket alerts: ${bracketErr.message}`);
+      }
+
+      // ── Exit Rule: auto-create trailing stop on BUY (uses TradingConfig) ──
+      try {
+        const exitId = `exit_auto_${tradeId}`;
+        const buyPrice = p.price || 0.5;
+        const trailingPct = bracketConfig.trailingStopPct || 12;
+        if (trailingPct > 0) {
+          await db.execute(`
+            INSERT INTO poly_exit_rules (id, agent_id, token_id, entry_price, position_size, trailing_stop_pct, highest_price, status)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,'active')
+          `, [exitId, agentId, p.token_id, buyPrice, p.size, trailingPct, buyPrice]);
+          console.log(`[exit-rule] Auto-created trailing stop (${trailingPct}%) for BUY ${tradeId}`);
+        }
+      } catch (exitErr: any) {
+        console.error(`[exit-rule] Failed to create exit rule: ${exitErr.message}`);
+      }
+    }
+
+    // ── SELL cleanup: cancel all alerts, exit rules, and watchers for this token ──
+    let sellCleanup: any = null;
+    if (p.side === 'SELL') {
+      try {
+        const tokenId = p.token_id;
+        // Cancel all untriggered price alerts for this token
+        const alertResult = await db.execute(
+          `UPDATE poly_price_alerts SET triggered = 1, triggered_at = NOW() WHERE agent_id = $1 AND token_id = $2 AND triggered = 0`,
+          [agentId, tokenId]
+        );
+        // Deactivate all exit rules for this token
+        const exitResult = await db.execute(
+          `UPDATE poly_exit_rules SET status = 'cancelled' WHERE agent_id = $1 AND token_id = $2 AND status = 'active'`,
+          [agentId, tokenId]
+        );
+        // Pause token-specific watchers (price_level type with this token in config)
+        const watcherResult = await db.execute(
+          `UPDATE poly_watchers SET status = 'paused' WHERE agent_id = $1 AND status = 'active' AND config::text LIKE $2`,
+          [agentId, `%${tokenId}%`]
+        );
+        const alertsCancelled = (alertResult as any)?.rowCount || (alertResult as any)?.changes || 0;
+        const exitsCancelled = (exitResult as any)?.rowCount || (exitResult as any)?.changes || 0;
+        const watchersPaused = (watcherResult as any)?.rowCount || (watcherResult as any)?.changes || 0;
+        if (alertsCancelled || exitsCancelled || watchersPaused) {
+          console.log(`[sell-cleanup] Token ${tokenId.slice(0,16)}: cancelled ${alertsCancelled} alerts, ${exitsCancelled} exit rules, paused ${watchersPaused} watchers`);
+          sellCleanup = { alerts_cancelled: alertsCancelled, exit_rules_cancelled: exitsCancelled, watchers_paused: watchersPaused };
+        }
+      } catch (cleanupErr: any) {
+        console.warn(`[sell-cleanup] Failed: ${cleanupErr.message}`);
+      }
+    }
 
     return jsonResult({
       status: 'placed',
       trade_id: tradeId,
-      clob_order_id: response?.orderID || response?.id,
+      clob_order_id: clobOrderId,
       source,
       message: `Order placed: ${p.side} ${p.size} shares at ${p.price || 'market'}`,
       response,
       persisted: true,
+      ...(bracket ? {
+        bracket_orders: {
+          group: bracket.bracketGroup,
+          take_profit: { alert_id: bracket.takeProfitAlertId, price: bracket.takeProfitPrice },
+          stop_loss: { alert_id: bracket.stopLossAlertId, price: bracket.stopLossPrice },
+          message: `Auto-created bracket: TP@${bracket.takeProfitPrice} / SL@${bracket.stopLossPrice}`,
+        },
+      } : {}),
+      ...(p.side === 'BUY' && bracket ? {
+        exit_rules: {
+          trailing_stop: `${bracket ? (bracketConfig?.trailingStopPct || 12) : 12}%`,
+          message: `Auto-created trailing stop. Tracks highest price and auto-sells if price drops from peak.`,
+        },
+      } : {}),
+      ...(sellCleanup ? { cleanup: sellCleanup } : {}),
     });
   } catch (e: any) {
     // Log failure
@@ -299,6 +463,11 @@ async function executeOrder(agentId: string, db: any, tradeId: string, p: any, s
       outcome: p.outcome, side: p.side, price: p.price, size: p.size,
       status: 'failed', rationale: `${p.rationale || ''} [ERROR: ${e.message}]`,
     });
+
+    // Auto-fix allowance issues: if error is about balance/allowance, try setting allowances and hint retry
+    if (e.message?.includes('not enough balance') || e.message?.includes('allowance')) {
+      return errorResult(`Order failed: insufficient balance or token allowance. Run poly_set_allowances to approve exchange contracts, then retry. Error: ${e.message}`);
+    }
 
     return errorResult(`Order execution failed: ${e.message}`);
   }
@@ -471,7 +640,8 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           const qs = new URLSearchParams();
           if (p.query) qs.set('search', p.query);
           if (p.category) qs.set('tag', p.category);
-          if (p.active !== undefined) qs.set('active', String(p.active));
+          // Default to active markets only (exclude resolved/closed) unless explicitly overridden
+          qs.set('active', String(p.active !== undefined ? p.active : true));
           if (p.closed !== undefined) qs.set('closed', String(p.closed));
           qs.set('limit', String(p.limit || 20));
           if (p.offset) qs.set('offset', String(p.offset));
@@ -480,21 +650,118 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           if (p.end_date_before) qs.set('end_date_max', p.end_date_before);
           if (p.end_date_after) qs.set('end_date_min', p.end_date_after);
 
-          const raw = await apiFetch(`${GAMMA_API}/markets?${qs}`);
-          let markets = (Array.isArray(raw) ? raw : []).map(slimMarket);
+          // Default order to volume desc if not specified (prevents returning ancient dead markets)
+          if (!p.order) { qs.set('order', 'volume'); qs.set('ascending', 'false'); }
 
-          // Post-filter by volume/liquidity (Gamma API may not support these filters)
+          // Search both /markets and /events endpoints for maximum coverage
+          const evQs: Record<string, string> = { active: String(p.active !== undefined ? p.active : true), closed: String(p.closed || false), limit: String(Math.min((p.limit || 20) * 3, 100)), order: p.order || 'volume', ascending: String(p.ascending ?? false) };
+          if (p.query) evQs.search = p.query;
+          if (p.category) evQs.tag_id = p.category;
+
+          const [marketsRaw, eventsRaw] = await Promise.all([
+            apiFetch(`${GAMMA_API}/markets?${qs}`).catch(() => []),
+            apiFetch(`${GAMMA_API}/events?${new URLSearchParams(evQs)}`).catch(() => []),
+          ]);
+          let allRaw = Array.isArray(marketsRaw) ? [...marketsRaw] : [];
+          // Extract markets from events
+          if (Array.isArray(eventsRaw)) {
+            for (const ev of eventsRaw) {
+              if (ev.markets && Array.isArray(ev.markets)) {
+                for (const m of ev.markets) {
+                  if (m.active && !m.closed) allRaw.push(m);
+                }
+              }
+            }
+          }
+          // Deduplicate
+          const seen = new Set<string>();
+          allRaw = allRaw.filter(m => { const k = m.conditionId || m.id; if (seen.has(k)) return false; seen.add(k); return true; });
+
+          // Hard filter: remove resolved/closed/stale markets unless explicitly requested
+          if (p.active !== false && !p.closed) {
+            const now = new Date().toISOString();
+            allRaw = allRaw.filter(m => {
+              // Skip if explicitly marked as closed or resolved
+              if (m.closed === true || m.closed === 'true') return false;
+              if (m.resolved === true || m.resolved === 'true') return false;
+              if (m.active === false || m.active === 'false') return false;
+              // Skip if end date is in the past
+              if (m.endDate && m.endDate < now) return false;
+              if (m.end_date_iso && m.end_date_iso < now) return false;
+              // Skip if all outcome prices are 0 or 1 (fully resolved)
+              try {
+                const prices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+                if (Array.isArray(prices) && prices.length > 0) {
+                  const allResolved = prices.every((pr: any) => parseFloat(pr) <= 0.01 || parseFloat(pr) >= 0.99);
+                  if (allResolved) return false;
+                  // Skip if all prices are exactly 0 (dead/untraded market)
+                  const allZero = prices.every((pr: any) => parseFloat(pr) === 0);
+                  if (allZero) return false;
+                }
+              } catch {}
+              // Skip markets with no liquidity (ghost markets)
+              const liq = parseFloat(m.liquidity || '0');
+              if (liq <= 0) return false;
+              return true;
+            });
+          }
+
+          let markets = allRaw.map(slimMarket);
+
+          // Post-filter by volume/liquidity
           if (p.min_volume) markets = markets.filter((m: any) => parseFloat(m.volume || '0') >= p.min_volume);
           if (p.min_liquidity) markets = markets.filter((m: any) => parseFloat(m.liquidity || '0') >= p.min_liquidity);
 
-          return jsonResult({ count: markets.length, markets });
+          // Run unified pipeline on top 5 results for enrichment
+          if (p.enrich !== false && markets.length > 0) {
+            try {
+              const { quickAnalysis } = await import('../../polymarket-engines/pipeline.js');
+              const top5 = markets.slice(0, 5).filter((m: any) => m.clobTokenIds?.[0]);
+              const pipeResults = await Promise.all(top5.map((m: any) =>
+                quickAnalysis(m.clobTokenIds[0], m.question, p.bankroll || 100).catch(() => null)
+              ));
+              for (let i = 0; i < top5.length; i++) {
+                const pr = pipeResults[i];
+                if (pr) {
+                  (top5[i] as any).analysis = {
+                    score: pr.score,
+                    action: pr.action,
+                    thesis: pr.thesis,
+                    kelly: pr.kelly,
+                    regime: pr.regime,
+                    smart_money: pr.smart_money,
+                    manipulation_risk: pr.manipulation_risk,
+                  };
+                }
+              }
+            } catch {}
+          }
+
+          // Filter out recently-analyzed markets to encourage diversity
+          const beforeFresh = markets.length;
+          markets = filterFreshMarkets(agentId, markets);
+          const freshFiltered = beforeFresh - markets.length;
+
+          // Cap results to reduce token usage (each market is ~800 chars in JSON)
+          const maxResults = Math.min(p.limit || 8, 15);
+          const capped = markets.slice(0, maxResults);
+          // Track each returned market
+          for (const m of capped) {
+            const mid = m.id || m.slug;
+            if (mid) trackMarketAnalysis(agentId, mid, 'search');
+          }
+          // Strip clobTokenIds from results to save tokens (long hex strings, agent can get them via poly_get_market)
+          const trimmed = capped.map((m: any) => { const { clobTokenIds: _c, ...rest } = m; return rest; });
+          const result: any = { count: markets.length, showing: trimmed.length, markets: trimmed };
+          if (freshFiltered > 0) result.freshness_note = `${freshFiltered} recently-analyzed markets were filtered out. Showing new markets only.`;
+          return jsonResult(result);
         } catch (e: any) { return errorResult(e.message); }
       },
     },
 
     {
       name: 'poly_get_market',
-      description: 'Get market details',
+      description: 'Get market details. market_id can be a numeric ID, condition ID (0x...), or slug.',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { market_id: { type: 'string' } }, required: ['market_id'] },
       async execute(_id: string, p: any) {
@@ -503,11 +770,23 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           if (c) return jsonResult(c);
 
           let m;
-          try { m = await apiFetch(`${GAMMA_API}/markets/${p.market_id}`); }
-          catch { const arr = await apiFetch(`${GAMMA_API}/markets?slug=${p.market_id}&limit=1`); m = Array.isArray(arr) && arr[0]; }
+          // Try numeric/direct ID first
+          try { m = await apiFetch(`${GAMMA_API}/markets/${p.market_id}`); } catch {}
+          // If condition ID (0x...), search by condition_id param
+          if (!m && p.market_id.startsWith('0x')) {
+            const arr = await apiFetch(`${GAMMA_API}/markets?condition_id=${p.market_id}&limit=1`);
+            m = Array.isArray(arr) && arr[0];
+          }
+          // Try slug
+          if (!m) {
+            try {
+              const arr = await apiFetch(`${GAMMA_API}/markets?slug=${encodeURIComponent(p.market_id)}&limit=1`);
+              m = Array.isArray(arr) && arr[0];
+            } catch {}
+          }
           if (!m) return errorResult('Market not found');
 
-          const result = {
+          const result: any = {
             ...slimMarket(m),
             description: m.description,
             startDate: m.startDate,
@@ -516,6 +795,19 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             creator: m.creator,
             eventId: m.eventId,
           };
+
+          // Warn if market is dead/resolved
+          if (isDeadMarket(m)) {
+            result._warning = 'RESOLVED/DEAD MARKET — prices are 0 or 1. Do not trade this market.';
+          }
+
+          // Track freshness and warn if repeatedly analyzed
+          const mid = m.conditionId || m.id || p.market_id;
+          trackMarketAnalysis(agentId, mid, 'get_market');
+          if (isMarketFresh(agentId, mid)) {
+            result._freshness = `You've analyzed this market ${recentlyAnalyzed.get(agentId)?.get(mid)?.count || 0}x recently. Consider exploring NEW markets instead.`;
+          }
+
           setCache(`market:${p.market_id}`, result);
           return jsonResult(result);
         } catch (e: any) { return errorResult(e.message); }
@@ -524,12 +816,24 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_get_event',
-      description: 'Get event with all sub-markets',
+      description: 'Get event with all sub-markets. event_id can be a numeric ID or slug.',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { event_id: { type: 'string' } }, required: ['event_id'] },
       async execute(_id: string, p: any) {
         try {
-          const event = await apiFetch(`${GAMMA_API}/events/${p.event_id}`);
+          let event: any = null;
+          // Try numeric ID first, then slug lookup
+          try { event = await apiFetch(`${GAMMA_API}/events/${p.event_id}`); } catch {}
+          if (!event || event.error) {
+            // Try as slug
+            const arr = await apiFetch(`${GAMMA_API}/events?slug=${encodeURIComponent(p.event_id)}&limit=1`);
+            event = Array.isArray(arr) && arr[0];
+          }
+          if (!event || event.error) {
+            // Try searching by title
+            const arr = await apiFetch(`${GAMMA_API}/events?title=${encodeURIComponent(p.event_id)}&limit=1`);
+            event = Array.isArray(arr) && arr[0];
+          }
           if (!event) return errorResult('Event not found');
           return jsonResult({
             id: event.id,
@@ -602,12 +906,31 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       }},
       async execute(_id: string, p: any) {
         try {
+          // CLOB /trades requires authentication — use ClobClient
+          const client = await getClobClient(_id, db);
+          if (client) {
+            try {
+              const params: any = {};
+              if (p.token_id) params.asset_id = p.token_id;
+              if (p.market_id) params.market = p.market_id;
+              if (p.before) params.before = p.before;
+              let trades = await client.client.getTrades(params);
+              if (Array.isArray(trades)) {
+                trades = trades.slice(0, p.limit || 50);
+                if (p.min_size) trades = trades.filter((t: any) => parseFloat(t.size || '0') >= p.min_size);
+              }
+              return jsonResult(trades);
+            } catch (clientErr: any) {
+              // Fall through to Gamma API fallback
+              console.log(`[poly_get_trades] ClobClient failed (${clientErr.message}), trying Gamma fallback`);
+            }
+          }
+          // Fallback: use Data API (public, no auth needed — Gamma /trades is 404)
           const qs = new URLSearchParams();
-          if (p.token_id) qs.set('asset_id', p.token_id);
-          if (p.market_id) qs.set('market', p.market_id);
+          if (p.token_id) qs.set('asset', p.token_id);
+          if (p.market_id) qs.set('conditionId', p.market_id);
           qs.set('limit', String(p.limit || 50));
-          if (p.before) qs.set('before', p.before);
-          let trades = await apiFetch(`${CLOB_API}/trades?${qs}`);
+          let trades = await apiFetch(`https://data-api.polymarket.com/trades?${qs}`);
           if (p.min_size && Array.isArray(trades)) {
             trades = trades.filter((t: any) => parseFloat(t.size || '0') >= p.min_size);
           }
@@ -792,17 +1115,88 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_set_allowances',
-      description: 'Set token allowances for trading',
+      description: 'Approve Polymarket exchange contracts to use your USDC for trading. This sends on-chain transactions (requires POL/MATIC for gas).',
       category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: { token: { type: 'string' } }},
-      async execute(_id: string, p: any) {
+      parameters: { type: 'object' as const, properties: {} },
+      async execute() {
         const client = await getClobClient(agentId, db);
         if (!client) return errorResult('Wallet not connected. Run poly_create_account first.');
         try {
-          const tx = await client.client.setAllowances();
-          return jsonResult({ status: 'allowances_set', transaction: tx });
+          const creds = await loadWalletCredentials(agentId, db);
+          if (!creds) return errorResult('No wallet credentials');
+
+          const { ethers } = await import('ethers');
+          const rpcs = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com'];
+          let provider;
+          for (const rpc of rpcs) {
+            try { provider = new ethers.JsonRpcProvider(rpc); await provider.getNetwork(); break; }
+            catch { provider = null; }
+          }
+          if (!provider) return errorResult('Cannot connect to Polygon network');
+
+          const wallet = new ethers.Wallet(creds.privateKey, provider);
+          const MAX_ALLOWANCE = '115792089237316195423570985008687907853269984665640564039457584007913129639935'; // type(uint256).max
+
+          // USDC contracts on Polygon
+          const usdcAddresses = [
+            USDC_E, // USDC.e (bridged)
+            '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', // USDC (native)
+          ];
+
+          // Polymarket exchange contracts that need approval
+          const spenders = [
+            '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E', // CTF Exchange
+            '0xC5d563A36AE78145C45a50134d48A1215220f80a', // Neg Risk CTF Exchange
+            '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296', // Neg Risk Adapter
+          ];
+
+          const erc20Abi = ['function approve(address spender, uint256 amount) returns (bool)', 'function allowance(address owner, address spender) view returns (uint256)'];
+          const ctfAbi = ['function setApprovalForAll(address operator, bool approved)', 'function isApprovedForAll(address owner, address operator) view returns (bool)'];
+          const txHashes: string[] = [];
+
+          // 1. Approve USDC spending (for BUY orders)
+          for (const usdc of usdcAddresses) {
+            const contract = new ethers.Contract(usdc, erc20Abi, wallet);
+            for (const spender of spenders) {
+              try {
+                const current = await contract.allowance(wallet.address, spender);
+                if (current > BigInt(0)) continue;
+                const tx = await contract.approve(spender, MAX_ALLOWANCE);
+                await tx.wait();
+                txHashes.push(tx.hash);
+              } catch (e: any) {
+                if (e.message?.includes('CALL_EXCEPTION')) continue;
+                throw e;
+              }
+            }
+          }
+
+          // 2. Approve CTF token spending (for SELL orders — conditional tokens)
+          const ctfAddress = CTF_ADDRESS; // Polymarket CTF contract
+          const ctfContract = new ethers.Contract(ctfAddress, ctfAbi, wallet);
+          for (const spender of spenders) {
+            try {
+              const approved = await ctfContract.isApprovedForAll(wallet.address, spender);
+              if (approved) continue;
+              const tx = await ctfContract.setApprovalForAll(spender, true);
+              await tx.wait();
+              txHashes.push(tx.hash);
+            } catch (e: any) {
+              if (e.message?.includes('CALL_EXCEPTION')) continue;
+              // Don't throw — CTF approval is best-effort
+              console.warn(`[allowance] CTF approval failed for ${spender}: ${e.message}`);
+            }
+          }
+
+          return jsonResult({
+            status: 'allowances_set',
+            transactions: txHashes,
+            message: txHashes.length > 0
+              ? `Approved ${txHashes.length} contracts. You can now trade.`
+              : 'All contracts already approved.',
+          });
         } catch (e: any) {
-          return jsonResult({ status: 'requires_funding', message: `Set allowances failed: ${e.message}. Ensure wallet has MATIC for gas.` });
+          return jsonResult({ status: 'failed', message: `Set allowances failed: ${e.message}. Ensure wallet has POL/MATIC for gas fees.` });
         }
       },
     },
@@ -811,15 +1205,129 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_get_balance',
-      description: 'Get wallet balance',
+      description: 'Get wallet USDC balance and exchange allowances. IMPORTANT: Polymarket requires USDC.e (bridged), NOT native USDC. If you have native USDC but no USDC.e, run poly_swap_to_usdce first.',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: {} },
       async execute() {
         const client = await getClobClient(agentId, db);
         if (!client) return errorResult('Wallet not connected');
         try {
-          const balance = await client.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
-          return jsonResult({ address: client.address, balance });
+          // Get exchange balance/allowances
+          const exchangeBalance = await client.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
+
+          // Check on-chain USDC balances separately (bridged vs native)
+          let usdceBal = '0';
+          let usdcNativeBal = '0';
+          let polBal = '0';
+          try {
+            const { ethers } = await import('ethers');
+            let provider;
+            const rpcs = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com'];
+            for (const rpc of rpcs) {
+              try { provider = new ethers.JsonRpcProvider(rpc); await provider.getNetwork(); break; }
+              catch { provider = null; }
+            }
+            if (!provider) throw new Error('All Polygon RPCs failed');
+            const balAbi = ['function balanceOf(address) view returns (uint256)'];
+            // USDC.e (bridged) — THIS is what Polymarket uses
+            try {
+              const ce = new ethers.Contract(USDC_E, balAbi, provider);
+              usdceBal = (Number(await ce.balanceOf(client.address)) / 1e6).toFixed(2);
+            } catch {}
+            // Native USDC — NOT usable on Polymarket directly
+            try {
+              const cn = new ethers.Contract('0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', balAbi, provider);
+              usdcNativeBal = (Number(await cn.balanceOf(client.address)) / 1e6).toFixed(2);
+            } catch {}
+            // POL for gas
+            try {
+              polBal = ethers.formatEther(await provider.getBalance(client.address));
+              polBal = parseFloat(polBal).toFixed(4);
+            } catch {}
+          } catch {}
+
+          const walletUSDC = (parseFloat(usdceBal) + parseFloat(usdcNativeBal)).toFixed(2);
+
+          // Check if allowances need to be set
+          const walletBal = parseFloat(walletUSDC);
+          const allAllowancesZero = Object.values(exchangeBalance?.allowances || {}).every((v: any) => v === '0' || v === 0);
+          const needsAllowances = walletBal > 0 && allAllowancesZero;
+
+          // Auto-set allowances if wallet has funds but exchange doesn't
+          if (needsAllowances) {
+            try {
+              const creds2 = await loadWalletCredentials(agentId, db);
+              if (!creds2) throw new Error('No wallet credentials');
+              const { ethers: ethers2 } = await import('ethers');
+              let provider2;
+              for (const rpc of ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com']) {
+                try { provider2 = new ethers2.JsonRpcProvider(rpc); await provider2.getNetwork(); break; } catch { provider2 = null; }
+              }
+              if (!provider2) throw new Error('Cannot connect to Polygon');
+              const wallet2 = new ethers2.Wallet(creds2.privateKey, provider2);
+              const MAX_ALLOWANCE = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+              const usdcs = [USDC_E, '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'];
+              const spenders = ['0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E', '0xC5d563A36AE78145C45a50134d48A1215220f80a', '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296'];
+              const abi = ['function approve(address,uint256) returns (bool)', 'function allowance(address,address) view returns (uint256)'];
+              for (const u of usdcs) {
+                const c = new ethers2.Contract(u, abi, wallet2);
+                for (const s of spenders) {
+                  try {
+                    const cur = await c.allowance(wallet2.address, s);
+                    if (cur > BigInt(0)) continue;
+                    const tx = await c.approve(s, MAX_ALLOWANCE);
+                    await tx.wait();
+                  } catch {}
+                }
+              }
+              const updated = await client.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
+              const allApproved = Object.values(updated?.allowances || {}).every((v: any) => v !== '0' && v !== 0);
+              return jsonResult({
+                address: client.address,
+                usdc_e_bridged: usdceBal,
+                usdc_native: usdcNativeBal,
+                pol_gas: polBal,
+                wallet_usdc_total: walletUSDC,
+                exchange_balance: updated.balance,
+                trading_approved: allApproved,
+                status: 'allowances_auto_set',
+                needs_swap: parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0,
+                message: parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0
+                  ? `⚠️ Wallet has $${usdcNativeBal} native USDC but $0 USDC.e. Polymarket ONLY accepts USDC.e! Run poly_swap_to_usdce to convert.`
+                  : `Wallet has $${usdceBal} USDC.e. Exchange contracts approved — you can now trade.`,
+              });
+            } catch (e: any) {
+              return jsonResult({
+                address: client.address,
+                usdc_e_bridged: usdceBal,
+                usdc_native: usdcNativeBal,
+                pol_gas: polBal,
+                exchange_balance: exchangeBalance.balance,
+                trading_approved: false,
+                status: 'needs_allowances',
+                message: `Approval failed: ${e.message}`,
+              });
+            }
+          }
+
+          const allApproved = Object.values(exchangeBalance?.allowances || {}).every((v: any) => v !== '0' && v !== 0);
+          const needsSwap = parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0;
+
+          return jsonResult({
+            address: client.address,
+            usdc_e_bridged: usdceBal,
+            usdc_native: usdcNativeBal,
+            pol_gas: polBal,
+            wallet_usdc_total: walletUSDC,
+            exchange_balance: exchangeBalance.balance,
+            trading_approved: allApproved,
+            available_to_trade: usdceBal,
+            needs_swap: needsSwap,
+            status: needsSwap ? 'needs_swap' : (parseFloat(usdceBal) > 0 ? 'funded' : 'no_funds'),
+            message: needsSwap
+              ? `⚠️ You have $${usdcNativeBal} native USDC but Polymarket requires USDC.e (bridged). Run poly_swap_to_usdce to convert.`
+              : undefined,
+          });
         } catch (e: any) {
           return jsonResult({ address: client.address, status: 'balance_check_failed', message: e.message });
         }
@@ -837,7 +1345,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         return jsonResult({
           deposit_address: addr,
           network: 'Polygon (MATIC)',
-          token: 'USDC (0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174)',
+          token: `USDC (${USDC_E})`,
           instructions: [
             `1. Send USDC on Polygon to: ${addr}`,
             '2. Wait for confirmation (~2 seconds on Polygon)',
@@ -845,6 +1353,142 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             'Note: You can also deposit via polymarket.com bridge from Ethereum, Arbitrum, Base, or Optimism.',
           ],
         });
+      },
+    },
+
+    {
+      name: 'poly_swap_to_usdce',
+      description: 'Swap native USDC to USDC.e (bridged) on Polygon. Polymarket ONLY accepts USDC.e for trading. Uses Uniswap V3 swap router. Run this if poly_get_balance shows native USDC but no USDC.e.',
+      category: 'enterprise' as const,
+      parameters: { type: 'object' as const, properties: {
+        amount: { type: 'number', description: 'Amount in USD to swap. Leave empty to swap entire native USDC balance.' },
+      }},
+      async execute(_id: string, p: any) {
+        const creds = await loadWalletCredentials(agentId, db);
+        if (!creds) return errorResult('Wallet not connected');
+        try {
+          const { ethers } = await import('ethers');
+          let provider;
+          for (const rpc of ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com']) {
+            try { provider = new ethers.JsonRpcProvider(rpc); await provider.getNetwork(); break; } catch { provider = null; }
+          }
+          if (!provider) return errorResult('Cannot connect to Polygon RPC');
+
+          const wallet = new ethers.Wallet(creds.privateKey, provider);
+          const USDC_NATIVE = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
+          // USDC_E imported from shared.ts
+          // Uniswap V3 SwapRouter02 on Polygon
+          const SWAP_ROUTER = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45';
+
+          const erc20Abi = [
+            'function balanceOf(address) view returns (uint256)',
+            'function approve(address,uint256) returns (bool)',
+            'function allowance(address,address) view returns (uint256)',
+          ];
+
+          const nativeContract = new ethers.Contract(USDC_NATIVE, erc20Abi, wallet);
+          const nativeBal = await nativeContract.balanceOf(wallet.address);
+
+          if (nativeBal === BigInt(0)) {
+            return jsonResult({ status: 'no_native_usdc', message: 'No native USDC to swap. Balance is 0.' });
+          }
+
+          // Determine swap amount
+          let swapAmount = nativeBal;
+          if (p.amount && p.amount > 0) {
+            swapAmount = BigInt(Math.floor(p.amount * 1e6));
+            if (swapAmount > nativeBal) swapAmount = nativeBal;
+          }
+
+          const swapUSD = (Number(swapAmount) / 1e6).toFixed(2);
+
+          // Approve SwapRouter to spend native USDC
+          const currentAllowance = await nativeContract.allowance(wallet.address, SWAP_ROUTER);
+          if (currentAllowance < swapAmount) {
+            const approveTx = await nativeContract.approve(SWAP_ROUTER, '115792089237316195423570985008687907853269984665640564039457584007913129639935');
+            await approveTx.wait();
+          }
+
+          // Uniswap V3 exactInputSingle swap
+          const swapRouterAbi = [
+            'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)',
+          ];
+          const router = new ethers.Contract(SWAP_ROUTER, swapRouterAbi, wallet);
+
+          // USDC/USDC.e is a stablecoin pair — use 0.01% fee tier (100), accept 0.5% slippage
+          const minOut = swapAmount * BigInt(995) / BigInt(1000);
+
+          const tx = await router.exactInputSingle({
+            tokenIn: USDC_NATIVE,
+            tokenOut: USDC_E,
+            fee: 100, // 0.01% fee tier for stablecoin pairs
+            recipient: wallet.address,
+            amountIn: swapAmount,
+            amountOutMinimum: minOut,
+            sqrtPriceLimitX96: BigInt(0),
+          });
+
+          const receipt = await tx.wait();
+
+          // Check new USDC.e balance
+          const usdceContract = new ethers.Contract(USDC_E, ['function balanceOf(address) view returns (uint256)'], provider);
+          const newBal = await usdceContract.balanceOf(wallet.address);
+
+          return jsonResult({
+            status: 'swapped',
+            swapped_amount: swapUSD,
+            tx_hash: receipt.hash,
+            new_usdce_balance: (Number(newBal) / 1e6).toFixed(2),
+            message: `Successfully swapped $${swapUSD} native USDC → USDC.e. You can now trade on Polymarket.`,
+          });
+        } catch (e: any) {
+          // If Uniswap V3 0.01% pool doesn't exist, try 0.05% fee tier
+          if (e.message?.includes('revert') || e.message?.includes('STF') || e.message?.includes('Too little received')) {
+            try {
+              const { ethers } = await import('ethers');
+              let provider;
+              for (const rpc of ['https://polygon.llamarpc.com', 'https://polygon-bor-rpc.publicnode.com']) {
+                try { provider = new ethers.JsonRpcProvider(rpc); await provider.getNetwork(); break; } catch { provider = null; }
+              }
+              if (!provider) return errorResult('RPC failed on retry');
+              const wallet = new ethers.Wallet(creds.privateKey, provider);
+              const nativeContract = new ethers.Contract('0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', ['function balanceOf(address) view returns (uint256)'], provider);
+              const nativeBal = await nativeContract.balanceOf(wallet.address);
+              let swapAmount = nativeBal;
+              if (p.amount && p.amount > 0) {
+                swapAmount = BigInt(Math.floor(p.amount * 1e6));
+                if (swapAmount > nativeBal) swapAmount = nativeBal;
+              }
+              const router = new ethers.Contract('0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45', [
+                'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)',
+              ], wallet);
+              const minOut = swapAmount * BigInt(990) / BigInt(1000);
+              const tx = await router.exactInputSingle({
+                tokenIn: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+                tokenOut: USDC_E,
+                fee: 500, // 0.05% fee tier
+                recipient: wallet.address,
+                amountIn: swapAmount,
+                amountOutMinimum: minOut,
+                sqrtPriceLimitX96: BigInt(0),
+              });
+              const receipt = await tx.wait();
+              const usdceContract = new ethers.Contract(USDC_E, ['function balanceOf(address) view returns (uint256)'], provider);
+              const newBal = await usdceContract.balanceOf(wallet.address);
+              return jsonResult({
+                status: 'swapped',
+                fee_tier: '0.05%',
+                swapped_amount: (Number(swapAmount) / 1e6).toFixed(2),
+                tx_hash: receipt.hash,
+                new_usdce_balance: (Number(newBal) / 1e6).toFixed(2),
+                message: `Swapped via 0.05% pool. You can now trade on Polymarket.`,
+              });
+            } catch (e2: any) {
+              return errorResult(`Swap failed on both fee tiers. Error: ${e2.message}`);
+            }
+          }
+          return errorResult(`Swap failed: ${e.message}`);
+        }
       },
     },
 
@@ -871,13 +1515,35 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       description: 'Get open positions',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { market_id: { type: 'string' }, min_value: { type: 'number' }, sort_by: { type: 'string' } }},
-      async execute(_id: string, p: any) {
+      async execute(_id: string, _p: any) {
         const client = await getClobClient(agentId, db);
         if (!client) return errorResult('Wallet not connected');
         try {
-          const positions = await apiFetch(`${GAMMA_API}/positions?user=${client.address}&limit=100`).catch(() => null);
-          if (!positions) return jsonResult({ address: client.address, status: 'no_positions' });
-          return jsonResult(positions);
+          const addr = client.funderAddress || client.address;
+          // Try Data API first (Gamma /positions is deprecated/404)
+          let positions = await apiFetch(`https://data-api.polymarket.com/positions?user=${addr}`).catch(() => null);
+          if (!positions) {
+            // Fallback to Gamma
+            positions = await apiFetch(`${GAMMA_API}/positions?user=${addr}&limit=100`).catch(() => null);
+          }
+          if (!positions || (Array.isArray(positions) && positions.length === 0)) return jsonResult({ address: addr, status: 'no_positions' });
+          // Trim to essential fields to reduce token usage (raw response can be 20K+ chars)
+          const trimmed = (positions as any[]).map((pos: any) => ({
+            asset: pos.asset,
+            conditionId: pos.conditionId,
+            size: pos.size,
+            avgPrice: pos.avgPrice,
+            currentPrice: pos.curPrice || pos.currentPrice,
+            title: pos.title,
+            outcome: pos.outcome,
+            market_slug: pos.market_slug || pos.slug,
+            pnl: pos.cashPnl ?? pos.pnl,
+            percentPnl: pos.percentPnl,
+            redeemable: pos.redeemable,
+            resolved: pos.resolved,
+            negRisk: pos.negRisk,
+          }));
+          return jsonResult(trimmed);
         } catch (e: any) { return errorResult(e.message); }
       },
     },
@@ -891,21 +1557,119 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         const client = await getClobClient(agentId, db);
         if (!client) return errorResult('Wallet not connected');
         try {
-          const qs = new URLSearchParams({ user: client.address, limit: String(p.limit || 50) });
+          const addr = client.funderAddress || client.address;
+          const qs = new URLSearchParams({ user: addr, limit: String(p.limit || 50) });
           if (p.offset) qs.set('offset', String(p.offset));
-          const positions = await apiFetch(`${GAMMA_API}/positions/closed?${qs}`).catch(() => null);
-          return jsonResult(positions || { address: client.address, status: 'no_closed_positions' });
+          // Try Data API first
+          let positions = await apiFetch(`https://data-api.polymarket.com/positions/closed?${qs}`).catch(() => null);
+          if (!positions) {
+            positions = await apiFetch(`${GAMMA_API}/positions/closed?${qs}`).catch(() => null);
+          }
+          return jsonResult(positions || { address: addr, status: 'no_closed_positions' });
         } catch (e: any) { return errorResult(e.message); }
       },
     },
 
     {
       name: 'poly_redeem',
-      description: 'Redeem winning tokens',
+      description: 'Redeem winning tokens from resolved markets. Checks Data API for redeemable positions and calls CTF contract redeemPositions(). Use redeem_all=true to claim ALL redeemable positions, or pass a specific condition_id.',
       category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: { market_id: { type: 'string' }, redeem_all: { type: 'boolean' }, redeem_pairs: { type: 'boolean' } }},
-      async execute() {
-        return jsonResult({ status: 'requires_sdk', message: 'Redemption requires authenticated CLOB client with blockchain tx capability.' });
+      parameters: { type: 'object' as const, properties: {
+        condition_id: { type: 'string', description: 'Specific conditionId to redeem' },
+        redeem_all: { type: 'boolean', description: 'Redeem all redeemable positions' },
+      }},
+      async execute(_id: string, p: any) {
+        try {
+          const creds = await loadWalletCredentials(agentId, db);
+          if (!creds?.privateKey) return errorResult('No wallet credentials. Set up wallet first.');
+
+          const wallet = creds.funderAddress;
+          if (!wallet) return errorResult('No wallet address found.');
+
+          // 1. Fetch redeemable positions from Data API
+          const posRes = await fetch(`https://data-api.polymarket.com/positions?user=${wallet}&sizeThreshold=0`);
+          const positions = await posRes.json();
+          const redeemable = (positions as any[]).filter((pos: any) => pos.redeemable === true);
+
+          if (!redeemable.length) return jsonResult({ status: 'nothing_to_redeem', message: 'No redeemable positions found.' });
+
+          // Filter by condition_id if specified
+          const toRedeem = p?.condition_id
+            ? redeemable.filter((pos: any) => pos.conditionId === p.condition_id)
+            : p?.redeem_all ? redeemable : redeemable.slice(0, 1);
+
+          if (!toRedeem.length) return jsonResult({ status: 'not_found', message: `No redeemable position found for condition ${p.condition_id}`, available: redeemable.map((r: any) => ({ title: r.title, conditionId: r.conditionId, value: r.currentValue })) });
+
+          // 2. Redeem each position via CTF contract
+          const { ethers } = await import('ethers');
+          // CTF_ADDRESS and USDC_E imported from shared.ts
+          const CTF_ABI = [
+            'function redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] calldata indexSets) external'
+          ];
+
+          const rpcs = ['https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org'];
+          let provider: any;
+          for (const rpc of rpcs) {
+            try { provider = new ethers.JsonRpcProvider(rpc); await provider.getBlockNumber(); break; } catch { continue; }
+          }
+          if (!provider) return errorResult('All RPCs failed');
+
+          const signer = new ethers.Wallet(creds.privateKey, provider);
+          const ctf = new ethers.Contract(CTF_ADDRESS, CTF_ABI, signer);
+
+          const results: any[] = [];
+          for (const pos of toRedeem) {
+            try {
+              // For binary markets, indexSets = [1, 2] (both outcomes)
+              // parentCollectionId = 0x0 for top-level conditions
+              const parentCollectionId = '0x0000000000000000000000000000000000000000000000000000000000000000';
+              const indexSets = pos.negativeRisk ? [1] : [1, 2];
+
+              const tx = await ctf.redeemPositions(
+                USDC_E,
+                parentCollectionId,
+                pos.conditionId,
+                indexSets,
+                { gasLimit: 300000 }
+              );
+              const receipt = await tx.wait();
+
+              // Update trade log
+              try {
+                const { safeDbExec } = await import('./polymarket-shared.js');
+                await safeDbExec(db, `UPDATE poly_trade_log SET status = 'redeemed', pnl = $1 WHERE token_id = $2 AND agent_id = $3 AND status != 'redeemed'`,
+                  [pos.cashPnl || 0, pos.asset, agentId]);
+              } catch { /* best effort */ }
+
+              results.push({
+                title: pos.title,
+                outcome: pos.outcome,
+                conditionId: pos.conditionId,
+                shares: pos.size,
+                value: pos.currentValue,
+                profit: pos.cashPnl,
+                txHash: receipt.hash,
+                status: 'redeemed'
+              });
+            } catch (e: any) {
+              results.push({
+                title: pos.title,
+                conditionId: pos.conditionId,
+                status: 'failed',
+                error: e.message
+              });
+            }
+          }
+
+          return jsonResult({
+            status: 'complete',
+            redeemed: results.filter((r: any) => r.status === 'redeemed').length,
+            failed: results.filter((r: any) => r.status === 'failed').length,
+            total_value: results.filter((r: any) => r.status === 'redeemed').reduce((s: number, r: any) => s + (r.value || 0), 0),
+            total_profit: results.filter((r: any) => r.status === 'redeemed').reduce((s: number, r: any) => s + (r.profit || 0), 0),
+            details: results
+          });
+        } catch (e: any) { return errorResult(e.message); }
       },
     },
 
@@ -914,7 +1678,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       description: 'Portfolio analytics',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { period: { type: 'string' }, include_closed: { type: 'boolean' }, include_charts: { type: 'boolean' } }},
-      async execute(_id: string, p: any) {
+      async execute(_id: string, _p: any) {
         const config = await loadConfig(agentId, db);
         const counter = await getDailyCounter(agentId, db);
         const paperPos = await getPaperPositions(agentId, db);
@@ -952,6 +1716,22 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         // Pre-trade risk checks
         const check = preTradeChecks(agentId, config, p);
         if (check) return errorResult(check);
+
+        // Pipeline enforcement: require a prediction to be recorded before trading
+        try {
+          const unresolved = await getUnresolvedPredictions(agentId, db, undefined);
+          const hasPrediction = unresolved.some((u: any) =>
+            u.token_id === p.token_id ||
+            (p.market_id && u.market_id === p.market_id) ||
+            (p.market_question && u.market_question && u.market_question.toLowerCase().includes(p.market_question.toLowerCase().slice(0, 30)))
+          );
+          if (!hasPrediction && unresolved.length === 0) {
+            // Only block if there are NO predictions at all — first-time enforcement
+            return errorResult(
+              'PIPELINE: No predictions recorded yet. Before placing orders, call poly_record_prediction with your analysis (token_id, predicted_outcome, predicted_probability, confidence, reasoning). This journals your trade thesis for the learning loop.'
+            );
+          }
+        } catch { /* If prediction check fails, allow trade to proceed */ }
 
         // Paper trading mode
         if (config.mode === 'paper') {
@@ -1066,7 +1846,33 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             errors.push({ order, error: check });
             continue;
           }
-          results.push({ ...order, status: config.mode === 'approval' ? 'pending_approval' : 'queued' });
+
+          const tradeId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          order.rationale = order.rationale || p.rationale || '';
+
+          if (config.mode === 'paper') {
+            const mid = await apiFetch(`${CLOB_API}/midpoint?token_id=${order.token_id}`).catch(() => ({ mid: order.price || 0.5 }));
+            const fillPrice = order.price || parseFloat(mid?.mid || '0.5');
+            await savePaperPosition(db, {
+              agentId, tokenId: order.token_id, side: order.side, entryPrice: fillPrice,
+              size: order.size, marketQuestion: order.market_question || '', rationale: order.rationale,
+            });
+            results.push({ trade_id: tradeId, status: 'paper_filled', ...order });
+          } else if (config.mode === 'approval') {
+            await savePendingTrade(db, {
+              id: tradeId, agentId, tokenId: order.token_id, side: order.side,
+              price: order.price || null, size: order.size,
+              orderType: order.order_type || 'GTC', tickSize: order.tick_size || '0.01',
+              negRisk: order.neg_risk || false, marketQuestion: order.market_question || '',
+              outcome: order.outcome || '', rationale: order.rationale, urgency: order.urgency || 'normal',
+            });
+            results.push({ trade_id: tradeId, status: 'pending_approval', ...order });
+          } else {
+            // Autonomous — execute directly
+            await incrementDailyCounter(agentId, db);
+            const execResult = await executeOrder(agentId, db, tradeId, order, 'autonomous');
+            results.push({ trade_id: tradeId, status: 'executed', result: execResult });
+          }
         }
 
         return jsonResult({
@@ -1075,7 +1881,6 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           rejected: errors.length,
           orders: results,
           errors: errors.length > 0 ? errors : undefined,
-          note: config.mode === 'approval' ? 'All orders queued for approval' : 'Batch execution requires SDK',
         });
       },
     },
@@ -1086,8 +1891,14 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { market_id: { type: 'string' }, token_id: { type: 'string' } }},
       async execute() {
-        const pending = Array.from(pendingTrades.values()).filter(t => t.agentId === agentId);
-        return jsonResult({ pending_approvals: pending, live_orders: 'requires_sdk' });
+        // Check both in-memory and DB for pending trades
+        const memPending = Array.from(pendingTrades.values()).filter(t => t.agentId === agentId);
+        const dbPending = await getPendingTrades(agentId, db);
+        // Merge and deduplicate
+        const seen = new Set(memPending.map(t => t.id));
+        const merged = [...memPending];
+        for (const t of dbPending) { if (!seen.has(t.id)) merged.push(t); }
+        return jsonResult({ count: merged.length, pending_approvals: merged });
       },
     },
 
@@ -1097,9 +1908,13 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { order_id: { type: 'string' } }, required: ['order_id'] },
       async execute(_id: string, p: any) {
-        const pending = pendingTrades.get(p.order_id);
-        if (pending) return jsonResult({ status: 'pending_approval', trade: pending });
-        return jsonResult({ status: 'requires_sdk', message: 'Live order lookup requires authenticated CLOB client.' });
+        // Check in-memory first, then DB
+        const memPending = pendingTrades.get(p.order_id);
+        if (memPending) return jsonResult({ status: 'pending_approval', trade: memPending });
+        const dbPending = await getPendingTrades(agentId, db);
+        const dbTrade = dbPending.find((t: any) => t.id === p.order_id);
+        if (dbTrade) return jsonResult({ status: dbTrade.status || 'pending_approval', trade: dbTrade });
+        return jsonResult({ status: 'not_found', message: 'Order not found in pending trades. May have been executed or expired.' });
       },
     },
 
@@ -1227,13 +2042,21 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       }, required: ['market_id'] },
       async execute(_id: string, p: any) {
         try {
-          // Parallel fetch everything we need
-          const [marketData, timeseries] = await Promise.all([
-            apiFetch(`${GAMMA_API}/markets/${p.market_id}`).catch(() => null),
-            apiFetch(`${GAMMA_API}/markets/${p.market_id}/timeseries?fidelity=50`).catch(() => null),
-          ]);
+          // Parallel fetch everything we need — try conditionId, then slug, then search
+          let marketData = await apiFetch(`${GAMMA_API}/markets/${p.market_id}`).catch(() => null);
+          if (!marketData) {
+            // Try as slug
+            const arr = await apiFetch(`${GAMMA_API}/markets?slug=${p.market_id}&limit=1`).catch(() => null);
+            if (Array.isArray(arr) && arr[0]) marketData = arr[0];
+          }
+          if (!marketData && p.market_id?.startsWith('0x')) {
+            // Try as condition_id
+            const arr = await apiFetch(`${GAMMA_API}/markets?condition_id=${p.market_id}&limit=1`).catch(() => null);
+            if (Array.isArray(arr) && arr[0]) marketData = arr[0];
+          }
+          if (!marketData) return errorResult('Market not found — try using the slug (e.g. "will-trump-win") or condition_id');
 
-          if (!marketData) return errorResult('Market not found');
+          const timeseries = await apiFetch(`${GAMMA_API}/markets/${marketData.conditionId || p.market_id}/timeseries?fidelity=50`).catch(() => null);
 
           let yesPrice: number | null = null, noPrice: number | null = null;
           try {
@@ -1395,65 +2218,6 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       },
     },
 
-    {
-      name: 'poly_scan_opportunities',
-      description: 'Automated opportunity scanner',
-      category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: {
-        strategies: { type: 'array', items: { type: 'string' } },
-        categories: { type: 'array', items: { type: 'string' } },
-        min_edge: { type: 'number' }, limit: { type: 'number' },
-      }},
-      async execute(_id: string, p: any) {
-        try {
-          // Fetch high-volume active markets
-          const qs = new URLSearchParams({ active: 'true', closed: 'false', order: 'volume', ascending: 'false', limit: String(p.limit || 30) });
-          if (p.categories?.length) qs.set('tag', p.categories[0]);
-          const markets = await apiFetch(`${GAMMA_API}/markets?${qs}`);
-          const arr = Array.isArray(markets) ? markets : [];
-
-          const opportunities: any[] = [];
-          for (const m of arr.slice(0, 15)) { // Limit to prevent rate limiting
-            try {
-              const prices = JSON.parse(m.outcomePrices || '[]');
-              const yesP = parseFloat(prices[0] || '0');
-              const noP = parseFloat(prices[1] || '0');
-              const overround = (yesP + noP - 1) * 100;
-
-              // Price dislocation: overround significantly different from 0
-              if (Math.abs(overround) > (p.min_edge || 5)) {
-                opportunities.push({
-                  type: 'overround_anomaly',
-                  market: m.question,
-                  id: m.conditionId || m.id,
-                  yesPrice: yesP, noPrice: noP,
-                  overround: overround.toFixed(2) + '%',
-                  edge: Math.abs(overround).toFixed(1) + '%',
-                });
-              }
-
-              // Closing soon with volume
-              if (m.endDate) {
-                const hoursToClose = (new Date(m.endDate).getTime() - Date.now()) / 3600000;
-                if (hoursToClose > 0 && hoursToClose < 48 && parseFloat(m.volume || '0') > 10000) {
-                  opportunities.push({
-                    type: 'closing_soon',
-                    market: m.question,
-                    id: m.conditionId || m.id,
-                    hoursToClose: hoursToClose.toFixed(1),
-                    volume: m.volume,
-                    yesPrice: yesP,
-                  });
-                }
-              }
-            } catch {}
-          }
-
-          return jsonResult({ scanned: arr.length, opportunities: opportunities.slice(0, p.limit || 20) });
-        } catch (e: any) { return errorResult(e.message); }
-      },
-    },
-
     // ═══ CONFIGURATION ══════════════════════════════════════════
 
     {
@@ -1554,6 +2318,20 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         auto_trade: { type: 'object' },
       }, required: ['token_id', 'condition'] },
       async execute(_id: string, p: any) {
+        // ENFORCE: Check if agent has watchers set up. Block alert creation if no watchers exist.
+        try {
+          const { safeDbGet } = await import('./polymarket-shared.js');
+          const watcherCount = await safeDbGet(db, `SELECT COUNT(*) as cnt FROM poly_watchers WHERE agent_id = ? AND status = 'active'`, [agentId]);
+          if (!watcherCount || (watcherCount as any).cnt === 0 || (watcherCount as any).cnt === '0') {
+            return jsonResult({
+              status: 'BLOCKED',
+              error: 'You have ZERO active watchers. You MUST set up watchers BEFORE creating alerts.',
+              required_action: 'Run poly_watcher_config action=set provider=xai model=grok-3-mini FIRST, then run poly_setup_monitors to create your monitoring suite. After watchers are active, you can create alerts.',
+              help: 'Alerts are simple price triggers. Watchers are AI-powered monitors that appear on the Monitors tab. Your manager requires BOTH.',
+            });
+          }
+        } catch {} // If check fails, allow alert creation anyway
+
         // Get current price as baseline
         let basePrice = 0.5;
         try {
@@ -1599,6 +2377,76 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       },
     },
 
+    // ═══ BRACKET ORDERS (Take-Profit + Stop-Loss) ═════════════
+
+    {
+      name: 'poly_bracket_config',
+      description: 'Configure automatic bracket orders (take-profit + stop-loss) that are created on every BUY. When a BUY executes, two sell alerts are auto-created: one at +X% (take profit) and one at -Y% (stop loss). When either fires, the other is cancelled (OCO).',
+      category: 'enterprise' as const,
+      parameters: { type: 'object' as const, properties: {
+        enabled: { type: 'boolean', description: 'Enable/disable bracket orders (default: true)' },
+        take_profit_pct: { type: 'number', description: 'Take-profit percentage above buy price (default: 15)' },
+        stop_loss_pct: { type: 'number', description: 'Stop-loss percentage below buy price (default: 10)' },
+      }},
+      async execute(_id: string, p: any) {
+        const config = await loadConfig(agentId, db) || {} as any;
+        const bracket = config.bracket || {};
+        if (p.enabled !== undefined) bracket.enabled = p.enabled;
+        if (p.take_profit_pct !== undefined) {
+          bracket.take_profit_pct = p.take_profit_pct;
+          config.takeProfitPct = p.take_profit_pct; // sync to central config
+        }
+        if (p.stop_loss_pct !== undefined) {
+          bracket.stop_loss_pct = p.stop_loss_pct;
+          config.stopLossPct = p.stop_loss_pct; // sync to central config
+        }
+        config.bracket = bracket;
+        await saveConfig(agentId, db, config);
+        return jsonResult({
+          status: 'updated',
+          bracket: {
+            enabled: bracket.enabled !== false,
+            take_profit_pct: bracket.take_profit_pct ?? config.takeProfitPct ?? 15,
+            stop_loss_pct: bracket.stop_loss_pct ?? config.stopLossPct ?? 10,
+          },
+          note: 'Also synced to central Trading Configuration (poly_set_config).',
+          message: bracket.enabled === false
+            ? 'Bracket orders DISABLED. BUY orders will NOT auto-create TP/SL alerts.'
+            : `Bracket orders ENABLED. Every BUY will auto-create: TP at +${bracket.take_profit_pct ?? config.takeProfitPct ?? 15}%, SL at -${bracket.stop_loss_pct ?? config.stopLossPct ?? 10}%`,
+        });
+      },
+    },
+
+    {
+      name: 'poly_list_brackets',
+      description: 'List active bracket order pairs (take-profit + stop-loss groups)',
+      category: 'enterprise' as const,
+      parameters: { type: 'object' as const, properties: {} },
+      async execute() {
+        try {
+          const rows = await (db.query || db.execute).call(db,
+            `SELECT * FROM poly_price_alerts WHERE agent_id = $1 AND bracket_group IS NOT NULL AND triggered = 0 ORDER BY bracket_group, bracket_role`,
+            [agentId]
+          );
+          const alerts = rows?.rows || rows || [];
+          // Group by bracket_group
+          const groups: Record<string, any> = {};
+          for (const a of alerts) {
+            if (!groups[a.bracket_group]) groups[a.bracket_group] = { group: a.bracket_group, alerts: [] };
+            groups[a.bracket_group].alerts.push({
+              id: a.id, role: a.bracket_role, condition: a.condition,
+              target_price: a.target_price, base_price: a.base_price,
+              token_id: a.token_id, market: a.market_question,
+            });
+          }
+          const bracketList = Object.values(groups);
+          return jsonResult({ count: bracketList.length, brackets: bracketList });
+        } catch {
+          return jsonResult({ count: 0, brackets: [] });
+        }
+      },
+    },
+
     // ═══ APPROVAL QUEUE ═════════════════════════════════════════
 
     {
@@ -1618,14 +2466,14 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { trade_id: { type: 'string' }, modify_price: { type: 'number' }, modify_size: { type: 'number' } }, required: ['trade_id'] },
       async execute(_id: string, p: any) {
+        // Fetch trade details BEFORE resolving (resolve changes status, hiding it from getPendingTrades)
+        const pending = await getPendingTrades(agentId, db);
+        const trade = pending.find((t: any) => t.id === p.trade_id);
+
         await resolvePendingTrade(db, p.trade_id, 'approved', 'agent');
         await incrementDailyCounter(agentId, db);
 
         // Execute the approved trade
-        // Load the trade details from DB to get token_id etc
-        const pending = await getPendingTrades(agentId, db);
-        const trade = pending.find((t: any) => t.id === p.trade_id);
-
         if (trade) {
           const execResult = await executeOrder(agentId, db, p.trade_id, {
             token_id: trade.token_id, side: trade.side,
@@ -1637,7 +2485,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           return execResult;
         }
 
-        return jsonResult({ status: 'approved', trade_id: p.trade_id, message: 'Trade approved' });
+        return jsonResult({ status: 'approved', trade_id: p.trade_id, message: 'Trade approved but details not found — may need manual execution' });
       },
     },
 
@@ -1695,7 +2543,11 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       parameters: { type: 'object' as const, properties: { period: { type: 'string' }, limit: { type: 'number' }, sort_by: { type: 'string' } }},
       async execute(_id: string, p: any) {
         try {
-          const data = await apiFetch(`${GAMMA_API}/leaderboard?limit=${p.limit || 20}`);
+          // Try data-api leaderboard first, fall back to gamma
+          let data;
+          try { data = await apiFetch(`https://data-api.polymarket.com/leaderboard?limit=${p.limit || 20}&period=${p.period || 'all'}`); } catch {}
+          if (!data) data = await apiFetch(`${GAMMA_API}/leaderboard?limit=${p.limit || 20}`).catch(() => null);
+          if (!data) return errorResult('Leaderboard endpoint unavailable');
           return jsonResult(data);
         } catch (e: any) { return errorResult(e.message); }
       },
@@ -1708,7 +2560,10 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       parameters: { type: 'object' as const, properties: { market_id: { type: 'string' }, outcome: { type: 'string' }, limit: { type: 'number' } }, required: ['market_id'] },
       async execute(_id: string, p: any) {
         try {
-          const data = await apiFetch(`${GAMMA_API}/markets/${p.market_id}/holders?limit=${p.limit || 20}`);
+          // Gamma API doesn't have /holders, use data-api
+          let data;
+          try { data = await apiFetch(`https://data-api.polymarket.com/positions?market=${p.market_id}&limit=${p.limit || 20}`); } catch {}
+          if (!data) return errorResult('Holders endpoint unavailable');
           return jsonResult(data);
         } catch (e: any) { return errorResult(e.message); }
       },
@@ -1726,7 +2581,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         try {
           const results: any = { address: p.address };
           const [positions, trades] = await Promise.all([
-            p.include_positions !== false ? apiFetch(`${GAMMA_API}/positions?user=${p.address}&limit=${p.limit || 20}`).catch(() => null) : null,
+            p.include_positions !== false ? apiFetch(`https://data-api.polymarket.com/positions?user=${p.address}`).catch(() => apiFetch(`${GAMMA_API}/positions?user=${p.address}&limit=${p.limit || 20}`).catch(() => null)) : null,
             p.include_trades !== false ? apiFetch(`${CLOB_API}/trades?maker_address=${p.address}&limit=${p.limit || 20}`).catch(() => null) : null,
           ]);
           if (positions) results.positions = positions;
@@ -1840,14 +2695,176 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_heartbeat',
-      description: 'CLOB API keepalive',
+      description: 'COMPREHENSIVE MARKET WATCHER — Run this periodically (every 15-30 min via cron or heartbeat). Checks: (1) all active price alerts and fires triggered ones, (2) open positions for P&L changes, (3) unresolved predictions that may have settled, (4) portfolio health and balance, (5) CLOB API status. Returns a full status report with any actions needed.',
       category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: {} },
-      async execute() {
+      parameters: { type: 'object' as const, properties: {
+        check_alerts: { type: 'boolean', description: 'Check price alerts (default: true)' },
+        check_positions: { type: 'boolean', description: 'Check open positions (default: true)' },
+        check_predictions: { type: 'boolean', description: 'Check unresolved predictions (default: true)' },
+        check_balance: { type: 'boolean', description: 'Check wallet/exchange balance (default: true)' },
+        run_screener: { type: 'boolean', description: 'Run quick screener for new opportunities (default: false — set true for active scanning)' },
+      }},
+      async execute(_id: string, p: any) {
+        const report: any = { timestamp: new Date().toISOString(), actions_needed: [] };
+
+        // 1. API Health
         try {
-          const ok = await apiFetch(`${CLOB_API}/`);
-          return jsonResult({ status: 'ok', response: ok });
-        } catch (e: any) { return errorResult(e.message); }
+          const time = await apiFetch(`${CLOB_API}/time`);
+          report.api_status = 'online';
+          report.server_time = time;
+        } catch (e: any) {
+          report.api_status = 'DOWN';
+          report.api_error = e.message;
+          report.actions_needed.push({ type: 'critical', message: 'CLOB API is DOWN — cannot trade' });
+        }
+
+        // 2. Price Alerts
+        if (p.check_alerts !== false) {
+          try {
+            const triggered = await checkAlerts(agentId, db);
+            report.alerts = {
+              triggered: triggered.length,
+              details: triggered,
+            };
+            for (const t of triggered) {
+              report.actions_needed.push({
+                type: 'alert_triggered',
+                message: `ALERT: ${t.market} — ${t.reason}`,
+                token_id: t.token_id,
+                auto_trade: t.auto_trade,
+              });
+            }
+            // Also count remaining active alerts
+            const remaining = await getAlerts(agentId, db);
+            report.alerts.active_count = remaining.length;
+          } catch (e: any) {
+            report.alerts = { error: e.message };
+          }
+        }
+
+        // 3. Open Positions
+        if (p.check_positions !== false) {
+          try {
+            const client = await getClobClient(agentId, db);
+            if (client) {
+              // Check open orders
+              const openOrders = await apiFetch(`${CLOB_API}/orders?status=live`, {
+                headers: { Authorization: `Bearer ${client.apiKey}` },
+              }).catch(() => []);
+
+              // Check positions via Data API (Gamma /positions is deprecated)
+              const addr = client.funderAddress || client.address;
+              let positions = await apiFetch(`https://data-api.polymarket.com/positions?user=${addr}`).catch(() => null);
+              if (!positions) positions = await apiFetch(`${GAMMA_API}/positions?user=${addr}&limit=20`).catch(() => []);
+              const activePositions = (Array.isArray(positions) ? positions : []).filter((pos: any) =>
+                parseFloat(pos.size || '0') > 0
+              );
+
+              report.positions = {
+                open_orders: Array.isArray(openOrders) ? openOrders.length : 0,
+                active_positions: activePositions.length,
+              };
+
+              // Check each position's current price vs entry for P&L
+              for (const pos of activePositions.slice(0, 10)) {
+                try {
+                  const tokenId = pos.asset || pos.token_id;
+                  if (!tokenId) continue;
+                  const mid = await apiFetch(`${CLOB_API}/midpoint?token_id=${tokenId}`);
+                  const currentPrice = parseFloat(mid?.mid || '0');
+                  const entryPrice = parseFloat(pos.avgPrice || pos.entry_price || '0');
+                  const size = parseFloat(pos.size || '0');
+                  if (currentPrice && entryPrice && size) {
+                    const pnl = (currentPrice - entryPrice) * size;
+                    const pnlPct = ((currentPrice - entryPrice) / entryPrice * 100);
+                    if (Math.abs(pnlPct) > 10) {
+                      report.actions_needed.push({
+                        type: pnl > 0 ? 'take_profit' : 'stop_loss',
+                        message: `Position ${pos.title || tokenId}: ${pnlPct > 0 ? '+' : ''}${pnlPct.toFixed(1)}% (${pnl > 0 ? '+' : ''}$${pnl.toFixed(2)})`,
+                        token_id: tokenId,
+                        current_price: currentPrice,
+                        entry_price: entryPrice,
+                        pnl: parseFloat(pnl.toFixed(2)),
+                      });
+                    }
+                  }
+                } catch { /* skip individual position check failures */ }
+              }
+            }
+          } catch (e: any) {
+            report.positions = { error: e.message };
+          }
+        }
+
+        // 4. Unresolved Predictions — check if any markets have settled
+        if (p.check_predictions !== false) {
+          try {
+            const unresolved = await getUnresolvedPredictions(agentId, db, undefined);
+            report.predictions = { unresolved: unresolved.length };
+
+            for (const pred of unresolved.slice(0, 10)) {
+              try {
+                if (!pred.market_id) continue;
+                const market = await apiFetch(`${GAMMA_API}/markets/${pred.market_id}`).catch(() => null);
+                if (market?.resolved) {
+                  report.actions_needed.push({
+                    type: 'resolve_prediction',
+                    message: `Market SETTLED: "${pred.market_question}" — resolve prediction ${pred.id}`,
+                    prediction_id: pred.id,
+                    market_id: pred.market_id,
+                    outcome: market.outcome,
+                  });
+                }
+              } catch { /* skip */ }
+            }
+          } catch (e: any) {
+            report.predictions = { error: e.message };
+          }
+        }
+
+        // 5. Balance Check
+        if (p.check_balance !== false) {
+          try {
+            const client = await getClobClient(agentId, db);
+            if (client) {
+              const bal = await client.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
+              report.balance = {
+                exchange: bal?.balance || '0',
+                allowances_ok: Object.values(bal?.allowances || {}).every((v: any) => v !== '0' && v !== 0),
+              };
+            }
+          } catch (e: any) {
+            report.balance = { error: e.message };
+          }
+        }
+
+        // 6. Quick opportunity scan (optional)
+        if (p.run_screener) {
+          try {
+            const { screenMarkets } = await import('../../polymarket-engines/screener.js');
+            const scan = await screenMarkets({ strategy: 'best_opportunities', limit: 5 });
+            report.opportunities = {
+              scanned: scan.scanned,
+              top_picks: scan.markets.slice(0, 3).map((s: any) => ({
+                question: s.market.question,
+                score: s.scores.total,
+                recommendation: s.recommendation,
+              })),
+            };
+          } catch (e: any) {
+            report.opportunities = { error: e.message };
+          }
+        }
+
+        // Summary
+        report.summary = {
+          actions_count: report.actions_needed.length,
+          status: report.actions_needed.length > 0
+            ? report.actions_needed.some((a: any) => a.type === 'critical') ? 'CRITICAL' : 'NEEDS_ATTENTION'
+            : 'ALL_CLEAR',
+        };
+
+        return jsonResult(report);
       },
     },
 
@@ -2087,22 +3104,66 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       async execute() {
         try {
           const strategies = await getStrategyPerformance(agentId, db);
-          if (strategies.length === 0) return jsonResult({ message: 'No strategy data yet. Record predictions with signals_used to track performance by strategy.' });
+          if (strategies.length > 0) {
+            return jsonResult({
+              strategies: strategies.map((s: any) => ({
+                name: s.strategy_name,
+                trades: s.total_predictions,
+                wins: s.correct_predictions,
+                win_rate: `${s.win_rate}%`,
+                total_pnl: `$${s.total_pnl.toFixed(2)}`,
+                avg_confidence: `${(s.avg_confidence * 100).toFixed(0)}%`,
+                verdict: s.win_rate > 60 ? 'KEEP — this signal works' :
+                         s.win_rate > 45 ? 'NEUTRAL — needs more data' :
+                         'CONSIDER DROPPING — losing signal',
+              })),
+              recommendation: 'Weight future trades toward your best-performing signals. Drop or reduce weight on consistently losing strategies.',
+            });
+          }
 
-          return jsonResult({
-            strategies: strategies.map((s: any) => ({
-              name: s.strategy_name,
-              trades: s.total_predictions,
-              wins: s.correct_predictions,
-              win_rate: `${s.win_rate}%`,
-              total_pnl: `$${s.total_pnl.toFixed(2)}`,
-              avg_confidence: `${(s.avg_confidence * 100).toFixed(0)}%`,
-              verdict: s.win_rate > 60 ? 'KEEP — this signal works' :
-                       s.win_rate > 45 ? 'NEUTRAL — needs more data' :
-                       'CONSIDER DROPPING — losing signal',
-            })),
-            recommendation: 'Weight future trades toward your best-performing signals. Drop or reduce weight on consistently losing strategies.',
-          });
+          // Fallback: compute from live positions when strategy_stats table is empty
+          let fallbackData: any[] = [];
+          if (db) {
+            try {
+              const creds = await (db.query || db.execute).call(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = $1`, [agentId]);
+              const addr = (creds?.rows || creds)?.[0]?.funder_address;
+              if (addr) {
+                const positions = await apiFetch(`https://data-api.polymarket.com/positions?user=${addr}`).catch(() => null);
+                if (Array.isArray(positions) && positions.length > 0) {
+                  // Group by market category/slug to get per-strategy breakdown
+                  const byCategory: Record<string, { trades: number; wins: number; totalPnl: number }> = {};
+                  for (const pos of positions) {
+                    const cat = pos.market_slug?.split('-').slice(0, 2).join('-') || pos.title?.split(' ').slice(0, 2).join('-') || 'unknown';
+                    const pnl = parseFloat(pos.cashPnl ?? pos.pnl ?? 0);
+                    if (isNaN(pnl)) continue;
+                    if (!byCategory[cat]) byCategory[cat] = { trades: 0, wins: 0, totalPnl: 0 };
+                    byCategory[cat].trades++;
+                    if (pnl > 0) byCategory[cat].wins++;
+                    byCategory[cat].totalPnl += pnl;
+                  }
+                  fallbackData = Object.entries(byCategory).map(([name, d]) => ({
+                    name,
+                    trades: d.trades,
+                    wins: d.wins,
+                    win_rate: d.trades > 0 ? `${((d.wins / d.trades) * 100).toFixed(1)}%` : '0%',
+                    total_pnl: `$${d.totalPnl.toFixed(2)}`,
+                    verdict: d.trades > 0 && (d.wins / d.trades) > 0.6 ? 'WINNING' :
+                             d.trades > 0 && (d.wins / d.trades) > 0.45 ? 'NEUTRAL' : 'LOSING',
+                  })).sort((a, b) => parseFloat(b.total_pnl.slice(1)) - parseFloat(a.total_pnl.slice(1)));
+                }
+              }
+            } catch {}
+          }
+
+          if (fallbackData.length > 0) {
+            return jsonResult({
+              source: 'live_positions',
+              note: 'Computed from live positions. Record predictions with signals_used for more accurate tracking.',
+              strategies: fallbackData,
+            });
+          }
+
+          return jsonResult({ message: 'No strategy data yet. Make some trades first, then this tool will show performance by market category.' });
         } catch (e: any) { return errorResult(e.message); }
       },
     },
@@ -2135,5 +3196,69 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
   ];
 
-  return tools;
+  // Add screener tools (pass options for freshness tracking)
+  try {
+    const screenerTools = createScreenerTools(options) as AnyAgentTool[];
+    tools.push(...screenerTools);
+    tools.push(..._pipelineTools);
+  } catch (e: any) {
+    console.warn('[polymarket] Screener tools not loaded:', e.message);
+  }
+
+  // Add watcher tools (convert handler → execute format)
+  try {
+    const watcherTools = createWatcherTools({ db: { getEngineDB: () => db }, agentId });
+    for (const wt of watcherTools) {
+      tools.push({
+        name: wt.name,
+        description: wt.description,
+        category: 'enterprise' as const,
+        parameters: wt.parameters,
+        async execute(_id: string, p: any) {
+          try {
+            const result = await wt.handler(p);
+            return jsonResult(result);
+          } catch (e: any) {
+            return errorResult(e.message);
+          }
+        },
+      } as any);
+    }
+  } catch (e: any) {
+    console.warn('[polymarket] Watcher tools not loaded:', e.message);
+  }
+
+  // Add all extension tool modules
+  const extensions = [
+    { name: 'Execution', fn: createPolymarketExecutionTools },
+    { name: 'Social', fn: createPolymarketSocialTools },
+    { name: 'Feeds', fn: createPolymarketFeedTools },
+    { name: 'OnChain', fn: createPolymarketOnchainTools },
+    { name: 'Analytics', fn: createPolymarketAnalyticsTools },
+    { name: 'Portfolio', fn: createPolymarketPortfolioTools },
+    { name: 'Quant', fn: createPolymarketQuantTools },
+    { name: 'Counterintel', fn: createPolymarketCounterintelTools },
+    { name: 'Optimizer', fn: createPolymarketOptimizerTools },
+  ];
+  for (const ext of extensions) {
+    try {
+      const extTools = ext.fn(options);
+      tools.push(...extTools);
+    } catch (e: any) {
+      console.warn(`[polymarket] ${ext.name} tools not loaded:`, e.message);
+    }
+  }
+
+  // Deduplicate tools by name (last one wins)
+  const seen = new Set<string>();
+  const deduped: typeof tools = [];
+  for (let i = tools.length - 1; i >= 0; i--) {
+    const name = (tools[i] as any).name;
+    if (!seen.has(name)) {
+      seen.add(name);
+      deduped.unshift(tools[i]);
+    }
+  }
+
+  return deduped;
 }

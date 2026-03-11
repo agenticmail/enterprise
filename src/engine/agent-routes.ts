@@ -176,6 +176,57 @@ export function createAgentRoutes(opts: {
     }
   });
 
+  // ─── Flush pipeline queue for an agent ──────────────────────
+  router.post('/agents/:id/flush-queue', async (c) => {
+    const agentId = c.req.param('id');
+    try {
+      let cancelled = 0;
+
+      // 1. Cancel pending tasks in the task queue (in-memory)
+      const taskQueue = (globalThis as any).__taskQueue;
+      if (taskQueue) {
+        const tasks = taskQueue.getAgentTasks ? taskQueue.getAgentTasks(agentId, false) : [];
+        for (const task of tasks) {
+          if (task.status === 'created' || task.status === 'assigned' || task.status === 'in_progress') {
+            try {
+              await taskQueue.updateTask(task.id, { status: 'cancelled' });
+              cancelled++;
+            } catch {}
+          }
+        }
+      }
+
+      // 2. Cancel in DB — pending pipeline tasks
+      const edb = opts.engineDb;
+      if (edb) {
+        try {
+          await edb.run(
+            `UPDATE pipeline_tasks SET status = 'cancelled', updated_at = ? WHERE agent_id = ? AND status IN ('created', 'assigned', 'in_progress', 'pending', 'queued')`,
+            [new Date().toISOString(), agentId]
+          );
+        } catch {}
+
+        // 3. Cancel pending trades (polymarket)
+        try {
+          await edb.run(
+            `UPDATE poly_pending_trades SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE agent_id = ? AND status IN ('pending', 'queued')`,
+            [agentId]
+          );
+        } catch {}
+      }
+
+      // 4. Clear any in-memory message queues on the runtime
+      const runtime = (globalThis as any).__agenticmail_runtime;
+      if (runtime && runtime.flushAgentQueue) {
+        try { await runtime.flushAgentQueue(agentId); } catch {}
+      }
+
+      return c.json({ ok: true, cancelled, message: `Flushed queue for agent ${agentId}: ${cancelled} task(s) cancelled` });
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500);
+    }
+  });
+
   // ─── Inject a system message into an agent's active session ──────
   router.post('/agents/:id/inject-message', async (c) => {
     try {
@@ -1583,7 +1634,7 @@ export function createAgentRoutes(opts: {
               'poly_get_prices', 'poly_get_orderbook', 'poly_get_trades', 'poly_price_history', 'poly_trending_markets',
               'poly_market_comments', 'poly_related_markets', 'poly_market_news',
               'poly_setup_wallet', 'poly_wallet_status', 'poly_set_allowances', 'poly_get_balance',
-              'poly_deposit', 'poly_withdraw', 'poly_get_positions', 'poly_get_closed_positions', 'poly_redeem',
+              'poly_deposit', 'poly_swap_to_usdce', 'poly_withdraw', 'poly_get_positions', 'poly_get_closed_positions', 'poly_redeem',
               'poly_portfolio_summary', 'poly_place_order', 'poly_place_batch_orders',
               'poly_get_open_orders', 'poly_get_order', 'poly_cancel_order', 'poly_cancel_orders', 'poly_cancel_all',
               'poly_replace_order', 'poly_trade_history', 'poly_export_trades',
@@ -1596,7 +1647,27 @@ export function createAgentRoutes(opts: {
               'poly_api_status', 'poly_gas_price', 'poly_heartbeat',
               'poly_record_prediction', 'poly_resolve_prediction', 'poly_trade_review',
               'poly_record_lesson', 'poly_recall_lessons', 'poly_calibration',
-              'poly_strategy_performance', 'poly_unresolved_predictions'],
+              'poly_strategy_performance', 'poly_unresolved_predictions', 'poly_screen_markets',
+              'poly_watcher', 'poly_watcher_config', 'poly_watcher_events', 'poly_setup_monitors',
+              // Execution
+              'poly_sniper', 'poly_scale_in', 'poly_hedge', 'poly_exit_strategy',
+              // Social Intelligence
+              'poly_twitter_sentiment', 'poly_polymarket_comments', 'poly_reddit_pulse', 'poly_telegram_monitor', 'poly_social_velocity',
+              // Feeds & Events
+              'poly_calendar_events', 'poly_official_sources', 'poly_odds_aggregator', 'poly_resolution_tracker', 'poly_breaking_news',
+              // On-Chain Intelligence
+              'poly_whale_tracker', 'poly_orderbook_depth', 'poly_onchain_flow', 'poly_wallet_profiler', 'poly_liquidity_map', 'poly_transaction_decoder',
+              // Analytics
+              'poly_market_correlation', 'poly_arbitrage_scanner', 'poly_regime_detector', 'poly_smart_money_index', 'poly_market_microstructure',
+              // Portfolio
+              'poly_portfolio_optimizer', 'poly_drawdown_monitor', 'poly_pnl_attribution',
+              // Quant
+              'poly_kelly_criterion', 'poly_binary_pricing', 'poly_bayesian_update', 'poly_monte_carlo',
+              'poly_technical_indicators', 'poly_volatility', 'poly_stat_arb', 'poly_value_at_risk', 'poly_entropy',
+              // Counter-Intelligence
+              'poly_manipulation_detector', 'poly_resolution_risk', 'poly_counterparty_analysis',
+              // Unified Pipeline
+              'poly_full_analysis', 'poly_quick_analysis', 'poly_batch_screen', 'poly_portfolio_review'],
     },
     {
       id: 'polymarket_quant', name: 'Polymarket Quant Engine', description: 'Quantitative analysis — Kelly criterion, Black-Scholes, Bayesian updates, Monte Carlo, technical indicators, sentiment, signal generation',

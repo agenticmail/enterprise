@@ -5,7 +5,7 @@
 </head><body>
 <a href="javascript:history.back()" class="back">← Back to Dashboard</a>
 <h1>Polymarket Trading</h1>
-<p style="color:var(--text-muted);margin-bottom:24px">Institutional-grade prediction market trading with 108 tools across 9 skills — on-chain intelligence, social analysis, quantitative modeling, smart execution, counter-intelligence, and self-improving AI agents that learn from every trade.</p>
+<p style="color:var(--text-muted);margin-bottom:24px">Institutional-grade prediction market trading with 114+ tools across 10 skills — on-chain intelligence, social analysis, quantitative modeling, smart execution, counter-intelligence, trading optimization, and self-improving AI agents that learn from every trade.</p>
 
 <div class="toc">
 <h3>Table of Contents</h3>
@@ -24,10 +24,16 @@
 <li><a href="#quant-engine">Quant Engine</a></li>
 <li><a href="#learning-system">Learning System</a></li>
 <li><a href="#risk-management">Risk Management</a></li>
-<li><a href="#dashboard">Dashboard (17 Tabs)</a></li>
+<li><a href="#wallet-security">Wallet Security & Transfers</a></li>
+<li><a href="#watchers">AI-Powered Market Monitors</a></li>
+<li><a href="#dashboard">Dashboard (22 Tabs)</a></li>
+<li><a href="#org-support">Organization Support</a></li>
 <li><a href="#system-prompt">System Prompt</a></li>
-<li><a href="#tools-reference">Tools Reference (108)</a></li>
+<li><a href="#tools-reference">Tools Reference (112)</a></li>
+<li><a href="#api-reference">API Reference</a></li>
 <li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#proactive-trading">Proactive Trading Engine</a></li>
+<li><a href="#token-efficiency">Token Efficiency</a></li>
 <li><a href="#troubleshooting">Troubleshooting</a></li>
 </ul>
 </div>
@@ -36,14 +42,16 @@
 <div class="card">
 <p>The Polymarket system gives AI agents the ability to trade prediction markets on <a href="https://polymarket.com" target="_blank">Polymarket</a> — the world's largest prediction market platform. It combines:</p>
 <ul>
-<li><strong>108 specialized tools</strong> across 9 skills — trading, on-chain analysis, social intelligence, event feeds, advanced analytics, smart execution, counter-intelligence, portfolio management, and quantitative modeling</li>
+<li><strong>112 specialized tools</strong> across 10 skills — trading, on-chain analysis, social intelligence, event feeds, advanced analytics, smart execution, counter-intelligence, portfolio management, and quantitative modeling</li>
 <li><strong>Real-time on-chain intelligence</strong> — whale tracking, orderbook depth, net flow analysis, wallet profiling, liquidity mapping</li>
 <li><strong>Social sentiment analysis</strong> — Twitter, Reddit, Telegram, Polymarket comments, cross-platform velocity detection</li>
 <li><strong>Smart execution</strong> — sniper orders, TWAP/VWAP scale-in, correlation hedging, automated exit strategies</li>
 <li><strong>Counter-intelligence</strong> — manipulation detection, resolution risk scoring, counterparty analysis</li>
 <li><strong>14 quant tools</strong> — Kelly criterion, Black-Scholes, Bayesian inference, Monte Carlo simulation, regime detection</li>
 <li><strong>Self-improving agents</strong> — prediction journaling, calibration tracking, strategy performance, P&L attribution</li>
-<li><strong>Full dashboard</strong> — 17 tabs across 5 groups (Core, Intelligence, Execution, Learning, Portfolio)</li>
+<li><strong>Proactive trading engine</strong> — automatic agent waking with balance gating, mandatory analysis sequence, and token-efficient sessions</li>
+<li><strong>Token-optimized responses</strong> — tool outputs trimmed 60-75% to reduce session costs from $3-5 to $0.50-1.50</li>
+<li><strong>Full dashboard</strong> — 22 tabs across 6 groups (Trading, Automation, Orders, Intelligence, Analytics, Journal) with Buy Position modal</li>
 <li><strong>Auto-SDK install</strong> — the Polymarket CLOB SDK installs automatically, zero manual setup</li>
 <li><strong>DB persistence</strong> — 25+ tables for config, trades, signals, whales, events, predictions, calibration</li>
 <li><strong>Dedicated system prompt</strong> — 6-phase trading loop, 10 risk commandments, tool choreography</li>
@@ -279,18 +287,138 @@ Exit Strategy ──→ Drawdown Monitor ──→ Portfolio Optimizer       Rec
 <p>Plus: circuit breaker, daily trade/loss limits, position size caps, category restrictions, manipulation screening, resolution risk check, liquidity verification, slippage estimation.</p>
 </div>
 
-<h2 id="dashboard">Dashboard (17 Tabs)</h2>
+<h2 id="wallet-security">Wallet Security & Transfers</h2>
 <div class="card">
+<p>The wallet system implements a 7-layer security model for managing funds. All features are accessible from the <strong>Wallet</strong> tab on the dashboard.</p>
+
+<h3>Wallet Management</h3>
+<table>
+<tr><th>Feature</th><th>Description</th><th>Access</th></tr>
+<tr><td><strong>View Balances</strong></td><td>Live USDC + MATIC balances from Polygon RPC. Auto-refreshes every 15s.</td><td>Admin</td></tr>
+<tr><td><strong>Deposit</strong></td><td>Copy wallet address to send USDC on Polygon. Supports bridging from other chains via polymarket.com.</td><td>Admin</td></tr>
+<tr><td><strong>Export Private Key</strong></td><td>Reveal the private key for import into MetaMask/Rabby. Requires confirmation. Audit-logged.</td><td>Owner only</td></tr>
+<tr><td><strong>View on PolygonScan</strong></td><td>Direct link to the wallet's transaction history on the block explorer.</td><td>Admin</td></tr>
+</table>
+
+<h3>Withdrawal Whitelist</h3>
+<p>Agents can <strong>only</strong> transfer funds to pre-registered addresses. This is the primary defense against prompt injection, hallucination, and social engineering attacks.</p>
+<table>
+<tr><th>Security Layer</th><th>What It Does</th></tr>
+<tr><td><strong>Whitelist-only</strong></td><td>Agent cannot send to arbitrary addresses. The <code>poly_transfer_funds</code> tool validates against the whitelist.</td></tr>
+<tr><td><strong>Cooling period</strong></td><td>Configurable delay (default 24h, min 0) after adding an address before transfers are allowed. Prevents "add + drain" attacks.</td></tr>
+<tr><td><strong>Per-transaction limit</strong></td><td>Max dollar amount per single transfer (default $100). Set per address.</td></tr>
+<tr><td><strong>Daily limit</strong></td><td>Max total dollars per day per address (default $500). Resets at midnight.</td></tr>
+<tr><td><strong>Owner-only management</strong></td><td>Only <code>owner</code> role users can add/remove/modify whitelisted addresses.</td></tr>
+<tr><td><strong>Always approval-gated</strong></td><td>Every transfer creates a pending request. Cannot be auto-approved regardless of trading mode.</td></tr>
+<tr><td><strong>4-hour expiry</strong></td><td>Pending transfers expire after 4 hours. No stale approvals sitting around.</td></tr>
+<tr><td><strong>Full audit trail</strong></td><td>Every action logged: add/remove address, approve/reject/fail transfer, export key.</td></tr>
+</table>
+
+<h3>Transfer Flow</h3>
+<ol>
+<li><strong>Owner adds address</strong> — Dashboard → Wallet tab → "Add Address" → set label, address, limits, cooling period</li>
+<li><strong>Cooling period elapses</strong> — address badge changes from "Cooling: Xh left" to "Active"</li>
+<li><strong>User instructs agent</strong> — Chat: "Transfer $50 USDC to My MetaMask"</li>
+<li><strong>Agent calls <code>poly_transfer_funds</code></strong> — validates whitelist, cooling, limits → creates pending request</li>
+<li><strong>Owner approves</strong> — Dashboard → Wallet tab → Pending Transfers → Approve button</li>
+<li><strong>On-chain execution</strong> — Backend sends USDC/MATIC via ethers.js on Polygon → TX hash logged</li>
+</ol>
+
+<div class="tip"><strong>Edge Cases Handled:</strong> Unknown address → rejected with available labels shown. Cooling active → blocked with hours remaining. Over per-tx limit → blocked. Daily limit exceeded → blocked with today's total. Pending transfers to removed address → must reject first. Expired → auto-marked.</div>
+</div>
+
+<h2 id="watchers">AI-Powered Market Monitors</h2>
+<div class="card">
+<p>The watcher engine provides continuous market surveillance using a configurable background LLM for real-time analysis. It runs a demand-driven architecture — zero CPU/network when idle.</p>
+
+<h3>Engine Architecture</h3>
+<ul>
+<li><strong>Demand-driven:</strong> 60s idle poller checks for active watchers. Only starts the 15s fast tick loop when watchers exist. Auto-stops when none remain.</li>
+<li><strong>Agent wake system:</strong> Critical events → immediate agent session spawn. 3+ warnings → also spawn. Info → queued for next session.</li>
+<li><strong>Rate limited:</strong> 5-minute cooldown per agent to prevent spawn storms.</li>
+</ul>
+
+<h3>Watcher Types</h3>
+<table>
+<tr><th>Type</th><th>What It Does</th><th>AI?</th></tr>
+<tr><td><code>price_level</code></td><td>Alert when price crosses a threshold</td><td>No</td></tr>
+<tr><td><code>price_change</code></td><td>Alert on % change over time window</td><td>No</td></tr>
+<tr><td><code>volume_surge</code></td><td>Detect unusual volume spikes</td><td>No</td></tr>
+<tr><td><code>resolution_watch</code></td><td>Monitor markets near resolution</td><td>No</td></tr>
+<tr><td><code>portfolio_drift</code></td><td>Alert on portfolio allocation drift</td><td>No</td></tr>
+<tr><td><code>arbitrage_scan</code></td><td>Continuous arbitrage opportunity scanning</td><td>No</td></tr>
+<tr><td><code>crypto_price</code></td><td>Monitor crypto prices (BTC, ETH, etc.)</td><td>No</td></tr>
+<tr><td><code>market_scan</code></td><td>Scan for markets matching criteria</td><td>No</td></tr>
+<tr><td><code>news_intelligence</code></td><td>Multi-source news + LLM impact assessment</td><td><strong>Yes</strong></td></tr>
+<tr><td><code>geopolitical</code></td><td>CIA-analyst-style pattern detection connecting world events to markets</td><td><strong>Yes</strong></td></tr>
+<tr><td><code>cross_signal</code></td><td>Correlates signals from buffer when 3+ converge</td><td><strong>Yes</strong></td></tr>
+<tr><td><code>sentiment_shift</code></td><td>Tracks sentiment over time, alerts on directional changes</td><td><strong>Yes</strong></td></tr>
+</table>
+
+<h3>AI Configuration</h3>
+<p>Background AI analysis uses a separate, configurable LLM (not the main agent model). Configure via the Monitors tab → "Configure" button:</p>
+<ul>
+<li><strong>Provider & Model:</strong> Pulls from your configured providers in Settings → Models & API Keys. Uses org API key by default.</li>
+<li><strong>Daily Budget:</strong> Max LLM API calls per day (default 100). Prevents runaway costs. Resets at midnight.</li>
+<li><strong>Max Spawns/hr:</strong> Max agent session spawns per hour from critical signals (default 6).</li>
+<li><strong>Recommended models:</strong> Grok (real-time X/Twitter), GPT-4o-mini (cheap), Groq (free tier), DeepSeek (cheap).</li>
+</ul>
+
+<h3>Database Tables</h3>
+<table>
+<tr><th>Table</th><th>Purpose</th></tr>
+<tr><td><code>poly_watchers</code></td><td>Watcher definitions with type, config, interval, status</td></tr>
+<tr><td><code>poly_watcher_events</code></td><td>Generated signals/alerts with severity, routing status</td></tr>
+<tr><td><code>poly_watcher_config</code></td><td>Per-agent AI model config, budget, spawn limits</td></tr>
+<tr><td><code>poly_analysis_cache</code></td><td>1h TTL cache to avoid duplicate LLM calls</td></tr>
+<tr><td><code>poly_sentiment_history</code></td><td>Sentiment trend data for shift detection</td></tr>
+<tr><td><code>poly_signal_buffer</code></td><td>Cross-signal correlation buffer with expiry</td></tr>
+</table>
+</div>
+
+<h2 id="dashboard">Dashboard (22 Tabs)</h2>
+<div class="card">
+<h3>Layout</h3>
+<p>Two-column layout: vertical navigation sidebar (280px) on the left with grouped tabs, content pane on the right. The P&L line chart is sticky at the top and always visible regardless of scroll position.</p>
+
 <table>
 <tr><th>Group</th><th>Tabs</th></tr>
-<tr><td><strong>Core</strong></td><td>Overview · Pending Trades · Trade History · Risk Config</td></tr>
-<tr><td><strong>Intelligence</strong></td><td>On-Chain (whales) · Social (sentiment) · Events (calendar + news) · Analytics (correlations, arb, regimes)</td></tr>
-<tr><td><strong>Execution</strong></td><td>Orders (snipers + scale-in) · Hedges · Exit Rules · Alerts · Paper</td></tr>
-<tr><td><strong>Learning</strong></td><td>Journal · Calibration (visual chart) · Strategies · Lessons</td></tr>
-<tr><td><strong>Portfolio</strong></td><td>Drawdown Monitor · P&L Attribution</td></tr>
+<tr><td><strong>Trading</strong></td><td>Overview · Wallet · Pending Trades · Trade History · Paper</td></tr>
+<tr><td><strong>Automation</strong></td><td>Monitors (engine status + AI config) · Signals (events + acknowledge)</td></tr>
+<tr><td><strong>Orders</strong></td><td>Orders (snipers + scale-in) · Hedges · Exit Rules</td></tr>
+<tr><td><strong>Intelligence</strong></td><td>On-Chain · Social · Events · Alerts</td></tr>
+<tr><td><strong>Analytics</strong></td><td>Analytics · Drawdown · Attribution · Calibration</td></tr>
+<tr><td><strong>Journal</strong></td><td>Journal · Strategies · Lessons</td></tr>
 </table>
-<p>All data loads in parallel via <code>Promise.all</code> (23 API calls batched). SSE stream provides real-time updates.</p>
-<p><strong>Config changes are instant</strong> — editing risk limits on the dashboard takes effect on the agent's very next tool call (no restart needed).</p>
+
+<h3>Key UI Features</h3>
+<ul>
+<li><strong>Sticky P&L Chart:</strong> Multi-agent profitability line chart pinned to top of page. Catmull-Rom smooth curves with distinct colors per agent.</li>
+<li><strong>Org Switcher:</strong> Organization dropdown in header — filters agents and all data by selected org.</li>
+<li><strong>Agent Dropdown:</strong> Select which Polymarket agent to view. Only shows agents with Polymarket skills.</li>
+<li><strong>Universal Detail Modal:</strong> Click any table row to view full details in a modal.</li>
+<li><strong>Pagination + Search + Filters:</strong> All 22+ tables have search, column filters, and pagination.</li>
+<li><strong>HelpButton per section:</strong> Every tab and subsection has a (?) help button with detailed documentation.</li>
+<li><strong>Real-time SSE:</strong> Live price streaming, dashboard updates, and wallet balance auto-refresh.</li>
+<li><strong>Buy Position Modal:</strong> Search and buy markets directly from the Wallet tab. Shows composite scores, pipeline signals, Kelly sizing, liquidity grades, and regime detection for each result. One-click buy with outcome selection.</li>
+<li><strong>Sell Position:</strong> Click any live position to open a sell modal with size input and one-click execution.</li>
+<li><strong>Overview Stats Grid:</strong> 16 stat cards showing wallet status, mode, pending trades, live positions, total trades, win rate, P&amp;L, whales tracked, active snipers, active hedges, exit rules, arbitrage opportunities, lessons, drawdown, social signals, and events — all at a glance.</li>
+<li><strong>Config Modal:</strong> Trading configuration (mode, limits) via modal — changes take effect immediately.</li>
+<li><strong>AI Config Modal:</strong> Background analysis model config — provider/model from org settings, budget, spawn limits.</li>
+</ul>
+
+<p>All data loads in parallel via <code>Promise.all</code> (23+ API calls batched). SSE streams provide real-time price and dashboard updates.</p>
+</div>
+
+<h2 id="org-support">Organization Support</h2>
+<div class="card">
+<p>The Polymarket page is fully organization-aware:</p>
+<ul>
+<li><strong>Org Switcher:</strong> Filters agents by selected organization. Client org users only see their org's agents and data.</li>
+<li><strong>Page Access Control:</strong> Polymarket is not visible to client orgs by default. Grant access via Organizations → Org Detail → Visible Pages tab → toggle "Polymarket" on.</li>
+<li><strong>Data Isolation:</strong> All API routes filter by agent ID, which is org-scoped. No cross-org data leakage.</li>
+<li><strong>Role Restrictions:</strong> Wallet export and whitelist management require <code>owner</code> role. Viewing data requires <code>admin</code>.</li>
+</ul>
 </div>
 
 <h2 id="system-prompt">System Prompt</h2>
@@ -307,8 +435,8 @@ Exit Strategy ──→ Drawdown Monitor ──→ Portfolio Optimizer       Rec
 
 <h2 id="tools-reference">All 108 Tools</h2>
 <div class="card">
-<h3>polymarket (63 tools)</h3>
-<p>Market Discovery (11) · Wallet & Account (6) · Funds (2) · Portfolio (4) · Order Management (8) · Analytics (6) · Config (4) · Alerts (3) · Approval Queue (4) · Social (3) · Paper (2) · System (2) · Learning (8)</p>
+<h3>polymarket (64 tools)</h3>
+<p>Market Discovery (11) · Wallet & Account (6) · Funds (2) · Fund Transfers (1) · Portfolio (4) · Order Management (8) · Analytics (6) · Config (4) · Alerts (3) · Approval Queue (4) · Social (3) · Paper (2) · System (2) · Learning (8)</p>
 
 <h3>polymarket-quant (14 tools)</h3>
 <p>Kelly · Black-Scholes · Bayesian · Monte Carlo · RSI/MACD/Bollinger · Volatility/Hurst · Stat Arb · VaR · Entropy · News Feed · Sentiment · Signal Generator · Correlation Matrix</p>
@@ -333,6 +461,59 @@ Exit Strategy ──→ Drawdown Monitor ──→ Portfolio Optimizer       Rec
 
 <h3>polymarket-portfolio (3 tools)</h3>
 <p>Portfolio Optimizer · Drawdown Monitor · P&L Attribution</p>
+
+<h3>polymarket-watcher (4 tools)</h3>
+<p>Setup Monitors · List Monitors · Manage Monitor · AI Watcher Config</p>
+</div>
+
+<h2 id="api-reference">API Reference</h2>
+<div class="card">
+<h3>Dashboard & Data</h3>
+<table>
+<tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+<tr><td>GET</td><td><code>/polymarket/dashboard</code></td><td>Global dashboard stats (daily counters, wallets)</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/trades</code></td><td>Trade history for an agent</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/pending</code></td><td>Pending trades awaiting approval</td></tr>
+<tr><td>POST</td><td><code>/polymarket/trades/:id/decide</code></td><td>Approve/reject a pending trade</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/config</code></td><td>Trading configuration</td></tr>
+<tr><td>PUT</td><td><code>/polymarket/:agentId/config</code></td><td>Update trading configuration</td></tr>
+</table>
+
+<h3>Wallet & Transfers</h3>
+<table>
+<tr><th>Method</th><th>Endpoint</th><th>Role</th><th>Description</th></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/wallet</code></td><td>admin</td><td>Wallet address and status</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/wallet/balance</code></td><td>admin</td><td>Live USDC + MATIC balances from Polygon</td></tr>
+<tr><td>POST</td><td><code>/polymarket/:agentId/wallet/export</code></td><td>owner</td><td>Export private key (requires <code>{confirm:"EXPORT"}</code>)</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/wallet/whitelist</code></td><td>admin</td><td>List whitelisted withdrawal addresses</td></tr>
+<tr><td>POST</td><td><code>/polymarket/:agentId/wallet/whitelist</code></td><td>owner</td><td>Add whitelisted address (24h cooling default)</td></tr>
+<tr><td>PUT</td><td><code>/polymarket/:agentId/wallet/whitelist/:id</code></td><td>owner</td><td>Update address limits or label</td></tr>
+<tr><td>DELETE</td><td><code>/polymarket/:agentId/wallet/whitelist/:id</code></td><td>owner</td><td>Remove whitelisted address</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/transfers</code></td><td>admin</td><td>Transfer request history</td></tr>
+<tr><td>POST</td><td><code>/polymarket/:agentId/transfers/:id/approve</code></td><td>owner</td><td>Approve and execute transfer on-chain</td></tr>
+<tr><td>POST</td><td><code>/polymarket/:agentId/transfers/:id/reject</code></td><td>owner</td><td>Reject a pending transfer</td></tr>
+</table>
+
+<h3>Watchers & AI</h3>
+<table>
+<tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/watchers</code></td><td>List market monitors</td></tr>
+<tr><td>POST</td><td><code>/polymarket/watchers/:id/toggle</code></td><td>Pause/resume a watcher</td></tr>
+<tr><td>DELETE</td><td><code>/polymarket/watchers/:id</code></td><td>Delete a watcher</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/watcher-events</code></td><td>List watcher signals/events</td></tr>
+<tr><td>POST</td><td><code>/polymarket/:agentId/watcher-events/acknowledge-all</code></td><td>Acknowledge all unread signals</td></tr>
+<tr><td>GET</td><td><code>/polymarket/:agentId/watcher-config</code></td><td>AI analysis model configuration</td></tr>
+<tr><td>POST</td><td><code>/polymarket/:agentId/watcher-config</code></td><td>Update AI config (provider, model, budget)</td></tr>
+<tr><td>GET</td><td><code>/polymarket/engine/status</code></td><td>Watcher engine status (running, ticks, events)</td></tr>
+<tr><td>POST</td><td><code>/polymarket/engine/control</code></td><td>Start/stop watcher engine</td></tr>
+</table>
+
+<h3>SSE Streams</h3>
+<table>
+<tr><th>Endpoint</th><th>Description</th></tr>
+<tr><td><code>/polymarket/stream?agentId=X</code></td><td>Dashboard update events (trade completed, config changed)</td></tr>
+<tr><td><code>/polymarket/prices/stream?agentId=X</code></td><td>Live CLOB midpoint prices for open positions (3s interval)</td></tr>
+</table>
 </div>
 
 <h2 id="best-practices">Best Practices</h2>
@@ -351,6 +532,74 @@ Exit Strategy ──→ Drawdown Monitor ──→ Portfolio Optimizer       Rec
 </ul>
 </div>
 
+<h2 id="proactive-trading">Proactive Trading Engine</h2>
+<div class="card">
+<p>The watcher engine includes a <strong>proactive trading loop</strong> that automatically wakes the trading agent when it's behind on daily trade goals. This ensures consistent market engagement without manual intervention.</p>
+
+<h3>How It Works</h3>
+<ol>
+<li><strong>Every 15 minutes</strong>, the watcher checks today's trade count vs the <code>min_trades_daily</code> goal</li>
+<li><strong>Balance gate</strong> — before waking the agent, checks USDC balance on-chain. If &lt; $5, the wake is skipped entirely (prevents burning API tokens when there's nothing to trade with)</li>
+<li><strong>Spawn cooldown</strong> — 5-minute minimum between agent wakes to prevent spam</li>
+<li><strong>Mandatory analysis sequence</strong> — the wake message forces the agent through an 8-step analysis before placing any trades</li>
+</ol>
+
+<h3>Mandatory Pre-Trade Sequence</h3>
+<p>Every proactive wake requires the agent to complete these steps <strong>in order</strong> before placing any trades:</p>
+<table>
+<tr><th>Step</th><th>Tool</th><th>Purpose</th></tr>
+<tr><td>1</td><td><code>poly_watcher_events action=check</code></td><td>Check for unread market signals</td></tr>
+<tr><td>2</td><td><code>poly_goals action=check</code></td><td>Review performance targets</td></tr>
+<tr><td>3</td><td><code>poly_drawdown_monitor action=check</code></td><td>Portfolio-level risk check (halt if &gt;15%)</td></tr>
+<tr><td>4</td><td><code>poly_calibration</code></td><td>Am I over/under-confident?</td></tr>
+<tr><td>5</td><td><code>poly_pnl_attribution</code></td><td>Which strategies are making/losing money?</td></tr>
+<tr><td>6</td><td><code>poly_strategy_performance</code></td><td>Which signals are actually profitable?</td></tr>
+<tr><td>7</td><td><code>poly_get_positions</code></td><td>Review open positions and P&amp;L drift</td></tr>
+<tr><td>8</td><td><code>poly_exit_strategy action=check</code></td><td>Check if exit conditions triggered</td></tr>
+</table>
+<p>Only after completing all 8 steps does the agent proceed to market screening and trade placement. This ensures <strong>quality over quantity</strong> — no blind trading.</p>
+
+<h3>Smart Execution Requirements</h3>
+<ul>
+<li>Every candidate market must pass: <code>poly_quick_analysis</code> + <code>poly_resolution_risk</code> + <code>poly_manipulation_detector</code></li>
+<li>Position sizing via <code>poly_kelly_criterion</code> — no arbitrary $5 bets</li>
+<li>Orders &gt; $50 must use <code>poly_scale_in</code> (TWAP/VWAP) to minimize slippage</li>
+<li>Time-sensitive opportunities use <code>poly_sniper</code> with trailing limits</li>
+<li>Correlated positions should use <code>poly_hedge</code></li>
+</ul>
+</div>
+
+<h2 id="token-efficiency">Token Efficiency</h2>
+<div class="card">
+<p>AI trading sessions can be expensive — a single proactive wake can consume 100K+ input tokens ($3-5) if not optimized. The system implements several token-saving measures:</p>
+
+<h3>Response Trimming</h3>
+<p>Tool responses are automatically trimmed to reduce token consumption while preserving essential information:</p>
+<table>
+<tr><th>Tool</th><th>Before</th><th>After</th><th>What's Trimmed</th></tr>
+<tr><td><code>poly_get_positions</code></td><td>17-22K chars</td><td>3-5K chars</td><td>Raw API fields stripped to: asset, size, avgPrice, currentPrice, title, outcome, pnl, resolved, redeemable</td></tr>
+<tr><td><code>poly_screen_markets</code></td><td>19-38K chars</td><td>4-6K chars</td><td>Full market objects stripped to: id, question, slug, outcomes, prices, volume, liquidity. Max 8 results.</td></tr>
+<tr><td><code>poly_twitter_sentiment</code></td><td>15K chars</td><td>2-3K chars</td><td>Items capped at 5 per query, only title+sentiment+source kept</td></tr>
+<tr><td><code>poly_search_markets</code></td><td>5-7K chars</td><td>3-4K chars</td><td>Default limit reduced from 20→8, clobTokenIds stripped (agent can fetch via poly_get_market)</td></tr>
+</table>
+
+<h3>Agent Behavioral Rules</h3>
+<p>The system prompt enforces strict token efficiency rules:</p>
+<ul>
+<li><strong>Balance first</strong> — <code>poly_get_balance</code> must be called before any analysis. If &lt;$5 available, stop immediately.</li>
+<li><strong>No duplicate calls</strong> — same tool with same parameters must not be called twice in one session</li>
+<li><strong>No retry on rate limit</strong> — if a tool returns "Rate limited", skip it and move on (don't call it 5x)</li>
+<li><strong>Session caps</strong> — max 2 screen calls, max 2 search calls, max 1 sentiment call per session</li>
+<li><strong>Stop on negative Kelly</strong> — if <code>poly_kelly_criterion</code> returns capped=0 (no edge), skip that market immediately</li>
+<li><strong>Stop when done</strong> — once 2-3 tradeable opportunities are found and executed, end the session</li>
+</ul>
+
+<h3>Expected Savings</h3>
+<p>These optimizations reduce proactive session cost from <strong>$3-5 per wake</strong> to <strong>$0.50-1.50 per wake</strong> — a 60-75% reduction in token usage.</p>
+
+<div class="tip"><strong>Monitoring:</strong> Check agent token usage in the budget sync logs. Each LLM call logs input/output tokens and cost. If sessions are still ballooning past 50K input tokens, review tool call patterns for redundant searches.</div>
+</div>
+
 <h2 id="troubleshooting">Troubleshooting</h2>
 <div class="card">
 <table>
@@ -363,6 +612,18 @@ Exit Strategy ──→ Drawdown Monitor ──→ Portfolio Optimizer       Rec
 <tr><td>Stale data on dashboard</td><td>Click Refresh. SSE stream auto-updates on changes.</td></tr>
 <tr><td>Config not taking effect</td><td>Config reads from DB on every call — changes are instant. No restart needed.</td></tr>
 <tr><td>Manipulation detector false positive</td><td>Single-wallet concentration is normal in low-volume markets. Check volume.</td></tr>
+<tr><td>Transfer "Not whitelisted"</td><td>Add the address in Dashboard → Wallet → Add Address. Only owner role can add.</td></tr>
+<tr><td>Transfer "Cooling period"</td><td>Wait for the configured cooling period to elapse. Check badge on the address card.</td></tr>
+<tr><td>Transfer failed on-chain</td><td>Check MATIC balance for gas. Verify USDC balance is sufficient. Check PolygonScan for details.</td></tr>
+<tr><td>Agent wakes but can't trade</td><td>Balance gate skips wakes when USDC &lt; $5. Fund the wallet with more USDC on Polygon.</td></tr>
+<tr><td>Sessions burning 100K+ tokens</td><td>Check for duplicate tool calls in logs. Agent should follow token efficiency rules — max 2 screens, no retry on rate limit.</td></tr>
+<tr><td>Agent keeps calling rate-limited tools</td><td>System prompt instructs: skip on first "Rate limited" error. If still happening, check if agent is using latest system prompt (restart PM2).</td></tr>
+<tr><td>"not enough balance / allowance"</td><td>Run <code>poly_set_allowances</code> to approve USDC + CTF tokens for exchange contracts. Also check USDC balance.</td></tr>
+<tr><td>"invalid price (undefined)"</td><td>Auto-trade fired without resolving token price. System now auto-fetches midpoint — verify token_id is valid.</td></tr>
+<tr><td>Neg-risk market auto-sell won't fill</td><td>Neg-risk orderbooks have inverted structure. Limit sells at midpoint won't fill when best bid is 0.001. Use market order or sell at best bid.</td></tr>
+<tr><td>Can't see Polymarket page</td><td>Client org users need access granted: Organizations → Org → Visible Pages → toggle Polymarket.</td></tr>
+<tr><td>AI watchers not running</td><td>Configure AI model in Monitors tab → Configure button. Check daily budget isn't exhausted.</td></tr>
+<tr><td>Watcher engine stopped</td><td>Engine auto-starts when active watchers exist. Check Monitors tab → Start Engine button.</td></tr>
 </table>
 </div>
 

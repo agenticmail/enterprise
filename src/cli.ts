@@ -109,5 +109,6 @@ Skill Development:
 
 function fatal(err: Error) {
   console.error('Fatal error:', err.message);
+  console.error(err.stack);
   process.exit(1);
 }

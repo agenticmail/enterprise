@@ -46,6 +46,9 @@ export class AgentStatusTracker {
   private statuses = new Map<string, AgentStatusSnapshot>();
   private listeners = new Set<StatusListener>();
   private staleCheckTimer: NodeJS.Timeout | null = null;
+  private dbSyncTimer: NodeJS.Timeout | null = null;
+  private dirtyAgents = new Set<string>();
+  private db: any = null; // EngineDatabase reference for persisting state
 
   /** How long without a heartbeat before agent is considered offline */
   private staleThresholdMs = 90_000; // 90 seconds
@@ -54,6 +57,15 @@ export class AgentStatusTracker {
     // Periodically check for stale agents
     this.staleCheckTimer = setInterval(() => this.checkStale(), 30_000);
     if (this.staleCheckTimer.unref) this.staleCheckTimer.unref();
+
+    // Debounced DB sync — write dirty agent statuses every 10s
+    this.dbSyncTimer = setInterval(() => this.flushToDb(), 10_000);
+    if (this.dbSyncTimer.unref) this.dbSyncTimer.unref();
+  }
+
+  /** Set database reference for persisting status to managed_agents */
+  setDb(db: any): void {
+    this.db = db;
   }
 
   // ─── Core State Updates ────────────────────────────────
@@ -227,8 +239,51 @@ export class AgentStatusTracker {
   }
 
   private emit(agentId: string, snapshot: AgentStatusSnapshot): void {
+    this.dirtyAgents.add(agentId);
     for (const listener of this.listeners) {
       try { listener(agentId, snapshot); } catch { /* don't let listener errors break us */ }
+    }
+  }
+
+  /** Map SSE status → DB state column value */
+  private statusToDbState(status: AgentOnlineStatus, activeSessions: number): string {
+    switch (status) {
+      case 'online': return 'running';
+      case 'idle': return activeSessions > 0 ? 'running' : 'ready';
+      case 'error': return 'error';
+      case 'offline': return 'stopped';
+      default: return 'unknown';
+    }
+  }
+
+  /** Flush dirty agent statuses to the database */
+  private async flushToDb(): Promise<void> {
+    if (!this.db || this.dirtyAgents.size === 0) return;
+    const batch = [...this.dirtyAgents];
+    this.dirtyAgents.clear();
+
+    for (const agentId of batch) {
+      const snap = this.statuses.get(agentId);
+      if (!snap) continue;
+      const dbState = this.statusToDbState(snap.status, snap.activeSessions);
+      try {
+        // Update managed_agents state column
+        await this.db.run(
+          `UPDATE managed_agents SET state = $1, updated_at = $2 WHERE id = $3`,
+          [dbState, new Date().toISOString(), agentId]
+        );
+      } catch {
+        // Try SQLite syntax
+        try {
+          await this.db.run(
+            `UPDATE managed_agents SET state = ?, updated_at = ? WHERE id = ?`,
+            [dbState, new Date().toISOString(), agentId]
+          );
+        } catch (e: any) {
+          // Non-fatal — log and continue
+          console.warn(`[agent-status] DB sync failed for ${agentId}: ${e?.message}`);
+        }
+      }
     }
   }
 
@@ -269,6 +324,9 @@ export class AgentStatusTracker {
 
   destroy(): void {
     if (this.staleCheckTimer) clearInterval(this.staleCheckTimer);
+    if (this.dbSyncTimer) clearInterval(this.dbSyncTimer);
+    // Final flush before shutdown
+    this.flushToDb().catch(() => {});
     this.listeners.clear();
     this.statuses.clear();
   }

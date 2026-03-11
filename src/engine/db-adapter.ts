@@ -22,7 +22,6 @@ import type { ApprovalRequest, ApprovalPolicy } from './approvals.js';
 import type { KnowledgeBase, KBDocument, KBChunk } from './knowledge.js';
 import type { ActivityEvent, ToolCallRecord, ConversationEntry } from './activity.js';
 import {
-  ENGINE_TABLES,
   MIGRATIONS,
   MIGRATIONS_TABLE,
   MIGRATIONS_TABLE_POSTGRES,
