@@ -518,7 +518,7 @@ export function OverviewSection(props) {
             }
             setActing('');
           }
-        }, acting === 'hotUpdate' ? '...' : [I.zap(), ' Hot Update']),
+        }, acting === 'hotUpdate' ? '...' : [I.refresh(), ' Hot Update']),
 
         // Flush Pipeline Queue
         h('button', {
