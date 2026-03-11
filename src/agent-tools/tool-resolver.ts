@@ -676,6 +676,14 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   poly_batch_screen: 'polymarket_pipeline',
   poly_portfolio_review: 'polymarket_pipeline',
 
+  // ── Polymarket Optimizer (6) ──
+  poly_daily_scorecard: 'polymarket',
+  poly_momentum_scanner: 'polymarket',
+  poly_quick_edge: 'polymarket',
+  poly_position_heatmap: 'polymarket',
+  poly_profit_lock: 'polymarket',
+  poly_capital_recycler: 'polymarket',
+
   // ── Polymarket Bracket Orders (2) ──
   poly_bracket_config: 'polymarket_execution',
   poly_list_brackets: 'polymarket_execution',
