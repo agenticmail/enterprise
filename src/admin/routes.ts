@@ -3027,12 +3027,108 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   // Get trading config for an agent
   // ─── SOCKS Proxy Management ─────────────────────────────────
   // Ensure polymarket proxy table exists
-  let _polyProxyTableInit = false;
+  let _polyTablesInit = false;
   async function ensurePolyDB() {
-    if (_polyProxyTableInit) return;
+    if (_polyTablesInit) return;
     const db = edb();
     if (!db) return;
     try {
+      // Core wallet table — needed by all dashboard polymarket routes
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS poly_wallet_credentials (
+          agent_id TEXT PRIMARY KEY,
+          private_key_encrypted TEXT NOT NULL,
+          funder_address TEXT,
+          signature_type INTEGER DEFAULT 0,
+          api_key TEXT,
+          api_secret TEXT,
+          api_passphrase TEXT,
+          rpc_url TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS poly_trading_config (
+          agent_id TEXT PRIMARY KEY,
+          mode TEXT DEFAULT 'approval',
+          max_position_size REAL DEFAULT 100,
+          max_order_size REAL DEFAULT 50,
+          max_total_exposure REAL DEFAULT 500,
+          max_daily_trades INTEGER DEFAULT 10,
+          max_daily_loss REAL DEFAULT 50,
+          max_drawdown_pct REAL DEFAULT 20,
+          allowed_categories TEXT DEFAULT '[]',
+          blocked_categories TEXT DEFAULT '[]',
+          blocked_markets TEXT DEFAULT '[]',
+          min_liquidity REAL DEFAULT 0,
+          min_volume REAL DEFAULT 0,
+          max_spread_pct REAL DEFAULT 100,
+          stop_loss_pct REAL DEFAULT 0,
+          take_profit_pct REAL DEFAULT 0,
+          trailing_stop_pct REAL DEFAULT 0,
+          rebalance_interval TEXT DEFAULT 'never',
+          notification_channel TEXT DEFAULT '',
+          notify_on TEXT DEFAULT '["trade_filled","stop_loss","circuit_breaker","market_resolved"]',
+          cash_reserve_pct REAL DEFAULT 20,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS poly_trade_log (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          token_id TEXT NOT NULL,
+          market_id TEXT,
+          market_question TEXT,
+          outcome TEXT,
+          side TEXT NOT NULL,
+          price REAL,
+          size REAL NOT NULL,
+          fill_price REAL,
+          fill_size REAL,
+          fee REAL DEFAULT 0,
+          order_type TEXT,
+          status TEXT DEFAULT 'placed',
+          rationale TEXT,
+          pnl REAL,
+          clob_order_id TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS poly_daily_counters (
+          agent_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          trade_count INTEGER DEFAULT 0,
+          daily_loss REAL DEFAULT 0,
+          paused INTEGER DEFAULT 0,
+          pause_reason TEXT,
+          PRIMARY KEY (agent_id, date)
+        )
+      `);
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS poly_pending_trades (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          token_id TEXT NOT NULL,
+          side TEXT NOT NULL,
+          price REAL,
+          size REAL NOT NULL,
+          order_type TEXT DEFAULT 'GTC',
+          tick_size TEXT DEFAULT '0.01',
+          neg_risk INTEGER DEFAULT 0,
+          market_question TEXT,
+          outcome TEXT,
+          rationale TEXT,
+          urgency TEXT DEFAULT 'normal',
+          status TEXT DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          resolved_at TIMESTAMP,
+          resolved_by TEXT
+        )
+      `);
       await db.run(`
         CREATE TABLE IF NOT EXISTS poly_proxy_config (
           id INTEGER PRIMARY KEY DEFAULT 1,
@@ -3052,16 +3148,20 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           CHECK (id = 1)
         )
       `);
-      _polyProxyTableInit = true;
+      _polyTablesInit = true;
     } catch (e: any) {
-      // Table might already exist, that's fine
-      if (e.message?.includes('already exists')) { _polyProxyTableInit = true; return; }
-      console.error('[proxy] Failed to create proxy table:', e.message);
+      if (e.message?.includes('already exists')) { _polyTablesInit = true; return; }
+      console.error('[polymarket] Failed to create tables:', e.message);
     }
   }
 
+  // Eagerly init polymarket tables so they exist before any route is hit
+  ensurePolyDB().catch((e: any) => console.warn('[polymarket] Eager init:', e.message));
+
+  // Middleware: ensure poly tables exist for ALL /polymarket/* routes
+  api.use('/polymarket/*', async (_c, next) => { await ensurePolyDB(); return next(); });
+
   api.get('/polymarket/proxy/status', requireRole('admin'), async (c) => {
-    await ensurePolyDB();
     await autoConnectProxy(edb());
     const state = getProxyState();
     const config = await loadProxyConfig(edb());
@@ -3073,7 +3173,6 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   });
 
   api.post('/polymarket/proxy/config', requireRole('owner'), async (c) => {
-    await ensurePolyDB();
     try {
       const body = await c.req.json();
       await saveProxyConfig(edb(), {
@@ -3132,7 +3231,6 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
   // Auto-deploy proxy to VPS
   api.post('/polymarket/proxy/setup', requireRole('owner'), async (c) => {
-    await ensurePolyDB();
     try {
       const body = await c.req.json();
       if (!body.host) return c.json({ error: 'Server address is required' }, 400);
