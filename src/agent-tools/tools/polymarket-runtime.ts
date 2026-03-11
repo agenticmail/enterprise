@@ -774,11 +774,20 @@ export async function getClobClient(agentId: string, db: any): Promise<ClobClien
 // ─── DB Schema & Persistence ─────────────────────────────────
 
 let dbInitialized = false;
+let _dbInitPromise: Promise<void> | null = null;
 let _isPostgres = false;
 export function isPostgresDB() { return _isPostgres; }
 
+/** Ensure DB tables exist. Safe to call multiple times — deduplicates via shared promise. */
 export async function initPolymarketDB(db: any): Promise<void> {
   if (dbInitialized || !db) return;
+  if (_dbInitPromise) return _dbInitPromise;
+  _dbInitPromise = _doInitPolymarketDB(db);
+  return _dbInitPromise;
+}
+
+async function _doInitPolymarketDB(db: any): Promise<void> {
+  if (dbInitialized) return;
 
   try {
     // Detect dialect (Postgres, MySQL, or SQLite)
@@ -1050,6 +1059,7 @@ interface WalletCredentials {
 
 export async function loadWalletCredentials(agentId: string, db: any): Promise<WalletCredentials | null> {
   if (!db) return null;
+  await initPolymarketDB(db);
   try {
     const qFn = db.query || db.execute;
     const rows = await qFn.call(db, `SELECT * FROM poly_wallet_credentials WHERE agent_id = $1`, [agentId]);
@@ -1077,6 +1087,7 @@ export async function loadWalletCredentials(agentId: string, db: any): Promise<W
 
 export async function saveWalletCredentials(agentId: string, db: any, creds: WalletCredentials): Promise<void> {
   if (!db) return;
+  await initPolymarketDB(db);
   // Encrypt sensitive fields via vault
   const vault = getVaultInstance();
   const encryptField = (val: string | null | undefined) => {

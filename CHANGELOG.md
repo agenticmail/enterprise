@@ -96,6 +96,7 @@ All notable changes to AgenticMail Enterprise are documented here.
 - Knowledge base auto-assign persistence
 - Workforce/guardrails/audit org filtering
 
+[0.5.443]: https://github.com/agenticmail/enterprise/releases/tag/v0.5.443
 [0.5.320]: https://github.com/agenticmail/enterprise/releases/tag/v0.5.320
 [0.5.315]: https://github.com/agenticmail/enterprise/releases/tag/v0.5.315
 [0.5.313]: https://github.com/agenticmail/enterprise/releases/tag/v0.5.313
