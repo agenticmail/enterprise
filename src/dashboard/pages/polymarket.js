@@ -1694,18 +1694,54 @@ export function PolymarketPage() {
       dailyScorecard && h('div', { className: 'card', style: { padding: 16, marginBottom: 20 } },
         h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
           h('h3', { style: { margin: 0, fontSize: 15, fontWeight: 600 } }, 'Daily Scorecard'),
-          h('span', { className: 'badge ' + (dailyScorecard.status === 'TARGET_HIT' ? 'badge-success' : dailyScorecard.status === 'AHEAD' ? 'badge-success' : dailyScorecard.status === 'ON_TRACK' ? 'badge-secondary' : dailyScorecard.status === 'STOP_TRADING' ? 'badge-danger' : 'badge-warning') }, dailyScorecard.status?.replace(/_/g, ' '))
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            h('button', { className: 'btn btn-sm btn-secondary', style: { fontSize: 11, padding: '2px 8px' }, onClick: function() {
+              var currentTarget = dailyScorecard.daily_target || 10;
+              var newTarget = prompt('Set daily P&L target ($):', currentTarget);
+              if (newTarget === null) return;
+              var val = parseFloat(newTarget);
+              if (isNaN(val) || val <= 0) { toast('Invalid target value', 'error'); return; }
+              // Find existing daily_pnl_usd goal or create one
+              var existingGoal = goals.find(function(g) { return g.type === 'daily_pnl_usd' && g.enabled; });
+              if (existingGoal) {
+                apiCall('/polymarket/' + selectedAgent + '/goals/' + existingGoal.id, { method: 'PUT', body: JSON.stringify(Object.assign({}, existingGoal, { target_value: val })) })
+                  .then(function() { toast('Daily target updated to $' + val, 'success'); loadAgentData(selectedAgent); })
+                  .catch(function(e) { toast(e.message, 'error'); });
+              } else {
+                apiCall('/polymarket/' + selectedAgent + '/goals', { method: 'POST', body: JSON.stringify({ name: 'Daily P&L Target', type: 'daily_pnl_usd', target_value: val, notify_on_met: true }) })
+                  .then(function() { toast('Daily target set to $' + val, 'success'); loadAgentData(selectedAgent); })
+                  .catch(function(e) { toast(e.message, 'error'); });
+              }
+            } }, I('journal'), ' Set Target'),
+            h('span', { className: 'badge ' + (dailyScorecard.status === 'TARGET_HIT' ? 'badge-success' : dailyScorecard.status === 'AHEAD' ? 'badge-success' : dailyScorecard.status === 'ON_TRACK' ? 'badge-secondary' : dailyScorecard.status === 'STOP_TRADING' ? 'badge-danger' : 'badge-warning') }, dailyScorecard.status?.replace(/_/g, ' '))
+          )
         ),
         // Progress bar
         h('div', { style: { marginBottom: 12 } },
           h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, color: 'var(--text-muted)' } },
             h('span', null, 'P&L: $' + (dailyScorecard.total_pnl || 0).toFixed(2)),
-            h('span', null, 'Target: $' + (dailyScorecard.daily_target || 0))
+            h('span', { style: { cursor: 'pointer', textDecoration: 'underline dotted' }, title: 'Click to change daily target', onClick: function() {
+              var currentTarget = dailyScorecard.daily_target || 10;
+              var newTarget = prompt('Set daily P&L target ($):', currentTarget);
+              if (newTarget === null) return;
+              var val = parseFloat(newTarget);
+              if (isNaN(val) || val <= 0) { toast('Invalid target value', 'error'); return; }
+              var existingGoal = goals.find(function(g) { return g.type === 'daily_pnl_usd' && g.enabled; });
+              if (existingGoal) {
+                apiCall('/polymarket/' + selectedAgent + '/goals/' + existingGoal.id, { method: 'PUT', body: JSON.stringify(Object.assign({}, existingGoal, { target_value: val })) })
+                  .then(function() { toast('Daily target updated to $' + val, 'success'); loadAgentData(selectedAgent); })
+                  .catch(function(e) { toast(e.message, 'error'); });
+              } else {
+                apiCall('/polymarket/' + selectedAgent + '/goals', { method: 'POST', body: JSON.stringify({ name: 'Daily P&L Target', type: 'daily_pnl_usd', target_value: val, notify_on_met: true }) })
+                  .then(function() { toast('Daily target set to $' + val, 'success'); loadAgentData(selectedAgent); })
+                  .catch(function(e) { toast(e.message, 'error'); });
+              }
+            } }, 'Target: $' + (dailyScorecard.daily_target || 0))
           ),
           h('div', { style: { height: 8, background: 'var(--bg-secondary)', borderRadius: 4, overflow: 'hidden' } },
             h('div', { style: { height: '100%', width: Math.min(100, Math.max(0, dailyScorecard.target_progress_pct || 0)) + '%', background: (dailyScorecard.total_pnl || 0) >= 0 ? '#22c55e' : '#ef4444', borderRadius: 4, transition: 'width 0.3s' } })
           ),
-          h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, (dailyScorecard.target_progress_pct || 0).toFixed(0) + '% of daily target')
+          h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, dailyScorecard.daily_target > 0 ? (dailyScorecard.target_progress_pct || 0).toFixed(0) + '% of daily target' : 'No daily target set \u2014 click "Set Target" above')
         ),
         // Score metrics row
         h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 } },

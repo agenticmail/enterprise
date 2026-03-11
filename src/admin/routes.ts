@@ -4995,7 +4995,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
       // Daily goal target
       const dailyGoal = await edb()?.get(`SELECT target_value FROM poly_goals WHERE agent_id = ? AND type IN ('daily_pnl_usd', 'daily_pnl_pct') AND enabled = 1 ORDER BY type ASC LIMIT 1`, [agentId]).catch(() => null) as any;
-      const dailyTarget = dailyGoal?.target_value || 10;
+      const dailyTarget = dailyGoal?.target_value || 0;
 
       const totalPnl = dailyPnl + unrealizedPnl;
       const progressPct = dailyTarget > 0 ? (totalPnl / dailyTarget) * 100 : 0;
