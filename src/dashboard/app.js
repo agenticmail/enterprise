@@ -183,6 +183,10 @@ function App() {
         if (u.clientOrgId) {
           setSelectedOrgId(u.clientOrgId);
           localStorage.setItem('em_client_org_id', u.clientOrgId);
+        } else {
+          setSelectedOrgId('');
+          setSelectedOrg(null);
+          localStorage.removeItem('em_client_org_id');
         }
         // Init transport encryption BEFORE setting authed — ensures all subsequent
         // API calls from child components are encrypted
@@ -238,6 +242,8 @@ function App() {
         setSelectedOrgId(d.clientOrgId);
       } else {
         localStorage.removeItem('em_client_org_id');
+        setSelectedOrgId('');
+        setSelectedOrg(null);
       }
     }).catch(() => {});
   }, [authed]);
