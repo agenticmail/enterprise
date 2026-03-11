@@ -193,7 +193,7 @@ async function validateProviderApiKey(
 import { deployToFly, getAppStatus, destroyApp, type FlyConfig, type AppConfig } from '../deploy/fly.js';
 import { SecureVault } from '../engine/vault.js';
 import { getWatcherEngineStatus, controlWatcherEngine } from '../agent-tools/tools/polymarket-watcher.js';
-import { importSDK, getProxyState, loadProxyConfig, saveProxyConfig, startProxy, stopProxy, deployProxyToVPS, autoConnectProxy } from '../agent-tools/tools/polymarket-runtime.js';
+import { importSDK, getProxyState, loadProxyConfig, saveProxyConfig, startProxy, stopProxy, deployProxyToVPS, autoConnectProxy, initPolymarketDB } from '../agent-tools/tools/polymarket-runtime.js';
 import { executeOrder } from '../agent-tools/tools/polymarket.js';
 
 // Shared vault instance for encrypting/decrypting provider API keys
@@ -3030,128 +3030,18 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   let _polyTablesInit = false;
   async function ensurePolyDB() {
     if (_polyTablesInit) return;
-    const db = edb();
-    if (!db) return;
+    const e = edb();
+    if (!e) return;
     try {
-      // Core wallet table — needed by all dashboard polymarket routes
-      await db.run(`
-        CREATE TABLE IF NOT EXISTS poly_wallet_credentials (
-          agent_id TEXT PRIMARY KEY,
-          private_key_encrypted TEXT NOT NULL,
-          funder_address TEXT,
-          signature_type INTEGER DEFAULT 0,
-          api_key TEXT,
-          api_secret TEXT,
-          api_passphrase TEXT,
-          rpc_url TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await db.run(`
-        CREATE TABLE IF NOT EXISTS poly_trading_config (
-          agent_id TEXT PRIMARY KEY,
-          mode TEXT DEFAULT 'approval',
-          max_position_size REAL DEFAULT 100,
-          max_order_size REAL DEFAULT 50,
-          max_total_exposure REAL DEFAULT 500,
-          max_daily_trades INTEGER DEFAULT 10,
-          max_daily_loss REAL DEFAULT 50,
-          max_drawdown_pct REAL DEFAULT 20,
-          allowed_categories TEXT DEFAULT '[]',
-          blocked_categories TEXT DEFAULT '[]',
-          blocked_markets TEXT DEFAULT '[]',
-          min_liquidity REAL DEFAULT 0,
-          min_volume REAL DEFAULT 0,
-          max_spread_pct REAL DEFAULT 100,
-          stop_loss_pct REAL DEFAULT 0,
-          take_profit_pct REAL DEFAULT 0,
-          trailing_stop_pct REAL DEFAULT 0,
-          rebalance_interval TEXT DEFAULT 'never',
-          notification_channel TEXT DEFAULT '',
-          notify_on TEXT DEFAULT '["trade_filled","stop_loss","circuit_breaker","market_resolved"]',
-          cash_reserve_pct REAL DEFAULT 20,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await db.run(`
-        CREATE TABLE IF NOT EXISTS poly_trade_log (
-          id TEXT PRIMARY KEY,
-          agent_id TEXT NOT NULL,
-          token_id TEXT NOT NULL,
-          market_id TEXT,
-          market_question TEXT,
-          outcome TEXT,
-          side TEXT NOT NULL,
-          price REAL,
-          size REAL NOT NULL,
-          fill_price REAL,
-          fill_size REAL,
-          fee REAL DEFAULT 0,
-          order_type TEXT,
-          status TEXT DEFAULT 'placed',
-          rationale TEXT,
-          pnl REAL,
-          clob_order_id TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await db.run(`
-        CREATE TABLE IF NOT EXISTS poly_daily_counters (
-          agent_id TEXT NOT NULL,
-          date TEXT NOT NULL,
-          trade_count INTEGER DEFAULT 0,
-          daily_loss REAL DEFAULT 0,
-          paused INTEGER DEFAULT 0,
-          pause_reason TEXT,
-          PRIMARY KEY (agent_id, date)
-        )
-      `);
-      await db.run(`
-        CREATE TABLE IF NOT EXISTS poly_pending_trades (
-          id TEXT PRIMARY KEY,
-          agent_id TEXT NOT NULL,
-          token_id TEXT NOT NULL,
-          side TEXT NOT NULL,
-          price REAL,
-          size REAL NOT NULL,
-          order_type TEXT DEFAULT 'GTC',
-          tick_size TEXT DEFAULT '0.01',
-          neg_risk INTEGER DEFAULT 0,
-          market_question TEXT,
-          outcome TEXT,
-          rationale TEXT,
-          urgency TEXT DEFAULT 'normal',
-          status TEXT DEFAULT 'pending',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          resolved_at TIMESTAMP,
-          resolved_by TEXT
-        )
-      `);
-      await db.run(`
-        CREATE TABLE IF NOT EXISTS poly_proxy_config (
-          id INTEGER PRIMARY KEY DEFAULT 1,
-          enabled INTEGER DEFAULT 0,
-          proxy_mode TEXT DEFAULT 'http',
-          proxy_url TEXT,
-          encrypted_proxy_token TEXT,
-          vps_host TEXT,
-          vps_user TEXT DEFAULT 'root',
-          vps_port INTEGER DEFAULT 22,
-          socks_port INTEGER DEFAULT 1080,
-          auth_method TEXT DEFAULT 'password',
-          ssh_key_path TEXT,
-          encrypted_ssh_key TEXT,
-          encrypted_password TEXT,
-          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-          CHECK (id = 1)
-        )
-      `);
+      // initPolymarketDB expects db.execute(); engine DB has run/get/all — shim it
+      const dbShim = e.execute ? e : Object.assign({}, e, {
+        execute: e.run || e.execute,
+        query: e.all || e.query,
+      });
+      await initPolymarketDB(dbShim);
       _polyTablesInit = true;
-    } catch (e: any) {
-      if (e.message?.includes('already exists')) { _polyTablesInit = true; return; }
-      console.error('[polymarket] Failed to create tables:', e.message);
+    } catch (err: any) {
+      console.error('[polymarket] Failed to init tables:', err.message);
     }
   }
 
