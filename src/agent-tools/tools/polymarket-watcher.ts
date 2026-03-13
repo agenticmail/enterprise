@@ -1204,10 +1204,10 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
             ).catch(() => ({ cnt: 0 }));
             const tradeCount = parseInt(todayTrades?.cnt || '0');
 
-            // Check min daily trades goal
+            // Check min daily trades goal (filter by agent_id)
             const goal = await edb.get(
-              `SELECT target_value FROM poly_goals WHERE type = 'min_trades_daily' AND enabled = 1`,
-              []
+              `SELECT target_value FROM poly_goals WHERE agent_id = ? AND type = 'min_trades_daily' AND enabled = 1`,
+              [agentId]
             ).catch(() => null);
             const targetTrades = goal?.target_value || 15;
 
@@ -1220,12 +1220,19 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
               continue;
             }
 
-            // Check if agent is stopped via lifecycle
+            // Check if agent is stopped via lifecycle AND has polymarket skills
             const agentStateRow = await edb.get(
-              `SELECT state FROM managed_agents WHERE id = ?`, [agentId]
+              `SELECT state, config FROM managed_agents WHERE id = ?`, [agentId]
             ).catch(() => null);
             if (agentStateRow?.state === 'stopped') {
               log(`[poly-watcher] Proactive: skipped agent ${agentId.slice(0,8)} — agent state is stopped`);
+              continue;
+            }
+            // Verify agent actually has polymarket skills — don't wake non-trading agents
+            const _cfg = typeof agentStateRow?.config === 'string' ? JSON.parse(agentStateRow.config) : agentStateRow?.config;
+            const hasPolySkill = Array.isArray(_cfg?.skills) && _cfg.skills.some((s: string) => typeof s === 'string' && s.startsWith('polymarket'));
+            if (!hasPolySkill) {
+              log(`[poly-watcher] Proactive: skipped agent ${agentId.slice(0,8)} — no polymarket skills`);
               continue;
             }
 
@@ -1250,11 +1257,8 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
               } catch { /* balance check failed, proceed with wake anyway */ }
               const lastSpawn = _lastSpawnByAgent[agentId] || 0;
               if (now - lastSpawn >= SPAWN_COOLDOWN_MS) {
-                // Look up agent's runtime port from managed_agents config.deployment.port
-                const agentRow = await edb.get(
-                  `SELECT config FROM managed_agents WHERE id = ?`, [agentId]
-                ).catch(() => null);
-                const agentConfig = typeof agentRow?.config === 'string' ? JSON.parse(agentRow.config) : agentRow?.config;
+                // Reuse config already fetched for skill check
+                const agentConfig = _cfg;
                 const dep = agentConfig?.deployment;
                 const port = dep?.port || dep?.config?.local?.port || 3101;
                 const secret = process.env.AGENT_RUNTIME_SECRET || '';
