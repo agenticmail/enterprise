@@ -172,7 +172,7 @@ export async function momentumScan(params?: {
   limit?: number;
   direction?: 'UP' | 'DOWN' | 'BOTH';
 }): Promise<{ markets: MomentumMarket[]; scanned: number; movers_found: number }> {
-  const minChange = params?.minChangePct ?? 3;
+  const minChange = params?.minChangePct ?? 2;
   const limit = params?.limit ?? 10;
   const dirFilter = params?.direction ?? 'BOTH';
 
@@ -189,7 +189,7 @@ export async function momentumScan(params?: {
   const movers: MomentumMarket[] = [];
 
   // Check price movement for each market
-  const checks = markets.slice(0, 60).map(async (m: any) => {
+  const checks = markets.slice(0, 100).map(async (m: any) => {
     try {
       const prices = m.outcomePrices ? JSON.parse(m.outcomePrices) : [];
       const currentPrice = parseFloat(prices[0]) || 0;
@@ -201,15 +201,21 @@ export async function momentumScan(params?: {
 
       const volume = parseFloat(m.volume24hr || m.volume || '0');
       const liquidity = parseFloat(m.liquidity || '0');
-      if (liquidity < 1000) return; // Skip illiquid
+      if (liquidity < 200) return; // Skip very illiquid (lowered from $1000)
 
       // Get price history to detect movement
       const history = await fetchPriceHistory(tokenId).catch(() => []);
-      if (history.length < 5) return;
+      if (history.length < 2) return;
 
-      // Compare current vs ~1 hour ago (use last ~12 data points as proxy)
-      const hoursAgo = history.length >= 12 ? history[history.length - 12] : history[0];
-      const changePct = hoursAgo > 0 ? ((currentPrice - hoursAgo) / hoursAgo) * 100 : 0;
+      // Compare current price vs 1 hour ago (second-to-last hourly data point)
+      // Also check 4h ago for medium-term momentum
+      const price1hAgo = history[history.length - 2];
+      const price4hAgo = history.length >= 5 ? history[history.length - 5] : history[0];
+      const changePct1h = price1hAgo > 0 ? ((currentPrice - price1hAgo) / price1hAgo) * 100 : 0;
+      const changePct4h = price4hAgo > 0 ? ((currentPrice - price4hAgo) / price4hAgo) * 100 : 0;
+      // Use the larger of 1h or 4h change to catch both fast and building momentum
+      const changePct = Math.abs(changePct1h) >= Math.abs(changePct4h) ? changePct1h : changePct4h;
+      const hoursAgo = Math.abs(changePct1h) >= Math.abs(changePct4h) ? price1hAgo : price4hAgo;
 
       if (Math.abs(changePct) < minChange) return;
       const direction = changePct > 0 ? 'UP' : 'DOWN';

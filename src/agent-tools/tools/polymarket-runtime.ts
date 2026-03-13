@@ -1041,6 +1041,15 @@ async function _doInitPolymarketDB(db: any): Promise<void> {
     const { initWatcherTables } = await import('./polymarket-watcher.js');
     await initWatcherTables(db.getEngineDB?.() || db);
 
+    // Proactive pause tracking — respects user "stop/abort" commands
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS poly_proactive_pause (
+        agent_id TEXT PRIMARY KEY,
+        paused_at TEXT NOT NULL,
+        reason TEXT
+      )
+    `).catch(() => {});
+
     dbInitialized = true;
   } catch (err: any) {
     console.error('[polymarket] DB init failed:', err.message);

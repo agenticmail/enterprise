@@ -624,6 +624,25 @@ export class MessagingPoller {
         isGroup: ctx.isGroup,
       }).catch(() => {});
     }
+
+    // Track proactive pause: if user says stop/abort, pause proactive wakes.
+    // If user sends any other message, resume proactive wakes.
+    if (trust.isManager && this.config.engineDb) {
+      var rawText = (ctx.messageText || '').trim().toLowerCase();
+      var isStopCommand = /^(stop|abort|pause|halt|shut\s*down|go\s+to\s+sleep|sleep)\.?!?$/i.test(rawText);
+      try {
+        var edb = this.config.engineDb;
+        if (isStopCommand) {
+          await edb.run(
+            `INSERT OR REPLACE INTO poly_proactive_pause (agent_id, paused_at, reason) VALUES (?, ?, ?)`,
+            [agent.id, new Date().toISOString(), 'User said: ' + rawText]
+          );
+          console.log(`[messaging] Proactive paused for ${agent.displayName} — user said "${rawText}"`);
+        } else {
+          await edb.run(`DELETE FROM poly_proactive_pause WHERE agent_id = ?`, [agent.id]);
+        }
+      } catch {}
+    }
     try {
       var resolved = this.resolveEndpoint(agent.id, agent);
       console.log(`[messaging] Dispatching to ${agent.displayName} at ${resolved.host}:${resolved.port}`);

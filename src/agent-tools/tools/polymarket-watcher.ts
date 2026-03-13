@@ -1211,6 +1211,24 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
             ).catch(() => null);
             const targetTrades = goal?.target_value || 15;
 
+            // Check if user explicitly paused proactive wakes (said stop/abort)
+            const pauseRow = await edb.get(
+              `SELECT paused_at FROM poly_proactive_pause WHERE agent_id = ?`, [agentId]
+            ).catch(() => null);
+            if (pauseRow?.paused_at) {
+              log(`[poly-watcher] Proactive: skipped agent ${agentId.slice(0,8)} — user paused at ${pauseRow.paused_at}`);
+              continue;
+            }
+
+            // Check if agent is stopped via lifecycle
+            const agentStateRow = await edb.get(
+              `SELECT state FROM managed_agents WHERE id = ?`, [agentId]
+            ).catch(() => null);
+            if (agentStateRow?.state === 'stopped') {
+              log(`[poly-watcher] Proactive: skipped agent ${agentId.slice(0,8)} — agent state is stopped`);
+              continue;
+            }
+
             // Wake agent via HTTP API if behind on trades
             if (tradeCount < targetTrades) {
               // ── Balance gate — don't wake if wallet can't afford minimum trade ──
@@ -1313,6 +1331,11 @@ QUALITY > QUANTITY. Each trade must have analysis backing it. No blind trades.`;
                   if (resp.ok) {
                     log(`[poly-watcher] Proactive trading: woke agent ${agentId.slice(0,8)} (${tradeCount}/${targetTrades} trades today)`);
                     _lastSpawnByAgent[agentId] = now;
+                    // Sync state to 'running' so UI reflects actual status
+                    await edb.run(
+                      `UPDATE managed_agents SET state = 'running' WHERE id = ? AND state IN ('stopped', 'ready', 'error')`,
+                      [agentId]
+                    ).catch(() => {});
                   } else {
                     const body = await resp.text().catch(() => '');
                     log(`[poly-watcher] Proactive: wake failed (${resp.status}): ${body.slice(0, 200)}`);
@@ -1344,6 +1367,15 @@ async function _maybeSpawnAgent(agentId: string, events: WatcherEvent[], edb: an
 
   const runtime = getRuntime();
   if (!runtime) return;
+
+  // Respect user stop — don't spawn if proactive paused
+  try {
+    const pauseRow = await edb.get(`SELECT paused_at FROM poly_proactive_pause WHERE agent_id = ?`, [agentId]).catch(() => null);
+    if (pauseRow?.paused_at) {
+      log(`[poly-watcher] Spawn skipped for ${agentId.slice(0,8)} — user paused proactive at ${pauseRow.paused_at}`);
+      return;
+    }
+  } catch {}
 
   const lastSpawn = _lastSpawnByAgent[agentId] || 0;
   const now = Date.now();
@@ -1384,6 +1416,11 @@ async function _maybeSpawnAgent(agentId: string, events: WatcherEvent[], edb: an
     _lastSpawnByAgent[agentId] = now;
     _spawnCount++;
     log(`[poly-watcher] [ALERT] Spawned session ${session.id} for ${agentId} — ${events.length} signals`);
+    // Sync state to 'running' so UI reflects actual status
+    await edb.run(
+      `UPDATE managed_agents SET state = 'running' WHERE id = ? AND state IN ('stopped', 'ready', 'error')`,
+      [agentId]
+    ).catch(() => {});
 
     await edb.run(
       `INSERT INTO poly_watcher_events (id, agent_id, watcher_id, type, severity, title, summary, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

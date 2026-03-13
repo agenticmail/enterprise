@@ -1054,8 +1054,9 @@ export class AgentLifecycleManager {
           if (status.metrics) {
             agent.usage.activeSessionCount = status.metrics.activeSessionCount;
           }
-          // Auto-correct stale DB state: if PM2 is running but DB says stopped/error/ready/draft, sync it
-          if (agent.state === 'degraded' || agent.state === 'stopped' || agent.state === 'error' || agent.state === 'ready' || agent.state === 'draft') {
+          // Auto-correct stale DB state: if PM2 is running but DB says degraded/error/ready/draft, sync it
+          // Note: 'stopped' is NOT auto-corrected here — if user explicitly stopped, respect that
+          if (agent.state === 'degraded' || agent.state === 'error' || agent.state === 'ready' || agent.state === 'draft') {
             this.transition(agent, 'running', agent.state === 'degraded' ? 'Health restored' : `Process detected running (was "${agent.state}")`, 'system');
             if (agent.state !== 'degraded') this.emitEvent(agent, 'auto_recovered', { from: agent.state });
           }
