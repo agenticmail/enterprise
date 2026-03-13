@@ -1292,10 +1292,13 @@ QUALITY > QUANTITY. Each trade must have analysis backing it. No blind trades.`;
                 let wakeSource = 'system'; // internal wake (no response channel needed)
                 let wakeSenderId = 'watcher@system';
                 let wakeSpaceId = 'watcher_proactive';
-                if (messaging.telegram?.chatId) {
+                const telegramChatId = messaging.telegram?.chatId
+                  || messaging.telegram?.trustedChatIds?.[0]
+                  || messaging.managerIdentity?.telegramId;
+                if (telegramChatId) {
                   wakeSource = 'telegram';
-                  wakeSenderId = messaging.telegram.chatId;
-                  wakeSpaceId = messaging.telegram.chatId;
+                  wakeSenderId = telegramChatId;
+                  wakeSpaceId = telegramChatId;
                 } else if (messaging.whatsapp?.phoneNumber) {
                   wakeSource = 'whatsapp';
                   wakeSenderId = messaging.whatsapp.phoneNumber;

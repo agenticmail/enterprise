@@ -53,8 +53,8 @@ export function createPolymarketPortfolioTools(opts?: ToolCreationOptions): AnyA
       description: 'Monitor portfolio drawdown over time. Records snapshots and alerts when drawdown exceeds thresholds.',
       parameters: {
         type: 'object', properties: {
-          action: { type: 'string', enum: ['record', 'status', 'history'], description: 'Action to take' },
-          current_value: { type: 'number', description: 'Current portfolio value (for record)' },
+          action: { type: 'string', enum: ['record', 'check', 'status', 'history'], description: 'Action to take (check = auto-record from wallet + status)' },
+          current_value: { type: 'number', description: 'Current portfolio value (for record). If omitted with action=record or check, auto-computes from wallet balance + positions.' },
           alert_threshold: { type: 'number', description: 'Alert if drawdown exceeds this %', default: 10 },
         }, required: ['action'],
       },
@@ -68,16 +68,50 @@ export function createPolymarketPortfolioTools(opts?: ToolCreationOptions): AnyA
             drawdown_pct REAL NOT NULL, recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
           )`);
 
-          if (p.action === 'record') {
-            if (!p.current_value) return errorResult('Need current_value');
+          // Auto-compute current_value from wallet when not provided
+          let currentValue = p.current_value;
+          if (!currentValue && (p.action === 'record' || p.action === 'check')) {
+            try {
+              const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [_id]);
+              const addr = (creds[0] as any)?.funder_address;
+              if (addr) {
+                // Get exchange balance
+                let exchBal = 0;
+                try {
+                  const { getClobClient } = await import('./polymarket-runtime.js');
+                  const client = await getClobClient(_id, db);
+                  if (client) {
+                    const bal = await (client as any).getBalanceAllowance({ asset_type: 'COLLATERAL' });
+                    exchBal = Number(bal?.balance || 0) / 1e6;
+                  }
+                } catch {}
+                // Get position values
+                let posValue = 0;
+                try {
+                  const positions = await apiFetch(`https://data-api.polymarket.com/positions?user=${addr}`);
+                  if (Array.isArray(positions)) {
+                    for (const pos of positions) {
+                      if (!pos.resolved && !pos.closed) {
+                        posValue += (Number(pos.size || 0) * Number(pos.currentPrice || pos.price || 0));
+                      }
+                    }
+                  }
+                } catch {}
+                currentValue = exchBal + posValue;
+              }
+            } catch {}
+          }
+
+          if (p.action === 'record' || p.action === 'check') {
+            if (!currentValue) return jsonResult({ latest: null, note: 'No portfolio value available yet. Make a trade first, then drawdown tracking begins automatically.' });
             const rows = await safeDbQuery(db, `SELECT MAX(peak) as max_peak FROM poly_drawdown_log`);
-            const prevPeak = (rows[0] as any)?.max_peak || p.current_value;
-            const peak = Math.max(prevPeak, p.current_value);
-            const drawdown = peak > 0 ? ((peak - p.current_value) / peak) * 100 : 0;
+            const prevPeak = (rows[0] as any)?.max_peak || currentValue;
+            const peak = Math.max(prevPeak, currentValue);
+            const drawdown = peak > 0 ? ((peak - currentValue) / peak) * 100 : 0;
             await safeDbExec(db, `INSERT INTO poly_drawdown_log (value, peak, drawdown_pct) VALUES (?, ?, ?)`,
-              [p.current_value, peak, drawdown]);
+              [currentValue, peak, drawdown]);
             const alert = drawdown > (p.alert_threshold || 10);
-            return jsonResult({ value: p.current_value, peak, drawdown_pct: +drawdown.toFixed(2), alert, threshold: p.alert_threshold || 10 });
+            return jsonResult({ value: currentValue, peak, drawdown_pct: +drawdown.toFixed(2), alert, threshold: p.alert_threshold || 10 });
           }
           if (p.action === 'history') {
             const rows = await safeDbQuery(db, `SELECT * FROM poly_drawdown_log ORDER BY recorded_at DESC LIMIT 100`);

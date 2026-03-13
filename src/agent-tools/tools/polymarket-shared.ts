@@ -209,19 +209,29 @@ function pgParams(sql: string): string {
 }
 
 /**
+ * Unwrap nested array args — callers often pass safeDbQuery(db, sql, [a, b])
+ * which with ...args becomes [[a, b]]. Flatten one level for Postgres.
+ */
+function flatArgs(args: any[]): any[] {
+  if (args.length === 1 && Array.isArray(args[0])) return args[0];
+  return args;
+}
+
+/**
  * Execute a write query (INSERT/UPDATE/DELETE) — works on SQLite + Postgres.
  */
 export async function safeDbExec(db: any, sql: string, ...args: any[]): Promise<any> {
   if (!db) return null;
+  const params = flatArgs(args);
   try {
     // SQLite path (better-sqlite3): db.prepare().run()
     if (db.prepare) {
-      if (args.length > 0) return db.prepare(sql).run(...args);
+      if (params.length > 0) return db.prepare(sql).run(...params);
       return db.exec(sql);
     }
     // Postgres/async path: db.execute() or db.query()
     const qFn = db.query || db.execute;
-    if (qFn) return await qFn.call(db, pgParams(sql), args.length > 0 ? args : undefined);
+    if (qFn) return await qFn.call(db, pgParams(sql), params.length > 0 ? params : undefined);
     return null;
   } catch (e) {
     return null;
@@ -233,11 +243,12 @@ export async function safeDbExec(db: any, sql: string, ...args: any[]): Promise<
  */
 export async function safeDbQuery(db: any, sql: string, ...args: any[]): Promise<any[]> {
   if (!db) return [];
+  const params = flatArgs(args);
   try {
-    if (db.prepare) return db.prepare(sql).all(...args) || [];
+    if (db.prepare) return db.prepare(sql).all(...params) || [];
     const qFn = db.query || db.execute;
     if (qFn) {
-      const res = await qFn.call(db, pgParams(sql), args.length > 0 ? args : undefined);
+      const res = await qFn.call(db, pgParams(sql), params.length > 0 ? params : undefined);
       return res?.rows || (Array.isArray(res) ? res : []);
     }
     return [];
@@ -251,11 +262,12 @@ export async function safeDbQuery(db: any, sql: string, ...args: any[]): Promise
  */
 export async function safeDbGet(db: any, sql: string, ...args: any[]): Promise<any | null> {
   if (!db) return null;
+  const params = flatArgs(args);
   try {
-    if (db.prepare) return db.prepare(sql).get(...args) || null;
+    if (db.prepare) return db.prepare(sql).get(...params) || null;
     const qFn = db.query || db.execute;
     if (qFn) {
-      const res = await qFn.call(db, pgParams(sql), args.length > 0 ? args : undefined);
+      const res = await qFn.call(db, pgParams(sql), params.length > 0 ? params : undefined);
       const rows = res?.rows || (Array.isArray(res) ? res : []);
       return rows[0] || null;
     }

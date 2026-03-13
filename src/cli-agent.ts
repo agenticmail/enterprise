@@ -1566,7 +1566,9 @@ export async function runAgent(_args: string[]) {
         const messages = result?.messages || [];
         const sendToolNames = isMessagingSource
           ? ['whatsapp_send', 'telegram_send']
-          : ['google_chat_send_message'];
+          : ctx.source === 'email'
+            ? ['gmail_send', 'telegram_send', 'whatsapp_send']
+            : ['google_chat_send_message'];
         let chatSent = false;
         for (const msg of messages) {
           if (Array.isArray(msg.content)) {
@@ -1631,6 +1633,11 @@ export async function runAgent(_args: string[]) {
                     console.warn(`[chat] ⚠️ Telegram fallback failed: ${tgErr.message}`);
                   }
                 }
+              } else if (ctx.source === 'email') {
+                // ─── Email source: agent should have already used gmail_send or messaging tool ───
+                // No native fallback needed — email sessions don't have a direct reply channel.
+                // If the agent failed to send, it will be visible in the session logs.
+                console.log(`[chat] Email source session ended without tool-based send — no fallback available`);
               } else {
                 // ─── Google Chat fallback ───
                 const emailCfg = (config as any).emailConfig || {};
