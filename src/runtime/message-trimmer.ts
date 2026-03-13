@@ -12,13 +12,13 @@
 
 // ─── Configuration ────────────────────────────────────────────
 // How many turns back before a message is considered stale
-var STALE_TURN_THRESHOLD = 2;
+var STALE_TURN_THRESHOLD = 1;
 // Minimum length before trimming kicks in (short results are left alone)
-var STALE_MIN_LENGTH = 300;
+var STALE_MIN_LENGTH = 200;
 // How many chars to keep from stale messages
-var STALE_TRIM_TO = 120;
+var STALE_TRIM_TO = 80;
 // Max chars per tool result at push time
-var INLINE_RESULT_CAP = 3000;
+var INLINE_RESULT_CAP = 1500;
 
 // ─── Inline Truncation (at push time) ─────────────────────────
 

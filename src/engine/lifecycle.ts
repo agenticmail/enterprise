@@ -231,8 +231,9 @@ export class AgentLifecycleManager {
       const agents = await this.engineDb.getAllManagedAgents();
       for (const agent of agents) {
         this.agents.set(agent.id, agent);
-        // Restart health check loops for running agents
-        if (agent.state === 'running' || agent.state === 'degraded') {
+        // Start health check loops for agents that have a deployment target
+        // This also auto-corrects stale states (e.g. DB says "stopped" but PM2 is running)
+        if (agent.config?.deployment?.target) {
           this.startHealthCheckLoop(agent);
         }
       }
@@ -1053,10 +1054,10 @@ export class AgentLifecycleManager {
           if (status.metrics) {
             agent.usage.activeSessionCount = status.metrics.activeSessionCount;
           }
-          // Recover from degraded
-          if (agent.state === 'degraded') {
-            this.transition(agent, 'running', 'Health restored', 'system');
-            this.emitEvent(agent, 'auto_recovered', {});
+          // Auto-correct stale DB state: if PM2 is running but DB says stopped/error/ready/draft, sync it
+          if (agent.state === 'degraded' || agent.state === 'stopped' || agent.state === 'error' || agent.state === 'ready' || agent.state === 'draft') {
+            this.transition(agent, 'running', agent.state === 'degraded' ? 'Health restored' : `Process detected running (was "${agent.state}")`, 'system');
+            if (agent.state !== 'degraded') this.emitEvent(agent, 'auto_recovered', { from: agent.state });
           }
         } else {
           agent.health.consecutiveFailures++;

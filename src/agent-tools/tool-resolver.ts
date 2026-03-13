@@ -122,19 +122,19 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
 
   // Tier 2 — Common workflows, loaded by context
   gws_chat: 2,       // only when source is Google Chat
-  browser: 2,
+  browser: 3,        // on-demand — most agents rarely browse
   system: 2,
-  visual_memory: 2,
+  visual_memory: 3,  // on-demand
   meeting_voice: 2,
   meeting_lifecycle: 2,
-  gws_gmail: 2,
-  gws_calendar: 2,
-  gws_drive: 2,
-  gws_docs: 2,
-  gws_tasks: 2,
-  gws_contacts: 2,
+  gws_gmail: 3,      // on-demand — loaded by email context or signal detection
+  gws_calendar: 3,   // on-demand
+  gws_drive: 3,      // on-demand
+  gws_docs: 3,       // on-demand
+  gws_tasks: 3,      // on-demand
+  gws_contacts: 3,   // on-demand
   agenticmail: 2,
-  ent_http: 2,
+  ent_http: 3,       // on-demand
 
   // Tier 3 — Specialist, on-demand only
   gws_sheets: 3,
@@ -149,15 +149,15 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   ent_diff: 3,
   remotion_video: 3,
   ent_knowledge: 2,
-  local_filesystem: 2,
-  local_shell: 2,
+  local_filesystem: 3,  // on-demand — loaded by signal detection
+  local_shell: 3,       // on-demand — loaded by signal detection
   management: 1,      // always loaded — agent must know its position
   msg_whatsapp: 2,
   msg_telegram: 2,
   mcp_bridge: 3,
-  filesystem: 2,
+  filesystem: 3,       // on-demand
   web: 2,
-  smtp_email: 2,
+  smtp_email: 3,       // on-demand — loaded by email context or signal
   polymarket: 2,            // Core trading (20 tools) — always loaded for polymarket agents
   polymarket_watcher: 2,     // Watcher system — always loaded (session start protocol)
   polymarket_execution: 3,   // Execution specialist — on-demand (batch orders, history, export)
@@ -170,7 +170,7 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   polymarket_portfolio: 3,   // Specialist — on-demand (optimization, drawdown, P&L)
   polymarket_pipeline: 3,    // Specialist — on-demand (full/quick analysis, batch screen)
   db_access: 3,
-  coding: 2,
+  coding: 3,           // on-demand
   agent_control: 2,
 };
 
@@ -751,7 +751,8 @@ export function clearSessionToolState(sessionId: string): void {
 const _ALL_SETS = Object.keys(TIER_MAP) as ToolSet[];
 
 // Tier 2 sets that are commonly needed — loaded for most contexts
-const _COMMON_T2: ToolSet[] = ['local_filesystem', 'local_shell', 'browser', 'system', 'ent_knowledge'];
+// Kept minimal: specialist tools load on-demand via request_tools or signal detection
+const _COMMON_T2: ToolSet[] = ['system', 'ent_knowledge'];
 
 const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
   // Meeting: voice + lifecycle essential, plus common tools
@@ -765,7 +766,7 @@ const CONTEXT_PROMOTIONS: Record<SessionContext, ToolSet[]> = {
   // Other channel tools and specialist tools load on demand
   whatsapp: ['msg_whatsapp', 'smtp_email', ..._COMMON_T2],
   telegram: ['msg_telegram', 'smtp_email', ..._COMMON_T2],
-  email: ['agenticmail', 'gws_gmail', 'smtp_email', ..._COMMON_T2],
+  email: ['agenticmail', 'gws_gmail', 'smtp_email', 'gws_calendar', 'gws_contacts', ..._COMMON_T2],
 
   // Task/full: broader set for agent-to-agent work
   task: ['agenticmail', ..._COMMON_T2],
@@ -806,6 +807,17 @@ const SIGNAL_RULES: SignalRule[] = [
   // Meeting join — broad patterns to catch casual phrasing
   { patterns: [/\bjoin.*meeting\b/i, /\bmeeting.*join\b/i, /\bgoogle meet\b/i, /meet\.google\.com/i, /\bjoin.*call\b/i, /\bvideo.*call\b/i, /\bjoin.*meet\b/i, /\bjoin.*again\b/i, /\brejoin\b/i, /\bjoin back\b/i, /\bjoin the\b/i, /\bget.*in.*meeting\b/i],
     sets: ['meeting_lifecycle', 'meeting_voice'] },
+  // Browser
+  { patterns: [/\bbrows/i, /\bwebsite\b/i, /\bopen.*url\b/i, /\bvisit.*page\b/i, /\bnavigate\b/i, /\bscrape\b/i, /\bscreenshot\b/i, /polymarket\.com/i],
+    sets: ['browser'] },
+  // Filesystem & shell
+  { patterns: [/\bfile\b/i, /\bread.*file\b/i, /\bwrite.*file\b/i, /\bdirectory\b/i, /\bfolder\b/i, /\bdownload\b/i, /\bupload\b/i],
+    sets: ['local_filesystem'] },
+  { patterns: [/\brun.*command\b/i, /\bbash\b/i, /\bterminal\b/i, /\bshell\b/i, /\bexecute\b/i, /\binstall\b/i, /\bnpm\b/i, /\bpip\b/i],
+    sets: ['local_shell'] },
+  // HTTP / API
+  { patterns: [/\bhttp\b/i, /\bapi\b/i, /\bfetch\b/i, /\bcurl\b/i, /\bwebhook\b/i, /\bendpoint\b/i],
+    sets: ['ent_http'] },
   // Database
   { patterns: [/\bdatabase\b/i, /\bsql\b/i, /\bquery\b/i, /\bpostgres\b/i],
     sets: ['ent_database'] },

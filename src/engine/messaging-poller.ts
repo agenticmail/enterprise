@@ -174,6 +174,46 @@ export class MessagingPoller {
     console.log('[messaging] Stopped');
   }
 
+  /**
+   * Restart Telegram connection for a specific agent.
+   * Called when an agent is redeployed or restarted and needs its Telegram reconnected.
+   */
+  async restartTelegram(agentId: string) {
+    if (!this.config.getCapability('telegram')) return;
+
+    // Find the agent's Telegram bot token
+    var chanCfg = this.config.getAgentChannelConfig(agentId);
+    var botToken = chanCfg?.telegram?.botToken;
+    if (!botToken) {
+      // Check vault as fallback
+      botToken = this.config.getVaultKey('skill:telegram:access_token');
+    }
+    if (!botToken) {
+      console.log(`[messaging] restartTelegram: no bot token for agent ${agentId.slice(0, 8)}`);
+      return;
+    }
+
+    // Stop existing Telegram (webhook cleanup + polling stop)
+    var oldCleanups = this.cleanups;
+    this.cleanups = [];
+    for (var fn of oldCleanups) fn(); // runs cleanup functions (stops polling, deletes webhook)
+    this.telegramMode = 'off';
+
+    // Re-resolve agent endpoint
+    var managed = this.config.lifecycle.getAgent(agentId);
+    var agent: AgentEndpoint = {
+      id: agentId,
+      displayName: managed?.config?.displayName || managed?.config?.name || 'Agent',
+      host: managed?.config?.deployment?.host || 'localhost',
+      port: managed?.config?.deployment?.port || managed?.config?.deployment?.config?.local?.port || 3100,
+    };
+
+    console.log(`[messaging] Restarting Telegram for agent ${agent.displayName} (${agentId.slice(0, 8)}...)`);
+    this.running = true;
+    await this.startTelegram(botToken, agent);
+    console.log(`[messaging] Telegram restarted (mode=${this.telegramMode})`);
+  }
+
   getStatus() {
     return {
       running: this.running,

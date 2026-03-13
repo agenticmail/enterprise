@@ -11,7 +11,7 @@ import type { ToolCall, ToolCallResult } from './types.js';
 // ─── Constants ───────────────────────────────────────────
 
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
-const MAX_RESULT_CHARS = 8_000;
+const MAX_RESULT_CHARS = 4_000;
 
 // ─── Tool Registry ───────────────────────────────────────
 

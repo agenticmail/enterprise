@@ -147,7 +147,7 @@ const skillUpdater = new SkillAutoUpdater({ registry: communityRegistry });
 // Wire onboarding into guardrails for onboarding gate checks
 guardrails.setOnboardingManager(onboarding);
 
-// Wire lifecycle events into activity tracker
+// Wire lifecycle events into activity tracker + messaging reconnection
 lifecycle.onEvent((event) => {
   activity.record({
     agentId: event.agentId,
@@ -155,6 +155,15 @@ lifecycle.onEvent((event) => {
     type: event.type as any,
     data: event.data,
   });
+
+  // Restart Telegram when agent is deployed/started (reconnects webhook/polling)
+  if (event.type === 'started' || event.type === 'deployed') {
+    if (_messagingPoller) {
+      _messagingPoller.restartTelegram(event.agentId).catch((e: any) =>
+        console.warn(`[messaging] Telegram restart failed for ${event.agentId.slice(0, 8)}:`, e.message)
+      );
+    }
+  }
 });
 
 // Wire lifecycle into communication bus for agent email registry
