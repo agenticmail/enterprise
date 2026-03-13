@@ -3858,7 +3858,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       // Parallel fetch: USDC.e (bridged) + USDC (native) + POL balance
       const USDC_E_CONTRACT = USDC_E_SHARED;
       const USDC_NATIVE_CONTRACT = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // Native USDC — NOT directly usable on Polymarket
-      const POLYGON_RPCS = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org', 'https://polygon-rpc.com'];
+      const POLYGON_RPCS = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com'];
       let POLYGON_RPC = POLYGON_RPCS[0];
       // Find a working RPC
       for (const rpc of POLYGON_RPCS) {
@@ -3897,14 +3897,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       let usdcNativeBalance = cached?.usdcNative ?? 0;
       let maticBalance = cached?.matic ?? 0;
 
-      if (usdceRes?.result && usdceRes.result !== '0x' && !usdceRes.error) {
-        usdceBalance = Number(BigInt(usdceRes.result)) / 1e6;
+      const safeBigInt = (hex: string): bigint => { try { return hex && hex.length > 2 ? BigInt(hex) : 0n; } catch { return 0n; } };
+      if (usdceRes?.result && !usdceRes.error) {
+        usdceBalance = Number(safeBigInt(usdceRes.result)) / 1e6;
       }
-      if (usdcNativeRes?.result && usdcNativeRes.result !== '0x' && !usdcNativeRes.error) {
-        usdcNativeBalance = Number(BigInt(usdcNativeRes.result)) / 1e6;
+      if (usdcNativeRes?.result && !usdcNativeRes.error) {
+        usdcNativeBalance = Number(safeBigInt(usdcNativeRes.result)) / 1e6;
       }
-      if (maticRes?.result && maticRes.result !== '0x' && !maticRes.error) {
-        maticBalance = Number(BigInt(maticRes.result)) / 1e18;
+      if (maticRes?.result && !maticRes.error) {
+        maticBalance = Number(safeBigInt(maticRes.result)) / 1e18;
       }
 
       // Fetch exchange balance (funds deposited to Polymarket exchange for trading)
@@ -3939,6 +3940,11 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         console.warn(`[wallet-balance] Exchange balance fetch failed: ${exchErr?.message}`);
       }
 
+      // Log RPC results for debugging balance issues
+      if (usdceBalance === 0 && maticBalance > 0) {
+        console.log(`[wallet-balance] USDC.e=0 for ${address.slice(0, 10)}... (RPC result: ${JSON.stringify(usdceRes?.result?.slice?.(0, 20) ?? usdceRes?.error ?? 'null')})`);
+      }
+
       // Cache the good values
       balanceCache.set(address, { usdce: usdceBalance, usdcNative: usdcNativeBalance, usdc: usdceBalance + usdcNativeBalance, matic: maticBalance, ts: Date.now() });
 
@@ -3962,10 +3968,10 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       } catch {}
 
       const pos = {
-        total_invested: (pp.total_invested || 0) + liveInvested,
+        total_invested: (Number(pp.total_invested) || 0) + liveInvested,
         current_value: liveCurrentValue,
         pnl: livePnl,
-        open_count: (pp.open_count || 0) + liveCount,
+        open_count: (Number(pp.open_count) || 0) + liveCount,
       };
 
       const totalUsdc = usdceBalance + usdcNativeBalance;

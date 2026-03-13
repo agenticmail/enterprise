@@ -19,7 +19,7 @@ import {
   writeCache,
 } from './web-shared.js';
 
-const SEARCH_PROVIDERS = ['brave', 'perplexity', 'grok'] as const;
+const SEARCH_PROVIDERS = ['brave', 'perplexity', 'grok', 'duckduckgo'] as const;
 type SearchProvider = (typeof SEARCH_PROVIDERS)[number];
 
 const DEFAULT_SEARCH_COUNT = 5;
@@ -321,6 +321,68 @@ async function runGrokSearch(params: {
   };
 }
 
+// --- DuckDuckGo (free, no API key) ---
+
+const DDG_HTML_ENDPOINT = 'https://html.duckduckgo.com/html/';
+
+async function runDuckDuckGoSearch(params: {
+  query: string;
+  count: number;
+  timeoutSeconds: number;
+}): Promise<Record<string, unknown>> {
+  var res = await fetch(DDG_HTML_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    },
+    body: 'q=' + encodeURIComponent(params.query),
+    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
+  });
+
+  if (!res.ok) {
+    throw new Error('DuckDuckGo search failed (' + res.status + ')');
+  }
+
+  var html = await res.text();
+
+  // Parse results from DDG HTML response
+  var results: Array<{ title: string; url: string; description: string; siteName?: string }> = [];
+  // DDG HTML results have <a class="result__a" href="...">title</a> and <a class="result__snippet">desc</a>
+  var resultBlocks = html.split(/class="result\s/);
+  for (var i = 1; i < resultBlocks.length && results.length < params.count; i++) {
+    var block = resultBlocks[i];
+    // Extract URL
+    var urlMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/);
+    if (!urlMatch) continue;
+    var rawUrl = urlMatch[1];
+    // DDG sometimes wraps URLs in a redirect — extract the real URL
+    var uddgMatch = rawUrl.match(/uddg=([^&]+)/);
+    var url = uddgMatch ? decodeURIComponent(uddgMatch[1]) : rawUrl;
+    if (!url.startsWith('http')) continue;
+    // Extract title
+    var titleMatch = block.match(/class="result__a"[^>]*>([^<]+)</);
+    var title = titleMatch ? titleMatch[1].replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim() : '';
+    // Extract description
+    var descMatch = block.match(/class="result__snippet"[^>]*>([^<]*(?:<[^>]+>[^<]*)*)<\/a>/);
+    var desc = descMatch ? descMatch[1].replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim() : '';
+    if (!title && !desc) continue;
+    results.push({
+      title: wrapWebContent(title, 'web_search'),
+      url,
+      description: wrapWebContent(desc, 'web_search'),
+      siteName: resolveSiteName(url) || undefined,
+    });
+  }
+
+  return {
+    query: params.query,
+    provider: 'duckduckgo',
+    count: results.length,
+    results,
+  };
+}
+
 // --- Main runner ---
 
 async function runWebSearch(params: {
@@ -346,7 +408,13 @@ async function runWebSearch(params: {
   var start = Date.now();
   var result: Record<string, unknown>;
 
-  if (params.provider === 'perplexity') {
+  if (params.provider === 'duckduckgo') {
+    result = await runDuckDuckGoSearch({
+      query: params.query,
+      count: params.count,
+      timeoutSeconds: params.timeoutSeconds,
+    });
+  } else if (params.provider === 'perplexity') {
     result = await runPerplexitySearch({
       query: params.query,
       apiKey: params.apiKey,
@@ -441,7 +509,20 @@ export function createWebSearchTool(options?: {
           ? resolveGrokApiKey(search)
           : resolveSearchApiKey(search);
 
-      if (!apiKey) return jsonResult(missingSearchKeyPayload(provider));
+      // Auto-fallback to DuckDuckGo (free) when no API key is configured
+      if (!apiKey) {
+        var query = readStringParam(params, 'query', { required: true });
+        var count = readNumberParam(params, 'count', { integer: true }) ?? search?.maxResults;
+        var ddgResult = await runWebSearch({
+          query,
+          count: resolveSearchCount(count, DEFAULT_SEARCH_COUNT),
+          apiKey: '',
+          timeoutSeconds: resolveTimeoutSeconds(search?.timeoutSeconds, DEFAULT_TIMEOUT_SECONDS),
+          cacheTtlMs: resolveCacheTtlMs(search?.cacheTtlMinutes, DEFAULT_CACHE_TTL_MINUTES),
+          provider: 'duckduckgo',
+        });
+        return jsonResult(ddgResult);
+      }
 
       var query = readStringParam(params, 'query', { required: true });
       var count = readNumberParam(params, 'count', { integer: true }) ?? search?.maxResults;
