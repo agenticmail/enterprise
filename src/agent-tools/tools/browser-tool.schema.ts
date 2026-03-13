@@ -13,8 +13,10 @@ const BROWSER_ACT_KINDS = [
   "wait",
   "evaluate",
   "close",
+  "dismiss",
   "mouse_click",
   "scroll",
+  "scrollIntoView",
 ] as const;
 
 const BROWSER_TOOL_ACTIONS = [

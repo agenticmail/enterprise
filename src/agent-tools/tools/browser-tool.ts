@@ -123,6 +123,13 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
     },
   };
 
+  // Accept "url" as fallback for "targetUrl" (common LLM param confusion)
+  function resolveTargetUrl(params: Record<string, unknown>, opts?: { required?: boolean }): string {
+    const val = readStringParam(params, "targetUrl") || readStringParam(params, "url");
+    if (!val && opts?.required) throw new Error("targetUrl required (provide the URL to open/navigate to)");
+    return val || "";
+  }
+
   async function executeInner(args: any) {
       const params = args as Record<string, unknown>;
       const action = readStringParam(params, "action", { required: true });
@@ -157,8 +164,14 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
         }
 
         case "open": {
-          const targetUrl = readStringParam(params, "targetUrl", { required: true });
-          return jsonResult(await browserOpenTab(baseUrl, targetUrl, { profile }));
+          const targetUrl = resolveTargetUrl(params, { required: true });
+          const tab = await browserOpenTab(baseUrl, targetUrl, { profile });
+          // CDP opens tabs without waiting for page load — SPAs (React/Next.js) only have
+          // skeleton HTML at this point. Navigate via Playwright to wait for content to render.
+          try {
+            await browserNavigate(baseUrl, { url: targetUrl, targetId: tab.targetId, profile });
+          } catch { /* navigate wait failed — page may still be loading, agent can retry */ }
+          return jsonResult(tab);
         }
 
         case "focus": {
@@ -318,7 +331,7 @@ export function createEnterpriseBrowserTool(config?: EnterpriseBrowserToolConfig
         }
 
         case "navigate": {
-          const targetUrl = readStringParam(params, "targetUrl", { required: true });
+          const targetUrl = resolveTargetUrl(params, { required: true });
           const targetId = readStringParam(params, "targetId");
           return jsonResult(
             await browserNavigate(baseUrl, {
