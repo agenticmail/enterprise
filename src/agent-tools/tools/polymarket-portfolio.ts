@@ -12,6 +12,7 @@ import { apiFetch, GAMMA_API } from '../../polymarket-engines/shared.js';
 
 export function createPolymarketPortfolioTools(opts?: ToolCreationOptions): AnyAgentTool[] {
   const getDb = () => opts?.engineDb;
+  const agentId = opts?.agentId || 'default';
 
   return [
     {
@@ -72,14 +73,14 @@ export function createPolymarketPortfolioTools(opts?: ToolCreationOptions): AnyA
           let currentValue = p.current_value;
           if (!currentValue && (p.action === 'record' || p.action === 'check')) {
             try {
-              const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [_id]);
+              const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
               const addr = (creds[0] as any)?.funder_address;
               if (addr) {
                 // Get exchange balance
                 let exchBal = 0;
                 try {
                   const { getClobClient } = await import('./polymarket-runtime.js');
-                  const client = await getClobClient(_id, db);
+                  const client = await getClobClient(agentId, db);
                   if (client) {
                     const bal = await (client as any).getBalanceAllowance({ asset_type: 'COLLATERAL' });
                     exchBal = Number(bal?.balance || 0) / 1e6;
@@ -140,7 +141,7 @@ export function createPolymarketPortfolioTools(opts?: ToolCreationOptions): AnyA
           // Auto-fetch from live positions if no trades passed
           if (!trades || !Array.isArray(trades) || trades.length === 0) {
             const db = getDb();
-            const creds = db ? await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [_id]) : [];
+            const creds = db ? await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) : [];
             const addr = creds[0]?.funder_address;
             if (addr) {
               const positions = await apiFetch(`https://data-api.polymarket.com/positions?user=${addr}`).catch(() => null);

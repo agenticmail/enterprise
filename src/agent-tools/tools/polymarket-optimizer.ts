@@ -24,6 +24,7 @@ import {
 
 export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyAgentTool[] {
   const getDb = () => opts?.engineDb;
+  const agentId = opts?.agentId || 'default';
 
   return [
     // ── DAILY SCORECARD ──────────────────────────────────
@@ -42,7 +43,7 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
           // Get wallet address
           let addr = '';
           if (db) {
-            const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [_id]);
+            const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
             addr = (creds[0] as any)?.funder_address || '';
           }
           if (!addr) return errorResult('No wallet found. Run poly_setup_wallet first.');
@@ -50,14 +51,14 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
           // Get daily target from goals if not provided
           let dailyTarget = p.daily_target;
           if (!dailyTarget && db) {
-            const goals = await safeDbQuery(db, `SELECT target_value FROM poly_goals WHERE agent_id = ? AND type = 'daily_pnl' AND enabled = 1`, [_id]);
+            const goals = await safeDbQuery(db, `SELECT target_value FROM poly_goals WHERE agent_id = ? AND type = 'daily_pnl' AND enabled = 1`, [agentId]);
             dailyTarget = (goals[0] as any)?.target_value;
           }
 
           // Get trades today count
           let tradesToday = 0;
           if (db) {
-            const counter = await safeDbQuery(db, `SELECT count FROM poly_daily_counters WHERE agent_id = ? AND counter_key = 'trades' AND date = ?`, [_id, new Date().toISOString().slice(0, 10)]);
+            const counter = await safeDbQuery(db, `SELECT count FROM poly_daily_counters WHERE agent_id = ? AND counter_key = 'trades' AND date = ?`, [agentId, new Date().toISOString().slice(0, 10)]);
             tradesToday = (counter[0] as any)?.count || 0;
           }
 
@@ -136,7 +137,7 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
           const db = getDb();
           let addr = '';
           if (db) {
-            const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [_id]);
+            const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
             addr = (creds[0] as any)?.funder_address || '';
           }
           if (!addr) return errorResult('No wallet found. Run poly_setup_wallet first.');
@@ -175,7 +176,7 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
           const db = getDb();
           if (db) {
             try {
-              const config = await safeDbQuery(db, `SELECT max_daily_loss, max_daily_trades, max_order_size FROM poly_trading_config WHERE agent_id = ?`, [_id]);
+              const config = await safeDbQuery(db, `SELECT max_daily_loss, max_daily_trades, max_order_size FROM poly_trading_config WHERE agent_id = ?`, [agentId]);
               const cfg = config[0] as any;
               if (cfg) {
                 maxDailyLoss = p.max_daily_loss || cfg.max_daily_loss || maxDailyLoss;
@@ -184,7 +185,7 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
               }
             } catch {}
             try {
-              const counter = await safeDbQuery(db, `SELECT count FROM poly_daily_counters WHERE agent_id = ? AND counter_key = 'trades' AND date = ?`, [_id, new Date().toISOString().slice(0, 10)]);
+              const counter = await safeDbQuery(db, `SELECT count FROM poly_daily_counters WHERE agent_id = ? AND counter_key = 'trades' AND date = ?`, [agentId, new Date().toISOString().slice(0, 10)]);
               tradesToday = p.trades_today || (counter[0] as any)?.count || 0;
             } catch {}
           }
@@ -219,7 +220,7 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
           let currentSlugs: string[] = [];
           if (db) {
             try {
-              const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [_id]);
+              const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
               const addr = (creds[0] as any)?.funder_address;
               if (addr) {
                 const { apiFetch: fetch } = await import('../../polymarket-engines/shared.js');
