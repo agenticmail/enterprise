@@ -2,6 +2,13 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.453] - 2026-03-13
+
+### Fixed
+- **Daily target not persisting** — `poly_goals` table was created via fire-and-forget (unwaited async) at route registration time; if engine DB wasn't ready yet, the table was never created. Moved to `ensurePolyDB()` which is properly awaited via middleware before every polymarket route.
+- **Deploy stuck after PM2 process deletion** — When PM2 process is deleted externally, agent state stayed "running" in DB, hiding the Deploy button. Fixed: Deploy/Redeploy button now shows in all non-transient states; added Reset State button for stuck states; deployer restart falls through to full deploy when process is missing; deployer stop handles "not found" gracefully.
+- **Goals evaluate endpoint SQLite crash** — `CURRENT_TIMESTAMP::text` (Postgres-only cast) replaced with standard `CAST(CURRENT_TIMESTAMP AS TEXT)` for cross-DB compatibility.
+
 ## [0.5.443] - 2026-03-11
 
 ### Added

@@ -3039,6 +3039,29 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         query: e.all || e.query,
       });
       await initPolymarketDB(dbShim);
+
+      // Ensure poly_goals table exists (not part of initPolymarketDB)
+      await e.run(`CREATE TABLE IF NOT EXISTS poly_goals (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        period TEXT NOT NULL DEFAULT 'daily',
+        target_value REAL NOT NULL,
+        current_value REAL DEFAULT 0,
+        met INTEGER DEFAULT 0,
+        met_at TEXT,
+        streak INTEGER DEFAULT 0,
+        best_streak INTEGER DEFAULT 0,
+        times_met INTEGER DEFAULT 0,
+        times_missed INTEGER DEFAULT 0,
+        last_evaluated TEXT,
+        enabled INTEGER DEFAULT 1,
+        notify_on_met INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`);
+
       _polyTablesInit = true;
     } catch (err: any) {
       console.error('[polymarket] Failed to init tables:', err.message);
@@ -4159,30 +4182,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
   });
 
   // ── Performance Goals System ──────────────────────────────
-
-  // Init goals table
-  try {
-    edb()?.run(`CREATE TABLE IF NOT EXISTS poly_goals (
-      id TEXT PRIMARY KEY,
-      agent_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL,
-      period TEXT NOT NULL DEFAULT 'daily',
-      target_value REAL NOT NULL,
-      current_value REAL DEFAULT 0,
-      met INTEGER DEFAULT 0,
-      met_at TEXT,
-      streak INTEGER DEFAULT 0,
-      best_streak INTEGER DEFAULT 0,
-      times_met INTEGER DEFAULT 0,
-      times_missed INTEGER DEFAULT 0,
-      last_evaluated TEXT,
-      enabled INTEGER DEFAULT 1,
-      notify_on_met INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`);
-  } catch {}
+  // (poly_goals table is now created in ensurePolyDB above)
 
   // List goals
   api.get('/polymarket/:agentId/goals', requireRole('admin'), async (c) => {
@@ -4333,7 +4333,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         const bestStreak = Math.max(goal.best_streak || 0, newStreak);
 
         await edb()?.run(
-          `UPDATE poly_goals SET current_value = ?, met = ?, streak = ?, best_streak = ?, times_met = times_met + ?, times_missed = times_missed + ?, last_evaluated = CURRENT_TIMESTAMP::text, met_at = CASE WHEN ? = 1 AND met = 0 THEN CURRENT_TIMESTAMP::text ELSE met_at END, updated_at = CURRENT_TIMESTAMP::text WHERE id = ?`,
+          `UPDATE poly_goals SET current_value = ?, met = ?, streak = ?, best_streak = ?, times_met = times_met + ?, times_missed = times_missed + ?, last_evaluated = CAST(CURRENT_TIMESTAMP AS TEXT), met_at = CASE WHEN ? = 1 AND met = 0 THEN CAST(CURRENT_TIMESTAMP AS TEXT) ELSE met_at END, updated_at = CAST(CURRENT_TIMESTAMP AS TEXT) WHERE id = ?`,
           [currentValue, met ? 1 : 0, newStreak, bestStreak, (met && !wasMet) ? 1 : 0, (!met && wasMet) ? 1 : 0, met ? 1 : 0, goal.id]
         );
 

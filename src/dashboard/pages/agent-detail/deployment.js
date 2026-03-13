@@ -726,9 +726,10 @@ export function DeploymentSection(props) {
           )
         ),
         h('div', { style: { display: 'flex', gap: 8 } },
-          (state !== 'running' && state !== 'active' && state !== 'deploying') && h('button', { className: 'btn btn-primary btn-sm', onClick: deploy }, I.play(), ' Deploy'),
+          state !== 'deploying' && state !== 'provisioning' && state !== 'starting' && h('button', { className: 'btn btn-primary btn-sm', onClick: deploy }, I.play(), state === 'running' || state === 'active' ? ' Redeploy' : ' Deploy'),
           (state === 'running' || state === 'active' || state === 'degraded') && h('button', { className: 'btn btn-danger btn-sm', onClick: stop }, I.stop(), ' Stop'),
-          (state === 'running' || state === 'active' || state === 'degraded' || state === 'stopped') && h('button', { className: 'btn btn-secondary btn-sm', onClick: restart }, I.refresh(), ' Restart')
+          (state === 'running' || state === 'active' || state === 'degraded' || state === 'stopped') && h('button', { className: 'btn btn-secondary btn-sm', onClick: restart }, I.refresh(), ' Restart'),
+          (state === 'error' || state === 'degraded' || state === 'deploying' || state === 'provisioning' || state === 'starting') && h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { engineCall('/agents/' + agentId + '/reset-state', { method: 'POST' }).then(function() { toast('State reset', 'success'); reload(); }).catch(function(err) { toast(err.message, 'error'); }); } }, 'Reset State')
         )
       )
     ),

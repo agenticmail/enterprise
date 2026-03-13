@@ -167,7 +167,12 @@ export class DeploymentEngine {
       case 'local': {
         const pm2ok = await ensurePm2();
         if (!pm2ok.installed) return { success: false, message: `PM2 not available: ${pm2ok.error}` };
-        return this.execCommand(`pm2 stop ${getPm2Name(config)}`);
+        const pm2Name = getPm2Name(config);
+        const result = await this.execCommand(`pm2 stop ${pm2Name}`);
+        if (!result.success && result.message?.includes('not found')) {
+          return { success: true, message: `Process "${pm2Name}" already stopped (not found in PM2)` };
+        }
+        return result;
       }
       default:
         return { success: false, message: `Cannot stop: unsupported target ${config.deployment.target}` };
@@ -188,7 +193,19 @@ export class DeploymentEngine {
       case 'local': {
         const pm2ok = await ensurePm2();
         if (!pm2ok.installed) return { success: false, message: `PM2 not available: ${pm2ok.error}` };
-        return this.execCommand(`pm2 restart ${getPm2Name(config)}`);
+        const pm2Name = getPm2Name(config);
+        // Check if process exists — if not, do a full deploy instead
+        const list = await this.execCommand('pm2 jlist');
+        let processExists = false;
+        if (list.success) {
+          try { processExists = JSON.parse(list.message).some((p: any) => p.name === pm2Name); } catch {}
+        }
+        if (processExists) {
+          return this.execCommand(`pm2 restart ${pm2Name}`);
+        }
+        // Process was deleted — fall through to full deploy
+        console.log(`[deployer] PM2 process "${pm2Name}" not found, running full deploy instead`);
+        return this.deploy(config).then(r => ({ success: r.success, message: r.success ? `Re-deployed "${pm2Name}" via PM2` : (r.error || 'Deploy failed') }));
       }
       default:
         return { success: false, message: `Cannot restart: unsupported target ${config.deployment.target}` };
