@@ -1765,12 +1765,13 @@ export async function storeLesson(db: any, lesson: {
 export async function recallLessons(agentId: string, db: any, category?: string): Promise<any[]> {
   if (!db) return [];
   try {
+    // Use ? placeholders for SQLite compatibility (safeDbQuery handles Postgres conversion)
+    const { safeDbQuery } = await import('./polymarket-shared.js');
     const query = category
-      ? `SELECT * FROM poly_lessons WHERE agent_id = $1 AND category = $2 ORDER BY importance DESC, created_at DESC LIMIT 20`
-      : `SELECT * FROM poly_lessons WHERE agent_id = $1 ORDER BY importance DESC, created_at DESC LIMIT 20`;
+      ? `SELECT * FROM poly_lessons WHERE agent_id = ? AND category = ? ORDER BY importance DESC, created_at DESC LIMIT 20`
+      : `SELECT * FROM poly_lessons WHERE agent_id = ? ORDER BY importance DESC, created_at DESC LIMIT 20`;
     const params = category ? [agentId, category] : [agentId];
-    const rows = await (db.query || db.execute).call(db, query, params);
-    return rows?.rows || rows || [];
+    return await safeDbQuery(db, query, params);
   } catch { return []; }
 }
 
@@ -1780,8 +1781,8 @@ export async function recallLessons(agentId: string, db: any, category?: string)
 export async function getCalibration(agentId: string, db: any): Promise<any[]> {
   if (!db) return [];
   try {
-    const rows = await (db.query || db.execute).call(db, `SELECT * FROM poly_calibration WHERE agent_id = $1 ORDER BY bucket`, [agentId]);
-    return rows?.rows || rows || [];
+    const { safeDbQuery } = await import('./polymarket-shared.js');
+    return await safeDbQuery(db, `SELECT * FROM poly_calibration WHERE agent_id = ? ORDER BY bucket`, [agentId]);
   } catch { return []; }
 }
 

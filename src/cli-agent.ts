@@ -1871,8 +1871,10 @@ export async function runAgent(_args: string[]) {
             tgChatIds.add(s.meta.chatId);
           }
         }
-        // Also check the default chat ID from config
-        const defaultChatId = tgConfig.chatId || tgConfig.defaultChatId;
+        // Also check the default chat ID from config (including trustedChatIds and managerIdentity)
+        const defaultChatId = tgConfig.chatId || tgConfig.defaultChatId
+          || tgConfig.trustedChatIds?.[0]
+          || (config as any)?.managerIdentity?.telegramId;
         if (defaultChatId) tgChatIds.add(String(defaultChatId));
 
         for (const chatId of tgChatIds) {
@@ -2197,104 +2199,134 @@ export async function runAgent(_args: string[]) {
         console.log(`[signature] Skipped: ${sigErr.message}`);
       }
 
-      // 12. Send welcome email to manager if configured
-      // Manager email can come from config.managerEmail or config.manager.email
+      // 12. Send welcome message to manager via best available channel
+      // Priority: Telegram > WhatsApp > Email (use whatever is configured)
       const managerEmail = (config as any).managerEmail || ((config as any).manager?.type === 'external' ? (config as any).manager.email : null);
       const emailConfig = (config as any).emailConfig;
-      if (managerEmail && emailConfig) {
-        console.log(`[welcome] Sending introduction email to ${managerEmail}...`);
+      const tgCfg = config?.messagingChannels?.telegram || (config as any)?.channels?.telegram || {};
+      const waCfg = config?.messagingChannels?.whatsapp || (config as any)?.channels?.whatsapp || {};
+      const tgBotToken = tgCfg.botToken;
+      const tgChatId = tgCfg.chatId || tgCfg.defaultChatId || tgCfg.trustedChatIds?.[0] || (config as any)?.managerIdentity?.telegramId;
+      const waEnabled = waCfg.enabled || waCfg.phoneNumber;
+      const waChatId = waCfg.defaultChatId || waCfg.chatId || (config as any)?.managerIdentity?.whatsappId;
+
+      // Determine welcome channel
+      const welcomeChannel = (tgBotToken && tgChatId) ? 'telegram'
+        : (waEnabled && waChatId) ? 'whatsapp'
+        : (managerEmail && emailConfig) ? 'email'
+        : null;
+
+      if (welcomeChannel) {
+        const channelTarget = welcomeChannel === 'telegram' ? tgChatId
+          : welcomeChannel === 'whatsapp' ? waChatId : managerEmail;
+        console.log(`[welcome] Sending introduction via ${welcomeChannel} to ${channelTarget}...`);
         try {
-          // Check if welcome email was already sent BEFORE connecting
+          // Check if welcome was already sent
           let alreadySent = false;
           try {
             const sentCheck = await engineDb.query(
-              `SELECT id FROM agent_memory WHERE agent_id = $1 AND content LIKE '%welcome_email_sent%' LIMIT 1`,
+              `SELECT id FROM agent_memory WHERE agent_id = $1 AND content LIKE '%welcome_sent%' LIMIT 1`,
               [AGENT_ID]
             );
             alreadySent = (sentCheck && sentCheck.length > 0);
           } catch {}
           if (!alreadySent && memoryManager) {
             try {
-              const memories = await memoryManager.recall(AGENT_ID, 'welcome_email_sent', 3);
-              alreadySent = memories.some((m: any) => m.content?.includes('welcome_email_sent'));
+              const memories = await memoryManager.recall(AGENT_ID, 'welcome_sent', 3);
+              alreadySent = memories.some((m: any) => m.content?.includes('welcome_sent'));
             } catch {}
           }
           if (alreadySent) {
-            console.log('[welcome] Welcome email already sent, skipping');
+            console.log('[welcome] Welcome already sent, skipping');
           } else {
+            const agentName = config.displayName || config.name;
+            const role = config.identity?.role || 'AI Agent';
+            const identity = config.identity || {};
 
-          const { createEmailProvider } = await import('./agenticmail/index.js');
-          // Determine provider type from emailConfig
-          const providerType = emailConfig.provider || (emailConfig.oauthProvider === 'google' ? 'google' : emailConfig.oauthProvider === 'microsoft' ? 'microsoft' : 'imap');
-          const emailProvider = createEmailProvider(providerType);
+            if (welcomeChannel === 'telegram') {
+              // Telegram: send via AI session with telegram_send tool
+              const welcomeSession = await runtime.spawnSession({
+                agentId: agentId,
+                message: `You are about to introduce yourself to your manager for the first time via Telegram.
 
-          // Build a token refresh function for OAuth providers
-          let currentAccessToken = emailConfig.oauthAccessToken;
-          const refreshTokenFn = emailConfig.oauthRefreshToken ? async () => {
-            const clientId = emailConfig.oauthClientId;
-            const clientSecret = emailConfig.oauthClientSecret;
-            const refreshToken = emailConfig.oauthRefreshToken;
-            const tokenUrl = providerType === 'google'
-              ? 'https://oauth2.googleapis.com/token'
-              : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
-            const res = await fetch(tokenUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({
-                client_id: clientId,
-                client_secret: clientSecret,
-                refresh_token: refreshToken,
-                grant_type: 'refresh_token',
-              }),
-            });
-            const data = await res.json() as any;
-            if (data.access_token) {
-              currentAccessToken = data.access_token;
-              // Persist updated token back to agent config
-              emailConfig.oauthAccessToken = data.access_token;
-              if (data.expires_in) emailConfig.oauthTokenExpiry = new Date(Date.now() + data.expires_in * 1000).toISOString();
-              lifecycle.saveAgent(AGENT_ID).catch(() => {});
-              return data.access_token;
-            }
-            throw new Error(`Token refresh failed: ${JSON.stringify(data)}`);
-          } : undefined;
+Your details:
+- Name: ${agentName}
+- Role: ${role}
+- Manager chat ID: ${tgChatId}
+${identity.personality ? `- Personality: ${identity.personality.slice(0, 600)}` : ''}
+${identity.tone ? `- Tone: ${identity.tone}` : ''}
 
-          // Refresh token before connecting if it might be expired
-          if (refreshTokenFn) {
-            try {
-              currentAccessToken = await refreshTokenFn();
-              console.log('[welcome] Refreshed OAuth token');
-            } catch (refreshErr: any) {
-              console.error(`[welcome] Token refresh failed: ${refreshErr.message}`);
-            }
-          }
+Write and send a brief, genuine introduction message to your manager via Telegram. Be yourself — no templates or corporate speak. Mention your role, what you can help with, and that you're ready to get started. Keep it concise (under 150 words). Use telegram_send with chatId="${tgChatId}".
+IMPORTANT: Write in PLAIN TEXT ONLY. No markdown, no **bold**, no ## headers.`,
+                systemPrompt: `You are ${agentName}, a ${role}. ${identity.personality || ''}
+Send ONE Telegram message to introduce yourself to your manager. Be genuine and concise. PLAIN TEXT ONLY — no markdown formatting.
+Available tools: telegram_send (chatId, text). Do NOT send more than one message.`,
+              });
+              console.log(`[welcome] ✅ Telegram welcome session ${welcomeSession.id} created`);
 
-          await emailProvider.connect({
-            agentId: agentId,
-            name: config.displayName || config.name,
-            email: emailConfig.email || config.email?.address || '',
-            orgId: orgId,
-            accessToken: currentAccessToken,
-            refreshToken: refreshTokenFn,
-            provider: providerType,
-            // IMAP/SMTP fields
-            imapHost: emailConfig.imapHost,
-            imapPort: emailConfig.imapPort,
-            smtpHost: emailConfig.smtpHost,
-            smtpPort: emailConfig.smtpPort,
-            password: emailConfig.password,
-          });
+            } else if (welcomeChannel === 'whatsapp') {
+              // WhatsApp: send via AI session with whatsapp_send tool
+              const welcomeSession = await runtime.spawnSession({
+                agentId: agentId,
+                message: `You are about to introduce yourself to your manager for the first time via WhatsApp.
 
-          const agentName = config.displayName || config.name;
-          const role = config.identity?.role || 'AI Agent';
-          const identity = config.identity || {};
-          const agentEmailAddr = config.email?.address || emailConfig?.email || '';
+Your details:
+- Name: ${agentName}
+- Role: ${role}
+- Manager WhatsApp: ${waChatId}
+${identity.personality ? `- Personality: ${identity.personality.slice(0, 600)}` : ''}
+${identity.tone ? `- Tone: ${identity.tone}` : ''}
 
-          // Use AI to generate the welcome email
-            console.log(`[welcome] Generating AI welcome email for ${managerEmail}...`);
-            const welcomeSession = await runtime.spawnSession({
-              agentId: agentId,
-              message: `You are about to introduce yourself to your manager for the first time via email.
+Write and send a brief, genuine introduction message to your manager via WhatsApp. Be yourself — no templates or corporate speak. Mention your role, what you can help with, and that you're ready to get started. Keep it concise (under 150 words). Use whatsapp_send with to="${waChatId}".
+IMPORTANT: Write in PLAIN TEXT ONLY. No markdown, no **bold**, no ## headers.`,
+                systemPrompt: `You are ${agentName}, a ${role}. ${identity.personality || ''}
+Send ONE WhatsApp message to introduce yourself to your manager. Be genuine and concise. PLAIN TEXT ONLY.
+Available tools: whatsapp_send (to, message). Do NOT send more than one message.`,
+              });
+              console.log(`[welcome] ✅ WhatsApp welcome session ${welcomeSession.id} created`);
+
+            } else {
+              // Email: original email flow
+              const { createEmailProvider } = await import('./agenticmail/index.js');
+              const providerType = emailConfig.provider || (emailConfig.oauthProvider === 'google' ? 'google' : emailConfig.oauthProvider === 'microsoft' ? 'microsoft' : 'imap');
+              const emailProvider = createEmailProvider(providerType);
+              let currentAccessToken = emailConfig.oauthAccessToken;
+              const refreshTokenFn = emailConfig.oauthRefreshToken ? async () => {
+                const clientId = emailConfig.oauthClientId;
+                const clientSecret = emailConfig.oauthClientSecret;
+                const refreshToken = emailConfig.oauthRefreshToken;
+                const tokenUrl = providerType === 'google'
+                  ? 'https://oauth2.googleapis.com/token'
+                  : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+                const res = await fetch(tokenUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: 'refresh_token' }),
+                });
+                const data = await res.json() as any;
+                if (data.access_token) {
+                  currentAccessToken = data.access_token;
+                  emailConfig.oauthAccessToken = data.access_token;
+                  if (data.expires_in) emailConfig.oauthTokenExpiry = new Date(Date.now() + data.expires_in * 1000).toISOString();
+                  lifecycle.saveAgent(AGENT_ID).catch(() => {});
+                  return data.access_token;
+                }
+                throw new Error(`Token refresh failed: ${JSON.stringify(data)}`);
+              } : undefined;
+              if (refreshTokenFn) {
+                try { currentAccessToken = await refreshTokenFn(); } catch {}
+              }
+              await emailProvider.connect({
+                agentId: agentId, name: config.displayName || config.name,
+                email: emailConfig.email || config.email?.address || '', orgId: orgId,
+                accessToken: currentAccessToken, refreshToken: refreshTokenFn, provider: providerType,
+                imapHost: emailConfig.imapHost, imapPort: emailConfig.imapPort,
+                smtpHost: emailConfig.smtpHost, smtpPort: emailConfig.smtpPort, password: emailConfig.password,
+              });
+              const agentEmailAddr = config.email?.address || emailConfig?.email || '';
+              const welcomeSession = await runtime.spawnSession({
+                agentId: agentId,
+                message: `You are about to introduce yourself to your manager for the first time via email.
 
 Your details:
 - Name: ${agentName}
@@ -2305,33 +2337,31 @@ ${identity.personality ? `- Personality: ${identity.personality.slice(0, 600)}` 
 ${identity.tone ? `- Tone: ${identity.tone}` : ''}
 
 Write and send a brief, genuine introduction email to your manager. Be yourself — don't use templates or corporate speak. Mention your role, what you can help with, and that you're ready to get started. Keep it concise (under 200 words). Use the ${providerType === 'imap' ? 'email_send' : 'gmail_send or agenticmail_send'} tool to send it.`,
-              systemPrompt: `You are ${agentName}, a ${role}. ${identity.personality || ''}
-
+                systemPrompt: `You are ${agentName}, a ${role}. ${identity.personality || ''}
 You have email tools available. Send ONE email to introduce yourself to your manager. Be genuine and concise. Do NOT send more than one email.
-
 Available tools: ${providerType === 'imap' ? 'email_send (to, subject, body)' : 'gmail_send (to, subject, body) or agenticmail_send (to, subject, body)'}.`,
-            });
-            console.log(`[welcome] ✅ Welcome email session ${welcomeSession.id} created`);
+              });
+              console.log(`[welcome] ✅ Welcome email session ${welcomeSession.id} created`);
+              try { await emailProvider.disconnect?.(); } catch {}
+            }
 
             // Mark as sent so we don't repeat
             if (memoryManager) {
               try {
                 await memoryManager.storeMemory(AGENT_ID, {
-                  content: `welcome_email_sent: Sent AI-generated introduction email to manager at ${managerEmail} on ${new Date().toISOString()}.`,
+                  content: `welcome_sent: Sent AI-generated introduction via ${welcomeChannel} to ${channelTarget} on ${new Date().toISOString()}.`,
                   category: 'interaction_pattern',
                   importance: 'high',
                   confidence: 1.0,
                 });
               } catch {}
             }
-          // Close the email provider connection
-          try { await emailProvider.disconnect?.(); } catch {}
           } // end else (not alreadySent)
         } catch (err: any) {
-          console.warn(`[welcome] Failed to send welcome email: ${err.message} — will not retry`);
+          console.warn(`[welcome] Failed to send welcome via ${welcomeChannel}: ${err.message} — will not retry`);
         }
       } else {
-        if (!managerEmail) console.log('[welcome] No manager email configured, skipping welcome email');
+        console.log('[welcome] No messaging channel configured, skipping welcome message');
       }
     } catch (err: any) {
       console.error(`[onboarding] Error: ${err.message}`);
