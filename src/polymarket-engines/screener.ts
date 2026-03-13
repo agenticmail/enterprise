@@ -280,13 +280,16 @@ export async function screenMarkets(opts: ScreenerOptions = {}): Promise<Screene
   let allMarkets: any[] = [];
   const fetches: Promise<void>[] = [];
 
-  // Markets endpoint
-  fetches.push((async () => {
-    try {
-      const raw = await apiFetch(`${GAMMA_API}/markets?${new URLSearchParams(fetchParams)}`);
-      if (Array.isArray(raw)) allMarkets.push(...raw);
-    } catch {}
-  })());
+  // Markets endpoint — skip when query is set because /markets ignores the search param
+  // (returns default top-volume markets regardless). Only /events respects search.
+  if (!opts.query) {
+    fetches.push((async () => {
+      try {
+        const raw = await apiFetch(`${GAMMA_API}/markets?${new URLSearchParams(fetchParams)}`);
+        if (Array.isArray(raw)) allMarkets.push(...raw);
+      } catch {}
+    })());
+  }
 
   // Events endpoint — ALWAYS fetch events (they contain the real high-volume markets)
   fetches.push((async () => {

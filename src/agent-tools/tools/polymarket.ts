@@ -658,8 +658,10 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           if (p.query) evQs.search = p.query;
           if (p.category) evQs.tag_id = p.category;
 
+          // Skip /markets when searching — the Polymarket /markets endpoint ignores the
+          // search param and returns default top-volume markets. Only /events respects search.
           const [marketsRaw, eventsRaw] = await Promise.all([
-            apiFetch(`${GAMMA_API}/markets?${qs}`).catch(() => []),
+            p.query ? Promise.resolve([]) : apiFetch(`${GAMMA_API}/markets?${qs}`).catch(() => []),
             apiFetch(`${GAMMA_API}/events?${new URLSearchParams(evQs)}`).catch(() => []),
           ]);
           let allRaw = Array.isArray(marketsRaw) ? [...marketsRaw] : [];

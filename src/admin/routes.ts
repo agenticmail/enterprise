@@ -4716,11 +4716,12 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const { apiFetch, GAMMA_API } = await import('../polymarket-engines/shared.js');
 
       // Run screener and direct Gamma search in parallel
-      const [result, directMarkets, directEvents] = await Promise.all([
+      // Note: /markets endpoint ignores search param — only use /events for keyword search
+      const [result, directEvents] = await Promise.all([
         (screenMarkets as any)({ query: q, strategy, limit: 20, includeOrderbook: true }).catch(() => ({ markets: [], scanned: 0, qualified: 0 })),
-        apiFetch(`${GAMMA_API}/markets?search=${encodeURIComponent(q)}&active=true&closed=false&limit=50&order=volume&ascending=false`).catch(() => []),
         apiFetch(`${GAMMA_API}/events?search=${encodeURIComponent(q)}&active=true&closed=false&limit=50&order=volume&ascending=false`).catch(() => []),
       ]);
+      const directMarkets: any[] = [];
 
       // Extract markets from events
       const eventMarkets: any[] = [];

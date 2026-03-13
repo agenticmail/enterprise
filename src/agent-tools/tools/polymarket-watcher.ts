@@ -1615,9 +1615,19 @@ async function checkMarketScan(config: any, edb: any): Promise<WatcherEvent[]> {
   const { keywords, min_volume, min_liquidity } = config;
   if (!keywords || !keywords.length) return [];
   try {
+    // Use /events endpoint — /markets ignores the search param
     const q = encodeURIComponent(keywords.join(' '));
-    const res = await fetch(`${GAMMA_API}/markets?closed=false&limit=10&order=volume24hr&ascending=false&search=${q}`, { signal: AbortSignal.timeout(8000) });
-    const markets: any[] = await res.json();
+    const res = await fetch(`${GAMMA_API}/events?closed=false&active=true&limit=10&order=volume&ascending=false&search=${q}`, { signal: AbortSignal.timeout(8000) });
+    const eventsRaw: any[] = await res.json();
+    // Extract markets from events
+    const markets: any[] = [];
+    for (const ev of eventsRaw) {
+      if (ev.markets && Array.isArray(ev.markets)) {
+        for (const m of ev.markets) {
+          if (m.active && !m.closed) markets.push(m);
+        }
+      }
+    }
     const events: WatcherEvent[] = [];
 
     for (const m of markets.slice(0, 5)) {
