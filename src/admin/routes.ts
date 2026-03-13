@@ -4860,13 +4860,59 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const agentId = c.req.param('agentId');
       const { action, reason } = await c.req.json();
       const today = new Date().toISOString().split('T')[0];
+      const e = edb();
       if (action === 'pause') {
-        await edb()?.run(`
+        // 1. Mark daily counter as paused
+        await e?.run(`
           INSERT INTO poly_daily_counters (agent_id, date, paused, pause_reason) VALUES (?, ?, 1, ?)
           ON CONFLICT (agent_id, date) DO UPDATE SET paused = 1, pause_reason = ?
         `, [agentId, today, reason || 'Admin paused', reason || 'Admin paused']);
+        // 2. Also set proactive pause (watcher checks this table)
+        try {
+          await e?.run(`CREATE TABLE IF NOT EXISTS poly_proactive_pause (agent_id TEXT PRIMARY KEY, paused_at TEXT NOT NULL, reason TEXT)`);
+          await e?.run(`INSERT OR REPLACE INTO poly_proactive_pause (agent_id, paused_at, reason) VALUES (?, ?, ?)`,
+            [agentId, new Date().toISOString(), reason || 'Dashboard paused']);
+        } catch {}
       } else {
-        await edb()?.run(`UPDATE poly_daily_counters SET paused = 0, pause_reason = '' WHERE agent_id = ? AND date = ?`, [agentId, today]);
+        // 1. Clear daily counter pause
+        await e?.run(`UPDATE poly_daily_counters SET paused = 0, pause_reason = '' WHERE agent_id = ? AND date = ?`, [agentId, today]);
+        // 2. Clear proactive pause (so watcher can wake agent again)
+        try {
+          await e?.run(`DELETE FROM poly_proactive_pause WHERE agent_id = ?`, [agentId]);
+        } catch {}
+        // 3. Wake the agent to resume trading
+        try {
+          const agentRow = await e?.get(`SELECT config FROM managed_agents WHERE id = ?`, [agentId]);
+          const agentConfig = typeof agentRow?.config === 'string' ? JSON.parse(agentRow.config) : agentRow?.config;
+          const dep = agentConfig?.deployment;
+          const port = dep?.port || dep?.config?.local?.port || 3101;
+          const secret = process.env.AGENT_RUNTIME_SECRET || process.env.JWT_SECRET || '';
+          // Determine best channel for wake message
+          const messaging = agentConfig?.messagingChannels || {};
+          const tgChatId = messaging.telegram?.chatId || messaging.telegram?.trustedChatIds?.[0] || agentConfig?.managerIdentity?.telegramId;
+          const wakeSource = tgChatId ? 'telegram' : 'system';
+          const wakeSenderId = tgChatId || 'dashboard@system';
+          const wakeSpaceId = tgChatId || 'dashboard_resume';
+          const resp = await fetch(`http://127.0.0.1:${port}/api/runtime/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}` },
+            body: JSON.stringify({
+              source: wakeSource,
+              senderName: 'Manager',
+              senderEmail: wakeSenderId,
+              spaceName: 'DM',
+              spaceId: wakeSpaceId,
+              threadId: '',
+              isDM: true,
+              messageText: '[TRADING RESUMED] Your trading has been resumed from the dashboard. Check your current positions and look for new opportunities.',
+              isManager: true,
+            }),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!resp.ok) console.warn(`[polymarket] Resume wake failed: ${resp.status}`);
+        } catch (wakeErr: any) {
+          console.warn(`[polymarket] Resume wake error: ${wakeErr.message}`);
+        }
       }
       return c.json({ status: 'ok', action });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
