@@ -997,9 +997,15 @@ export function filterToolsForContext(
   }
 
   // Auto-promote from user message signals
+  // Gate: polymarket signals only apply if agent has polymarket skills assigned
   if (options?.userMessage) {
+    const hasPolySkill = options?.agentSkills?.some((s: string) => s.startsWith('polymarket'));
     const signaled = detectSignals(options.userMessage);
-    for (const s of signaled) activeSets.add(s);
+    for (const s of signaled) {
+      // Skip polymarket tool sets for agents without polymarket skills
+      if (!hasPolySkill && (s === 'polymarket' || s.startsWith('polymarket_'))) continue;
+      activeSets.add(s);
+    }
   }
 
   // Restore previously loaded sets from session state

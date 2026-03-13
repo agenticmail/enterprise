@@ -92,13 +92,13 @@ export function createPolymarketScreenerTools(opts?: ToolCreationOptions): AnyAg
             }) as any;
 
             // Filter out dead/resolved markets (ALL prices at extreme — truly dead, not just one-sided)
-            raw.markets = raw.markets.filter((m: any) => {
+            const beforeDead = raw.markets.length;
+            const alive = raw.markets.filter((m: any) => {
               const prices = m.market?.outcomePrices;
               if (!prices) return true;
               try {
                 const parsed = typeof prices === 'string' ? JSON.parse(prices) : prices;
                 if (Array.isArray(parsed)) {
-                  // Only remove if ALL prices are essentially 0 or 1 (resolved/dead markets)
                   return !parsed.every((pr: any) => {
                     const v = parseFloat(pr);
                     return v <= 0.005 || v >= 0.995;
@@ -107,6 +107,11 @@ export function createPolymarketScreenerTools(opts?: ToolCreationOptions): AnyAg
               } catch {}
               return true;
             });
+            // If dead filter removes ALL results, skip it — better to return something
+            raw.markets = alive.length > 0 ? alive : raw.markets;
+            if (alive.length === 0 && beforeDead > 0) {
+              (raw as any).note = `All ${beforeDead} markets had extreme prices but were kept (may be one-sided, not dead).`;
+            }
 
             // Filter recently-screened markets for diversity
             const { filtered, removed } = filterScreenedMarkets(agentId, raw.markets);

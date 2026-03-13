@@ -50,6 +50,21 @@ if (_LOG_THRESHOLD > 2) {
   console.warn = function() {};
 }
 
+// ─── Markdown Stripping (for Telegram/WhatsApp fallback delivery) ──
+function _stripMd(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, '').trim())
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .trim();
+}
+
 // ════════════════════════════════════════════════════════════
 // SYSTEM DEPENDENCY AUTO-INSTALLER
 // ════════════════════════════════════════════════════════════
@@ -925,7 +940,7 @@ export async function runAgent(_args: string[]) {
                     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ chat_id: dc.chatId, text: lastText.trim() }),
+                      body: JSON.stringify({ chat_id: dc.chatId, text: _stripMd(lastText) }),
                     });
                     console.log(`[TaskPoller] Delivered recovery response to Telegram chat ${dc.chatId}`);
                   }
@@ -1610,7 +1625,7 @@ export async function runAgent(_args: string[]) {
                     const { getOrCreateConnection, toJid } = await import('./agent-tools/tools/messaging/whatsapp.js');
                     const conn = await getOrCreateConnection(AGENT_ID as any);
                     if ((conn as any).connected && (conn as any).sock) {
-                      await (conn as any).sock.sendMessage(toJid(ctx.senderEmail), { text: lastText.trim() });
+                      await (conn as any).sock.sendMessage(toJid(ctx.senderEmail), { text: _stripMd(lastText) });
                       console.log(`[chat] ✅ Fallback: delivered WhatsApp reply to ${ctx.senderEmail}`);
                     }
                   } catch (waErr: any) {
@@ -1625,7 +1640,7 @@ export async function runAgent(_args: string[]) {
                       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chat_id: ctx.senderEmail, text: lastText.trim() }),
+                        body: JSON.stringify({ chat_id: ctx.senderEmail, text: _stripMd(lastText) }),
                       });
                       console.log(`[chat] ✅ Fallback: delivered Telegram reply to ${ctx.senderEmail}`);
                     }

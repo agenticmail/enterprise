@@ -565,10 +565,10 @@ Work schedule: ${this.config.schedule ? `${this.config.schedule.start}-${this.co
     let deliveryInstruction: string;
     let deliveryTools: string;
     if (platform === 'telegram') {
-      deliveryInstruction = `Send the catchup as a Telegram message using telegram_send to your manager (chat ID: ${platformTarget}). Format it nicely with bold headers and bullet points using Telegram markdown.`;
-      deliveryTools = 'telegram_send (chatId, text, parseMode)';
+      deliveryInstruction = `Send the catchup as a Telegram message using telegram_send to your manager (chat ID: ${platformTarget}). Write in PLAIN TEXT ONLY — no markdown, no **bold**, no ## headers, no code blocks. Use short paragraphs and line breaks for readability.`;
+      deliveryTools = 'telegram_send (chatId, text)';
     } else if (platform === 'whatsapp') {
-      deliveryInstruction = `Send the catchup as a WhatsApp message to your manager at ${platformTarget}. Format it cleanly with bold headers and bullet points.`;
+      deliveryInstruction = `Send the catchup as a WhatsApp message to your manager at ${platformTarget}. Write in PLAIN TEXT ONLY — no markdown, no **bold**, no ## headers. Use short paragraphs and line breaks.`;
       deliveryTools = 'whatsapp_send (to, message)';
     } else {
       deliveryInstruction = `Use gmail_send to send the email to ${managerEmail}. Subject: "${isWeekly ? 'Weekly' : 'Daily'} Update — ${agentName}"`;
