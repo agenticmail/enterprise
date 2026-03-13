@@ -311,7 +311,10 @@ export async function runAgentLoop(
           options.onEvent,
           options.retryConfig,
         );
-        console.log(`[agent-loop] LLM responded in ${Date.now() - llmCallStart}ms (${estimateMessageTokens(messages)} input tokens)`);
+        var _cacheR = llmResponse.usage?.cacheReadInputTokens || 0;
+        var _cacheW = llmResponse.usage?.cacheCreationInputTokens || 0;
+        var _cacheInfo = _cacheR > 0 ? `, cache: ${_cacheR} read` : (_cacheW > 0 ? `, cache: ${_cacheW} written` : '');
+        console.log(`[agent-loop] LLM responded in ${Date.now() - llmCallStart}ms (${llmResponse.usage?.inputTokens || estimateMessageTokens(messages)} input tokens${_cacheInfo})`);
         break; // success
       } catch (err: any) {
         // Recover from orphaned tool_result errors (e.g. after compaction)
@@ -399,17 +402,19 @@ export async function runAgentLoop(
       }
     }
 
-    // Record LLM usage for budget tracking
+    // Record LLM usage for budget tracking (cache-aware)
     if (hooks.recordLLMUsage) {
       try {
         var usageInput = llmResponse.usage?.inputTokens || 0;
         var usageOutput = llmResponse.usage?.outputTokens || 0;
+        var cacheCreation = llmResponse.usage?.cacheCreationInputTokens || 0;
+        var cacheRead = llmResponse.usage?.cacheReadInputTokens || 0;
         // Fallback: estimate tokens if provider didn't return usage (common with streaming)
         if (usageInput === 0 && usageOutput === 0) {
           usageInput = Math.ceil(estimateMessageTokens(messages) * 0.9);
           usageOutput = Math.ceil((llmResponse.textContent?.length || 100) / 4);
         }
-        var costUsd = await estimateCostAsync(hooks, config.model, usageInput, usageOutput);
+        var costUsd = await estimateCostAsync(hooks, config.model, usageInput, usageOutput, cacheCreation, cacheRead);
         await hooks.recordLLMUsage(config.agentId, config.orgId, {
           inputTokens: usageInput,
           outputTokens: usageOutput,
@@ -779,19 +784,40 @@ async function estimateCostAsync(
   model: import('./types.js').ModelConfig,
   inputTokens: number,
   outputTokens: number,
+  cacheCreationTokens?: number,
+  cacheReadTokens?: number,
 ): Promise<number> {
   // Try DB pricing via hook
   if (hooks.getModelPricing) {
     try {
       var dbPricing = await hooks.getModelPricing(model.provider, model.modelId);
       if (dbPricing) {
-        return (inputTokens * dbPricing.inputCostPerMillion + outputTokens * dbPricing.outputCostPerMillion) / 1_000_000;
+        var baseCost = (inputTokens * dbPricing.inputCostPerMillion + outputTokens * dbPricing.outputCostPerMillion) / 1_000_000;
+        // Adjust for cached tokens: cache reads cost 90% less, cache creation costs 25% more
+        if (cacheReadTokens && cacheReadTokens > 0) {
+          var inputPrice = dbPricing.inputCostPerMillion;
+          baseCost -= (cacheReadTokens * inputPrice * 0.9) / 1_000_000; // 90% discount on cached reads
+        }
+        if (cacheCreationTokens && cacheCreationTokens > 0) {
+          var inputPrice2 = dbPricing.inputCostPerMillion;
+          baseCost += (cacheCreationTokens * inputPrice2 * 0.25) / 1_000_000; // 25% surcharge on cache writes
+        }
+        return Math.max(0, baseCost);
       }
     } catch {}
   }
-  // Fall back to built-in pricing
+  // Fall back to built-in pricing (cache-aware)
   var p = FALLBACK_PRICES[model.modelId] || { input: 3, output: 15 };
-  return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
+  var cost = (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
+  // Cache reads cost 90% less than regular input tokens
+  if (cacheReadTokens && cacheReadTokens > 0) {
+    cost -= (cacheReadTokens * p.input * 0.9) / 1_000_000;
+  }
+  // Cache creation costs 25% more than regular input tokens
+  if (cacheCreationTokens && cacheCreationTokens > 0) {
+    cost += (cacheCreationTokens * p.input * 0.25) / 1_000_000;
+  }
+  return Math.max(0, cost);
 }
 
 function buildAssistantMessage(response: LLMResponse): AgentMessage {

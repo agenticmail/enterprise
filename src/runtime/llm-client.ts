@@ -48,7 +48,12 @@ export interface LLMResponse {
   textContent: string;
   thinkingContent: string;
   stopReason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence';
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
 }
 
 // ─── Token Estimation ────────────────────────────────────
@@ -212,13 +217,22 @@ async function callAnthropic(
   };
 
   if (systemPrompt) {
-    requestBody.system = systemPrompt;
+    // Use structured system prompt with cache breakpoint — tells Anthropic to cache
+    // the system prompt across turns (90% cheaper for subsequent calls in same session)
+    requestBody.system = [
+      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+    ];
   }
 
   if (tools.length > 0) {
-    requestBody.tools = tools.map(function(t) {
-      return { name: t.name, description: t.description, input_schema: t.input_schema };
+    var toolsList = tools.map(function(t) {
+      return { name: t.name, description: t.description, input_schema: t.input_schema } as any;
     });
+    // Add cache breakpoint on the last tool — caches the entire tool definition block
+    if (toolsList.length > 0) {
+      toolsList[toolsList.length - 1].cache_control = { type: 'ephemeral' };
+    }
+    requestBody.tools = toolsList;
   }
 
   // Extended thinking support
@@ -242,7 +256,7 @@ async function callAnthropic(
   var textParts: string[] = [];
   var thinkingParts: string[] = [];
   var stopReason: LLMResponse['stopReason'] = 'end_turn';
-  var usage = { inputTokens: 0, outputTokens: 0 };
+  var usage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
 
   // Use streaming
   var stream = client.messages.stream(requestBody, {
@@ -289,6 +303,8 @@ async function callAnthropic(
       if (message?.usage) {
         usage.inputTokens = message.usage.input_tokens || 0;
         usage.outputTokens = message.usage.output_tokens || 0;
+        usage.cacheCreationInputTokens = message.usage.cache_creation_input_tokens || 0;
+        usage.cacheReadInputTokens = message.usage.cache_read_input_tokens || 0;
       }
     }
   }
@@ -310,6 +326,8 @@ async function callAnthropic(
   if (finalMessage.usage) {
     usage.inputTokens = finalMessage.usage.input_tokens;
     usage.outputTokens = finalMessage.usage.output_tokens;
+    usage.cacheCreationInputTokens = (finalMessage.usage as any).cache_creation_input_tokens || 0;
+    usage.cacheReadInputTokens = (finalMessage.usage as any).cache_read_input_tokens || 0;
   }
   stopReason = finalMessage.stop_reason as LLMResponse['stopReason'];
 
