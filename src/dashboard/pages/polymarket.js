@@ -2029,19 +2029,26 @@ export function PolymarketPage() {
             )
           ),
           walletBalance?.balances ? h('div', { style: { display: 'grid', gap: 12 } },
-            // USDC.e (bridged) — this is what Polymarket uses
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 16px', background: 'rgba(16,185,129,0.06)', borderRadius: 8, border: '1px solid rgba(16,185,129,0.15)' } },
-              h('div', null,
-                h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 } }, 'USDC.e',
-                  h('span', { style: { fontSize: 9, padding: '1px 5px', background: 'rgba(16,185,129,0.15)', borderRadius: 4, color: '#10b981', fontWeight: 600 } }, 'CASH')
+            // USDC.e (bridged + exchange) — total available cash for trading
+            (function() {
+              var onChain = walletBalance.balances.usdce != null ? walletBalance.balances.usdce : walletBalance.balances.usdc || 0;
+              var onExchange = walletBalance.balances.exchange || 0;
+              var totalCash = onChain + onExchange;
+              return h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 16px', background: 'rgba(16,185,129,0.06)', borderRadius: 8, border: '1px solid rgba(16,185,129,0.15)' } },
+                h('div', null,
+                  h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 } }, 'USDC.e',
+                    h('span', { style: { fontSize: 9, padding: '1px 5px', background: 'rgba(16,185,129,0.15)', borderRadius: 4, color: '#10b981', fontWeight: 600 } }, 'CASH')
+                  ),
+                  h('div', { style: { fontSize: 24, fontWeight: 700 } }, '$' + totalCash.toFixed(2)),
+                  onExchange > 0 && onChain > 0 ? h('div', { style: { fontSize: 10, color: 'var(--text-muted)', marginTop: 2 } }, '$' + onChain.toFixed(2) + ' wallet + $' + onExchange.toFixed(2) + ' exchange') :
+                  onExchange > 0 ? h('div', { style: { fontSize: 10, color: 'var(--text-muted)', marginTop: 2 } }, 'On exchange (ready to trade)') : null
                 ),
-                h('div', { style: { fontSize: 24, fontWeight: 700 } }, '$' + (walletBalance.balances.usdce != null ? walletBalance.balances.usdce : walletBalance.balances.usdc || 0).toFixed(2))
-              ),
-              h('div', { style: { fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' } },
-                h('div', null, 'Cash / Liquidity'),
-                h('div', null, 'Available to trade')
-              )
-            ),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' } },
+                  h('div', null, 'Cash / Liquidity'),
+                  h('div', null, 'Available to trade')
+                )
+              );
+            })(),
             // Native USDC (not directly usable on Polymarket)
             (walletBalance.balances.usdcNative != null && walletBalance.balances.usdcNative > 0) && h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 16px', background: 'rgba(251,191,36,0.06)', borderRadius: 8, border: '1px solid rgba(251,191,36,0.2)' } },
               h('div', null,

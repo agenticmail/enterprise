@@ -1282,27 +1282,31 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
               }
               const updated = await client.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
               const allApproved = Object.values(updated?.allowances || {}).every((v: any) => v !== '0' && v !== 0);
+              const updatedExchBal = (Number(updated.balance || 0) / 1e6).toFixed(2);
               return jsonResult({
                 address: client.address,
                 usdc_e_bridged: usdceBal,
                 usdc_native: usdcNativeBal,
                 pol_gas: polBal,
                 wallet_usdc_total: walletUSDC,
-                exchange_balance: updated.balance,
+                exchange_balance: updatedExchBal,
+                available_to_trade: (parseFloat(usdceBal) + parseFloat(updatedExchBal)).toFixed(2),
                 trading_approved: allApproved,
                 status: 'allowances_auto_set',
                 needs_swap: parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0,
                 message: parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0
                   ? `⚠️ Wallet has $${usdcNativeBal} native USDC but $0 USDC.e. Polymarket ONLY accepts USDC.e! Run poly_swap_to_usdce to convert.`
-                  : `Wallet has $${usdceBal} USDC.e. Exchange contracts approved — you can now trade.`,
+                  : `Wallet has $${usdceBal} USDC.e + $${updatedExchBal} on exchange. Contracts approved — you can now trade.`,
               });
             } catch (e: any) {
+              const errExchBal = (Number(exchangeBalance.balance || 0) / 1e6).toFixed(2);
               return jsonResult({
                 address: client.address,
                 usdc_e_bridged: usdceBal,
                 usdc_native: usdcNativeBal,
                 pol_gas: polBal,
-                exchange_balance: exchangeBalance.balance,
+                exchange_balance: errExchBal,
+                available_to_trade: (parseFloat(usdceBal) + parseFloat(errExchBal)).toFixed(2),
                 trading_approved: false,
                 status: 'needs_allowances',
                 message: `Approval failed: ${e.message}`,
@@ -1312,6 +1316,8 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
           const allApproved = Object.values(exchangeBalance?.allowances || {}).every((v: any) => v !== '0' && v !== 0);
           const needsSwap = parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0;
+          const exchBalHuman = (Number(exchangeBalance.balance || 0) / 1e6).toFixed(2);
+          const totalAvailable = (parseFloat(usdceBal) + parseFloat(exchBalHuman)).toFixed(2);
 
           return jsonResult({
             address: client.address,
@@ -1319,11 +1325,11 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             usdc_native: usdcNativeBal,
             pol_gas: polBal,
             wallet_usdc_total: walletUSDC,
-            exchange_balance: exchangeBalance.balance,
+            exchange_balance: exchBalHuman,
             trading_approved: allApproved,
-            available_to_trade: usdceBal,
+            available_to_trade: totalAvailable,
             needs_swap: needsSwap,
-            status: needsSwap ? 'needs_swap' : (parseFloat(usdceBal) > 0 ? 'funded' : 'no_funds'),
+            status: needsSwap ? 'needs_swap' : (parseFloat(totalAvailable) > 0 ? 'funded' : 'no_funds'),
             message: needsSwap
               ? `⚠️ You have $${usdcNativeBal} native USDC but Polymarket requires USDC.e (bridged). Run poly_swap_to_usdce to convert.`
               : undefined,

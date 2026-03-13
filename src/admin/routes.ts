@@ -3906,6 +3906,17 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         maticBalance = Number(BigInt(maticRes.result)) / 1e18;
       }
 
+      // Fetch exchange balance (funds deposited to Polymarket exchange for trading)
+      let exchangeBalance = 0;
+      try {
+        const { getClobClient } = await import('../agent-tools/tools/polymarket-runtime.js');
+        const clobClient = await getClobClient(agentId, db);
+        if (clobClient?.client) {
+          const bal = await clobClient.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
+          exchangeBalance = Number(bal.balance || 0) / 1e6;
+        }
+      } catch {}
+
       // Cache the good values
       balanceCache.set(address, { usdce: usdceBalance, usdcNative: usdcNativeBalance, usdc: usdceBalance + usdcNativeBalance, matic: maticBalance, ts: Date.now() });
 
@@ -3945,6 +3956,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           usdce: +usdceBalance.toFixed(6),
           usdcNative: +usdcNativeBalance.toFixed(6),
           matic: +maticBalance.toFixed(6),
+          exchange: +exchangeBalance.toFixed(6),
         },
         needsSwap,
         portfolio: {
