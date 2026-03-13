@@ -91,14 +91,18 @@ export function createPolymarketScreenerTools(opts?: ToolCreationOptions): AnyAg
               };
             }) as any;
 
-            // Filter out dead markets (all prices 0 or 1)
+            // Filter out dead/resolved markets (ALL prices at extreme — truly dead, not just one-sided)
             raw.markets = raw.markets.filter((m: any) => {
               const prices = m.market?.outcomePrices;
               if (!prices) return true;
               try {
                 const parsed = typeof prices === 'string' ? JSON.parse(prices) : prices;
                 if (Array.isArray(parsed)) {
-                  return !parsed.every((pr: any) => parseFloat(pr) <= 0.01 || parseFloat(pr) >= 0.99);
+                  // Only remove if ALL prices are essentially 0 or 1 (resolved/dead markets)
+                  return !parsed.every((pr: any) => {
+                    const v = parseFloat(pr);
+                    return v <= 0.005 || v >= 0.995;
+                  });
                 }
               } catch {}
               return true;
@@ -110,6 +114,9 @@ export function createPolymarketScreenerTools(opts?: ToolCreationOptions): AnyAg
             if (removed > 0) {
               (raw as any).freshness_note = `${removed} recently-screened markets filtered out for diversity.`;
             }
+
+            // Update qualified count to reflect actual returned markets
+            raw.qualified = raw.markets.length;
 
             // Track returned markets
             for (const m of raw.markets) {

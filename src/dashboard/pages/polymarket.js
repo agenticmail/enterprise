@@ -1947,7 +1947,7 @@ export function PolymarketPage() {
           h('button', { className: 'btn btn-sm btn-primary', onClick: function() { setShowBuyModal(true); setBuySearch(''); setBuyResults([]); setBuySelected(null); } }, I('plus'), ' Buy Position')
         ),
         renderFilteredTable('livePositions', livePrices.positions, '',
-          ['Market', 'Position', 'Outcome', 'Shares', 'Entry', 'Current', 'Cost', 'Win Amount', 'P&L', 'P&L %', ''],
+          ['Market', 'Position', 'Outcome', 'Shares', 'Entry', 'Current', 'Cost', 'Win Amount', 'P&L', 'P&L %', 'Ends', ''],
           function(p) {
             var oc = p.outcome || resolveOutcome(p.side, p.outcome);
             var isWon = p.resolved && p.current >= 0.99;
@@ -1986,6 +1986,20 @@ export function PolymarketPage() {
               ),
               h('td', { key: 'pnl' }, pnlCell(p.pnl)),
               h('td', { key: 'pp', style: { color: (p.pnlPct || 0) >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 } }, (p.pnlPct >= 0 ? '+' : '') + (p.pnlPct || 0).toFixed(1) + '%'),
+              h('td', { key: 'end', style: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' } },
+                p.endDate ? (function() {
+                  var d = new Date(p.endDate);
+                  if (isNaN(d.getTime())) return '--';
+                  var now = Date.now();
+                  var diff = d.getTime() - now;
+                  var days = Math.floor(diff / 86400000);
+                  var label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  if (diff < 0) return h('span', { style: { color: '#ef4444' } }, 'Ended');
+                  if (days === 0) return h('span', { style: { color: '#f59e0b', fontWeight: 600 } }, 'Today');
+                  if (days <= 3) return h('span', { style: { color: '#f59e0b' } }, days + 'd · ' + label);
+                  return label;
+                })() : '--'
+              ),
               h('td', { key: 'act' },
                 p.redeemable
                   ? h('button', { className: 'btn btn-sm', style: { minWidth: 50, fontSize: 11, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: 600, cursor: 'pointer' },

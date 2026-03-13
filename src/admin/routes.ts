@@ -4430,6 +4430,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
                       size: parseFloat(p.size) || 0,
                       redeemable: p.redeemable || false,
                       resolved_price: p.redeemable ? curPrice : undefined,
+                      endDate: p.endDate || p.expirationDate || '',
                     };
                   });
                 }
@@ -4501,6 +4502,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
                 pnlPct: +((pnl / (p.entry_price * p.size)) * 100).toFixed(2),
                 redeemable: p.redeemable || false,
                 resolved: resolvedPrices[p.token_id] !== undefined,
+                endDate: p.endDate || '',
               };
             });
 
