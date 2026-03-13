@@ -219,6 +219,11 @@ export async function runAgentLoop(
   var sessionId = options.sessionId || ''; // Set by caller
   var cumulativeUsage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
 
+  // ── Tool loop detection ──
+  // Track consecutive identical tool calls to break runaway loops
+  var _loopTracker: { name: string; inputHash: string; count: number } = { name: '', inputHash: '', count: 0 };
+  var LOOP_THRESHOLD = 3; // 3 identical calls = force break
+
   // Emit session start
   var sessionStartEvent: StreamEvent = { type: 'session_start', sessionId: config.agentId };
   options.onEvent?.(sessionStartEvent);
@@ -626,6 +631,29 @@ export async function runAgentLoop(
         }),
         _turn: turnCount,
       } as any);
+
+      // ── Tool loop detection ──
+      // If the agent calls the same tool 3+ times in a row with identical input, break the loop.
+      if (llmResponse.toolCalls.length === 1) {
+        var loopTc = llmResponse.toolCalls[0];
+        var loopHash = loopTc.name + ':' + JSON.stringify(loopTc.input);
+        if (_loopTracker.inputHash === loopHash) {
+          _loopTracker.count++;
+        } else {
+          _loopTracker = { name: loopTc.name, inputHash: loopHash, count: 1 };
+        }
+        if (_loopTracker.count >= LOOP_THRESHOLD) {
+          console.warn(`[agent-loop] ⚠️ Loop detected: ${loopTc.name} called ${_loopTracker.count} times with same input — injecting break`);
+          messages.push({
+            role: 'user',
+            content: `[System] You have called ${loopTc.name} ${_loopTracker.count} times in a row with identical parameters and received the same result each time. This is a loop. Stop calling this tool and either: (a) move on to a different action, (b) try different parameters, or (c) summarize what you found and end the session.`,
+            _turn: turnCount,
+          } as any);
+          _loopTracker.count = 0; // reset after intervention
+        }
+      } else {
+        _loopTracker = { name: '', inputHash: '', count: 0 };
+      }
 
       // Incremental checkpoint — persist messages to DB after each turn
       if (options.onCheckpoint) {
