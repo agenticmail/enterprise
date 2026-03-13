@@ -3909,13 +3909,25 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       // Fetch exchange balance (funds deposited to Polymarket exchange for trading)
       let exchangeBalance = 0;
       try {
-        const { getClobClient } = await import('../agent-tools/tools/polymarket-runtime.js');
-        const clobClient = await getClobClient(agentId, db);
-        if (clobClient?.client) {
-          const bal = await clobClient.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
-          exchangeBalance = Number(bal.balance || 0) / 1e6;
+        const e = edb();
+        if (e) {
+          const { getClobClient } = await import('../agent-tools/tools/polymarket-runtime.js');
+          // getClobClient expects execute/query with $1 params, but edb() uses run/get/all with ?
+          const dbIface = {
+            execute: async (sql: string, params?: any[]) => e.run(sql.replace(/\$(\d+)/g, '?'), params),
+            query: async (sql: string, params?: any[]) => e.all(sql.replace(/\$(\d+)/g, '?'), params),
+            get: async (sql: string, params?: any[]) => { const rows = await e.all(sql.replace(/\$(\d+)/g, '?'), params); return rows?.[0]; },
+            getEngineDB: () => e,
+          };
+          const clobClient = await getClobClient(agentId, dbIface);
+          if (clobClient?.client) {
+            const bal = await clobClient.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
+            exchangeBalance = Number(bal.balance || 0) / 1e6;
+          }
         }
-      } catch {}
+      } catch (exchErr: any) {
+        console.warn(`[wallet-balance] Exchange balance fetch failed for ${agentId.slice(0,8)}: ${exchErr?.message}`);
+      }
 
       // Cache the good values
       balanceCache.set(address, { usdce: usdceBalance, usdcNative: usdcNativeBalance, usdc: usdceBalance + usdcNativeBalance, matic: maticBalance, ts: Date.now() });
