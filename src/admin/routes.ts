@@ -3907,26 +3907,35 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
 
       // Fetch exchange balance (funds deposited to Polymarket exchange for trading)
+      // Read creds directly from edb() and create a minimal ClobClient inline —
+      // avoids getClobClient's saveWalletCredentials which breaks Postgres $N param reuse
       let exchangeBalance = 0;
       try {
         const e = edb();
-        if (e) {
-          const { getClobClient } = await import('../agent-tools/tools/polymarket-runtime.js');
-          // getClobClient expects execute/query with $1 params, but edb() uses run/get/all with ?
-          const dbIface = {
-            execute: async (sql: string, params?: any[]) => e.run(sql.replace(/\$(\d+)/g, '?'), params),
-            query: async (sql: string, params?: any[]) => e.all(sql.replace(/\$(\d+)/g, '?'), params),
-            get: async (sql: string, params?: any[]) => { const rows = await e.all(sql.replace(/\$(\d+)/g, '?'), params); return rows?.[0]; },
-            getEngineDB: () => e,
-          };
-          const clobClient = await getClobClient(agentId, dbIface);
-          if (clobClient?.client) {
-            const bal = await clobClient.client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
+        const creds = e ? await e.get(
+          `SELECT private_key_encrypted, funder_address, signature_type, api_key, api_secret, api_passphrase FROM poly_wallet_credentials WHERE agent_id = ?`,
+          [agentId]
+        ) as any : null;
+        if (creds?.api_key && creds?.private_key_encrypted) {
+          const dec = (v: string) => { try { return vault?.decrypt?.(v) || v; } catch { return v; } };
+          const { ensureSDK, importSDK } = await import('../agent-tools/tools/polymarket-runtime.js');
+          const sdk = await ensureSDK();
+          if (sdk.ready) {
+            const { ClobClient } = await importSDK('@polymarket/clob-client');
+            const { Wallet } = await importSDK('@ethersproject/wallet');
+            const signer = new Wallet(dec(creds.private_key_encrypted));
+            const client = new ClobClient(
+              'https://clob.polymarket.com', 137, signer,
+              { apiKey: dec(creds.api_key), secret: dec(creds.api_secret), passphrase: dec(creds.api_passphrase) },
+              creds.signature_type || 0,
+              creds.funder_address || signer.address,
+            );
+            const bal = await client.getBalanceAllowance({ asset_type: 'COLLATERAL' });
             exchangeBalance = Number(bal.balance || 0) / 1e6;
           }
         }
       } catch (exchErr: any) {
-        console.warn(`[wallet-balance] Exchange balance fetch failed for ${agentId.slice(0,8)}: ${exchErr?.message}`);
+        console.warn(`[wallet-balance] Exchange balance fetch failed: ${exchErr?.message}`);
       }
 
       // Cache the good values
