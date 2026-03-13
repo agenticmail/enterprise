@@ -147,7 +147,7 @@ const skillUpdater = new SkillAutoUpdater({ registry: communityRegistry });
 // Wire onboarding into guardrails for onboarding gate checks
 guardrails.setOnboardingManager(onboarding);
 
-// Wire lifecycle events into activity tracker + messaging reconnection
+// Wire lifecycle events into activity tracker + messaging reconnection + SSE status
 lifecycle.onEvent((event) => {
   activity.record({
     agentId: event.agentId,
@@ -155,6 +155,15 @@ lifecycle.onEvent((event) => {
     type: event.type as any,
     data: event.data,
   });
+
+  // Push lifecycle state changes to real-time SSE stream so dashboard updates instantly
+  if (event.type === 'started' || event.type === 'deployed' || event.type === 'auto_recovered') {
+    agentStatus.heartbeat(event.agentId);
+  } else if (event.type === 'stopped') {
+    agentStatus.markOffline(event.agentId);
+  } else if (event.type === 'error' || event.type === 'crashed') {
+    agentStatus.markOffline(event.agentId, event.type);
+  }
 
   // Restart Telegram when agent is deployed/started (reconnects webhook/polling)
   if (event.type === 'started' || event.type === 'deployed') {
@@ -165,6 +174,9 @@ lifecycle.onEvent((event) => {
     }
   }
 });
+
+// Wire status tracker into lifecycle so health checks push to SSE
+lifecycle.setStatusTracker(agentStatus);
 
 // Wire lifecycle into communication bus for agent email registry
 commBus.setLifecycle(lifecycle);

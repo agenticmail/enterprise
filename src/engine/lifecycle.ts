@@ -204,6 +204,8 @@ export class AgentLifecycleManager {
   private birthdaySender: ((agent: ManagedAgent) => Promise<void>) | null = null;
   /** Vault for decrypting deploy credentials */
   private vault?: any;
+  /** Real-time status tracker for SSE push to dashboard */
+  private statusTracker?: any;
 
   constructor(opts?: { db?: EngineDatabase; permissions?: PermissionEngine }) {
     this.engineDb = opts?.db;
@@ -220,6 +222,11 @@ export class AgentLifecycleManager {
 
   setVault(vault: any): void {
     this.vault = vault;
+  }
+
+  /** Wire the real-time status tracker so health checks push to SSE */
+  setStatusTracker(tracker: any): void {
+    this.statusTracker = tracker;
   }
 
   /**
@@ -1054,11 +1061,15 @@ export class AgentLifecycleManager {
           if (status.metrics) {
             agent.usage.activeSessionCount = status.metrics.activeSessionCount;
           }
-          // Auto-correct stale DB state: if PM2 is running but DB says degraded/error/ready/draft, sync it
-          // Note: 'stopped' is NOT auto-corrected here — if user explicitly stopped, respect that
-          if (agent.state === 'degraded' || agent.state === 'error' || agent.state === 'ready' || agent.state === 'draft') {
-            this.transition(agent, 'running', agent.state === 'degraded' ? 'Health restored' : `Process detected running (was "${agent.state}")`, 'system');
-            if (agent.state !== 'degraded') this.emitEvent(agent, 'auto_recovered', { from: agent.state });
+          // Server is source of truth: if PM2 is running, DB must reflect that
+          if (agent.state !== 'running') {
+            var fromState = agent.state;
+            this.transition(agent, 'running', fromState === 'degraded' ? 'Health restored' : `Process running on server (was "${fromState}")`, 'system');
+            if (fromState !== 'degraded') this.emitEvent(agent, 'auto_recovered', { from: fromState });
+          }
+          // Push to SSE so dashboard updates in real-time
+          if (this.statusTracker) {
+            this.statusTracker.heartbeat(agent.id);
           }
         } else {
           agent.health.consecutiveFailures++;
@@ -1066,6 +1077,10 @@ export class AgentLifecycleManager {
 
           if (agent.state === 'running' && agent.health.consecutiveFailures >= 2) {
             this.transition(agent, 'degraded', `Health degraded: ${agent.health.consecutiveFailures} consecutive failures`, 'system');
+            // Push degraded/offline to SSE
+            if (this.statusTracker) {
+              this.statusTracker.markOffline(agent.id, 'degraded');
+            }
           }
 
           // Auto-restart after 5 consecutive failures
