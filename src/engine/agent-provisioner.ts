@@ -73,7 +73,10 @@ export function provisionAgent(config: AgentConfig): ProvisionResult {
   const slug = slugify(config.name);
   const pm2Name = getPm2Name(config);
   const amDir = resolve(homedir(), '.agenticmail');
-  const envFile = resolve(amDir, `.env.${slug}`);
+  // Prefer CWD for env files (matches existing deployment pattern), fall back to ~/.agenticmail
+  const cwdEnvFile = resolve(process.cwd(), `.env.${slug}`);
+  const amDirEnvFile = resolve(amDir, `.env.${slug}`);
+  const envFile = existsSync(cwdEnvFile) ? cwdEnvFile : existsSync(amDirEnvFile) ? amDirEnvFile : cwdEnvFile;
   const wrapperScript = resolve(amDir, `agent-${slug}.cjs`);
   const port = (config.deployment?.config as any)?.local?.port || 3101;
 
@@ -99,33 +102,47 @@ export function provisionAgent(config: AgentConfig): ProvisionResult {
   }
 
   // Inherit critical vars from enterprise .env
-  const mainEnvFile = resolve(amDir, '.env');
+  // Check multiple locations: ~/.agenticmail/.env, CWD/.env, then process.env
+  const envCandidates = [
+    resolve(amDir, '.env'),
+    resolve(process.cwd(), '.env'),
+  ];
   const REQUIRED_INHERIT = ['DATABASE_URL', 'JWT_SECRET'];
   const OPTIONAL_INHERIT = ['AGENTICMAIL_VAULT_KEY', 'ORG_ID', 'ENTERPRISE_URL', 'AGENTICMAIL_DOMAIN'];
 
-  if (!existsSync(mainEnvFile)) {
-    return { success: false, error: `Enterprise .env not found at ${mainEnvFile}. Run setup first.`, envFile, wrapperScript, slug, pm2Name, port };
+  let mainEnvContent = '';
+  for (const candidate of envCandidates) {
+    if (existsSync(candidate)) {
+      try { mainEnvContent += '\n' + readFileSync(candidate, 'utf8'); } catch {}
+    }
   }
 
-  const mainEnvContent = readFileSync(mainEnvFile, 'utf8');
-  const missingKeys: string[] = [];
-
+  const inheritedKeys = new Set<string>();
   for (const key of REQUIRED_INHERIT) {
     const m = mainEnvContent.match(new RegExp(`^${key}=(.+)$`, 'm'));
     if (m) {
       envLines.push(`${key}=${m[1]}`);
-    } else {
-      missingKeys.push(key);
+      inheritedKeys.add(key);
+    } else if (process.env[key]) {
+      // Fallback to process.env (enterprise server already has these loaded)
+      envLines.push(`${key}=${process.env[key]}`);
+      inheritedKeys.add(key);
     }
   }
 
+  const missingKeys = REQUIRED_INHERIT.filter(k => !inheritedKeys.has(k));
   if (missingKeys.length > 0) {
-    return { success: false, error: `Missing required keys in ${mainEnvFile}: ${missingKeys.join(', ')}`, envFile, wrapperScript, slug, pm2Name, port };
+    return { success: false, error: `Missing required keys (checked .env files + process.env): ${missingKeys.join(', ')}`, envFile, wrapperScript, slug, pm2Name, port };
   }
 
   for (const key of OPTIONAL_INHERIT) {
+    if (inheritedKeys.has(key)) continue;
     const m = mainEnvContent.match(new RegExp(`^${key}=(.+)$`, 'm'));
-    if (m) envLines.push(`${key}=${m[1]}`);
+    if (m) {
+      envLines.push(`${key}=${m[1]}`);
+    } else if (process.env[key]) {
+      envLines.push(`${key}=${process.env[key]}`);
+    }
   }
 
   // Ensure ENTERPRISE_URL is always set — derive from PORT if missing
@@ -135,11 +152,25 @@ export function provisionAgent(config: AgentConfig): ProvisionResult {
     envLines.push(`ENTERPRISE_URL=http://localhost:${serverPort}`);
   }
 
-  // ── Step 3: Write .env file ──
-  try {
-    writeFileSync(envFile, envLines.join('\n') + '\n');
-  } catch (e: any) {
-    return { success: false, error: `Cannot write ${envFile}: ${e.message}`, envFile, wrapperScript, slug, pm2Name, port };
+  // ── Step 3: Write .env file (skip if existing file already has required keys) ──
+  let skipEnvWrite = false;
+  if (existsSync(envFile)) {
+    try {
+      const existing = readFileSync(envFile, 'utf8');
+      const hasAgent = existing.includes(`AGENTICMAIL_AGENT_ID=${config.id}`);
+      const hasDb = existing.includes('DATABASE_URL=');
+      const hasJwt = existing.includes('JWT_SECRET=');
+      if (hasAgent && hasDb && hasJwt) {
+        skipEnvWrite = true; // Existing file is valid — don't overwrite (may have extra vars like AGENT_RUNTIME_SECRET)
+      }
+    } catch {}
+  }
+  if (!skipEnvWrite) {
+    try {
+      writeFileSync(envFile, envLines.join('\n') + '\n');
+    } catch (e: any) {
+      return { success: false, error: `Cannot write ${envFile}: ${e.message}`, envFile, wrapperScript, slug, pm2Name, port };
+    }
   }
 
   // ── Step 4: Validate .env was written correctly ──
