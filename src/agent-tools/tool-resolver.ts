@@ -1024,7 +1024,7 @@ export function filterToolsForContext(
   });
 
   // Add request_tools meta-tool
-  filtered.push(createRequestToolsTool(allTools, activeSets, context));
+  filtered.push(createRequestToolsTool(allTools, activeSets, context, options?.agentSkills));
 
   // Update session state
   if (sessionId) {
@@ -1156,6 +1156,7 @@ function createRequestToolsTool(
   allTools: AnyAgentTool[],
   activeSets: Set<ToolSet>,
   _context: SessionContext,
+  agentSkills?: string[],
 ): AnyAgentTool {
   const loadedSets = new Set<ToolSet>(activeSets);
   // Only show sets that have actual tools available (e.g., don't show gws_gmail if no OAuth)
@@ -1164,7 +1165,13 @@ function createRequestToolsTool(
     const set = TOOL_REGISTRY[tool.name];
     if (set) availableSetsInAllTools.add(set);
   }
-  const allSets = (Object.keys(SET_DESCRIPTIONS) as ToolSet[]).filter(s => availableSetsInAllTools.has(s));
+  const hasPolySkillForFilter = agentSkills?.some((s: string) => s.startsWith('polymarket'));
+  const allSets = (Object.keys(SET_DESCRIPTIONS) as ToolSet[]).filter(s => {
+    if (!availableSetsInAllTools.has(s)) return false;
+    // Hide polymarket sets from agents without polymarket skills
+    if (!hasPolySkillForFilter && (s === 'polymarket' || s.startsWith('polymarket_'))) return false;
+    return true;
+  });
   const notLoaded = allSets.filter(s => !loadedSets.has(s));
 
   // Compact description — only list what's NOT loaded to save tokens
@@ -1190,7 +1197,15 @@ function createRequestToolsTool(
     },
     async execute(_id: string, params: any) {
       const requested = (params.sets || []) as ToolSet[];
-      const newSets = requested.filter(s => !loadedSets.has(s) && SET_DESCRIPTIONS[s]);
+      // Gate: agents without polymarket skills cannot load polymarket tool sets
+      const hasPolySkill = agentSkills?.some((s: string) => s.startsWith('polymarket'));
+      const newSets = requested.filter(s => {
+        if (!loadedSets.has(s) && SET_DESCRIPTIONS[s]) {
+          if (!hasPolySkill && (s === 'polymarket' || s.startsWith('polymarket_'))) return false;
+          return true;
+        }
+        return false;
+      });
 
       if (newSets.length === 0) {
         return {
@@ -1267,8 +1282,14 @@ export async function getToolsForSession(
   if (state?.cachedTools && state.allToolsRef) {
     // Session has existing tool state — check if user message signals new sets
     if (opts?.userMessage) {
+      const hasPolySkill = opts?.agentSkills?.some((s: string) => s.startsWith('polymarket'));
       const signaled = detectSignals(opts.userMessage);
-      const newSignals = signaled.filter(s => !state.loadedSets.has(s));
+      const newSignals = signaled.filter(s => {
+        if (state.loadedSets.has(s)) return false;
+        // Gate: polymarket signals only for agents with polymarket skills
+        if (!hasPolySkill && (s === 'polymarket' || s.startsWith('polymarket_'))) return false;
+        return true;
+      });
 
       if (newSignals.length > 0) {
         // Auto-promote: add signaled sets without agent needing to call request_tools
@@ -1282,7 +1303,7 @@ export async function getToolsForSession(
           if (!set) return true;
           return state.loadedSets.has(set);
         });
-        filtered.push(createRequestToolsTool(state.allToolsRef, state.loadedSets, state.context));
+        filtered.push(createRequestToolsTool(state.allToolsRef, state.loadedSets, state.context, opts?.agentSkills));
         state.cachedTools = filtered;
         return filtered;
       }
