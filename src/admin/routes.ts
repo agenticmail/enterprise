@@ -3192,7 +3192,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const agentId = c.req.param('agentId');
       const body = await c.req.json();
       const fields = ['mode', 'max_position_size', 'max_order_size', 'max_total_exposure', 'max_daily_trades',
-        'max_daily_loss', 'max_drawdown_pct', 'stop_loss_pct', 'take_profit_pct', 'cash_reserve_pct'];
+        'max_daily_loss', 'max_drawdown_pct', 'stop_loss_pct', 'take_profit_pct', 'cash_reserve_pct',
+        'proactive_interval_mins', 'proactive_max_daily'];
       const sets: string[] = [];
       const vals: any[] = [];
       for (const f of fields) {

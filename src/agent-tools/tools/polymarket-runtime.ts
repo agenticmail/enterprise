@@ -839,6 +839,10 @@ async function _doInitPolymarketDB(db: any): Promise<void> {
       )
     `);
 
+    // Add proactive trading schedule columns (safe — ignores if already exist)
+    await db.execute(`ALTER TABLE poly_trading_config ADD COLUMN proactive_interval_mins INTEGER DEFAULT 30`).catch(() => {});
+    await db.execute(`ALTER TABLE poly_trading_config ADD COLUMN proactive_max_daily INTEGER DEFAULT 20`).catch(() => {});
+
     await db.execute(`
       CREATE TABLE IF NOT EXISTS poly_pending_trades (
         id TEXT PRIMARY KEY,

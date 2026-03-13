@@ -2244,6 +2244,8 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         take_profit_pct: { type: 'number' }, trailing_stop_pct: { type: 'number' },
         rebalance_interval: { type: 'string' }, notification_channel: { type: 'string' },
         notify_on: { type: 'array', items: { type: 'string' } }, cash_reserve_pct: { type: 'number' },
+        proactive_interval_mins: { type: 'number', description: 'Minutes between proactive trading checks (default 30, min 10)' },
+        proactive_max_daily: { type: 'number', description: 'Max proactive checks per day (default 20, 0 = disabled)' },
       }},
       async execute(_id: string, p: any) {
         const existing = await loadConfig(agentId, db);
@@ -2271,6 +2273,14 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         };
         await saveConfig(agentId, db, updated);
         agentConfigs.set(agentId, updated); // Keep in-memory cache too
+        // Persist proactive schedule fields (not part of TradingConfig type)
+        if (db && (p.proactive_interval_mins !== undefined || p.proactive_max_daily !== undefined)) {
+          const sets: string[] = [];
+          const vals: any[] = [];
+          if (p.proactive_interval_mins !== undefined) { sets.push('proactive_interval_mins = ?'); vals.push(Math.max(10, p.proactive_interval_mins)); }
+          if (p.proactive_max_daily !== undefined) { sets.push('proactive_max_daily = ?'); vals.push(Math.max(0, p.proactive_max_daily)); }
+          if (sets.length) await db.run(`UPDATE poly_trading_config SET ${sets.join(', ')} WHERE agent_id = ?`, [...vals, agentId]).catch(() => {});
+        }
         return jsonResult({ status: 'ok', config: updated, persisted: true });
       },
     },

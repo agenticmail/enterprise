@@ -527,6 +527,8 @@ let _spawnCount = 0;
 let _lastAlertCheckMs = 0;
 let _lastExitCheckMs = 0;
 let _lastProactiveCheckMs = 0;
+const _lastProactiveByAgent: Record<string, number> = {};
+const _proactiveDailyCount: Record<string, { date: string; count: number }> = {};
 
 const _lastSpawnByAgent: Record<string, number> = {};
 const SPAWN_COOLDOWN_MS = 5 * 60_000;
@@ -1188,15 +1190,39 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
       }
 
       // ── Proactive trading loop — wake agent to find trades if goals unmet ──
-      // Runs every 15 minutes. Checks daily trade count vs goal. If behind, wakes agent to trade.
-      const PROACTIVE_INTERVAL_MS = 15 * 60_000;
+      // Per-agent configurable: proactive_interval_mins (default 30) and proactive_max_daily (default 20).
+      // Global tick every 5 minutes, but each agent is only woken per its own interval.
+      const PROACTIVE_TICK_MS = 5 * 60_000;
       const proactiveElapsed = now - (_lastProactiveCheckMs || 0);
-      if (proactiveElapsed >= PROACTIVE_INTERVAL_MS) {
+      if (proactiveElapsed >= PROACTIVE_TICK_MS) {
         _lastProactiveCheckMs = now;
         try {
           // Get all agents with active watchers (they are traders)
           const traderAgents = [...new Set(watchers.map((w: any) => w.agent_id))];
           for (const agentId of traderAgents) {
+            // Read per-agent proactive schedule from trading config
+            const tcfgRow = await edb.get(
+              `SELECT proactive_interval_mins, proactive_max_daily FROM poly_trading_config WHERE agent_id = ?`, [agentId]
+            ).catch(() => null);
+            const intervalMins = Math.max(10, parseInt(tcfgRow?.proactive_interval_mins || '30') || 30);
+            const maxDaily = Math.max(0, parseInt(tcfgRow?.proactive_max_daily || '20') || 20);
+
+            // Check per-agent interval
+            const lastWake = _lastProactiveByAgent[agentId] || 0;
+            if (now - lastWake < intervalMins * 60_000) continue;
+
+            // Check daily limit
+            const today = new Date().toISOString().slice(0, 10);
+            const daily = _proactiveDailyCount[agentId];
+            if (daily && daily.date === today && daily.count >= maxDaily) {
+              log(`[poly-watcher] Proactive: skipped agent ${agentId.slice(0,8)} — hit daily limit ${daily.count}/${maxDaily}`);
+              continue;
+            }
+            // Reset count if new day
+            if (!daily || daily.date !== today) {
+              _proactiveDailyCount[agentId] = { date: today, count: 0 };
+            }
+
             // Check today's trade count
             const todayTrades = await edb.get(
               `SELECT COUNT(*) as cnt FROM poly_trade_log WHERE agent_id = ? AND created_at > ?`,
@@ -1336,7 +1362,11 @@ QUALITY > QUANTITY. Each trade must have analysis backing it. No blind trades.`;
                     signal: AbortSignal.timeout(10000),
                   });
                   if (resp.ok) {
-                    log(`[poly-watcher] Proactive trading: woke agent ${agentId.slice(0,8)} (${tradeCount}/${targetTrades} trades today)`);
+                    _lastProactiveByAgent[agentId] = now;
+                    const dc = _proactiveDailyCount[agentId] || { date: new Date().toISOString().slice(0, 10), count: 0 };
+                    dc.count++;
+                    _proactiveDailyCount[agentId] = dc;
+                    log(`[poly-watcher] Proactive trading: woke agent ${agentId.slice(0,8)} (${tradeCount}/${targetTrades} trades, check ${dc.count}/${maxDaily} today, interval ${intervalMins}m)`);
                     _lastSpawnByAgent[agentId] = now;
                     // Sync state to 'running' so UI reflects actual status
                     await edb.run(

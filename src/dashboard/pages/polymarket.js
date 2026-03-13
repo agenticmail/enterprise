@@ -1617,7 +1617,7 @@ export function PolymarketPage() {
         ),
         h('button', { className: 'btn btn-secondary', onClick: function() { loadDashboard(); loadAgentData(selectedAgent); } }, I('refresh-cw')),
         selectedAgent && h('button', { className: 'btn btn-secondary', onClick: function() {
-          setEditConfig(config ? Object.assign({}, config) : { mode: 'approval', max_position_size: 100, max_order_size: 50, max_total_exposure: 500, max_daily_trades: 10, max_daily_loss: 50, max_drawdown_pct: 20, stop_loss_pct: 0, take_profit_pct: 0, cash_reserve_pct: 20 });
+          setEditConfig(config ? Object.assign({}, config) : { mode: 'approval', max_position_size: 100, max_order_size: 50, max_total_exposure: 500, max_daily_trades: 10, max_daily_loss: 50, max_drawdown_pct: 20, stop_loss_pct: 0, take_profit_pct: 0, cash_reserve_pct: 20, proactive_interval_mins: 30, proactive_max_daily: 20 });
         } }, I('edit'), ' Config')
       )
     ),
@@ -4666,7 +4666,9 @@ function configModal(editConfig, setEditConfig, updateConfig) {
           numberField('Max Drawdown (%)', 'max_drawdown_pct', editConfig, setEditConfig),
           numberField('Stop Loss (%)', 'stop_loss_pct', editConfig, setEditConfig),
           numberField('Take Profit (%)', 'take_profit_pct', editConfig, setEditConfig),
-          numberField('Cash Reserve (%)', 'cash_reserve_pct', editConfig, setEditConfig)
+          numberField('Cash Reserve (%)', 'cash_reserve_pct', editConfig, setEditConfig),
+          numberField('Proactive Check Interval (min)', 'proactive_interval_mins', editConfig, setEditConfig),
+          numberField('Max Proactive Checks/Day', 'proactive_max_daily', editConfig, setEditConfig)
         )
       ),
       h('div', { className: 'modal-footer' },
