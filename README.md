@@ -111,6 +111,7 @@ Everything is managed from the dashboard — agent creation, permissions, email 
 - [Google Workspace Integration](#google-workspace-integration)
 - [145 SaaS Integration Adapters](#145-saas-integration-adapters)
 - [Enterprise Skills](#enterprise-skills)
+- [Polymarket Trading Suite](#polymarket-trading-suite)
 - [Database Backends](#database-backends)
 - [Security & Compliance](#security--compliance)
 - [Data Loss Prevention (DLP)](#data-loss-prevention-dlp)
@@ -575,8 +576,8 @@ Gmail · Calendar · Drive · Docs · Sheets · Slides · Forms · Meet · Chat 
 ### Microsoft 365 Suite (13 services, 90+ tools)
 Outlook Mail (20 tools) · Outlook Calendar (7) · Teams (15) · OneDrive (12) · Excel (16) · SharePoint (10) · OneNote (6) · Planner (6) · To Do (6) · PowerPoint (5) · Power BI (8) · Contacts (5) · Each with dedicated system prompts and Graph API integration with retry, rate-limit handling, pagination, and batch support.
 
-### Polymarket Trading Suite (10 skills, 114+ tools)
-Institutional-grade prediction market trading on [Polymarket](https://polymarket.com):
+### Polymarket Trading Suite (10 skills, 126 tools)
+Institutional-grade prediction market trading on [Polymarket](https://polymarket.com). Full details in the [Polymarket Trading Suite](#polymarket-trading-suite) section below.
 - **polymarket** (63 tools) — Trading infrastructure, orders, wallet, risk controls, learning system
 - **polymarket-quant** (14) — Kelly criterion, Black-Scholes, Bayesian, Monte Carlo, RSI/MACD/Bollinger, VaR
 - **polymarket-onchain** (6) — Whale tracking, orderbook depth, on-chain flow, wallet profiling, liquidity mapping
@@ -587,8 +588,6 @@ Institutional-grade prediction market trading on [Polymarket](https://polymarket
 - **polymarket-execution** (4) — Sniper orders, TWAP/VWAP scale-in, hedging, automated exit strategies
 - **polymarket-counterintel** (3) — Manipulation detection, resolution risk scoring, counterparty analysis
 - **polymarket-portfolio** (3) — Portfolio optimization, drawdown monitoring, P&L attribution
-
-Full dashboard with daily scorecard, 22 tabs, dedicated system prompt, auto-SDK install, 25+ DB tables, SSE real-time updates.
 
 ### Enterprise Custom Suite (16+)
 Calendar · Code Sandbox · Database · Diff · Documents · Finance · HTTP · Knowledge Search · Logs · Notifications · Security Scan · Spreadsheet · Translation · Vision · Web Research · Workflow
@@ -615,6 +614,238 @@ Calendar · Code Sandbox · Database · Diff · Documents · Finance · HTTP · 
 | Custom | Build your own from scratch |
 
 Custom role templates can be created and managed via the **Roles** dashboard page.
+
+---
+
+## Polymarket Trading Suite
+
+Institutional-grade autonomous prediction market trading on [Polymarket](https://polymarket.com) (Polygon/USDC). Deploy AI agents that research, analyze, execute, and learn from trades — with full risk management, multi-layer monitoring, and a 23-tab real-time dashboard.
+
+**126 tools across 10 skill modules. 23 dashboard tabs. 17+ database tables. 75+ API routes. 12 watcher types. 3 trading modes.**
+
+### Trading Modes
+
+| Mode | Behavior |
+|------|----------|
+| **Approval** (default) | All trades queue to "Pending Trades" for human review. Manager approves/rejects from the dashboard. |
+| **Autonomous** | Auto-executes trades that pass all risk checks: size < max, count < daily limit, positive Kelly edge, no circuit breaker. All trades logged and auditable. |
+| **Paper** | Simulated trading. Records predictions, tracks P&L as if real money. Useful for testing strategies. |
+
+### Dashboard (23 Tabs)
+
+The Polymarket dashboard is a full trading terminal with real-time data:
+
+| Group | Tabs |
+|-------|------|
+| **Trading** | Overview, Wallet, Pending Orders, Trades, Paper, Goals |
+| **Automation** | Monitors, Signals |
+| **Journal** | Journal, Strategies, Lessons |
+| **Orders** | Orders, Hedges, Exit Rules |
+| **Intelligence** | On-Chain, Social, Events, Alerts |
+| **Analytics** | Analytics, Drawdown, Attribution, Calibration |
+| **Settings** | Proxy |
+
+**Key dashboard features:**
+- **Live Position Chart** — Real-time streaming prices from Polymarket CLOB, updated every 3 seconds, multi-line chart showing % change from entry for each open position
+- **Daily Scorecard** — Realized + unrealized P&L, win rate, target progress, available capital, open positions
+- **Buy/Sell Modals** — Search markets, review orderbook depth, confirm trades with risk checks
+- **SSE Real-Time Updates** — Dashboard auto-refreshes on new trades, signals, alerts, and position changes
+- **Wallet Management** — Balance, transactions, transfers, token swaps, conditional token redemption, whitelisted addresses, security PIN
+
+### Monitoring & Automation
+
+Two independent monitoring layers run 24/7, even with no active agent session:
+
+#### Watchers (AI-Powered, 12 Types)
+
+Server-side every 15 seconds. AI analyzes raw data with configurable LLM (Grok, GPT-4o-mini, etc.):
+
+| Watcher Type | What It Detects |
+|-------------|-----------------|
+| **price_level** | Price crosses a target threshold (above/below) |
+| **price_change** | Percentage price movement (e.g., 10% move) |
+| **news_intelligence** | Breaking news impact on markets (AI-analyzed) |
+| **geopolitical** | War, elections, sanctions, regime changes (AI-analyzed) |
+| **sentiment_shift** | Twitter/Reddit consensus shifts |
+| **volume_surge** | Unusual trading activity spikes |
+| **crypto_price** | Cryptocurrency price tracking for crypto-exposed markets |
+| **resolution_watch** | Market resolution detection |
+| **portfolio_drift** | Category exposure exceeds threshold |
+| **cross_signal** | Correlation between multiple market signals |
+| **arbitrage_scan** | YES+NO != $1.00 or multi-outcome inconsistencies |
+| **market_scan** | Bulk market scanning by category or keyword |
+
+**Auto-trade capability:** Watchers can auto-execute trades when critical signals fire:
+```json
+{ "auto_action": { "action": "SELL", "token_id": "...", "size": 10, "market_question": "..." } }
+```
+
+#### Alerts (Simple Price Triggers)
+
+Price-level triggers with optional auto-trade execution:
+
+| Pattern | How It Works |
+|---------|-------------|
+| **Stop-loss** | Alert at max loss threshold → auto-SELL |
+| **Take-profit** | Alert at profit target (e.g., entry $0.52, target $0.676) → auto-SELL |
+| **Dip buy** | Alert when price drops below target → auto-BUY |
+| **News-driven** | Watcher detects bad/good news → auto-exit/enter |
+
+#### Automatic Exit System (3-Layer OCO)
+
+Every BUY is auto-protected with three layers — no manual setup required:
+
+1. **Bracket Take-Profit** — Auto-sells at +15% above buy price
+2. **Bracket Stop-Loss** — Auto-sells at -10% below buy price
+3. **Trailing Stop** — Tracks peak price, sells if drops 12% from peak
+
+All three are OCO (One-Cancel-Other): when any fires, the others auto-cancel. Configurable via `poly_bracket_config`.
+
+### 126 Agent Tools (10 Skill Modules)
+
+#### Market Discovery & Screening
+| Tool | Purpose |
+|------|---------|
+| `poly_search_markets` | Keyword search across all markets |
+| `poly_screen_markets` | Strategy-based screening (high_volume, momentum, contested, closing_soon, best_opportunities) |
+| `poly_get_market` | Get full market data by slug |
+| `poly_momentum_scanner` | Find price movers right now |
+| `poly_breaking_news` | News-driven opportunities |
+| `poly_calendar_events` | Upcoming market-moving events |
+| `poly_odds_aggregator` | Compare odds vs other prediction/betting platforms |
+
+#### Quantitative Analysis (14 Tools)
+Kelly criterion, Black-Scholes binary pricing, Bayesian probability updates, Monte Carlo simulations, RSI/MACD/Bollinger Bands, historical/implied volatility, statistical arbitrage, Value-at-Risk, market entropy, and more.
+
+#### On-Chain Intelligence (6 Tools)
+Whale tracking, L2 orderbook depth analysis, net buy/sell flow detection, wallet sophistication profiling, liquidity mapping, CTF framework transaction decoding.
+
+#### Social & News Intelligence (5 Tools)
+Twitter sentiment analysis, Reddit consensus, Telegram alpha monitoring, Polymarket community discussion, social velocity (sentiment acceleration).
+
+#### Market Analytics (5 Tools)
+Pearson correlation detection, arbitrage scanning (free money when YES+NO != $1), regime detection (trending vs mean-reverting via Hurst exponent), smart money index (composite of whale + orderbook + momentum), manipulation detection (wash trading/spoofing).
+
+#### Execution (4 Tools)
+| Tool | Purpose |
+|------|---------|
+| `poly_place_order` | Standard order execution |
+| `poly_sniper` | Trailing limit orders for time-sensitive entries |
+| `poly_scale_in` | TWAP/VWAP for large positions (>$50) |
+| `poly_hedge` | Correlation-based hedging |
+
+#### Position & Portfolio Management
+| Tool | Purpose |
+|------|---------|
+| `poly_exit_strategy` | Configure SL/TP/trailing/time-based exits per position |
+| `poly_position_heatmap` | Urgency-ranked view of open positions (CRITICAL/HIGH/MEDIUM/LOW) |
+| `poly_portfolio_optimizer` | Concentration analysis and rebalancing suggestions |
+| `poly_drawdown_monitor` | Portfolio drawdown tracking with threshold alerts |
+| `poly_capital_recycler` | Evaluate redeployment opportunities for freed capital |
+| `poly_profit_lock` | Circuit breaker — halts trading if daily loss threshold exceeded |
+| `poly_daily_scorecard` | Daily P&L dashboard with realized/unrealized breakdown |
+| `poly_pnl_attribution` | P&L breakdown by market and category |
+
+#### Learning & Calibration System
+| Tool | Purpose |
+|------|---------|
+| `poly_record_prediction` | Pre-trade journal: predicted outcome, confidence, signals, reasoning |
+| `poly_resolve_prediction` | Post-trade: actual outcome, was_correct, P&L |
+| `poly_trade_review` | Win/loss analysis with lessons extraction |
+| `poly_record_lesson` | Store actionable lessons by category (entry timing, risk management, etc.) |
+| `poly_recall_lessons` | Retrieve relevant lessons before trading similar markets |
+| `poly_calibration` | Confidence calibration: tracks overconfidence/underconfidence across 10 buckets |
+| `poly_strategy_performance` | Win rate, total P&L, Brier score by strategy |
+
+#### Counter-Intelligence (3 Tools)
+Manipulation detection (wash trading, spoofing, layering), resolution risk scoring (ambiguous resolution criteria), counterparty analysis (retail vs whale distribution).
+
+### Risk Management
+
+Built-in risk rules enforced at the system level:
+
+| Rule | Limit |
+|------|-------|
+| Max position size | 5% of bankroll (half-Kelly or quarter-Kelly) |
+| Max single-market exposure | 20% of portfolio |
+| Max category exposure | 30% of portfolio |
+| Drawdown > 15% | Reduce all positions by 50% |
+| Drawdown > 25% | Close all positions |
+| Daily loss > 5% | Halt trading |
+| Min liquidity | $5K (skip markets below this) |
+| Slippage > 2% | Limit orders only |
+| Slippage > 5% | Walk away |
+| Resolution proximity | Exit 24h before unless >90% conviction |
+
+**Circuit breakers:** `poly_profit_lock` enforces trading mode changes based on daily P&L (NORMAL → CONSERVATIVE → LOCKED).
+
+### Trading Philosophy
+
+The system prompt enforces **profit over activity** with four time horizons:
+
+| Horizon | Duration | Strategy |
+|---------|----------|----------|
+| **Scalp** | Minutes-hours | Momentum, news spikes, mispricing |
+| **Swing** | 1-7 days | Trend-following, event anticipation |
+| **Position** | 1-4 weeks | Fundamental conviction, value bets |
+| **Hold to resolution** | Weeks-months | Deep research, contrarian, >15% edge |
+
+Agents are guided to prioritize managing existing positions over placing new trades. No good setups = no new trades.
+
+### Wallet & Security
+
+| Feature | Description |
+|---------|-------------|
+| **Encrypted storage** | Private keys and API credentials stored encrypted in `poly_wallet_credentials` |
+| **Multi-RPC fallback** | 5 Polygon RPCs tried sequentially — never caches failed $0 balances |
+| **Whitelisted addresses** | Per-address transfer limits (per-tx + daily caps) |
+| **Transfer approval** | All transfers require dashboard approval |
+| **Security PIN** | Optional PIN for sensitive wallet operations |
+| **Token swaps** | USDC.e/USDC/MATIC swaps from dashboard |
+| **Conditional token redemption** | Redeem winning positions directly from dashboard |
+
+### Proactive Agent Behavior
+
+The watcher engine periodically wakes trading agents for portfolio checks:
+
+1. **Priority 1 — Manage Positions:** Check unread signals, review daily P&L, check position heatmap, verify exit conditions, monitor drawdown
+2. **Priority 2 — Review Performance:** Check calibration accuracy, review P&L attribution, evaluate goals
+3. **Priority 3 — Find Opportunities:** Only if genuine edge exists — momentum scan, breaking news, then full analysis pipeline
+
+Agents are never pressured to hit trade count targets. The system respects agent pause commands and balance gates (won't wake if wallet < $5).
+
+### Database Tables (17+)
+
+| Table | Purpose |
+|-------|---------|
+| `poly_wallet_credentials` | Encrypted keys, API creds, RPC URLs |
+| `poly_trading_config` | Agent trading parameters, mode, limits |
+| `poly_pending_trades` | Approval-gated trade queue |
+| `poly_trade_log` | Complete trade history with fills, fees, P&L |
+| `poly_price_alerts` | Price triggers with optional auto-trade |
+| `poly_paper_positions` | Paper trading simulation positions |
+| `poly_daily_counters` | Daily trade count + loss tracking |
+| `poly_auto_approve_rules` | Auto-approval by category/size |
+| `poly_whitelisted_addresses` | Approved withdrawal addresses |
+| `poly_transfer_requests` | Transfer approval queue |
+| `poly_predictions` | Pre-trade prediction journal |
+| `poly_strategy_stats` | Strategy win rates, P&L, Brier scores |
+| `poly_lessons` | Distilled lessons learned |
+| `poly_calibration` | Confidence calibration buckets |
+| `poly_watchers` | Watcher configurations |
+| `poly_watcher_events` | AI-analyzed signals |
+| `poly_watcher_config` | LLM model + budget for watchers |
+| `poly_proxy_config` | CLOB proxy (HTTP/SSH SOCKS) |
+
+### Getting Started with Polymarket
+
+1. **Create an agent** with the Polymarket skill assigned
+2. Agent runs `poly_create_account` → `poly_setup_wallet` → `poly_set_allowances`
+3. Fund the wallet with USDC.e on Polygon
+4. Configure watcher AI model: `poly_watcher_config action=set provider=xai model=grok-3-mini`
+5. Agent runs `poly_setup_monitors` to create the full monitoring suite
+6. Set trading mode: approval (default), autonomous, or paper
+7. Monitor everything from the 23-tab dashboard
 
 ---
 
