@@ -5109,7 +5109,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const tradesToday = counter?.trade_count || 0;
 
       // Daily goal target
-      const dailyGoal = await edb()?.get(`SELECT target_value FROM poly_goals WHERE agent_id = ? AND type IN ('daily_pnl_usd', 'daily_pnl_pct') AND enabled = 1 ORDER BY type ASC LIMIT 1`, [agentId]).catch(() => null) as any;
+      // Prefer daily_pnl_usd (absolute $) over daily_pnl_pct (percentage) — the scorecard modal sets USD targets
+      const dailyGoal = await edb()?.get(`SELECT target_value, type FROM poly_goals WHERE agent_id = ? AND type IN ('daily_pnl_usd', 'daily_pnl_pct') AND enabled = 1 ORDER BY CASE type WHEN 'daily_pnl_usd' THEN 0 ELSE 1 END LIMIT 1`, [agentId]).catch(() => null) as any;
       const dailyTarget = dailyGoal?.target_value || 0;
 
       const totalPnl = realizedPnl + unrealizedPnl;
