@@ -1230,13 +1230,6 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
             ).catch(() => ({ cnt: 0 }));
             const tradeCount = parseInt(todayTrades?.cnt || '0');
 
-            // Check min daily trades goal (filter by agent_id)
-            const goal = await edb.get(
-              `SELECT target_value FROM poly_goals WHERE agent_id = ? AND type = 'min_trades_daily' AND enabled = 1`,
-              [agentId]
-            ).catch(() => null);
-            const targetTrades = goal?.target_value || 15;
-
             // Check if user explicitly paused proactive wakes (said stop/abort)
             const pauseRow = await edb.get(
               `SELECT paused_at FROM poly_proactive_pause WHERE agent_id = ?`, [agentId]
@@ -1262,8 +1255,8 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
               continue;
             }
 
-            // Wake agent via HTTP API if behind on trades
-            if (tradeCount < targetTrades) {
+            // Wake agent via HTTP API for proactive portfolio check
+            {
               // ── Balance gate — don't wake if wallet can't afford minimum trade ──
               try {
                 const walletRow = await edb.get(`SELECT address FROM poly_wallets WHERE agent_id = ?`, [agentId]).catch(() => null);
@@ -1288,29 +1281,27 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
                 const dep = agentConfig?.deployment;
                 const port = dep?.port || dep?.config?.local?.port || 3101;
                 const secret = process.env.AGENT_RUNTIME_SECRET || '';
-                const wakeMsg = `[PROACTIVE TRADING CHECK] You have ${tradeCount}/${targetTrades} trades today — ${targetTrades - tradeCount} more needed.
+                const wakeMsg = `[PROACTIVE PORTFOLIO CHECK] Today: ${tradeCount} trades placed.
 
-MANDATORY SEQUENCE (do ALL of these IN ORDER before placing any new trades):
+PRIORITY 1 — MANAGE EXISTING POSITIONS:
+1. poly_watcher_events action=check — Check for unread signals. Act on critical ones.
+2. poly_daily_scorecard — Review today's P&L. Are you profitable?
+3. poly_position_heatmap — Check all open positions. CRITICAL/HIGH urgency first.
+4. poly_exit_strategy action=check — Any exit conditions triggered?
+5. poly_drawdown_monitor action=check — Portfolio-level risk. HALT if drawdown > 15%.
 
-1. poly_watcher_events action=check — Check for unread signals first
-2. poly_goals action=check — Review your performance targets
-3. poly_drawdown_monitor action=check — Check portfolio-level risk. HALT if drawdown > 15%
-4. poly_calibration — Review your prediction accuracy. Are you over/under-confident?
-5. poly_pnl_attribution — Which strategies and categories are making/losing money?
-6. poly_strategy_performance — Which strategies are actually profitable? Double down on winners.
-7. poly_get_positions — Review all open positions, check P&L drift
-8. poly_exit_strategy action=check — Check if any exit conditions triggered
+PRIORITY 2 — REVIEW PERFORMANCE:
+6. poly_calibration — Are your predictions accurate?
+7. poly_pnl_attribution — Which strategies/categories are making money?
+8. poly_goals action=check — Review P&L targets (not trade count targets).
 
-ONLY AFTER completing the above analysis:
-9. poly_screen_markets with strategies: high_volume, momentum, contested, closing_soon
-10. poly_search_markets for sports: NBA, MLB, Premier League, Champions League, UFC
-11. For EACH candidate: run poly_quick_analysis + poly_resolution_risk + poly_manipulation_detector
-12. Use poly_kelly_criterion for position sizing — do NOT just buy random $5 positions
-13. For orders > $50: use poly_scale_in (TWAP/VWAP), NOT market orders
-14. For time-sensitive opportunities: use poly_sniper with trailing limits
-15. Consider poly_hedge for correlated positions
+PRIORITY 3 — LOOK FOR OPPORTUNITIES (ONLY if you have edge):
+9. poly_momentum_scanner — Any movers with real edge?
+10. poly_breaking_news — News-driven opportunities?
+11. For candidates: poly_quick_edge → poly_resolution_risk → size with Kelly
 
-QUALITY > QUANTITY. Each trade must have analysis backing it. No blind trades.`;
+Remember: NO good setups = NO new trades. Managing profitable positions IS working.
+A day with $50 profit from 2 trades beats a day with -$10 from 15 trades.`;
 
 
                 // Determine the manager's preferred communication channel
@@ -1366,7 +1357,7 @@ QUALITY > QUANTITY. Each trade must have analysis backing it. No blind trades.`;
                     const dc = _proactiveDailyCount[agentId] || { date: new Date().toISOString().slice(0, 10), count: 0 };
                     dc.count++;
                     _proactiveDailyCount[agentId] = dc;
-                    log(`[poly-watcher] Proactive trading: woke agent ${agentId.slice(0,8)} (${tradeCount}/${targetTrades} trades, check ${dc.count}/${maxDaily} today, interval ${intervalMins}m)`);
+                    log(`[poly-watcher] Proactive check: woke agent ${agentId.slice(0,8)} (${tradeCount} trades today, check ${dc.count}/${maxDaily}, interval ${intervalMins}m)`);
                     _lastSpawnByAgent[agentId] = now;
                     // Sync state to 'running' so UI reflects actual status
                     await edb.run(
