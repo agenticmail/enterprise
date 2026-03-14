@@ -71,40 +71,47 @@ export function createPolymarketPortfolioTools(opts?: ToolCreationOptions): AnyA
 
           // Auto-compute current_value from wallet when not provided
           let currentValue = p.current_value;
-          if (!currentValue && (p.action === 'record' || p.action === 'check')) {
+          if (currentValue == null && (p.action === 'record' || p.action === 'check')) {
             try {
               const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
               const addr = (creds[0] as any)?.funder_address;
               if (addr) {
-                // Get exchange balance
-                let exchBal = 0;
-                try {
-                  const { getClobClient } = await import('./polymarket-runtime.js');
-                  const client = await getClobClient(agentId, db);
-                  if (client) {
-                    const bal = await (client as any).getBalanceAllowance({ asset_type: 'COLLATERAL' });
-                    exchBal = Number(bal?.balance || 0) / 1e6;
-                  }
-                } catch {}
-                // Get position values
+                // Get wallet USDC.e balance via RPC (multi-RPC fallback)
+                let walletBal = 0;
+                const RPCS = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com', 'https://rpc.ankr.com/polygon'];
+                const addrHex = addr.slice(2).toLowerCase();
+                const callData = '0x70a08231000000000000000000000000' + addrHex;
+                for (const rpc of RPCS) {
+                  try {
+                    const r = await fetch(rpc, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', data: callData }, 'latest'] }),
+                      signal: AbortSignal.timeout(4000),
+                    }).then(r => r.json());
+                    if (r?.result && !r.error) { walletBal = Number(BigInt(r.result)) / 1e6; break; }
+                  } catch {}
+                }
+                // Get position values from Data API
                 let posValue = 0;
                 try {
                   const positions = await apiFetch(`https://data-api.polymarket.com/positions?user=${addr}`);
                   if (Array.isArray(positions)) {
                     for (const pos of positions) {
                       if (!pos.resolved && !pos.closed) {
-                        posValue += (Number(pos.size || 0) * Number(pos.currentPrice || pos.price || 0));
+                        const size = Number(pos.size || 0);
+                        const price = Number(pos.curPrice ?? pos.current_price ?? pos.price ?? 0);
+                        posValue += size * price;
                       }
                     }
                   }
                 } catch {}
-                currentValue = exchBal + posValue;
+                currentValue = walletBal + posValue;
               }
             } catch {}
           }
 
           if (p.action === 'record' || p.action === 'check') {
-            if (!currentValue) return jsonResult({ latest: null, note: 'No portfolio value available yet. Make a trade first, then drawdown tracking begins automatically.' });
+            if (currentValue == null) return jsonResult({ latest: null, note: 'No portfolio value available yet. Make a trade first, then drawdown tracking begins automatically.' });
             const rows = await safeDbQuery(db, `SELECT MAX(peak) as max_peak FROM poly_drawdown_log`);
             const prevPeak = (rows[0] as any)?.max_peak || currentValue;
             const peak = Math.max(prevPeak, currentValue);
