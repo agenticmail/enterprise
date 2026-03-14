@@ -2,6 +2,7 @@ import { h, useState, useEffect, useCallback, Fragment } from '../components/uti
 import { apiCall, authCall, engineCall } from '../components/utils.js';
 import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
+import { LoginAnimation } from '../components/login-animations.js';
 
 var _b = typeof window !== 'undefined' && window.__EM_BRANDING__ || {};
 var _brandLogo = _b.login_logo || _b.logo || _brandLogo;
@@ -128,8 +129,9 @@ export function LoginPage({ onLogin }) {
   // ─── 2FA Verification Screen ──────────────────────────
 
   if (needs2fa) {
-    return h('div', { className: 'login-page', style: _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {} },
-      h('div', { className: 'login-card' },
+    return h('div', { className: 'login-page', style: Object.assign({ position: 'relative', overflow: 'hidden' }, _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {}) },
+      !_brandBg && h(LoginAnimation),
+      h('div', { className: 'login-card', style: { position: 'relative', zIndex: 1 } },
         h('div', { className: 'login-logo' },
           h('img', { src: _brandLogo, alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
           h('h1', null, 'Two-Factor Authentication'),
@@ -161,8 +163,9 @@ export function LoginPage({ onLogin }) {
   // ─── Forgot Password Screen ──────────────────────────
 
   if (forgotMode) {
-    return h('div', { className: 'login-page', style: _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {} },
-      h('div', { className: 'login-card' },
+    return h('div', { className: 'login-page', style: Object.assign({ position: 'relative', overflow: 'hidden' }, _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {}) },
+      !_brandBg && h(LoginAnimation),
+      h('div', { className: 'login-card', style: { position: 'relative', zIndex: 1 } },
         h('div', { className: 'login-logo' },
           h('img', { src: _brandLogo, alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
           h('h1', null, 'Reset Password'),
@@ -257,8 +260,9 @@ export function LoginPage({ onLogin }) {
 
   // ─── Main Login Screen ────────────────────────────────
 
-  return h('div', { className: 'login-page', style: _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {} },
-    h('div', { className: 'login-card' },
+  return h('div', { className: 'login-page', style: Object.assign({ position: 'relative', overflow: 'hidden' }, _brandBg ? { backgroundImage: 'url(' + _brandBg + ')', backgroundSize: 'cover', backgroundPosition: 'center' } : {}) },
+    !_brandBg && h(LoginAnimation),
+    h('div', { className: 'login-card', style: { position: 'relative', zIndex: 1 } },
       h('div', { className: 'login-logo' },
         h('img', { src: _brandLogo, alt: 'AgenticMail', style: { width: 48, height: 48, objectFit: 'contain' } }),
         h('h1', null, 'AgenticMail Enterprise'),
