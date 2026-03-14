@@ -1041,8 +1041,8 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           if (p.category) qs.set('tag', p.category);
 
           // For closing_soon, sort by end_date ascending
-          if (p.sort_by === 'closing_soon') { qs.set('order', 'end_date'); qs.set('ascending', 'true'); }
-          if (p.sort_by === 'new') { qs.set('order', 'created_at'); qs.set('ascending', 'false'); }
+          if (p.sort_by === 'closing_soon') { qs.set('order', 'endDate'); qs.set('ascending', 'true'); }
+          if (p.sort_by === 'new') { qs.set('order', 'createdAt'); qs.set('ascending', 'false'); }
 
           const raw = await apiFetch(`${GAMMA_API}/markets?${qs}`);
           return jsonResult({ count: (raw || []).length, markets: (Array.isArray(raw) ? raw : []).map(slimMarket) });

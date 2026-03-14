@@ -261,7 +261,7 @@ export async function screenMarkets(opts: ScreenerOptions = {}): Promise<Screene
   switch (strategy) {
     case 'high_volume': fetchParams.order = 'volume'; fetchParams.ascending = 'false'; break;
     case 'closing_soon': {
-      fetchParams.order = 'end_date';
+      fetchParams.order = 'endDate';
       fetchParams.ascending = 'true';
       // Only fetch markets ending in the future — prevents API returning expired markets
       fetchParams.end_date_min = new Date().toISOString();

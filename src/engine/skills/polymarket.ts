@@ -119,7 +119,7 @@ export const TOOLS: ToolDefinition[] = [
         closed: { type: 'boolean', description: 'Include closed/resolved markets', default: false },
         limit: { type: 'number', description: 'Max results (1-100)', default: 20 },
         offset: { type: 'number', description: 'Pagination offset', default: 0 },
-        order: { type: 'string', enum: ['volume', 'liquidity', 'start_date', 'end_date', 'created_at'], default: 'volume' },
+        order: { type: 'string', enum: ['volume', 'liquidity', 'startDate', 'endDate', 'createdAt'], default: 'volume' },
         ascending: { type: 'boolean', default: false },
         min_volume: { type: 'number', description: 'Minimum total volume in USDC' },
         min_liquidity: { type: 'number', description: 'Minimum current liquidity in USDC' },
