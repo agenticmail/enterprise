@@ -530,7 +530,7 @@ engine.route('/org-integrations', createOrgIntegrationRoutes(orgIntegrations));
 // Database Access system
 import { DatabaseConnectionManager, createDatabaseAccessRoutes } from '../database-access/index.js';
 const databaseManager = new DatabaseConnectionManager({ vault });
-engine.route('/database', createDatabaseAccessRoutes(databaseManager));
+engine.route('/database', createDatabaseAccessRoutes(databaseManager, lifecycle));
 
 // ─── Hierarchy / Management API ─────────────────────────
 engine.get('/hierarchy/org-chart', async (c) => {

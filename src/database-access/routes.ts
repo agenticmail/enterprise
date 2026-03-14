@@ -7,15 +7,19 @@
 
 import { Hono } from 'hono';
 import type { DatabaseConnectionManager } from './connection-manager.js';
+import type { AgentLifecycleManager } from '../engine/lifecycle.js';
+
+let _lifecycle: AgentLifecycleManager | undefined;
 
 async function notifyAgentReload(agentId: string) {
   try {
     const { notifyAgent } = await import('../engine/agent-notify.js');
-    await notifyAgent(agentId, 'db-access');
+    await notifyAgent(agentId, 'db-access', _lifecycle);
   } catch { /* non-fatal */ }
 }
 
-export function createDatabaseAccessRoutes(manager: DatabaseConnectionManager) {
+export function createDatabaseAccessRoutes(manager: DatabaseConnectionManager, lifecycle?: AgentLifecycleManager) {
+  _lifecycle = lifecycle;
   const router = new Hono();
 
   // ─── Connections ─────────────────────────────────────────────────────────
