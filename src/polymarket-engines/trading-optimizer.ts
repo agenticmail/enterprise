@@ -207,19 +207,23 @@ export async function momentumScan(params?: {
       const liquidity = parseFloat(m.liquidity || '0');
       if (liquidity < 200) return; // Skip very illiquid (lowered from $1000)
 
-      // Get price history to detect movement
-      const history = await fetchPriceHistory(tokenId).catch(() => []);
+      // Get 24h price history (~20 data points at 1d/fidelity=60)
+      const history = await fetchPriceHistory(tokenId, '1d').catch(() => []);
       if (history.length < 2) return;
 
-      // Compare current price vs 1 hour ago (second-to-last hourly data point)
-      // Also check 4h ago for medium-term momentum
-      const price1hAgo = history[history.length - 2];
-      const price4hAgo = history.length >= 5 ? history[history.length - 5] : history[0];
-      const changePct1h = price1hAgo > 0 ? ((currentPrice - price1hAgo) / price1hAgo) * 100 : 0;
-      const changePct4h = price4hAgo > 0 ? ((currentPrice - price4hAgo) / price4hAgo) * 100 : 0;
-      // Use the larger of 1h or 4h change to catch both fast and building momentum
-      const changePct = Math.abs(changePct1h) >= Math.abs(changePct4h) ? changePct1h : changePct4h;
-      const hoursAgo = Math.abs(changePct1h) >= Math.abs(changePct4h) ? price1hAgo : price4hAgo;
+      // Compare current price vs recent history points
+      // With ~20 data points over 24h, each point is ~1.2h apart
+      const priceRecent = history[history.length - 2]; // ~1-2h ago
+      const priceMid = history.length >= 5 ? history[history.length - 5] : history[0]; // ~5-6h ago
+      const priceOld = history[0]; // ~24h ago
+      const changeRecent = priceRecent > 0 ? ((currentPrice - priceRecent) / priceRecent) * 100 : 0;
+      const changeMid = priceMid > 0 ? ((currentPrice - priceMid) / priceMid) * 100 : 0;
+      const change24h = priceOld > 0 ? ((currentPrice - priceOld) / priceOld) * 100 : 0;
+      // Use the largest absolute change to catch momentum at any timeframe
+      const changes = [{ pct: changeRecent, ref: priceRecent }, { pct: changeMid, ref: priceMid }, { pct: change24h, ref: priceOld }];
+      changes.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+      const changePct = changes[0].pct;
+      const hoursAgo = changes[0].ref;
 
       if (Math.abs(changePct) < minChange) return;
       const direction = changePct > 0 ? 'UP' : 'DOWN';

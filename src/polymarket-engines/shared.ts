@@ -454,13 +454,14 @@ export async function fetchPriceSeries(tokenId: string, limit = 200): Promise<nu
 
 /** Fetch price history (hourly) from CLOB */
 const priceHistoryCache = new Map<string, { data: number[]; ts: number }>();
-export async function fetchPriceHistory(tokenId: string): Promise<number[]> {
-  const cached = priceHistoryCache.get(tokenId);
+export async function fetchPriceHistory(tokenId: string, interval = '1d'): Promise<number[]> {
+  const cacheKey = tokenId + ':' + interval;
+  const cached = priceHistoryCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < 5 * 60_000) return cached.data;
   try {
-    const data = await cachedFetchJSON(`${CLOB_API}/prices-history?market=${tokenId}&interval=1h&fidelity=60`);
+    const data = await cachedFetchJSON(`${CLOB_API}/prices-history?market=${tokenId}&interval=${interval}&fidelity=60`);
     const prices = (data?.history || []).map((p: any) => parseFloat(p.p || p.price || '0')).filter((p: number) => p > 0);
-    priceHistoryCache.set(tokenId, { data: prices, ts: Date.now() });
+    priceHistoryCache.set(cacheKey, { data: prices, ts: Date.now() });
     return prices;
   } catch { return []; }
 }

@@ -887,6 +887,11 @@ export async function runAgent(_args: string[]) {
     taskQueue,
     sessionRouter,
     spawnForTask: async (task) => {
+      // Only recover tasks assigned to THIS agent — don't spawn sessions for other agents' tasks
+      if (task.assignedTo && task.assignedTo !== agentId) {
+        console.log(`[TaskPoller] Skipping task ${task.id.slice(0, 8)} — assigned to ${task.assignedToName || task.assignedTo}, not this agent`);
+        return null;
+      }
       try {
         const session = await runtime.spawnSession({
           agentId,
