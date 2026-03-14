@@ -1204,8 +1204,17 @@ function _startFastLoop(db: any, opts: WatcherEngineOpts) {
             const tcfgRow = await edb.get(
               `SELECT proactive_interval_mins, proactive_max_daily FROM poly_trading_config WHERE agent_id = ?`, [agentId]
             ).catch(() => null);
-            const intervalMins = Math.max(10, parseInt(tcfgRow?.proactive_interval_mins || '30') || 30);
-            const maxDaily = Math.max(0, parseInt(tcfgRow?.proactive_max_daily || '20') || 20);
+            // Parse with null-awareness: 0 means "disabled", don't fall back to defaults
+            const rawInterval = tcfgRow?.proactive_interval_mins;
+            const rawMaxDaily = tcfgRow?.proactive_max_daily;
+            const intervalMins = rawInterval != null ? Math.max(0, parseInt(rawInterval) || 0) : 30;
+            const maxDaily = rawMaxDaily != null ? Math.max(0, parseInt(rawMaxDaily) || 0) : 20;
+
+            // Proactive checks disabled if interval=0 or maxDaily=0
+            if (intervalMins === 0 || maxDaily === 0) {
+              log(`[poly-watcher] Proactive: skipped agent ${agentId.slice(0,8)} — disabled (interval=${intervalMins}m, maxDaily=${maxDaily})`);
+              continue;
+            }
 
             // Check per-agent interval
             const lastWake = _lastProactiveByAgent[agentId] || 0;

@@ -4764,8 +4764,8 @@ function configModal(editConfig, setEditConfig, updateConfig) {
           numberField('Stop Loss (%)', 'stop_loss_pct', editConfig, setEditConfig),
           numberField('Take Profit (%)', 'take_profit_pct', editConfig, setEditConfig),
           numberField('Cash Reserve (%)', 'cash_reserve_pct', editConfig, setEditConfig),
-          numberField('Proactive Check Interval (min)', 'proactive_interval_mins', editConfig, setEditConfig),
-          numberField('Max Proactive Checks/Day', 'proactive_max_daily', editConfig, setEditConfig)
+          numberField('Proactive Check Interval (min, 0=off)', 'proactive_interval_mins', editConfig, setEditConfig),
+          numberField('Max Proactive Checks/Day (0=off)', 'proactive_max_daily', editConfig, setEditConfig)
         )
       ),
       h('div', { className: 'modal-footer' },
