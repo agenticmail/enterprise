@@ -3929,46 +3929,53 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       // Parallel fetch: USDC.e (bridged) + USDC (native) + POL balance
       const USDC_E_CONTRACT = USDC_E_SHARED;
       const USDC_NATIVE_CONTRACT = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // Native USDC — NOT directly usable on Polymarket
-      const POLYGON_RPCS = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com'];
-      let POLYGON_RPC = POLYGON_RPCS[0];
-      // Find a working RPC
-      for (const rpc of POLYGON_RPCS) {
-        try {
-          const test = await fetch(rpc, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'eth_blockNumber', params: [] }),
-            signal: AbortSignal.timeout(3000) }).then(r => r.json());
-          if (test?.result) { POLYGON_RPC = rpc; break; }
-        } catch {}
-      }
+      const POLYGON_RPCS = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com', 'https://polygon-rpc.com', 'https://rpc.ankr.com/polygon'];
       const addrHex = address.slice(2).toLowerCase();
       const balanceOfData = '0x70a08231000000000000000000000000' + addrHex;
+      const safeBigInt = (hex: string): bigint => { try { return hex && hex.length > 2 ? BigInt(hex) : 0n; } catch { return 0n; } };
 
-      const [usdceRes, usdcNativeRes, maticRes] = await Promise.all([
-        fetch(POLYGON_RPC, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [
-            { to: USDC_E_CONTRACT, data: balanceOfData }, 'latest'
-          ] })
-        }).then(r => r.json()).catch(() => null),
-        fetch(POLYGON_RPC, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'eth_call', params: [
-            { to: USDC_NATIVE_CONTRACT, data: balanceOfData }, 'latest'
-          ] })
-        }).then(r => r.json()).catch(() => null),
-        fetch(POLYGON_RPC, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'eth_getBalance', params: [address, 'latest'] })
-        }).then(r => r.json()).catch(() => null),
-      ]);
+      // Try each RPC until we get a valid balance response (not just a ping)
+      let usdceRes: any = null, usdcNativeRes: any = null, maticRes: any = null;
+      let rpcSuccess = false;
+      for (const rpc of POLYGON_RPCS) {
+        try {
+          const [r1, r2, r3] = await Promise.all([
+            fetch(rpc, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [
+                { to: USDC_E_CONTRACT, data: balanceOfData }, 'latest'
+              ] }),
+              signal: AbortSignal.timeout(5000),
+            }).then(r => r.json()).catch(() => null),
+            fetch(rpc, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'eth_call', params: [
+                { to: USDC_NATIVE_CONTRACT, data: balanceOfData }, 'latest'
+              ] }),
+              signal: AbortSignal.timeout(5000),
+            }).then(r => r.json()).catch(() => null),
+            fetch(rpc, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'eth_getBalance', params: [address, 'latest'] }),
+              signal: AbortSignal.timeout(5000),
+            }).then(r => r.json()).catch(() => null),
+          ]);
+          // Check if at least USDC.e returned a valid result (primary balance)
+          if (r1?.result && !r1.error) {
+            usdceRes = r1; usdcNativeRes = r2; maticRes = r3;
+            rpcSuccess = true;
+            break;
+          }
+        } catch {}
+      }
 
       const cached = balanceCache.get(address);
 
+      // Start with cached values as fallback (don't default to 0)
       let usdceBalance = cached?.usdce ?? 0;
       let usdcNativeBalance = cached?.usdcNative ?? 0;
       let maticBalance = cached?.matic ?? 0;
 
-      const safeBigInt = (hex: string): bigint => { try { return hex && hex.length > 2 ? BigInt(hex) : 0n; } catch { return 0n; } };
       if (usdceRes?.result && !usdceRes.error) {
         usdceBalance = Number(safeBigInt(usdceRes.result)) / 1e6;
       }
@@ -4012,12 +4019,14 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
 
       // Log RPC results for debugging balance issues
-      if (usdceBalance === 0 && maticBalance > 0) {
-        console.log(`[wallet-balance] USDC.e=0 for ${address.slice(0, 10)}... (RPC result: ${JSON.stringify(usdceRes?.result?.slice?.(0, 20) ?? usdceRes?.error ?? 'null')})`);
+      if (!rpcSuccess) {
+        console.log(`[wallet-balance] All RPCs failed for ${address.slice(0, 10)}... — using ${cached ? 'cached' : 'zero'} values`);
       }
 
-      // Cache the good values
-      balanceCache.set(address, { usdce: usdceBalance, usdcNative: usdcNativeBalance, usdc: usdceBalance + usdcNativeBalance, matic: maticBalance, ts: Date.now() });
+      // Only cache when RPC actually returned data — never overwrite good cache with zeros from failed RPCs
+      if (rpcSuccess) {
+        balanceCache.set(address, { usdce: usdceBalance, usdcNative: usdcNativeBalance, usdc: usdceBalance + usdcNativeBalance, matic: maticBalance, ts: Date.now() });
+      }
 
       // Get open positions from Polymarket Data API for accurate portfolio values
       const paperPos = await edb()?.all(`SELECT SUM(entry_price * size) as total_invested, COUNT(*) as open_count FROM poly_paper_positions WHERE agent_id = ? AND closed = 0`, [agentId]) as any[] || [];
