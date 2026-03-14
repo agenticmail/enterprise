@@ -5065,44 +5065,44 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       // Daily counters
       const counter = await edb()?.get(`SELECT * FROM poly_daily_counters WHERE agent_id = ? AND date = ?`, [agentId, today]).catch(() => null) as any;
 
-      // ── Real positions from Polymarket Data API ──
-      let livePositions: any[] = [];
+      // ── Positions from Polymarket Data API (sizeThreshold=0 to include resolved) ──
+      let allPositions: any[] = [];
+      let openPositions: any[] = [];
       let unrealizedPnl = 0;
-      let deployed = 0;
-      if (address) {
-        try {
-          const resp = await fetch(`https://data-api.polymarket.com/positions?user=${address}`, { signal: AbortSignal.timeout(8000) });
-          const data = await resp.json();
-          if (Array.isArray(data)) {
-            livePositions = data.filter((p: any) => parseFloat(p.size) > 0);
-            unrealizedPnl = livePositions.reduce((s: number, p: any) => s + (parseFloat(p.cashPnl) || 0), 0);
-            deployed = livePositions.reduce((s: number, p: any) => s + (parseFloat(p.initialValue) || 0), 0);
-          }
-        } catch {}
-      }
-
-      // ── Realized P&L from trade log (SELL trades today) ──
-      const sellTrades = await edb()?.all(
-        `SELECT price, size, token_id FROM poly_trade_log WHERE agent_id = ? AND side = 'SELL' AND created_at >= ? AND status = 'placed' AND clob_order_id IS NOT NULL`,
-        [agentId, todayStart]
-      ).catch(() => []) as any[] || [];
-      // Match sells to buys for realized P&L
       let realizedPnl = 0;
+      let deployed = 0;
       let winsToday = 0;
       let lossesToday = 0;
-      for (const sell of sellTrades) {
-        // Find matching buy for this token
-        const buy = await edb()?.get(
-          `SELECT price FROM poly_trade_log WHERE agent_id = ? AND token_id = ? AND side = 'BUY' AND status = 'placed' AND clob_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
-          [agentId, sell.token_id]
-        ).catch(() => null) as any;
-        const buyPrice = parseFloat(buy?.price) || 0;
-        const sellPrice = parseFloat(sell.price) || 0;
-        const sellSize = parseFloat(sell.size) || 0;
-        const pnl = (sellPrice - buyPrice) * sellSize;
-        realizedPnl += pnl;
-        if (pnl > 0) winsToday++;
-        else if (pnl < 0) lossesToday++;
+      if (address) {
+        try {
+          const resp = await fetch(`https://data-api.polymarket.com/positions?user=${address}&sizeThreshold=0`, { signal: AbortSignal.timeout(8000) });
+          const data = await resp.json();
+          if (Array.isArray(data)) {
+            allPositions = data;
+            for (const pos of data) {
+              const pnl = parseFloat(pos.cashPnl ?? pos.pnl ?? '0');
+              const size = parseFloat(pos.size ?? '0');
+              const entryPrice = parseFloat(pos.avgPrice ?? pos.avg_price ?? '0');
+              const currentPrice = parseFloat(pos.curPrice ?? pos.current_price ?? '0');
+              if (isNaN(pnl)) continue;
+
+              if (size <= 0 || pos.resolved || pos.closed) {
+                // Closed/resolved position — cashPnl is realized P&L
+                realizedPnl += pnl;
+                if (pnl > 0) winsToday++;
+                else if (pnl < 0) lossesToday++;
+              } else {
+                // Open position — calculate unrealized from price difference
+                openPositions.push(pos);
+                const unrealPnl = currentPrice > 0 && entryPrice > 0
+                  ? (currentPrice - entryPrice) * size
+                  : pnl;
+                unrealizedPnl += unrealPnl;
+                deployed += size * entryPrice;
+              }
+            }
+          }
+        } catch {}
       }
 
       // Trade count from counter (most accurate) or trade log
@@ -5133,7 +5133,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         wins_today: winsToday,
         losses_today: lossesToday,
         win_rate_today: +winRate.toFixed(1),
-        open_positions: livePositions.length,
+        open_positions: openPositions.length,
         available_capital: +usdcBalance.toFixed(2),
         deployed_capital: +deployed.toFixed(2),
         daily_loss: +(counter?.daily_loss || 0).toFixed(2),
