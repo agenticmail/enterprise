@@ -3034,9 +3034,9 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     if (!e) return;
     try {
       // initPolymarketDB expects db.execute(); engine DB has run/get/all — shim it
-      const dbShim = e.execute ? e : Object.assign({}, e, {
-        execute: e.run || e.execute,
-        query: e.all || e.query,
+      const dbShim = (e as any).execute ? e : Object.assign({}, e, {
+        execute: (e as any).run || (e as any).execute,
+        query: (e as any).all || (e as any).query,
       });
       await initPolymarketDB(dbShim);
 
@@ -3822,6 +3822,77 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     } catch (e: any) { return c.json({ error: `Swap failed: ${e.message}` }, 500); }
   });
 
+  // ── Redeem winning positions — direct on-chain, no LLM needed ──
+  api.post('/polymarket/:agentId/wallet/redeem', requireRole('owner'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const body = await c.req.json().catch(() => ({}));
+      const conditionId = body.condition_id;
+
+      // Load wallet credentials
+      const creds = await edb()?.get(`SELECT private_key_encrypted, funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (!creds?.funder_address) return c.json({ error: 'No wallet configured' }, 404);
+      const decryptedKey = (() => { try { return vault.decrypt(creds.private_key_encrypted); } catch { return creds.private_key_encrypted; } })();
+
+      // Fetch redeemable positions from Polymarket Data API
+      const posRes = await fetch(`https://data-api.polymarket.com/positions?user=${creds.funder_address}&sizeThreshold=0`);
+      const positions = await posRes.json();
+      const redeemable = (positions as any[]).filter((pos: any) => pos.redeemable === true);
+      if (!redeemable.length) return c.json({ ok: true, status: 'nothing_to_redeem', message: 'No redeemable positions found.' });
+
+      // Filter by condition_id if specified, otherwise redeem all
+      const toRedeem = conditionId
+        ? redeemable.filter((pos: any) => pos.conditionId === conditionId)
+        : redeemable;
+      if (!toRedeem.length) return c.json({ error: `No redeemable position found for condition ${conditionId}` }, 404);
+
+      // Connect to Polygon
+      const { Wallet, JsonRpcProvider, Contract } = await import('ethers');
+      const CTF = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+      const CTF_ABI = ['function redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] calldata indexSets) external'];
+
+      let provider: any = null;
+      for (const rpc of ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com']) {
+        try { provider = new JsonRpcProvider(rpc); await provider.getNetwork(); break; } catch { provider = null; }
+      }
+      if (!provider) return c.json({ error: 'Cannot connect to Polygon RPC' }, 502);
+
+      const wallet = new Wallet(decryptedKey, provider);
+      const ctf = new Contract(CTF, CTF_ABI, wallet);
+      const parentCollectionId = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+      const results: any[] = [];
+      for (const pos of toRedeem) {
+        try {
+          const indexSets = pos.negativeRisk ? [1] : [1, 2];
+          const tx = await ctf.redeemPositions(USDC_E_SHARED, parentCollectionId, pos.conditionId, indexSets, { gasLimit: 300000 });
+          const receipt = await tx.wait();
+
+          // Update trade log (best effort)
+          try {
+            await edb()?.run(`UPDATE poly_trade_log SET status = 'redeemed', pnl = ? WHERE token_id = ? AND agent_id = ? AND status != 'redeemed'`,
+              [pos.cashPnl || 0, pos.asset, agentId]);
+          } catch {}
+
+          results.push({ title: pos.title, outcome: pos.outcome, conditionId: pos.conditionId, shares: pos.size, value: pos.currentValue, profit: pos.cashPnl, txHash: receipt.hash, status: 'redeemed' });
+        } catch (e: any) {
+          results.push({ title: pos.title, conditionId: pos.conditionId, status: 'failed', error: e.message });
+        }
+      }
+
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.redeem', resourceType: 'agent', resourceId: agentId, details: { redeemed: results.filter(r => r.status === 'redeemed').length, failed: results.filter(r => r.status === 'failed').length }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+
+      return c.json({
+        ok: true,
+        redeemed: results.filter(r => r.status === 'redeemed').length,
+        failed: results.filter(r => r.status === 'failed').length,
+        total_value: results.filter(r => r.status === 'redeemed').reduce((s, r) => s + (r.value || 0), 0),
+        total_profit: results.filter(r => r.status === 'redeemed').reduce((s, r) => s + (r.profit || 0), 0),
+        details: results,
+      });
+    } catch (e: any) { return c.json({ error: `Redeem failed: ${e.message}` }, 500); }
+  });
+
   api.post('/polymarket/:agentId/wallet/transfer', requireRole('owner'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
@@ -4422,23 +4493,35 @@ export function createAdminRoutes(db: DatabaseAdapter) {
                 const posResp = await fetch(`https://data-api.polymarket.com/positions?user=${wallet.funder_address}&sizeThreshold=0`);
                 const posData = await posResp.json();
                 if (Array.isArray(posData)) {
+                  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
                   liveTradeRows = posData.filter((p: any) => parseFloat(p.size) > 0).map((p: any) => {
                     // If position is redeemable or curPrice is exactly 0 or 1, it's resolved
                     const curPrice = parseFloat(p.curPrice) || 0;
-                    if (p.redeemable || curPrice === 1 || curPrice === 0) {
+                    const isResolved = p.redeemable || curPrice === 1 || curPrice === 0;
+                    if (isResolved) {
                       resolvedPrices[p.asset] = curPrice;
                     }
                     return {
                       token_id: p.asset,
+                      conditionId: p.conditionId || '',
                       market_question: p.title || 'Unknown',
                       outcome: p.outcome || '',
                       side: 'BUY',
                       entry_price: parseFloat(p.avgPrice) || 0,
                       size: parseFloat(p.size) || 0,
                       redeemable: p.redeemable || false,
-                      resolved_price: p.redeemable ? curPrice : undefined,
+                      resolved_price: isResolved ? curPrice : undefined,
                       endDate: p.endDate || p.expirationDate || '',
+                      isWon: isResolved && curPrice >= 0.99,
+                      isLost: isResolved && curPrice <= 0.01,
                     };
+                  }).filter((p: any) => {
+                    // Auto-hide lost positions after 3 days (non-redeemable, resolved to 0)
+                    if (p.isLost && !p.redeemable && p.endDate) {
+                      const endTime = new Date(p.endDate).getTime();
+                      if (!isNaN(endTime) && Date.now() - endTime > THREE_DAYS_MS) return false;
+                    }
+                    return true;
                   });
                 }
               }
@@ -4499,6 +4582,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
                   : p.side;
               return {
                 token_id: p.token_id,
+                conditionId: p.conditionId || '',
                 market: p.market_question,
                 side: p.side,
                 outcome: outcome,
@@ -4509,6 +4593,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
                 pnlPct: +((pnl / (p.entry_price * p.size)) * 100).toFixed(2),
                 redeemable: p.redeemable || false,
                 resolved: resolvedPrices[p.token_id] !== undefined,
+                isWon: p.isWon || false,
+                isLost: p.isLost || false,
                 endDate: p.endDate || '',
               };
             });

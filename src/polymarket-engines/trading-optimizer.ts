@@ -199,6 +199,10 @@ export async function momentumScan(params?: {
       const tokenId = tokens[0];
       if (!tokenId) return;
 
+      // Skip markets whose end date has passed (expired game markets show fake "momentum")
+      const endDate = m.endDate || m.end_date_iso;
+      if (endDate && new Date(endDate).getTime() < Date.now()) return;
+
       const volume = parseFloat(m.volume24hr || m.volume || '0');
       const liquidity = parseFloat(m.liquidity || '0');
       if (liquidity < 200) return; // Skip very illiquid (lowered from $1000)

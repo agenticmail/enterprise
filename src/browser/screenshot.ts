@@ -1,8 +1,8 @@
 import { IMAGE_REDUCE_QUALITY_STEPS, buildImageResizeSideGrid, getImageMetadata, resizeToJpeg } from "./enterprise-compat.js";
 
 
-export const DEFAULT_BROWSER_SCREENSHOT_MAX_SIDE = 2000;
-export const DEFAULT_BROWSER_SCREENSHOT_MAX_BYTES = 5 * 1024 * 1024;
+export const DEFAULT_BROWSER_SCREENSHOT_MAX_SIDE = 1280;
+export const DEFAULT_BROWSER_SCREENSHOT_MAX_BYTES = 200 * 1024; // 200KB — keeps base64 under ~65K tokens
 
 export async function normalizeBrowserScreenshot(
   buffer: Buffer,

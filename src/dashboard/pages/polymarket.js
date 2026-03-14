@@ -115,6 +115,7 @@ export function PolymarketPage() {
   const [buyExecuting, setBuyExecuting] = useState(false);
   const [buyConfirm, setBuyConfirm] = useState(false); // show purchase confirmation modal
   const [sellExecuting, setSellExecuting] = useState(null); // token_id being sold
+  const [redeemExecuting, setRedeemExecuting] = useState(null); // conditionId being redeemed
   // Transfer with 2FA/PIN
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferUnlocked, setTransferUnlocked] = useState(false);
@@ -233,6 +234,46 @@ export function PolymarketPage() {
       else { toast('Sell order placed!', 'success'); setSellModal(null); hideTip(); loadAgentData(selectedAgent); }
     } catch (e) { toast('Sell failed: ' + e.message, 'error'); }
     setSellExecuting(null);
+  };
+
+  var executeRedeem = async function(position) {
+    if (!position?.conditionId) { toast('No condition ID for redemption', 'error'); return; }
+    if (!confirm('Redeem winnings for "' + (position.market || 'this position') + '"?\n\nThis will claim your winning tokens on-chain.')) return;
+    setRedeemExecuting(position.conditionId);
+    try {
+      var resp = await apiCall('/polymarket/' + selectedAgent + '/wallet/redeem', {
+        method: 'POST', body: JSON.stringify({ condition_id: position.conditionId })
+      });
+      if (resp.error) { toast('Redeem failed: ' + resp.error, 'error'); }
+      else if (resp.ok) {
+        var msg = 'Redeemed ' + (resp.redeemed || 0) + ' position(s)';
+        if (resp.total_profit) msg += ' — Profit: $' + resp.total_profit.toFixed(2);
+        if (resp.failed > 0) msg += ' (' + resp.failed + ' failed)';
+        toast(msg, 'success');
+        loadAgentData(selectedAgent);
+      } else { toast('Redeem returned unexpected response', 'error'); }
+    } catch (e) { toast('Redeem failed: ' + e.message, 'error'); }
+    setRedeemExecuting(null);
+  };
+
+  var executeRedeemAll = async function() {
+    if (!confirm('Redeem ALL winning positions?\n\nThis will claim all redeemable tokens on-chain.')) return;
+    setRedeemExecuting('all');
+    try {
+      var resp = await apiCall('/polymarket/' + selectedAgent + '/wallet/redeem', {
+        method: 'POST', body: JSON.stringify({})
+      });
+      if (resp.error) { toast('Redeem failed: ' + resp.error, 'error'); }
+      else if (resp.ok) {
+        var msg = 'Redeemed ' + (resp.redeemed || 0) + ' position(s)';
+        if (resp.total_value) msg += ' — Value: $' + resp.total_value.toFixed(2);
+        if (resp.total_profit) msg += ', Profit: $' + resp.total_profit.toFixed(2);
+        if (resp.failed > 0) msg += ' (' + resp.failed + ' failed)';
+        toast(msg, resp.failed > 0 ? 'warning' : 'success');
+        loadAgentData(selectedAgent);
+      } else { toast('Nothing to redeem', 'info'); }
+    } catch (e) { toast('Redeem all failed: ' + e.message, 'error'); }
+    setRedeemExecuting(null);
   };
 
   var renderSellModal = function() {
@@ -1943,15 +1984,21 @@ export function PolymarketPage() {
             color: livePrices.totalPnl >= 0 ? '#10b981' : '#ef4444'
           } }, 'Total P&L: ' + (livePrices.totalPnl >= 0 ? '+' : '') + '$' + livePrices.totalPnl.toFixed(2))
         ),
-        h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8 } },
+        h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 8 } },
+          livePrices.positions.some(function(p) { return p.redeemable && !p.isLost; })
+            ? h('button', { className: 'btn btn-sm', disabled: redeemExecuting === 'all',
+                style: { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: 600, cursor: redeemExecuting === 'all' ? 'not-allowed' : 'pointer' },
+                onClick: executeRedeemAll
+              }, redeemExecuting === 'all' ? 'Claiming All...' : I('award'), ' Redeem All Winnings')
+            : null,
           h('button', { className: 'btn btn-sm btn-primary', onClick: function() { setShowBuyModal(true); setBuySearch(''); setBuyResults([]); setBuySelected(null); } }, I('plus'), ' Buy Position')
         ),
         renderFilteredTable('livePositions', livePrices.positions, '',
           ['Market', 'Position', 'Outcome', 'Shares', 'Entry', 'Current', 'Cost', 'Win Amount', 'P&L', 'P&L %', 'Ends', ''],
           function(p) {
             var oc = p.outcome || resolveOutcome(p.side, p.outcome);
-            var isWon = p.resolved && p.current >= 0.99;
-            var isLost = p.resolved && p.current <= 0.01;
+            var isWon = p.isWon || (p.resolved && p.current >= 0.99);
+            var isLost = p.isLost || (p.resolved && p.current <= 0.01);
             // Win amount = total payout if prediction is correct (shares × $1 = full amount you get back)
             var cost = (p.entry || 0) * (p.size || 0);
             var winAmount = (p.size || 0); // each winning share pays $1, so total payout = number of shares
@@ -1986,29 +2033,38 @@ export function PolymarketPage() {
               ),
               h('td', { key: 'pnl' }, pnlCell(p.pnl)),
               h('td', { key: 'pp', style: { color: (p.pnlPct || 0) >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 } }, (p.pnlPct >= 0 ? '+' : '') + (p.pnlPct || 0).toFixed(1) + '%'),
-              h('td', { key: 'end', style: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' } },
-                p.endDate ? (function() {
-                  var d = new Date(p.endDate);
-                  if (isNaN(d.getTime())) return '--';
-                  var now = Date.now();
-                  var diff = d.getTime() - now;
-                  var days = Math.floor(diff / 86400000);
-                  var label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  if (diff < 0) return h('span', { style: { color: '#ef4444' } }, 'Ended');
-                  if (days === 0) return h('span', { style: { color: '#f59e0b', fontWeight: 600 } }, 'Today');
-                  if (days <= 3) return h('span', { style: { color: '#f59e0b' } }, days + 'd · ' + label);
-                  return label;
-                })() : '--'
+              h('td', { key: 'end', style: { fontSize: 11, whiteSpace: 'nowrap' } },
+                isWon
+                  ? h('span', { style: { color: '#10b981', fontWeight: 700 } }, 'WON')
+                  : isLost
+                    ? h('span', { style: { color: '#ef4444', fontWeight: 700 } }, 'LOST')
+                    : p.endDate ? (function() {
+                        var d = new Date(p.endDate);
+                        if (isNaN(d.getTime())) return '--';
+                        var now = Date.now();
+                        var diff = d.getTime() - now;
+                        var days = Math.floor(diff / 86400000);
+                        var label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        if (diff < 0) return h('span', { style: { color: '#ef4444' } }, 'Ended');
+                        if (days === 0) return h('span', { style: { color: '#f59e0b', fontWeight: 600 } }, 'Today');
+                        if (days <= 3) return h('span', { style: { color: '#f59e0b' } }, days + 'd · ' + label);
+                        return label;
+                      })() : '--'
               ),
               h('td', { key: 'act' },
-                p.redeemable
-                  ? h('button', { className: 'btn btn-sm', style: { minWidth: 50, fontSize: 11, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: 600, cursor: 'pointer' },
-                      onClick: function(e) { e.stopPropagation(); toast('Redemption triggered via agent tools. Check agent logs.', 'info'); }
-                    }, 'Redeem')
-                  : h('button', { className: 'btn btn-sm btn-danger', disabled: sellExecuting === p.token_id,
-                      style: { minWidth: 50, fontSize: 11 },
-                      onClick: function(e) { e.stopPropagation(); openSellModal(p); }
-                    }, sellExecuting === p.token_id ? '...' : 'Sell')
+                p.redeemable && !isLost
+                  ? h('button', { className: 'btn btn-sm', disabled: redeemExecuting === p.conditionId || redeemExecuting === 'all',
+                      style: { minWidth: 50, fontSize: 11, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: 600, cursor: (redeemExecuting === p.conditionId || redeemExecuting === 'all') ? 'not-allowed' : 'pointer' },
+                      onClick: function(e) { e.stopPropagation(); executeRedeem(p); }
+                    }, redeemExecuting === p.conditionId ? 'Claiming...' : 'Redeem')
+                  : isLost
+                    ? h('span', { style: { fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' } }, 'Resolved')
+                    : isWon
+                      ? h('span', { style: { fontSize: 10, color: '#10b981', fontWeight: 600 } }, 'Awaiting redeem')
+                      : h('button', { className: 'btn btn-sm btn-danger', disabled: sellExecuting === p.token_id,
+                          style: { minWidth: 50, fontSize: 11 },
+                          onClick: function(e) { e.stopPropagation(); openSellModal(p); }
+                        }, sellExecuting === p.token_id ? '...' : 'Sell')
               )
             ];
           }, { searchKeys: ['market', 'outcome'], pageSize: 6 }

@@ -459,10 +459,18 @@ export async function saveMediaBuffer(buf: Buffer, mimeTypeOrOpts?: string | { e
   return { path: filePath };
 }
 
-export function resizeImageBuffer(_buf: Buffer, _opts: any): Promise<Buffer> {
-  // No-op in enterprise — return original buffer
-  // Can be enhanced with sharp if needed
-  return Promise.resolve(_buf);
+export async function resizeImageBuffer(buf: Buffer, opts: any): Promise<Buffer> {
+  try {
+    const sharp = (await import('sharp')).default;
+    var width = opts?.width || opts?.maxWidth || 1920;
+    var quality = opts?.quality || 80;
+    return await sharp(buf)
+      .resize({ width, height: width, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality, mozjpeg: true })
+      .toBuffer();
+  } catch {
+    return buf;
+  }
 }
 
 // ─── Process / Exec ────────────────────────────────────────
@@ -543,20 +551,35 @@ export function buildImageResizeSideGrid(_maxSide?: number, _start?: number): nu
 }
 
 export async function getImageMetadata(buf: Buffer): Promise<{ width: number; height: number; format: string } | null> {
-  // Without sharp, just return null — screenshot won't be resized
   try {
-    // Try to detect PNG dimensions from header
-    if (buf[0] === 0x89 && buf[1] === 0x50) { // PNG
-      const width = buf.readUInt32BE(16);
-      const height = buf.readUInt32BE(20);
-      return { width, height, format: 'png' };
-    }
+    const sharp = (await import('sharp')).default;
+    const meta = await sharp(buf).metadata();
+    return { width: meta.width || 0, height: meta.height || 0, format: meta.format || 'unknown' };
+  } catch {
+    // Fallback: detect PNG dimensions from header
+    try {
+      if (buf[0] === 0x89 && buf[1] === 0x50) { // PNG
+        const width = buf.readUInt32BE(16);
+        const height = buf.readUInt32BE(20);
+        return { width, height, format: 'png' };
+      }
+    } catch {}
     return null;
-  } catch { return null; }
+  }
 }
 
 export async function resizeToJpeg(bufOrOpts: Buffer | { buffer: Buffer | ArrayBufferLike; maxSide?: number; quality?: number; withoutEnlargement?: boolean }, _opts?: { width?: number; quality?: number }): Promise<Buffer> {
-  // No-op without sharp — return original buffer
-  if (Buffer.isBuffer(bufOrOpts)) return bufOrOpts;
-  return Buffer.isBuffer(bufOrOpts.buffer) ? bufOrOpts.buffer : Buffer.from(bufOrOpts.buffer);
+  const buf = Buffer.isBuffer(bufOrOpts) ? bufOrOpts : (Buffer.isBuffer(bufOrOpts.buffer) ? bufOrOpts.buffer : Buffer.from(bufOrOpts.buffer));
+  const maxSide = !Buffer.isBuffer(bufOrOpts) ? (bufOrOpts.maxSide || 1920) : (_opts?.width || 1920);
+  const quality = !Buffer.isBuffer(bufOrOpts) ? (bufOrOpts.quality || 80) : (_opts?.quality || 80);
+  const withoutEnlargement = !Buffer.isBuffer(bufOrOpts) ? (bufOrOpts.withoutEnlargement ?? true) : true;
+  try {
+    const sharp = (await import('sharp')).default;
+    return await sharp(buf)
+      .resize({ width: maxSide, height: maxSide, fit: 'inside', withoutEnlargement })
+      .jpeg({ quality, mozjpeg: true })
+      .toBuffer();
+  } catch {
+    return buf;
+  }
 }

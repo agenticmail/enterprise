@@ -84,14 +84,16 @@ function formatWebFetchErrorDetail(params: {
 }): string {
   var { detail, contentType, maxChars } = params;
   if (!detail) return '';
-  var text = detail;
   var contentTypeLower = contentType?.toLowerCase();
   if (contentTypeLower?.includes('text/html') || looksLikeHtml(detail)) {
+    // Extract just the title from HTML error pages — the CSS/HTML body is useless noise
     var rendered = htmlToMarkdown(detail);
-    var withTitle = rendered.title ? rendered.title + '\n' + rendered.text : rendered.text;
-    text = markdownToText(withTitle);
+    if (rendered.title) return rendered.title.slice(0, maxChars);
+    // No title — try first line of extracted text
+    var firstLine = markdownToText(rendered.text).trim().split('\n')[0] || '';
+    return firstLine.slice(0, maxChars);
   }
-  var truncated = truncateText(text.trim(), maxChars);
+  var truncated = truncateText(detail.trim(), maxChars);
   return truncated.text;
 }
 

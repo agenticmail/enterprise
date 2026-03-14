@@ -294,7 +294,10 @@ export async function screenMarkets(opts: ScreenerOptions = {}): Promise<Screene
   // Events endpoint — ALWAYS fetch events (they contain the real high-volume markets)
   fetches.push((async () => {
     try {
-      const evParams: Record<string, string> = { active: 'true', closed: 'false', limit: '100', order: fetchParams.order || 'volume', ascending: fetchParams.ascending || 'false' };
+      const evParams: Record<string, string> = { active: 'true', closed: 'false', limit: '100' };
+      // When searching, omit order to let API rank by relevance instead of volume
+      // (volume ordering biases toward political markets regardless of query)
+      if (!opts.query) { evParams.order = fetchParams.order || 'volume'; evParams.ascending = fetchParams.ascending || 'false'; }
       if (opts.query) evParams.search = opts.query;
       if (opts.categories?.length) evParams.tag_id = opts.categories[0];
       const events = await apiFetch(`${GAMMA_API}/events?${new URLSearchParams(evParams)}`);
@@ -359,6 +362,20 @@ export async function screenMarkets(opts: ScreenerOptions = {}): Promise<Screene
         allMarkets.push(m);
         existingIds.add(m.conditionId || m.id);
       }
+    }
+  }
+
+  // Client-side relevance filtering when searching — remove sub-markets from events
+  // that don't match the query (prevents irrelevant markets from matched events)
+  if (opts.query) {
+    const qWords = opts.query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    if (qWords.length > 0) {
+      const relevant = allMarkets.filter(m => {
+        const q = (m.question || '').toLowerCase();
+        const slug = (m.slug || '').toLowerCase();
+        return qWords.some(w => q.includes(w) || slug.includes(w));
+      });
+      if (relevant.length > 0) allMarkets = relevant;
     }
   }
 

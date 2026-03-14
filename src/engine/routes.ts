@@ -161,7 +161,7 @@ lifecycle.onEvent((event) => {
     agentStatus.heartbeat(event.agentId);
   } else if (event.type === 'stopped') {
     agentStatus.markOffline(event.agentId);
-  } else if (event.type === 'error' || event.type === 'crashed') {
+  } else if (event.type === 'error' || (event.type as string) === 'crashed') {
     agentStatus.markOffline(event.agentId, event.type);
   }
 

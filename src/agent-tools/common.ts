@@ -238,6 +238,11 @@ export function redactSecrets(
  * Create an image result from a file path.
  * Reads the file, detects mime type, and wraps in a tool result.
  */
+// Max image size before compression (150KB → ~50K tokens, reasonable for vision)
+var MAX_IMAGE_BYTES = 150_000;
+// Max dimension for resize
+var MAX_IMAGE_SIDE = 1024;
+
 export async function imageResultFromFile(params: {
   label: string;
   path: string;
@@ -245,10 +250,39 @@ export async function imageResultFromFile(params: {
   details?: Record<string, unknown>;
 }): Promise<ToolResult<unknown>> {
   const fs = await import('node:fs/promises');
-  const buf = await fs.readFile(params.path);
+  var buf = await fs.readFile(params.path);
   const ext = params.path.split('.').pop()?.toLowerCase();
   const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
-  const mimeType = mimeMap[ext || ''] || 'image/png';
+  var mimeType = mimeMap[ext || ''] || 'image/png';
+
+  // Compress large images to prevent 100K+ token payloads that crash models
+  if (buf.byteLength > MAX_IMAGE_BYTES && mimeType !== 'image/svg+xml') {
+    try {
+      const sharp = (await import('sharp')).default;
+      // Progressive quality reduction until under budget
+      var qualities = [75, 60, 45, 30];
+      var lastCompressed: any = null;
+      for (var q of qualities) {
+        lastCompressed = await sharp(buf)
+          .resize({ width: MAX_IMAGE_SIDE, height: MAX_IMAGE_SIDE, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: q, mozjpeg: true })
+          .toBuffer();
+        if (lastCompressed.byteLength <= MAX_IMAGE_BYTES) {
+          buf = lastCompressed;
+          mimeType = 'image/jpeg';
+          break;
+        }
+      }
+      // If still over budget after lowest quality, use the smallest we got
+      if (buf.byteLength > MAX_IMAGE_BYTES && lastCompressed && lastCompressed.byteLength < buf.byteLength) {
+        buf = lastCompressed;
+        mimeType = 'image/jpeg';
+      }
+    } catch {
+      // Sharp not available — proceed with original (will be large but functional)
+    }
+  }
+
   return imageResult({
     label: params.label,
     path: params.path,

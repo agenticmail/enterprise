@@ -328,12 +328,31 @@ export async function executeOrder(agentId: string, db: any, tradeId: string, p:
     const { Side } = clobModule;
     const side = p.side === 'BUY' ? Side.BUY : Side.SELL;
 
+    // ── Price validation: Polymarket requires 0.01-0.99 ──
+    let orderPrice = typeof p.price === 'number' && Number.isFinite(p.price) ? p.price : undefined;
+    if (orderPrice !== undefined) {
+      // Clamp to valid range
+      orderPrice = Math.max(0.01, Math.min(0.99, orderPrice));
+      // Round to tick size (default 0.01)
+      const tick = parseFloat(p.tick_size || '0.01');
+      orderPrice = Math.round(orderPrice / tick) * tick;
+      orderPrice = +orderPrice.toFixed(4);
+    } else {
+      // No price specified — use midpoint for a market-like order
+      try {
+        const mid = await apiFetch(`${CLOB_API}/midpoint?token_id=${p.token_id}`);
+        const midPrice = parseFloat(mid?.mid || '0.5');
+        orderPrice = Math.max(0.01, Math.min(0.99, midPrice));
+        orderPrice = +orderPrice.toFixed(4);
+      } catch { orderPrice = undefined; }
+    }
+
     const orderArgs: any = {
       tokenID: p.token_id,
       side,
       size: p.size,
     };
-    if (p.price) orderArgs.price = p.price;
+    if (orderPrice !== undefined) orderArgs.price = orderPrice;
     if (p.tick_size) orderArgs.feeRateBps = undefined; // SDK handles fees
     if (p.neg_risk !== undefined) orderArgs.negRisk = p.neg_risk;
 
@@ -475,7 +494,7 @@ export async function executeOrder(agentId: string, db: any, tradeId: string, p:
 
 function slimMarket(m: any) {
   return {
-    id: m.conditionId || m.id,
+    id: m.slug || m.conditionId || m.id,
     question: m.question,
     slug: m.slug,
     category: m.tags?.[0],
@@ -650,11 +669,13 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           if (p.end_date_before) qs.set('end_date_max', p.end_date_before);
           if (p.end_date_after) qs.set('end_date_min', p.end_date_after);
 
-          // Default order to volume desc if not specified (prevents returning ancient dead markets)
-          if (!p.order) { qs.set('order', 'volume'); qs.set('ascending', 'false'); }
+          // Default order: use volume when browsing, but let API handle relevance when searching
+          if (!p.order && !p.query) { qs.set('order', 'volume'); qs.set('ascending', 'false'); }
 
           // Search both /markets and /events endpoints for maximum coverage
-          const evQs: Record<string, string> = { active: String(p.active !== undefined ? p.active : true), closed: String(p.closed || false), limit: String(Math.min((p.limit || 20) * 3, 100)), order: p.order || 'volume', ascending: String(p.ascending ?? false) };
+          const evQs: Record<string, string> = { active: String(p.active !== undefined ? p.active : true), closed: String(p.closed || false), limit: String(Math.min((p.limit || 20) * 3, 100)) };
+          // When searching, omit order to let API rank by relevance; otherwise default to volume
+          if (!p.query) { evQs.order = p.order || 'volume'; evQs.ascending = String(p.ascending ?? false); }
           if (p.query) evQs.search = p.query;
           if (p.category) evQs.tag_id = p.category;
 
@@ -709,6 +730,30 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           }
 
           let markets = allRaw.map(slimMarket);
+
+          // Client-side relevance scoring when searching — the Gamma API returns
+          // events that match the query, but sub-markets within those events may be
+          // completely unrelated (e.g., searching "NBA" returns "Celebrity News" event
+          // which has both sports AND gossip sub-markets). Score each market by how
+          // many query words appear in its question and sort by relevance.
+          if (p.query && markets.length > 0) {
+            const qWords = p.query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+            if (qWords.length > 0) {
+              const scored = markets.map((m: any) => {
+                const q = (m.question || '').toLowerCase();
+                const slug = (m.slug || '').toLowerCase();
+                let hits = 0;
+                for (const w of qWords) { if (q.includes(w) || slug.includes(w)) hits++; }
+                return { market: m, relevance: hits / qWords.length };
+              });
+              // Keep only markets with at least 1 query word match, or all if none match
+              const relevant = scored.filter((s: any) => s.relevance > 0);
+              if (relevant.length > 0) {
+                relevant.sort((a: any, b: any) => b.relevance - a.relevance);
+                markets = relevant.map((s: any) => s.market);
+              }
+            }
+          }
 
           // Post-filter by volume/liquidity
           if (p.min_volume) markets = markets.filter((m: any) => parseFloat(m.volume || '0') >= p.min_volume);
@@ -772,15 +817,29 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           if (c) return jsonResult(c);
 
           let m;
-          // Try numeric/direct ID first
-          try { m = await apiFetch(`${GAMMA_API}/markets/${p.market_id}`); } catch {}
-          // If condition ID (0x...), search by condition_id param
-          if (!m && p.market_id.startsWith('0x')) {
-            const arr = await apiFetch(`${GAMMA_API}/markets?condition_id=${p.market_id}&limit=1`);
-            m = Array.isArray(arr) && arr[0];
+          // Try slug first (most reliable — used as primary ID in search results)
+          if (!p.market_id.startsWith('0x') && !/^\d+$/.test(p.market_id)) {
+            try {
+              const arr = await apiFetch(`${GAMMA_API}/markets?slug=${encodeURIComponent(p.market_id)}&limit=1`);
+              m = Array.isArray(arr) && arr[0];
+            } catch {}
           }
-          // Try slug
+          // Try numeric/direct ID
           if (!m) {
+            try { m = await apiFetch(`${GAMMA_API}/markets/${p.market_id}`); } catch {}
+          }
+          // If condition ID (0x...), search by condition_id param (try both naming conventions)
+          if (!m && p.market_id.startsWith('0x')) {
+            try {
+              let arr = await apiFetch(`${GAMMA_API}/markets?condition_id=${p.market_id}&limit=1`).catch(() => []);
+              if (!Array.isArray(arr) || !arr[0]) {
+                arr = await apiFetch(`${GAMMA_API}/markets?conditionId=${p.market_id}&limit=1`).catch(() => []);
+              }
+              m = Array.isArray(arr) && arr[0];
+            } catch {}
+          }
+          // Final fallback: slug lookup (in case it looks numeric but is actually a slug)
+          if (!m && (p.market_id.startsWith('0x') || /^\d+$/.test(p.market_id))) {
             try {
               const arr = await apiFetch(`${GAMMA_API}/markets?slug=${encodeURIComponent(p.market_id)}&limit=1`);
               m = Array.isArray(arr) && arr[0];
@@ -1708,11 +1767,12 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_place_order',
-      description: 'Place an order',
+      description: 'Place an order. IMPORTANT: price must be between 0.01 and 0.99 (Polymarket range). Size minimum is 5 shares. If you omit price, the current midpoint is used automatically.',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: {
-        token_id: { type: 'string' }, side: { type: 'string' },
-        price: { type: 'number' }, size: { type: 'number' },
+        token_id: { type: 'string' }, side: { type: 'string', description: 'BUY or SELL' },
+        price: { type: 'number', description: 'Limit price between 0.01 and 0.99. Omit for market order at midpoint.' },
+        size: { type: 'number', description: 'Number of shares (minimum 5)' },
         order_type: { type: 'string' }, expiration: { type: 'string' },
         max_slippage_pct: { type: 'number' }, tick_size: { type: 'string' },
         neg_risk: { type: 'boolean' }, market_question: { type: 'string' },
