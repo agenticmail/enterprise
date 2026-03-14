@@ -136,7 +136,7 @@ export function createDatabaseTools(manager: DatabaseConnectionManager, agentId:
       }
 
       try {
-        const result = await manager.executeQuery({ connectionId: input.connectionId, agentId, operation: 'read', sql });
+        const result = await manager.executeQuery({ connectionId: input.connectionId, agentId, operation: 'read', sql, _trusted: true });
         if (!result.success) return errorResult(result.error || 'Query failed');
         return jsonResult({ columns: result.rows, table: input.table });
       } catch (e: any) {
@@ -180,7 +180,7 @@ export function createDatabaseTools(manager: DatabaseConnectionManager, agentId:
       }
 
       try {
-        const result = await manager.executeQuery({ connectionId: input.connectionId, agentId, operation: 'read', sql });
+        const result = await manager.executeQuery({ connectionId: input.connectionId, agentId, operation: 'read', sql, _trusted: true });
         if (!result.success) return errorResult(result.error || 'Query failed');
         return jsonResult({ tables: result.rows });
       } catch (e: any) {

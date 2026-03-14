@@ -188,6 +188,7 @@ export class TursoAdapter extends DatabaseAdapter {
       if ((updates as any)[key] !== undefined) { fields.push(`${col} = ?`); vals.push((updates as any)[key]); }
     }
     if (updates.metadata) { fields.push('metadata = ?'); vals.push(JSON.stringify(updates.metadata)); }
+    if ((updates as any).securityOverrides !== undefined) { fields.push('security_overrides = ?'); vals.push(JSON.stringify((updates as any).securityOverrides)); }
     fields.push("updated_at = datetime('now')");
     vals.push(id);
     await this.run(`UPDATE agents SET ${fields.join(', ')} WHERE id = ?`, vals);
@@ -414,6 +415,7 @@ export class TursoAdapter extends DatabaseAdapter {
     return {
       id: r.id, name: r.name, email: r.email, role: r.role, status: r.status,
       metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : (r.metadata || {}),
+      securityOverrides: r.security_overrides ? (typeof r.security_overrides === 'string' ? JSON.parse(r.security_overrides) : r.security_overrides) : undefined,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at), createdBy: r.created_by,
     };
   }

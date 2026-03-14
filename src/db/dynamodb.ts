@@ -210,7 +210,7 @@ export class DynamoAdapter extends DatabaseAdapter {
     const current = await this.getItem(pk('AGENT'), id);
     if (!current) throw new Error('Agent not found');
     const merged = { ...current, updatedAt: new Date().toISOString() };
-    for (const key of ['name', 'email', 'role', 'status', 'metadata']) {
+    for (const key of ['name', 'email', 'role', 'status', 'metadata', 'securityOverrides']) {
       if ((updates as any)[key] !== undefined) merged[key] = (updates as any)[key];
     }
     if (updates.name) { merged.GSI1SK = updates.name; }

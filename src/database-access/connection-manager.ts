@@ -468,13 +468,20 @@ export class DatabaseConnectionManager {
       return { success: false, error: 'No SQL query provided', executionTimeMs: 0, queryId };
     }
 
-    const sanitizeResult = sanitizeQuery(query.sql, access.permissions, config, access);
-    if (!sanitizeResult.allowed) {
-      await this.logAudit(query, config, access, 'read', 0, false, sanitizeResult.reason || 'Query blocked', startMs, queryId);
-      return { success: false, error: sanitizeResult.reason, executionTimeMs: Date.now() - startMs, queryId };
-    }
+    let finalSql = query.sql;
+    let sanitizeResult: { allowed: boolean; operation: string; reason?: string; sanitizedQuery?: string } | undefined;
 
-    const finalSql = sanitizeResult.sanitizedQuery || query.sql;
+    if (query._trusted) {
+      // Internal system tools (db_list_tables, db_describe_table) bypass sanitizer
+      finalSql = query.sql;
+    } else {
+      sanitizeResult = sanitizeQuery(query.sql, access.permissions, config, access);
+      if (!sanitizeResult.allowed) {
+        await this.logAudit(query, config, access, 'read', 0, false, sanitizeResult.reason || 'Query blocked', startMs, queryId);
+        return { success: false, error: sanitizeResult.reason, executionTimeMs: Date.now() - startMs, queryId };
+      }
+      finalSql = sanitizeResult.sanitizedQuery || query.sql;
+    }
 
     // 4. Check concurrent query limit
     const _maxConcurrent = access.queryLimits?.maxConcurrentQueries ?? config.queryLimits?.maxConcurrentQueries ?? 5;

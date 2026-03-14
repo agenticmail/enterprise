@@ -247,6 +247,7 @@ export class PostgresAdapter extends DatabaseAdapter {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
         ALTER TABLE users ADD COLUMN IF NOT EXISTS client_org_id TEXT;
         ALTER TABLE agents ADD COLUMN IF NOT EXISTS billing_rate NUMERIC(10,2) DEFAULT 0;
+        ALTER TABLE agents ADD COLUMN IF NOT EXISTS security_overrides JSONB;
       `).catch(() => {});
       // ─── Client Organizations ────────────────────────────
       await client.query(`

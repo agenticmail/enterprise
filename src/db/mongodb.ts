@@ -129,7 +129,7 @@ export class MongoAdapter extends DatabaseAdapter {
 
   async updateAgent(id: string, updates: Partial<Agent>): Promise<Agent> {
     const set: any = { updatedAt: new Date() };
-    for (const key of ['name', 'email', 'role', 'status', 'metadata']) {
+    for (const key of ['name', 'email', 'role', 'status', 'metadata', 'securityOverrides']) {
       if ((updates as any)[key] !== undefined) set[key] = (updates as any)[key];
     }
     await this.col('agents').updateOne({ _id: id }, { $set: set });

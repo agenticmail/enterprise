@@ -65,6 +65,7 @@ export class SqliteAdapter extends DatabaseAdapter {
       try { this.db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE users ADD COLUMN client_org_id TEXT`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE agents ADD COLUMN billing_rate REAL DEFAULT 0`); } catch { /* exists */ }
+      try { this.db.exec(`ALTER TABLE agents ADD COLUMN security_overrides TEXT`); } catch { /* exists */ }
       // ─── Client Organizations ────────────────────────────
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS client_organizations (
@@ -212,6 +213,7 @@ export class SqliteAdapter extends DatabaseAdapter {
       if ((updates as any)[key] !== undefined) { fields.push(`${col} = ?`); vals.push((updates as any)[key]); }
     }
     if (updates.metadata) { fields.push('metadata = ?'); vals.push(JSON.stringify(updates.metadata)); }
+    if ((updates as any).securityOverrides !== undefined) { fields.push('security_overrides = ?'); vals.push(JSON.stringify((updates as any).securityOverrides)); }
     fields.push("updated_at = datetime('now')");
     vals.push(id);
     this.db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
@@ -432,6 +434,7 @@ export class SqliteAdapter extends DatabaseAdapter {
     return {
       id: r.id, name: r.name, email: r.email, role: r.role, status: r.status,
       metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
+      securityOverrides: r.security_overrides ? (typeof r.security_overrides === 'string' ? JSON.parse(r.security_overrides) : r.security_overrides) : undefined,
       createdAt: new Date(r.created_at), updatedAt: new Date(r.updated_at), createdBy: r.created_by,
       client_org_id: r.client_org_id || null,
     };

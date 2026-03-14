@@ -167,16 +167,19 @@ export interface DatabaseQuery {
   operation: 'read' | 'write' | 'delete' | 'schema' | 'execute';
   sql?: string;
   params?: any[];
-  
+
   // For NoSQL
   collection?: string;
   filter?: Record<string, any>;
   update?: Record<string, any>;
   document?: Record<string, any>;
-  
+
   // For Redis
   command?: string;
   args?: string[];
+
+  /** Skip query sanitizer — only for internal system tools (db_list_tables, db_describe_table) */
+  _trusted?: boolean;
 }
 
 export interface QueryResult {
