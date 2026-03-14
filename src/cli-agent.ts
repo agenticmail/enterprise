@@ -896,7 +896,7 @@ export async function runAgent(_args: string[]) {
         const session = await runtime.spawnSession({
           agentId,
           message: `[System — Task Recovery] You have a stuck task to complete:\n\nTask: ${task.title}\nID: ${task.id}\nCategory: ${task.category}\nPriority: ${task.priority}\nDescription: ${task.description}\n\nPlease complete this task now.`,
-          model: (task.model || process.env.AGENTICMAIL_MODEL || undefined) as any,
+          model: (task.model || defaultModel || undefined) as any,
         });
         if (session?.id) {
           sessionRouter.register({
@@ -914,12 +914,25 @@ export async function runAgent(_args: string[]) {
             runtime.onSessionComplete(session.id, async (result: any) => {
               sessionRouter?.unregister(agentId, session.id);
               // Record completion
-              afterSpawn(taskQueue, {
-                taskId: task.id,
-                status: result?.error ? 'failed' : 'completed',
-                error: result?.error?.message || result?.error,
-                sessionId: session.id,
-              }).catch((e: any) => console.warn(`[TaskPoller] afterSpawn failed for task ${task.id}: ${e?.message}`));
+              try {
+                await afterSpawn(taskQueue, {
+                  taskId: task.id,
+                  status: result?.error ? 'failed' : 'completed',
+                  error: result?.error?.message || result?.error,
+                  sessionId: session.id,
+                });
+              } catch (e: any) {
+                console.error(`[TaskPoller] afterSpawn failed for task ${task.id}: ${e?.message} — direct DB fallback`);
+                try {
+                  const db = (taskQueue as any).db;
+                  if (db) {
+                    await db.run(
+                      `UPDATE task_pipeline SET status = ?, completed_at = ?, session_id = ? WHERE id = ?`,
+                      [result?.error ? 'failed' : 'completed', new Date().toISOString(), session.id, task.id]
+                    );
+                  }
+                } catch {}
+              }
 
               // Extract last assistant text
               const messages = result?.messages || [];
@@ -1543,9 +1556,13 @@ export async function runAgent(_args: string[]) {
         ...(mediaContentBlocks ? { messageContent: mediaContentBlocks } : {}),
       });
 
-      // Mark task as in progress
+      // Mark task as in progress (must complete before onSessionComplete can fire)
       if (taskId) {
-        markInProgress(taskQueue, taskId, { sessionId: session.id }).catch((e: any) => console.warn(`[task-pipeline] markInProgress failed for ${taskId}: ${e?.message}`));
+        try {
+          await markInProgress(taskQueue, taskId, { sessionId: session.id });
+        } catch (e: any) {
+          console.error(`[task-pipeline] markInProgress failed for ${taskId}: ${e?.message}`);
+        }
       }
 
       // Register in session router
@@ -1571,16 +1588,34 @@ export async function runAgent(_args: string[]) {
         // Record task completion in pipeline
         if (taskId) {
           const usage = result?.usage || {};
-          afterSpawn(taskQueue, {
-            taskId,
-            status: result?.error ? 'failed' : 'completed',
-            error: result?.error?.message || result?.error,
-            modelUsed: result?.model || config.model,
-            tokensUsed: (usage.inputTokens || 0) + (usage.outputTokens || 0),
-            costUsd: usage.costUsd || usage.cost || 0,
-            sessionId: session.id,
-            result: { messageCount: (result?.messages || []).length },
-          }).catch((e: any) => console.warn(`[task-pipeline] afterSpawn failed for chat task ${taskId}: ${e?.message}`));
+          const finalStatus = result?.error ? 'failed' : 'completed';
+          try {
+            await afterSpawn(taskQueue, {
+              taskId,
+              status: finalStatus,
+              error: result?.error?.message || result?.error,
+              modelUsed: result?.model || config.model,
+              tokensUsed: (usage.inputTokens || 0) + (usage.outputTokens || 0),
+              costUsd: usage.costUsd || usage.cost || 0,
+              sessionId: session.id,
+              result: { messageCount: (result?.messages || []).length },
+            });
+          } catch (e: any) {
+            console.error(`[task-pipeline] afterSpawn failed for chat task ${taskId}: ${e?.message} — attempting direct DB update`);
+            // Direct DB fallback — ensures task doesn't stay stuck even if updateTask/persist fails
+            try {
+              const db = (taskQueue as any).db;
+              if (db) {
+                await db.run(
+                  `UPDATE task_pipeline SET status = ?, completed_at = ?, session_id = ?, error = ? WHERE id = ?`,
+                  [finalStatus, new Date().toISOString(), session.id, result?.error?.message || result?.error || null, taskId]
+                );
+                console.log(`[task-pipeline] Direct DB fallback succeeded for task ${taskId.slice(0, 8)}`);
+              }
+            } catch (dbErr: any) {
+              console.error(`[task-pipeline] CRITICAL: Direct DB fallback also failed for task ${taskId.slice(0, 8)}: ${dbErr.message}`);
+            }
+          }
         }
 
         // Check if agent sent a reply via the appropriate tool

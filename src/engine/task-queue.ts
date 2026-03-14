@@ -231,7 +231,18 @@ export class TaskQueueManager {
           this.tasks.set(row.id, dbTask);
           added++;
         } else if (existing.status !== dbTask.status || existing.sessionId !== dbTask.sessionId) {
-          this.tasks.set(row.id, dbTask);
+          // Never regress status — in-memory is source of truth for current process.
+          // If persist() failed but the in-memory state advanced, don't overwrite it with stale DB data.
+          const STATUS_ORDER: Record<string, number> = { created: 0, assigned: 1, in_progress: 2, completed: 3, failed: 3, cancelled: 3 };
+          const existingOrder = STATUS_ORDER[existing.status] ?? 0;
+          const dbOrder = STATUS_ORDER[dbTask.status] ?? 0;
+          if (dbOrder >= existingOrder) {
+            this.tasks.set(row.id, dbTask);
+          } else {
+            // In-memory is further along — re-persist to DB to fix the drift
+            console.log(`[TaskQueue] syncFromDb: in-memory task ${row.id.slice(0, 8)} is ${existing.status} but DB is ${dbTask.status} — re-persisting`);
+            this.persist(existing).catch(() => {});
+          }
         }
       }
       if (added > 0) console.log(`[TaskQueue] syncFromDb: added ${added} tasks from DB`);
@@ -376,7 +387,20 @@ export class TaskQueueManager {
 
   async updateTask(taskId: string, updates: Partial<Pick<TaskRecord, 'status' | 'progress' | 'result' | 'error' | 'modelUsed' | 'tokensUsed' | 'costUsd' | 'sessionId' | 'title' | 'description' | 'priority' | 'activityLog' | 'startedAt'>>): Promise<TaskRecord | null> {
     await this.init();
-    const task = this.tasks.get(taskId);
+    let task = this.tasks.get(taskId);
+
+    // Fallback: if task not in memory but we have DB, load it
+    if (!task && this.db) {
+      try {
+        const row = await this.db.get(`SELECT * FROM task_pipeline WHERE id = ?`, [taskId]);
+        if (row) {
+          task = this.rowToTask(row);
+          this.tasks.set(taskId, task);
+          console.log(`[TaskQueue] updateTask: loaded task ${taskId.slice(0, 8)} from DB (was missing from memory)`);
+        }
+      } catch {}
+    }
+
     if (!task) return null;
 
     const now = new Date().toISOString();
@@ -591,42 +615,55 @@ export class TaskQueueManager {
 
   private async persist(task: TaskRecord): Promise<void> {
     if (!this.db) return;
-    try {
-      await this.db.run(`INSERT INTO task_pipeline (
-        id, org_id, assigned_to, assigned_to_name, created_by, created_by_name,
-        title, description, category, tags, status, priority, progress,
-        created_at, assigned_at, started_at, completed_at,
-        estimated_duration_ms, actual_duration_ms, result, error,
-        parent_task_id, related_agent_ids, session_id,
-        model, fallback_model, model_used, tokens_used, cost_usd,
-        chain_id, chain_seq, delegated_from, delegated_to, delegation_type,
-        customer_context, activity_log, source, delivery_context
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT (id) DO UPDATE SET
-          status=EXCLUDED.status, priority=EXCLUDED.priority, progress=EXCLUDED.progress,
-          assigned_at=EXCLUDED.assigned_at, started_at=EXCLUDED.started_at, completed_at=EXCLUDED.completed_at,
-          actual_duration_ms=EXCLUDED.actual_duration_ms, result=EXCLUDED.result, error=EXCLUDED.error,
-          model_used=EXCLUDED.model_used, tokens_used=EXCLUDED.tokens_used, cost_usd=EXCLUDED.cost_usd,
-          session_id=EXCLUDED.session_id, title=EXCLUDED.title, description=EXCLUDED.description,
-          delegated_to=EXCLUDED.delegated_to, activity_log=EXCLUDED.activity_log`, [
-        task.id, task.orgId, task.assignedTo, task.assignedToName,
-        task.createdBy, task.createdByName,
-        task.title, task.description, task.category, JSON.stringify(task.tags),
-        task.status, task.priority, task.progress,
-        task.createdAt, task.assignedAt, task.startedAt, task.completedAt,
-        task.estimatedDurationMs, task.actualDurationMs,
-        task.result ? JSON.stringify(task.result) : null,
-        task.error,
-        task.parentTaskId, JSON.stringify(task.relatedAgentIds), task.sessionId,
-        task.model, task.fallbackModel, task.modelUsed, task.tokensUsed, task.costUsd,
-        task.chainId, task.chainSeq, task.delegatedFrom, task.delegatedTo, task.delegationType,
-        task.customerContext ? JSON.stringify(task.customerContext) : null,
-        JSON.stringify(task.activityLog || []),
-        task.source,
-        task.deliveryContext ? JSON.stringify(task.deliveryContext) : null,
-      ]);
-    } catch (e: any) {
-      console.error('[TaskQueue] persist error:', e.message);
+    const isTerminal = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled';
+    const maxAttempts = isTerminal ? 2 : 1;
+    const params = [
+      task.id, task.orgId, task.assignedTo, task.assignedToName,
+      task.createdBy, task.createdByName,
+      task.title, task.description, task.category, JSON.stringify(task.tags),
+      task.status, task.priority, task.progress,
+      task.createdAt, task.assignedAt, task.startedAt, task.completedAt,
+      task.estimatedDurationMs, task.actualDurationMs,
+      task.result ? JSON.stringify(task.result) : null,
+      task.error,
+      task.parentTaskId, JSON.stringify(task.relatedAgentIds), task.sessionId,
+      task.model, task.fallbackModel, task.modelUsed, task.tokensUsed, task.costUsd,
+      task.chainId, task.chainSeq, task.delegatedFrom, task.delegatedTo, task.delegationType,
+      task.customerContext ? JSON.stringify(task.customerContext) : null,
+      JSON.stringify(task.activityLog || []),
+      task.source,
+      task.deliveryContext ? JSON.stringify(task.deliveryContext) : null,
+    ];
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await this.db.run(`INSERT INTO task_pipeline (
+          id, org_id, assigned_to, assigned_to_name, created_by, created_by_name,
+          title, description, category, tags, status, priority, progress,
+          created_at, assigned_at, started_at, completed_at,
+          estimated_duration_ms, actual_duration_ms, result, error,
+          parent_task_id, related_agent_ids, session_id,
+          model, fallback_model, model_used, tokens_used, cost_usd,
+          chain_id, chain_seq, delegated_from, delegated_to, delegation_type,
+          customer_context, activity_log, source, delivery_context
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT (id) DO UPDATE SET
+            status=EXCLUDED.status, priority=EXCLUDED.priority, progress=EXCLUDED.progress,
+            assigned_at=EXCLUDED.assigned_at, started_at=EXCLUDED.started_at, completed_at=EXCLUDED.completed_at,
+            actual_duration_ms=EXCLUDED.actual_duration_ms, result=EXCLUDED.result, error=EXCLUDED.error,
+            model_used=EXCLUDED.model_used, tokens_used=EXCLUDED.tokens_used, cost_usd=EXCLUDED.cost_usd,
+            session_id=EXCLUDED.session_id, title=EXCLUDED.title, description=EXCLUDED.description,
+            delegated_to=EXCLUDED.delegated_to, activity_log=EXCLUDED.activity_log`, params);
+        return; // Success
+      } catch (e: any) {
+        console.error(`[TaskQueue] persist error (attempt ${attempt + 1}/${maxAttempts}, status=${task.status}):`, e.message);
+        if (attempt === 0 && isTerminal) {
+          await new Promise(r => setTimeout(r, 500)); // Brief delay before retry
+        }
+      }
+    }
+    // All attempts failed — for terminal states, throw so callers know
+    if (isTerminal) {
+      throw new Error(`[TaskQueue] Failed to persist terminal state (${task.status}) for task ${task.id.slice(0, 8)} after ${maxAttempts} attempts`);
     }
   }
 
