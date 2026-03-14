@@ -197,7 +197,9 @@ function RoutingRowEditor(props) {
       modelId: modelId,
       providers: providers,
       onChange: function(p, m) {
-        onChange(p && m ? p + '/' + m : '');
+        if (p && m) onChange(p + '/' + m);
+        else if (p) onChange(p + '/');
+        else onChange('');
       }
     }),
     h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' } }, 'Recommended: ' + ctx.rec),
@@ -741,9 +743,15 @@ export function ConfigurationSection(props) {
           setEditingRouting(true);
         },
         onSave: function() {
+          // Clean routing: strip entries with provider but no model (e.g. "anthropic/")
+          var cleanRouting = {};
+          Object.keys(routingForm).forEach(function(k) {
+            var v = routingForm[k] || '';
+            cleanRouting[k] = v.endsWith('/') ? '' : v;
+          });
           saveUpdates({
-            modelRouting: routingForm,
-            voiceConfig: Object.assign({}, config.voiceConfig || {}, { chatModel: routingForm.chat || '', meetingModel: routingForm.meeting || '' }),
+            modelRouting: cleanRouting,
+            voiceConfig: Object.assign({}, config.voiceConfig || {}, { chatModel: cleanRouting.chat || '', meetingModel: cleanRouting.meeting || '' }),
           }, function() { setEditingRouting(false); });
         },
         onCancel: function() { setEditingRouting(false); }
