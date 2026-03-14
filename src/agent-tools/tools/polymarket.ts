@@ -26,7 +26,7 @@ import { createPolymarketQuantTools } from './polymarket-quant.js';
 import { createPolymarketCounterintelTools } from './polymarket-counterintel.js';
 import { createPolymarketOptimizerTools } from './polymarket-optimizer.js';
 import {
-  ensureSDK, getClobClient, importSDK, initPolymarketDB, loadWalletCredentials, saveWalletCredentials, generateWallet,
+  ensureSDK, getClobClient, importSDK, initPolymarketDB, loadWalletCredentials,
   loadConfig, saveConfig, getDailyCounter, incrementDailyCounter, pauseTrading, resumeTrading,
   savePendingTrade, getPendingTrades, resolvePendingTrade, logTrade,
   saveAlert, getAlerts, deleteAlert, deleteAllAlerts, checkAlerts,
@@ -132,7 +132,7 @@ const circuitBreakerState = new Map<string, { paused: boolean; reason: string; p
 import { createPolymarketPipelineTools } from './polymarket-pipeline.js';
 let _pipelineTools: AnyAgentTool[] = [];
 try { _pipelineTools = createPolymarketPipelineTools() as AnyAgentTool[]; } catch (e: any) { console.warn('[polymarket] Pipeline init:', e.message); }
-const walletState = new Map<string, { connected: boolean; address?: string; sigType?: number }>();
+
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -527,118 +527,6 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
   const tools: AnyAgentTool[] = [
 
     // ═══ ACCOUNT & ONBOARDING ═══════════════════════════════════
-
-    {
-      name: 'poly_create_account',
-      description: 'Create a new Polymarket account using the browser. Generates a fresh Ethereum wallet, navigates to polymarket.com, and completes the signup flow. The wallet credentials are stored securely in the enterprise database. The agent handles the entire flow autonomously.',
-      category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: {
-        method: { type: 'string', description: '"auto" = agent creates wallet + signs up via browser. "import" = user provides existing private key.', enum: ['auto', 'import'] },
-        private_key: { type: 'string', description: 'For import method: existing Ethereum private key' },
-        funder_address: { type: 'string', description: 'For import method: Polymarket profile address' },
-        signature_type: { type: 'number', description: '0=EOA, 1=Email/Magic, 2=Browser proxy', default: 0 },
-      }},
-      async execute(_id: string, p: any) {
-        try {
-          if (p.method === 'import' && p.private_key) {
-            // User providing their own key
-            const sdk = await ensureSDK();
-
-            let address = '(pending SDK)';
-            let funder = p.funder_address;
-            if (sdk.ready) {
-              try {
-                const { Wallet } = await import('@ethersproject/wallet' as any);
-                const key = p.private_key.startsWith('0x') ? p.private_key : `0x${p.private_key}`;
-                const wallet = new Wallet(key);
-                address = wallet.address;
-                funder = funder || address;
-              } catch (e: any) {
-                return errorResult(`Invalid private key: ${e.message}`);
-              }
-            }
-
-            // Store in DB
-            await saveWalletCredentials(agentId, db, {
-              privateKey: p.private_key.startsWith('0x') ? p.private_key : `0x${p.private_key}`,
-              funderAddress: funder,
-              signatureType: p.signature_type || 0,
-            });
-
-            // Try to derive API creds immediately
-            if (sdk.ready) {
-              try {
-                const client = await getClobClient(agentId, db);
-                if (client) {
-                  return jsonResult({
-                    status: 'connected',
-                    method: 'import',
-                    address: client.address,
-                    funder: client.funderAddress,
-                    message: 'Wallet imported and CLOB API credentials derived. Ready to trade.',
-                    next_steps: ['Fund wallet with USDC on Polygon', 'Configure trading with poly_set_config', 'Start with poly_search_markets'],
-                  });
-                }
-              } catch {}
-            }
-
-            return jsonResult({
-              status: 'stored',
-              method: 'import',
-              address,
-              message: 'Wallet credentials stored. SDK will auto-install on first trade attempt.',
-              sdk_status: sdk.ready ? 'ready' : sdk.message,
-            });
-          }
-
-          // Auto-create: generate wallet + browser signup
-          const wallet = await generateWallet();
-          if (!wallet) return errorResult('Failed to generate wallet. SDK may need to be installed.');
-
-          // Store the generated wallet
-          await saveWalletCredentials(agentId, db, {
-            privateKey: wallet.privateKey,
-            funderAddress: wallet.address,
-            signatureType: 0,
-          });
-
-          return jsonResult({
-            status: 'wallet_generated',
-            address: wallet.address,
-            message: 'Fresh wallet generated and stored in database. To complete Polymarket account setup:',
-            next_steps: [
-              '1. Use the browser tool to navigate to https://polymarket.com and sign up with this wallet',
-              '2. Or send USDC directly to the wallet address on Polygon and trade via API',
-              '3. The agent can navigate polymarket.com to complete signup if browser access is available',
-            ],
-            funding: {
-              address: wallet.address,
-              network: 'Polygon (MATIC)',
-              token: 'USDC',
-            },
-            note: 'Private key is stored securely in the enterprise database. Never share it.',
-          });
-        } catch (e: any) { return errorResult(e.message); }
-      },
-    },
-
-    {
-      name: 'poly_check_sdk',
-      description: 'Check if the Polymarket SDK is installed and ready. If not installed, auto-installs it. Use this to verify the system is ready for trading before attempting any authenticated operations.',
-      category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: {} },
-      async execute() {
-        const result = await ensureSDK();
-        const walletClient = await getClobClient(agentId, db);
-        return jsonResult({
-          sdk_ready: result.ready,
-          sdk_message: result.message,
-          wallet_connected: !!walletClient,
-          wallet_address: walletClient?.address || null,
-          funder_address: walletClient?.funderAddress || null,
-        });
-      },
-    },
 
     // ═══ MARKET DISCOVERY ═══════════════════════════════════════
 
@@ -1108,59 +996,6 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
     },
 
     // ═══ WALLET & ACCOUNT ═══════════════════════════════════════
-
-    {
-      name: 'poly_setup_wallet',
-      description: 'Initialize trading wallet — auto-installs SDK if needed, stores credentials in enterprise DB',
-      category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: {
-        private_key: { type: 'string' }, funder_address: { type: 'string' },
-        signature_type: { type: 'number' }, rpc_url: { type: 'string' },
-      }, required: ['private_key'] },
-      async execute(_id: string, p: any) {
-        try {
-          // Auto-install SDK if needed
-          const sdk = await ensureSDK();
-          if (!sdk.ready) {
-            // Store creds anyway so they're ready when SDK installs
-            await saveWalletCredentials(agentId, db, {
-              privateKey: p.private_key.startsWith('0x') ? p.private_key : `0x${p.private_key}`,
-              funderAddress: p.funder_address,
-              signatureType: p.signature_type || 0,
-              rpcUrl: p.rpc_url,
-            });
-            return jsonResult({
-              status: 'credentials_stored',
-              message: `Wallet credentials saved to database. SDK status: ${sdk.message}`,
-              note: 'Credentials are persisted — they will survive server restarts. SDK will auto-install on next attempt.',
-            });
-          }
-
-          // Store in DB first
-          await saveWalletCredentials(agentId, db, {
-            privateKey: p.private_key.startsWith('0x') ? p.private_key : `0x${p.private_key}`,
-            funderAddress: p.funder_address,
-            signatureType: p.signature_type || 0,
-            rpcUrl: p.rpc_url,
-          });
-
-          // Initialize client (loads from DB, derives API creds if needed)
-          const client = await getClobClient(agentId, db);
-          if (!client) return errorResult('Failed to initialize CLOB client after saving credentials');
-
-          walletState.set(agentId, { connected: true, address: client.funderAddress, sigType: p.signature_type || 0 });
-
-          return jsonResult({
-            status: 'connected',
-            address: client.funderAddress,
-            signer_address: client.address,
-            signature_type: p.signature_type || 0,
-            persisted: true,
-            note: 'Credentials stored in enterprise database. Will survive server restarts and redeployments.',
-          });
-        } catch (e: any) { return errorResult(`Wallet setup failed: ${e.message}`); }
-      },
-    },
 
     {
       name: 'poly_wallet_status',
@@ -3267,6 +3102,195 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
               confidence: `${(u.confidence * 100).toFixed(0)}%`,
               created: u.created_at,
             })),
+          });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
+
+    // ═══ OPPORTUNITY SCANNER ══════════════════════════════════
+
+    {
+      name: 'poly_scan_opportunities',
+      description: 'Automated opportunity scanner: finds markets with unusual volume spikes, price dislocations, closing-soon with wide spreads, new markets with thin books, or mean reversion setups.',
+      category: 'enterprise' as const,
+      parameters: { type: 'object' as const, properties: {
+        strategies: { type: 'array', items: { type: 'string' }, description: 'Opportunity types: volume_spike, price_dislocation, closing_soon, new_market, thin_book, mean_reversion' },
+        categories: { type: 'array', items: { type: 'string' }, description: 'Limit to these categories' },
+        min_edge: { type: 'number', description: 'Min perceived edge % to report (default: 5)' },
+        limit: { type: 'number', description: 'Max results (default: 20)' },
+      }},
+      async execute(_id: string, p: any) {
+        try {
+          const strategies = p.strategies || ['volume_spike', 'price_dislocation', 'closing_soon', 'new_market', 'thin_book', 'mean_reversion'];
+          const minEdge = p.min_edge || 5;
+          const limit = p.limit || 20;
+          const opportunities: any[] = [];
+
+          // Fetch from BOTH /markets and /events for maximum coverage (same pattern as poly_search_markets)
+          const mktQs = new URLSearchParams({ active: 'true', closed: 'false', order: 'volume', ascending: 'false', limit: '100' });
+          if (p.categories?.length === 1) mktQs.set('tag', p.categories[0]);
+          const evQs: Record<string, string> = { active: 'true', closed: 'false', order: 'volume', ascending: 'false', limit: '200' };
+          if (p.categories?.length === 1) evQs.tag_id = p.categories[0];
+
+          // For new_market strategy, also fetch by creation date
+          const needsNew = strategies.includes('new_market');
+          const newMktQs = needsNew ? new URLSearchParams({ active: 'true', closed: 'false', order: 'createdAt', ascending: 'false', limit: '50' }) : null;
+
+          const [marketsRaw, eventsRaw, newMarketsRaw] = await Promise.all([
+            apiFetch(`${GAMMA_API}/markets?${mktQs}`).catch(() => []),
+            apiFetch(`${GAMMA_API}/events?${new URLSearchParams(evQs)}`).catch(() => []),
+            newMktQs ? apiFetch(`${GAMMA_API}/markets?${newMktQs}`).catch(() => []) : Promise.resolve([]),
+          ]);
+
+          // Merge and deduplicate
+          let allRaw = Array.isArray(marketsRaw) ? [...marketsRaw] : [];
+          if (Array.isArray(eventsRaw)) {
+            for (const ev of eventsRaw) {
+              if (ev.markets && Array.isArray(ev.markets)) {
+                for (const em of ev.markets) {
+                  if (em.active && !em.closed) allRaw.push(em);
+                }
+              }
+            }
+          }
+          if (Array.isArray(newMarketsRaw)) {
+            for (const nm of newMarketsRaw) {
+              if (nm.active && !nm.closed) allRaw.push(nm);
+            }
+          }
+          const seen = new Set<string>();
+          allRaw = allRaw.filter(m => {
+            const k = m.conditionId || m.id;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            // Filter out resolved/closed/dead markets
+            if (m.closed === true || m.closed === 'true') return false;
+            if (m.resolved === true || m.resolved === 'true') return false;
+            if (parseFloat(m.liquidity || '0') <= 0) return false;
+            return true;
+          });
+
+          if (allRaw.length === 0) return jsonResult({ opportunities: [], message: 'No active markets found' });
+
+          const now = Date.now();
+
+          for (const m of allRaw) {
+            if (p.categories?.length && !p.categories.some((c: string) => (m.tags || []).includes(c) || m.slug?.includes(c.toLowerCase()))) continue;
+
+            const volume = parseFloat(m.volume || '0');
+            const liquidity = parseFloat(m.liquidity || '0');
+            const endDate = m.endDate ? new Date(m.endDate).getTime() : 0;
+            let prices: number[] = [];
+            try {
+              const raw = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+              if (Array.isArray(raw)) prices = raw.map((pr: any) => parseFloat(pr));
+            } catch {}
+
+            // Strategy: volume_spike — high volume relative to liquidity
+            if (strategies.includes('volume_spike') && volume > 0 && liquidity > 0) {
+              const volToLiq = volume / liquidity;
+              if (volToLiq > 10) {
+                opportunities.push({
+                  strategy: 'volume_spike',
+                  market: slimMarket(m),
+                  signal: `Volume/Liquidity ratio: ${volToLiq.toFixed(1)}x — significant activity relative to book depth`,
+                  edge_estimate: Math.min(volToLiq * 2, 30),
+                  urgency: volToLiq > 50 ? 'high' : 'medium',
+                });
+              }
+            }
+
+            // Strategy: price_dislocation — prices that don't sum to ~1.0 (multi-outcome)
+            if (strategies.includes('price_dislocation') && prices.length >= 2) {
+              const sum = prices.reduce((a, b) => a + b, 0);
+              const dislocation = Math.abs(sum - 1.0) * 100;
+              if (dislocation >= minEdge) {
+                opportunities.push({
+                  strategy: 'price_dislocation',
+                  market: slimMarket(m),
+                  signal: `Price sum: ${sum.toFixed(4)} (${sum > 1 ? 'overpriced' : 'underpriced'} by ${dislocation.toFixed(1)}%)`,
+                  edge_estimate: dislocation,
+                  urgency: dislocation > 10 ? 'high' : 'medium',
+                });
+              }
+            }
+
+            // Strategy: closing_soon — markets ending within 48h with wide spreads
+            if (strategies.includes('closing_soon') && endDate > 0) {
+              const hoursLeft = (endDate - now) / 3600_000;
+              if (hoursLeft > 0 && hoursLeft <= 48 && prices.length >= 2) {
+                // Check for wide spread (price far from 0 or 1 means uncertainty)
+                const maxPrice = Math.max(...prices);
+                const uncertainty = Math.min(maxPrice, 1 - maxPrice) * 100;
+                if (uncertainty >= minEdge) {
+                  opportunities.push({
+                    strategy: 'closing_soon',
+                    market: slimMarket(m),
+                    signal: `Closes in ${hoursLeft.toFixed(1)}h — leading outcome at ${(maxPrice * 100).toFixed(1)}% (${uncertainty.toFixed(1)}% uncertainty)`,
+                    edge_estimate: uncertainty,
+                    urgency: hoursLeft < 12 ? 'high' : 'medium',
+                  });
+                }
+              }
+            }
+
+            // Strategy: new_market — created within last 24h with thin liquidity
+            if (strategies.includes('new_market')) {
+              const createdAt = m.createdAt ? new Date(m.createdAt).getTime() : 0;
+              const hoursOld = (now - createdAt) / 3600_000;
+              if (hoursOld > 0 && hoursOld <= 24 && liquidity < 50_000) {
+                opportunities.push({
+                  strategy: 'new_market',
+                  market: slimMarket(m),
+                  signal: `${hoursOld.toFixed(1)}h old, $${liquidity.toFixed(0)} liquidity — early-mover opportunity`,
+                  edge_estimate: Math.min(20, (50_000 - liquidity) / 2500),
+                  urgency: hoursOld < 6 ? 'high' : 'medium',
+                });
+              }
+            }
+
+            // Strategy: thin_book — very low liquidity relative to volume
+            if (strategies.includes('thin_book') && liquidity > 0 && liquidity < 10_000 && volume > 5_000) {
+              opportunities.push({
+                strategy: 'thin_book',
+                market: slimMarket(m),
+                signal: `Only $${liquidity.toFixed(0)} liquidity but $${volume.toFixed(0)} volume — thin book, potential for price impact`,
+                edge_estimate: Math.min(25, (10_000 - liquidity) / 400),
+                urgency: liquidity < 2000 ? 'high' : 'medium',
+              });
+            }
+
+            // Strategy: mean_reversion — price far from 50% on binary markets
+            if (strategies.includes('mean_reversion') && prices.length === 2) {
+              const yesPrice = prices[0];
+              if (yesPrice >= 0.15 && yesPrice <= 0.85) {
+                // Look for markets where price moved sharply (volume spike + non-extreme price)
+                const volToLiq = volume / Math.max(liquidity, 1);
+                if (volToLiq > 5 && yesPrice >= 0.25 && yesPrice <= 0.75) {
+                  opportunities.push({
+                    strategy: 'mean_reversion',
+                    market: slimMarket(m),
+                    signal: `Yes at ${(yesPrice * 100).toFixed(1)}% with ${volToLiq.toFixed(1)}x volume/liquidity — potential overreaction`,
+                    edge_estimate: Math.abs(yesPrice - 0.5) * 20 + volToLiq,
+                    urgency: 'low',
+                  });
+                }
+              }
+            }
+          }
+
+          // Sort by edge estimate descending, limit results
+          opportunities.sort((a, b) => (b.edge_estimate || 0) - (a.edge_estimate || 0));
+          const results = opportunities.slice(0, limit);
+
+          // Filter by min_edge
+          const filtered = results.filter(o => (o.edge_estimate || 0) >= minEdge);
+
+          return jsonResult({
+            scanned: allRaw.length,
+            strategies_used: strategies,
+            count: filtered.length,
+            opportunities: filtered,
           });
         } catch (e: any) { return errorResult(e.message); }
       },

@@ -1630,10 +1630,10 @@ export function createAgentRoutes(opts: {
     {
       id: 'polymarket', name: 'Polymarket Trading', description: 'Prediction market trading — search markets, place orders, manage positions, risk controls, price alerts',
       icon: Emoji.barChart,
-      tools: ['poly_create_account', 'poly_check_sdk', 'poly_search_markets', 'poly_get_market', 'poly_get_event',
+      tools: ['poly_search_markets', 'poly_get_market', 'poly_get_event',
               'poly_get_prices', 'poly_get_orderbook', 'poly_get_trades', 'poly_price_history', 'poly_trending_markets',
               'poly_market_comments', 'poly_related_markets', 'poly_market_news',
-              'poly_setup_wallet', 'poly_wallet_status', 'poly_set_allowances', 'poly_get_balance',
+              'poly_wallet_status', 'poly_set_allowances', 'poly_get_balance',
               'poly_deposit', 'poly_swap_to_usdce', 'poly_withdraw', 'poly_get_positions', 'poly_get_closed_positions', 'poly_redeem',
               'poly_portfolio_summary', 'poly_place_order', 'poly_place_batch_orders',
               'poly_get_open_orders', 'poly_get_order', 'poly_cancel_order', 'poly_cancel_orders', 'poly_cancel_all',

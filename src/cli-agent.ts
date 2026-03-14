@@ -976,6 +976,7 @@ export async function runAgent(_args: string[]) {
       await runtime.sendMessage(sessionId, message);
     },
   }, {
+    agentId,                          // Only process tasks assigned to THIS agent
     intervalMs: 2 * 60 * 1000,     // Poll every 2 minutes
     stuckThresholdMs: 5 * 60 * 1000,  // 5 min for created/assigned
     staleThresholdMs: 15 * 60 * 1000, // 15 min for in_progress without activity

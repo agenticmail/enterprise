@@ -166,5 +166,101 @@ export function createPolymarketPortfolioTools(opts?: ToolCreationOptions): AnyA
         catch (e: any) { return errorResult(e.message); }
       },
     },
+
+    // ═══ FUND TRANSFER (APPROVAL-GATED) ══════════════════════
+
+    {
+      name: 'poly_transfer_funds',
+      description: 'Transfer USDC to a whitelisted withdrawal address. ALWAYS requires human approval. Destination must be pre-registered in poly_whitelisted_addresses with a 24h cooling period.',
+      parameters: {
+        type: 'object', properties: {
+          to_label: { type: 'string', description: 'Label of the whitelisted address' },
+          amount: { type: 'number', description: 'Amount in USD to transfer' },
+          token: { type: 'string', description: 'Token to transfer (default: USDC)' },
+          reason: { type: 'string', description: 'Reason for the transfer' },
+        }, required: ['to_label', 'amount'],
+      },
+      async execute(_id: string, p: any) {
+        try {
+          const db = getDb();
+          if (!db) return errorResult('No database available');
+
+          const token = (p.token || 'USDC').toUpperCase();
+          const amount = parseFloat(p.amount);
+          if (!amount || amount <= 0) return errorResult('Amount must be a positive number');
+          if (!p.to_label) return errorResult('to_label is required — specify the label of the whitelisted address');
+
+          // 1. Look up whitelisted address by label
+          const whitelist = await safeDbQuery(db, `SELECT * FROM poly_whitelisted_addresses WHERE agent_id = ? AND label = ? AND is_active = 1`, [agentId, p.to_label]);
+          if (!whitelist || whitelist.length === 0) {
+            // List available addresses to help the agent
+            const available = await safeDbQuery(db, `SELECT label, address, per_tx_limit, daily_limit FROM poly_whitelisted_addresses WHERE agent_id = ? AND is_active = 1`, [agentId]);
+            return jsonResult({
+              status: 'error',
+              message: `No whitelisted address found with label "${p.to_label}".`,
+              available_addresses: available?.length ? available : [],
+              hint: available?.length ? 'Use one of the available address labels.' : 'No whitelisted addresses configured. An admin must add withdrawal addresses with a 24h cooling period before transfers can be made.',
+            });
+          }
+
+          const dest = whitelist[0] as any;
+
+          // 2. Check cooling period (24h after creation)
+          const coolingUntil = new Date(dest.cooling_until).getTime();
+          if (Date.now() < coolingUntil) {
+            const hoursLeft = ((coolingUntil - Date.now()) / 3600_000).toFixed(1);
+            return jsonResult({
+              status: 'cooling_period',
+              message: `Address "${p.to_label}" is still in 24h cooling period. ${hoursLeft}h remaining.`,
+              cooling_until: dest.cooling_until,
+            });
+          }
+
+          // 3. Check per-transaction limit
+          const perTxLimit = parseFloat(dest.per_tx_limit || '100');
+          if (amount > perTxLimit) {
+            return jsonResult({
+              status: 'over_limit',
+              message: `Amount $${amount} exceeds per-transaction limit of $${perTxLimit} for address "${p.to_label}".`,
+              per_tx_limit: perTxLimit,
+            });
+          }
+
+          // 4. Check daily limit
+          const dailyLimit = parseFloat(dest.daily_limit || '500');
+          const today = new Date().toISOString().slice(0, 10);
+          const dailyRows = await safeDbQuery(db, `SELECT total_transferred FROM poly_transfer_daily WHERE agent_id = ? AND address = ? AND date = ?`, [agentId, dest.address, today]);
+          const dailyUsed = parseFloat((dailyRows?.[0] as any)?.total_transferred || '0');
+          if (dailyUsed + amount > dailyLimit) {
+            return jsonResult({
+              status: 'daily_limit_exceeded',
+              message: `Transfer would exceed daily limit. Used: $${dailyUsed.toFixed(2)}, Requesting: $${amount}, Limit: $${dailyLimit}`,
+              daily_used: dailyUsed,
+              daily_limit: dailyLimit,
+              remaining: Math.max(0, dailyLimit - dailyUsed),
+            });
+          }
+
+          // 5. Create a PENDING transfer request (always requires human approval)
+          const requestId = crypto.randomUUID();
+          const expiresAt = new Date(Date.now() + 24 * 3600_000).toISOString(); // 24h expiry
+
+          await safeDbExec(db, `INSERT INTO poly_transfer_requests (id, agent_id, whitelist_id, to_address, to_label, amount, token, reason, status, requested_by, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'agent', ?)`,
+            [requestId, agentId, dest.id, dest.address, p.to_label, amount, token, p.reason || '', expiresAt]);
+
+          return jsonResult({
+            status: 'pending_approval',
+            request_id: requestId,
+            to_label: p.to_label,
+            to_address: dest.address,
+            amount,
+            token,
+            reason: p.reason || '',
+            expires_at: expiresAt,
+            message: `Transfer request created and AWAITING HUMAN APPROVAL. Request ID: ${requestId}. An admin must approve this transfer before it executes. The request expires in 24 hours.`,
+          });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
   ];
 }

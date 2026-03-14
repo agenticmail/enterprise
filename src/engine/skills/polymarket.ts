@@ -76,28 +76,6 @@ export const TOOLS: ToolDefinition[] = [
   //  ACCOUNT & ONBOARDING
   // ═══════════════════════════════════════════════════════════════
 
-  {
-    id: 'poly_create_account',
-    name: 'Wallet Status',
-    description: 'Check if a wallet is configured. Agents cannot create wallets — the user must create a Polymarket account at polymarket.com, then import the wallet private key via the enterprise dashboard Wallet tab.',
-    category: 'read',
-    risk: 'low',
-    skillId: 'polymarket',
-    sideEffects: [],
-    parameters: { type: 'object', properties: {} },
-  },
-
-  {
-    id: 'poly_check_sdk',
-    name: 'Check SDK Status',
-    description: 'Check if the Polymarket SDK is installed and auto-install if missing. Also shows wallet connection status. Run this first to verify the system is ready.',
-    category: 'read',
-    risk: 'low',
-    skillId: 'polymarket',
-    sideEffects: [],
-    parameters: { type: 'object', properties: {} },
-  },
-
   // ═══════════════════════════════════════════════════════════════
   //  MARKET DISCOVERY & DATA (Public — no auth required)
   // ═══════════════════════════════════════════════════════════════
@@ -317,26 +295,6 @@ export const TOOLS: ToolDefinition[] = [
   // ═══════════════════════════════════════════════════════════════
   //  WALLET & ACCOUNT SETUP
   // ═══════════════════════════════════════════════════════════════
-
-  {
-    id: 'poly_setup_wallet',
-    name: 'Setup Wallet',
-    description: 'Initialize the trading client with an Ethereum private key. Derives API credentials (L1→L2 auth), stores them in the agent vault. Must be called before any authenticated operations. Supports EOA, email/Magic, and browser proxy wallets.',
-    category: 'write',
-    risk: 'critical',
-    skillId: 'polymarket',
-    sideEffects: ['accesses-secrets'],
-    parameters: {
-      type: 'object',
-      properties: {
-        private_key: { type: 'string', description: 'Ethereum private key (hex with or without 0x prefix). Stored in vault, never logged.' },
-        funder_address: { type: 'string', description: 'Polymarket profile address (where USDC lives). Derived from key if omitted.' },
-        signature_type: { type: 'number', enum: [0, 1, 2], description: '0=EOA/MetaMask (default), 1=Email/Magic, 2=Browser proxy', default: 0 },
-        rpc_url: { type: 'string', description: 'Custom Polygon RPC URL (default: public Polygon RPC). Use a private RPC for speed.' },
-      },
-      required: ['private_key'],
-    },
-  },
 
   {
     id: 'poly_wallet_status',

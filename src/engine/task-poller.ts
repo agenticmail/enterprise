@@ -17,6 +17,8 @@ import type { SessionRouter } from './session-router.js';
 // ─── Types ────────────────────────────────────────────────
 
 export interface TaskPollerConfig {
+  /** The agent ID this poller belongs to — only tasks assigned to this agent will be processed */
+  agentId?: string;
   /** How often to poll in ms (default: 2 minutes) */
   intervalMs?: number;
   /** How long a created/assigned task can sit before being considered stuck (default: 5 min) */
@@ -48,6 +50,7 @@ interface RetryState {
 // ─── Task Poller ──────────────────────────────────────────
 
 export class TaskPoller {
+  private agentId: string | null;
   private intervalMs: number;
   private stuckThresholdMs: number;
   private staleThresholdMs: number;
@@ -64,6 +67,7 @@ export class TaskPoller {
 
   constructor(deps: TaskPollerDeps, config?: TaskPollerConfig) {
     this.deps = deps;
+    this.agentId = config?.agentId ?? null;
     this.intervalMs = config?.intervalMs ?? 2 * 60 * 1000;        // 2 min
     this.stuckThresholdMs = config?.stuckThresholdMs ?? 5 * 60 * 1000;  // 5 min
     this.staleThresholdMs = config?.staleThresholdMs ?? 30 * 60 * 1000; // 30 min — agent sessions can run 20+ tool calls
@@ -118,7 +122,13 @@ export class TaskPoller {
         this.log('DB sync warning (non-fatal):', syncErr.message);
       }
 
-      const activeTasks = this.deps.taskQueue.getActiveTasks();
+      let activeTasks = this.deps.taskQueue.getActiveTasks();
+
+      // Filter to only this agent's tasks — prevents cross-agent interference in shared DB
+      if (this.agentId) {
+        activeTasks = activeTasks.filter(t => t.assignedTo === this.agentId);
+      }
+
       checked = activeTasks.length;
 
       if (checked === 0) {
@@ -172,12 +182,20 @@ export class TaskPoller {
           // Try to recover
           this.recovering.add(task.id);
           const didRecover = await this.recover(task, stuck);
-          this.retries.set(task.id, {
-            count: retryCount + 1,
-            lastAttempt: now,
-          });
-
-          if (didRecover) recovered++;
+          if (didRecover) {
+            this.retries.set(task.id, {
+              count: retryCount + 1,
+              lastAttempt: now,
+            });
+            recovered++;
+          } else {
+            // Recovery failed or was skipped — remove from recovering so it can be retried
+            this.recovering.delete(task.id);
+            this.retries.set(task.id, {
+              count: retryCount + 1,
+              lastAttempt: now,
+            });
+          }
         } catch (e: any) {
           this.log(`Error processing stuck task ${task.id}:`, e.message);
         }
