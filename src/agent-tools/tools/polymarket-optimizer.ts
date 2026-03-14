@@ -51,7 +51,8 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
           // Get daily target from goals if not provided
           let dailyTarget = p.daily_target;
           if (!dailyTarget && db) {
-            const goals = await safeDbQuery(db, `SELECT target_value FROM poly_goals WHERE agent_id = ? AND type = 'daily_pnl' AND enabled = 1`, [agentId]);
+            // Prefer daily_pnl_usd over daily_pnl_pct — the dashboard Set Target modal creates USD goals
+            const goals = await safeDbQuery(db, `SELECT target_value FROM poly_goals WHERE agent_id = ? AND type IN ('daily_pnl_usd', 'daily_pnl_pct') AND enabled = 1 ORDER BY CASE type WHEN 'daily_pnl_usd' THEN 0 ELSE 1 END LIMIT 1`, [agentId]);
             dailyTarget = (goals[0] as any)?.target_value;
           }
 
