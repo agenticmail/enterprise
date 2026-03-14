@@ -26,9 +26,9 @@ var INLINE_RESULT_CAP = 3000;
  * Cap each tool result to INLINE_RESULT_CAP chars.
  * Call this before pushing tool results into the messages array.
  */
-export function truncateToolResults(toolResults: Array<{ tool_use_id: string; content: string; is_error?: boolean }>): typeof toolResults {
+export function truncateToolResults(toolResults: Array<{ tool_use_id: string; content: string; is_error?: boolean; imageBlocks?: any[] }>): typeof toolResults {
   return toolResults.map(function(tr) {
-    if (tr.content.length > INLINE_RESULT_CAP && !tr.is_error) {
+    if (typeof tr.content === 'string' && tr.content.length > INLINE_RESULT_CAP && !tr.is_error) {
       return {
         ...tr,
         content: tr.content.slice(0, INLINE_RESULT_CAP) +
@@ -62,6 +62,16 @@ export function ageStaleMessages(messages: any[], currentTurn: number): number {
         if (block.type === 'tool_result' && typeof block.content === 'string' && block.content.length > STALE_MIN_LENGTH) {
           anyTrimmed = true;
           return { ...block, content: block.content.slice(0, STALE_TRIM_TO) + '\n[stale data — re-call tool for current values]' };
+        }
+        // Strip image blocks from stale tool results (saves tokens on old screenshots)
+        if (block.type === 'tool_result' && Array.isArray(block.content)) {
+          var hasImage = block.content.some(function(b: any) { return b.type === 'image'; });
+          if (hasImage) {
+            anyTrimmed = true;
+            var textOnly = block.content.filter(function(b: any) { return b.type !== 'image'; });
+            textOnly.push({ type: 'text', text: '\n[old screenshot removed — use vision_capture to re-capture]' });
+            return { ...block, content: textOnly };
+          }
         }
         return block;
       });

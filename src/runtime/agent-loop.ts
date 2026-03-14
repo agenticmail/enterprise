@@ -481,7 +481,7 @@ export async function runAgentLoop(
       lastStopReason = 'tool_use';
 
       // Execute each tool call
-      var toolResults: { tool_use_id: string; content: string; is_error: boolean }[] = [];
+      var toolResults: { tool_use_id: string; content: string; is_error: boolean; imageBlocks?: any[] }[] = [];
 
       for (var toolCall of llmResponse.toolCalls) {
         // Hook: check permissions before tool execution
@@ -554,7 +554,7 @@ export async function runAgentLoop(
           }
         } catch { /* non-blocking */ }
 
-        var { result, content } = await executeTool(tool, effectiveToolCall, {
+        var { result, content, imageBlocks: _imgBlocks } = await executeTool(tool, effectiveToolCall, {
           timeoutMs: toolTimeout,
           signal: options.signal,
         });
@@ -606,6 +606,7 @@ export async function runAgentLoop(
           tool_use_id: toolCall.id,
           content,
           is_error: !result.success,
+          imageBlocks: _imgBlocks,
         });
 
         var tcEndEvent: StreamEvent = {
@@ -626,12 +627,24 @@ export async function runAgentLoop(
       var cappedToolResults = truncateToolResults(toolResults);
 
       // Add tool results as user message (Anthropic format)
+      // If tool returned image blocks (screenshots), include them as vision content
       messages.push({
         role: 'user',
-        content: cappedToolResults.map(function(tr) {
+        content: cappedToolResults.map(function(tr: any) {
+          if (tr.imageBlocks?.length) {
+            // Build content array with text + image blocks for LLM vision
+            var blocks: any[] = [{ type: 'text', text: tr.content }];
+            for (var img of tr.imageBlocks) blocks.push(img);
+            return { type: 'tool_result' as const, tool_use_id: tr.tool_use_id, content: blocks, is_error: tr.is_error };
+          }
           return { type: 'tool_result' as const, tool_use_id: tr.tool_use_id, content: tr.content, is_error: tr.is_error };
         }),
-        tool_results: cappedToolResults.map(function(tr) {
+        tool_results: cappedToolResults.map(function(tr: any) {
+          if (tr.imageBlocks?.length) {
+            var blocks: any[] = [{ type: 'text', text: tr.content }];
+            for (var img of tr.imageBlocks) blocks.push(img);
+            return { tool_use_id: tr.tool_use_id, content: blocks, is_error: tr.is_error };
+          }
           return { tool_use_id: tr.tool_use_id, content: tr.content, is_error: tr.is_error };
         }),
         _turn: turnCount,

@@ -218,6 +218,10 @@ export class AgentRuntime {
         base.security = self.orgToolSecurity;
       }
     }
+    // Pass tool config (web search API keys, etc.) from org settings
+    if (self.orgToolConfig) {
+      base.config = self.orgToolConfig;
+    }
     // Pass vault for MCP skill bridge (Slack, GitHub, Jira, etc.)
     if (this.config.vault) {
       base.vault = this.config.vault;
@@ -277,6 +281,10 @@ export class AgentRuntime {
         var toolSecConfig = (settings as any)?.toolSecurityConfig;
         if (toolSecConfig?.security) {
           this.orgToolSecurity = toolSecConfig.security;
+        }
+        // Load tool config (web search API keys, etc.)
+        if (toolSecConfig?.toolConfig) {
+          this.orgToolConfig = toolSecConfig.toolConfig;
         }
       }
     } catch {}
@@ -1054,6 +1062,7 @@ export class AgentRuntime {
 
   private customProviders: CustomProviderDef[] = [];
   private orgToolSecurity: any = null;
+  private orgToolConfig: any = null;
 
   private _resolveApiKey(provider: string, agentId?: string): string | undefined {
     // Synchronous system-wide resolution

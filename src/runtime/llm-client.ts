@@ -88,7 +88,15 @@ export function estimateMessageTokens(messages: AgentMessage[]): number {
     }
     if (msg.tool_results) {
       for (var tr of msg.tool_results) {
-        total += estimateTokens(tr.content);
+        if (typeof tr.content === 'string') {
+          total += estimateTokens(tr.content);
+        } else if (Array.isArray((tr as any).content)) {
+          // Array content (e.g. text + image blocks) — estimate text parts, images ~85 tokens
+          for (var trc of (tr as any).content) {
+            if (trc.type === 'text') total += estimateTokens(trc.text);
+            else if (trc.type === 'image') total += 85; // image tokens vary but ~85 is typical
+          }
+        }
       }
     }
   }
@@ -105,11 +113,11 @@ function convertToAnthropicMessages(messages: AgentMessage[]): any[] {
     if (msg.role === 'user') {
       // Check for tool results in user messages
       if (msg.tool_results && msg.tool_results.length > 0) {
-        var toolResultBlocks = msg.tool_results.map(function(tr) {
+        var toolResultBlocks = msg.tool_results.map(function(tr: any) {
           return {
             type: 'tool_result',
             tool_use_id: tr.tool_use_id,
-            content: tr.content,
+            content: Array.isArray(tr.content) ? tr.content : tr.content,
             is_error: tr.is_error || false,
           };
         });
@@ -357,10 +365,14 @@ function convertToOpenAIMessages(messages: AgentMessage[]): any[] {
     } else if (msg.role === 'user') {
       if (msg.tool_results && msg.tool_results.length > 0) {
         for (var tr of msg.tool_results) {
+          // OpenAI only supports string content in tool results — extract text from arrays
+          var trContent = typeof tr.content === 'string' ? tr.content
+            : Array.isArray((tr as any).content) ? (tr as any).content.filter(function(b: any) { return b.type === 'text'; }).map(function(b: any) { return b.text; }).join('\n') || '[image]'
+            : String(tr.content);
           result.push({
             role: 'tool',
             tool_call_id: tr.tool_use_id,
-            content: tr.content,
+            content: trContent,
           });
         }
       } else {
@@ -542,11 +554,14 @@ function convertToGeminiContents(messages: AgentMessage[]): { systemInstruction:
 
     if (msg.role === 'user') {
       if (msg.tool_results && msg.tool_results.length > 0) {
-        var frParts = msg.tool_results.map(function(tr) {
+        var frParts = msg.tool_results.map(function(tr: any) {
+          var trText = typeof tr.content === 'string' ? tr.content
+            : Array.isArray(tr.content) ? tr.content.filter(function(b: any) { return b.type === 'text'; }).map(function(b: any) { return b.text; }).join('\n') || '[image]'
+            : String(tr.content);
           return {
             functionResponse: {
               name: tr.tool_use_id,
-              response: { content: tr.content },
+              response: { content: trText },
             },
           };
         });
@@ -730,7 +745,10 @@ function convertToOllamaMessages(messages: AgentMessage[]): any[] {
     } else if (msg.role === 'user') {
       if (msg.tool_results && msg.tool_results.length > 0) {
         for (var tr of msg.tool_results) {
-          result.push({ role: 'tool', content: tr.content });
+          var trText2 = typeof tr.content === 'string' ? tr.content
+            : Array.isArray((tr as any).content) ? (tr as any).content.filter(function(b: any) { return b.type === 'text'; }).map(function(b: any) { return b.text; }).join('\n') || '[image]'
+            : String(tr.content);
+          result.push({ role: 'tool', content: trText2 });
         }
       } else {
         var userText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);

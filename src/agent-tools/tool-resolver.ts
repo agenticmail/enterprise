@@ -807,9 +807,9 @@ const SIGNAL_RULES: SignalRule[] = [
   // Meeting join — broad patterns to catch casual phrasing
   { patterns: [/\bjoin.*meeting\b/i, /\bmeeting.*join\b/i, /\bgoogle meet\b/i, /meet\.google\.com/i, /\bjoin.*call\b/i, /\bvideo.*call\b/i, /\bjoin.*meet\b/i, /\bjoin.*again\b/i, /\brejoin\b/i, /\bjoin back\b/i, /\bjoin the\b/i, /\bget.*in.*meeting\b/i],
     sets: ['meeting_lifecycle', 'meeting_voice'] },
-  // Browser
+  // Browser + visual memory (auto-promote visual memory with browser for persistent visual recall)
   { patterns: [/\bbrows/i, /\bwebsite\b/i, /\bopen.*url\b/i, /\bvisit.*page\b/i, /\bnavigate\b/i, /\bscrape\b/i, /\bscreenshot\b/i, /polymarket\.com/i],
-    sets: ['browser'] },
+    sets: ['browser', 'visual_memory'] },
   // Filesystem & shell
   { patterns: [/\bfile\b/i, /\bread.*file\b/i, /\bwrite.*file\b/i, /\bdirectory\b/i, /\bfolder\b/i, /\bdownload\b/i, /\bupload\b/i],
     sets: ['local_filesystem'] },

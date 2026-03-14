@@ -138,7 +138,8 @@ export function SettingsPage() {
       var cfg = d.toolSecurityConfig || {};
       setToolSec({
         security: cfg.security || { pathSandbox: { enabled: true, allowedDirs: [], blockedPatterns: [] }, ssrf: { enabled: true, allowedHosts: [], blockedCidrs: [] }, commandSanitizer: { enabled: true, mode: 'blocklist', allowedCommands: [], blockedPatterns: [] } },
-        middleware: cfg.middleware || { audit: { enabled: true, redactKeys: [] }, rateLimit: { enabled: true, overrides: {} }, circuitBreaker: { enabled: true }, telemetry: { enabled: true } }
+        middleware: cfg.middleware || { audit: { enabled: true, redactKeys: [] }, rateLimit: { enabled: true, overrides: {} }, circuitBreaker: { enabled: true }, telemetry: { enabled: true } },
+        toolConfig: cfg.toolConfig || {}
       });
     }).catch(() => {});
     apiCall('/settings/firewall').then(function(d) {
@@ -1014,7 +1015,7 @@ export function SettingsPage() {
     tab === 'tool-security' && h(ToolSecurityTab, { toolSec: toolSec, setToolSec: function(v) { setToolSec(v); setToolSecDirty(true); }, saving: toolSecSaving, dirty: toolSecDirty, onSave: function() {
       setToolSecSaving(true);
       apiCall('/settings/tool-security', { method: 'PUT', body: JSON.stringify(toolSec) })
-        .then(function(d) { setToolSec({ security: (d.toolSecurityConfig || {}).security || toolSec.security, middleware: (d.toolSecurityConfig || {}).middleware || toolSec.middleware }); setToolSecDirty(false); toast('Tool security settings saved', 'success'); })
+        .then(function(d) { var c = d.toolSecurityConfig || {}; setToolSec({ security: c.security || toolSec.security, middleware: c.middleware || toolSec.middleware, toolConfig: c.toolConfig || toolSec.toolConfig }); setToolSecDirty(false); toast('Tool security settings saved', 'success'); })
         .catch(function(e) { toast(e.message, 'error'); })
         .finally(function() { setToolSecSaving(false); });
     } }),
@@ -1347,17 +1348,29 @@ function ToolSecurityTab(props) {
 
   var sec = toolSec.security || {};
   var mw = toolSec.middleware || {};
+  var tc = toolSec.toolConfig || {};
+  var ws = (tc.web && tc.web.search) || {};
 
   var setSec = function(key, value) {
     var next = Object.assign({}, sec);
     next[key] = value;
-    setToolSec({ security: next, middleware: mw });
+    setToolSec({ security: next, middleware: mw, toolConfig: tc });
   };
 
   var setMw = function(key, value) {
     var next = Object.assign({}, mw);
     next[key] = value;
-    setToolSec({ security: sec, middleware: next });
+    setToolSec({ security: sec, middleware: next, toolConfig: tc });
+  };
+
+  var setWebSearch = function(field, value) {
+    var nextWs = Object.assign({}, ws);
+    nextWs[field] = value;
+    var nextWeb = Object.assign({}, tc.web || {});
+    nextWeb.search = nextWs;
+    var nextTc = Object.assign({}, tc);
+    nextTc.web = nextWeb;
+    setToolSec({ security: sec, middleware: mw, toolConfig: nextTc });
   };
 
   var patchSec = function(section, field, value) {
@@ -1397,6 +1410,78 @@ function ToolSecurityTab(props) {
         disabled: saving || !dirty,
         onClick: props.onSave
       }, saving ? 'Saving...' : 'Save Settings')
+    ),
+
+    // ── WEB SEARCH CONFIG ──
+    h('div', { style: _sectionTitleStyle }, 'Web Search'),
+    h('div', { style: _gridStyle },
+      h('div', { style: Object.assign({}, _cardStyle, { gridColumn: '1 / -1' }) },
+        h('div', { style: _cardTitleStyle }, I.globe(), ' Web Search API Keys'),
+        h('div', { style: _cardDescStyle }, 'Configure API keys for agent web search. Without a key, agents fall back to DuckDuckGo (free but limited). Brave is recommended for best results.'),
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 } },
+          h('div', null,
+            h('label', { style: { fontSize: 13, fontWeight: 500 } }, 'Search Provider'),
+            h('select', {
+              style: { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', marginTop: 4 },
+              value: ws.provider || 'brave',
+              onChange: function(e) { setWebSearch('provider', e.target.value); }
+            },
+              h('option', { value: 'brave' }, 'Brave Search (recommended)'),
+              h('option', { value: 'perplexity' }, 'Perplexity Sonar'),
+              h('option', { value: 'grok' }, 'xAI Grok')
+            )
+          ),
+          h('div', null,
+            h('label', { style: { fontSize: 13, fontWeight: 500 } }, 'Max Results'),
+            h('input', {
+              type: 'number', min: 1, max: 10,
+              style: { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', marginTop: 4 },
+              value: ws.maxResults || 5,
+              onChange: function(e) { setWebSearch('maxResults', parseInt(e.target.value) || 5); }
+            })
+          )
+        ),
+        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 16 } },
+          h('div', null,
+            h('label', { style: { fontSize: 13, fontWeight: 500 } }, 'Brave API Key'),
+            h('input', {
+              type: 'password', placeholder: 'BSA...',
+              style: { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', marginTop: 4 },
+              value: ws.apiKey || '',
+              onChange: function(e) { setWebSearch('apiKey', e.target.value); }
+            }),
+            h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Get key at api.search.brave.com')
+          ),
+          h('div', null,
+            h('label', { style: { fontSize: 13, fontWeight: 500 } }, 'Perplexity API Key'),
+            h('input', {
+              type: 'password', placeholder: 'pplx-...',
+              style: { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', marginTop: 4 },
+              value: (ws.perplexity && ws.perplexity.apiKey) || '',
+              onChange: function(e) {
+                var nextP = Object.assign({}, ws.perplexity || {});
+                nextP.apiKey = e.target.value;
+                setWebSearch('perplexity', nextP);
+              }
+            }),
+            h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Get key at perplexity.ai')
+          ),
+          h('div', null,
+            h('label', { style: { fontSize: 13, fontWeight: 500 } }, 'xAI / Grok API Key'),
+            h('input', {
+              type: 'password', placeholder: 'xai-...',
+              style: { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', marginTop: 4 },
+              value: (ws.grok && ws.grok.apiKey) || '',
+              onChange: function(e) {
+                var nextG = Object.assign({}, ws.grok || {});
+                nextG.apiKey = e.target.value;
+                setWebSearch('grok', nextG);
+              }
+            }),
+            h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Get key at console.x.ai')
+          )
+        )
+      )
     ),
 
     // ── SECURITY SECTION ──

@@ -50,7 +50,7 @@ export async function executeTool(
   tool: AnyAgentTool,
   toolCall: ToolCall,
   options?: { timeoutMs?: number; signal?: AbortSignal },
-): Promise<{ result: ToolCallResult; content: string }> {
+): Promise<{ result: ToolCallResult; content: string; imageBlocks?: any[] }> {
   var timeoutMs = options?.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
   var started = Date.now();
 
@@ -71,10 +71,10 @@ export async function executeTool(
       options?.signal,
     );
 
-    var content = formatToolResult(toolResult);
+    var { text: content, imageBlocks } = formatToolResultRich(toolResult);
     var durationMs = Date.now() - started;
 
-    var execResult: any = { result: { success: true, output: content, durationMs }, content: truncateResult(content) };
+    var execResult: any = { result: { success: true, output: content, durationMs }, content: truncateResult(content), imageBlocks };
     // Pass through _dynamicTools from request_tools for dynamic tool injection
     if ((toolResult as any)?._dynamicTools) {
       execResult.result._dynamicTools = (toolResult as any)._dynamicTools;
@@ -180,27 +180,42 @@ async function executeWithTimeout<T>(
 
 // ─── Result Formatting ──────────────────────────────────
 
-function formatToolResult(result: ToolResult): string {
-  // Handle tools that return { output: '...' } instead of { content: [...] }
+/**
+ * Extract text AND image blocks from a tool result.
+ * Images are returned separately so the agent loop can pass them to the LLM as vision content.
+ */
+function formatToolResultRich(result: ToolResult): { text: string; imageBlocks?: any[] } {
   var anyResult = result as any;
   if ((!result.content || result.content.length === 0) && anyResult.output) {
-    return String(anyResult.output);
+    return { text: String(anyResult.output) };
   }
-
   if (!result.content || result.content.length === 0) {
-    return '(no output)';
+    return { text: '(no output)' };
   }
 
-  var parts: string[] = [];
+  var textParts: string[] = [];
+  var imageBlocks: any[] = [];
   for (var block of result.content) {
     if (block.type === 'text') {
-      parts.push(block.text);
+      textParts.push(block.text);
     } else if (block.type === 'image') {
-      parts.push(`[Image: ${block.mimeType}]`);
+      // Preserve image data for LLM vision
+      imageBlocks.push({
+        type: 'image',
+        source: { type: 'base64', media_type: block.mimeType || 'image/png', data: block.data },
+      });
+      textParts.push(`[Image: ${block.mimeType}]`);
     }
   }
 
-  return parts.join('\n');
+  return {
+    text: textParts.join('\n'),
+    imageBlocks: imageBlocks.length > 0 ? imageBlocks : undefined,
+  };
+}
+
+function formatToolResult(result: ToolResult): string {
+  return formatToolResultRich(result).text;
 }
 
 function truncateResult(content: string): string {
