@@ -4719,7 +4719,7 @@ function configModal(editConfig, setEditConfig, updateConfig) {
         h('h2', { style: { fontSize: 16, flex: 1, display: 'flex', alignItems: 'center', gap: 8 } }, 'Trading Configuration',
           h(HelpButton, { label: 'Trading Configuration' },
             h(Fragment, null,
-              h('p', null, 'Configure risk limits and trading behavior for your Polymarket agent. Changes take effect immediately on the next tool call.'),
+              h('p', null, 'Configure risk limits, trading behavior, and proactive check schedule for your Polymarket agent. Changes take effect immediately on the next tool call.'),
               h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Trading Modes'),
               h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
                 h('li', null, h('strong', null, 'Approval'), ' \u2014 Every trade queued for human review. Best for learning the system and compliance.'),
@@ -4738,7 +4738,13 @@ function configModal(editConfig, setEditConfig, updateConfig) {
                 h('li', null, h('strong', null, 'Take Profit %'), ' \u2014 Default take-profit percentage for auto-created exit rules.'),
                 h('li', null, h('strong', null, 'Cash Reserve %'), ' \u2014 Percentage of balance to keep uninvested as a safety buffer.')
               ),
-              h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with conservative limits and paper mode. Increase limits as you gain confidence in your agent\'s strategy performance.')
+              h('h4', { style: { marginTop: 16, marginBottom: 8, fontSize: 14 } }, 'Proactive Checks'),
+              h('p', { style: { margin: '4px 0 4px', fontSize: 13 } }, 'The watcher engine periodically wakes the agent to manage positions, review P&L, and find opportunities. Each wake runs a structured checklist: check signals, review drawdown, scan momentum, then optionally trade.'),
+              h('ul', { style: { paddingLeft: 20, margin: '4px 0 8px' } },
+                h('li', null, h('strong', null, 'Proactive Check Interval'), ' \u2014 Minutes between automatic portfolio check-ins. Set to ', h('strong', null, '0'), ' to disable proactive checks entirely.'),
+                h('li', null, h('strong', null, 'Max Proactive Checks/Day'), ' \u2014 Daily cap on automatic check-ins. Set to ', h('strong', null, '0'), ' to disable. The Pause button on the dashboard also stops proactive checks until resumed.')
+              ),
+              h('div', { style: { marginTop: 12, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)', fontSize: 13 } }, h('strong', null, 'Tip: '), 'Start with conservative limits and paper mode. Increase limits as you gain confidence in your agent\'s strategy performance. Each proactive check costs ~$0.50\u20131.50 in API tokens.')
             )
           )
         ),
