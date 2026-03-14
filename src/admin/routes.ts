@@ -5040,42 +5040,81 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const today = new Date().toISOString().split('T')[0];
       const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
 
-      // Get wallet balance
+      // Get wallet address
       const walletRow = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      const address = walletRow?.funder_address;
+
+      // Wallet balance — multi-RPC fallback
       let usdcBalance = 0;
-      if (walletRow?.funder_address) {
-        try {
-          const balRes = await fetch('https://polygon.drpc.org', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [
-              { to: USDC_E_SHARED, data: '0x70a08231000000000000000000000000' + walletRow.funder_address.slice(2).toLowerCase() }, 'latest'
-            ] })
-          }).then(r => r.json());
-          usdcBalance = Number(BigInt(balRes?.result || '0x0')) / 1e6;
-        } catch {}
+      if (address) {
+        const RPCS = ['https://polygon.drpc.org', 'https://polygon-bor-rpc.publicnode.com', 'https://polygon.llamarpc.com'];
+        const addrHex = address.slice(2).toLowerCase();
+        const callData = '0x70a08231000000000000000000000000' + addrHex;
+        for (const rpc of RPCS) {
+          try {
+            const r = await fetch(rpc, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: USDC_E_SHARED, data: callData }, 'latest'] }),
+              signal: AbortSignal.timeout(4000),
+            }).then(r => r.json());
+            if (r?.result && !r.error) { usdcBalance = Number(BigInt(r.result)) / 1e6; break; }
+          } catch {}
+        }
       }
 
       // Daily counters
       const counter = await edb()?.get(`SELECT * FROM poly_daily_counters WHERE agent_id = ? AND date = ?`, [agentId, today]).catch(() => null) as any;
 
-      // Paper positions (daily P&L)
-      const paperPositions = await edb()?.all(`SELECT * FROM poly_paper_positions WHERE agent_id = ?`, [agentId]).catch(() => []) as any[];
-      const closedToday = (paperPositions || []).filter((p: any) => p.closed && p.closed_at >= todayStart);
-      const openPositions = (paperPositions || []).filter((p: any) => !p.closed);
-      const dailyPnl = closedToday.reduce((s: number, p: any) => s + (p.pnl || 0), 0);
-      const unrealizedPnl = openPositions.reduce((s: number, p: any) => s + (p.pnl || 0), 0);
-      const winsToday = closedToday.filter((p: any) => (p.pnl || 0) > 0).length;
-      const lossesToday = closedToday.filter((p: any) => (p.pnl || 0) < 0).length;
+      // ── Real positions from Polymarket Data API ──
+      let livePositions: any[] = [];
+      let unrealizedPnl = 0;
+      let deployed = 0;
+      if (address) {
+        try {
+          const resp = await fetch(`https://data-api.polymarket.com/positions?user=${address}`, { signal: AbortSignal.timeout(8000) });
+          const data = await resp.json();
+          if (Array.isArray(data)) {
+            livePositions = data.filter((p: any) => parseFloat(p.size) > 0);
+            unrealizedPnl = livePositions.reduce((s: number, p: any) => s + (parseFloat(p.cashPnl) || 0), 0);
+            deployed = livePositions.reduce((s: number, p: any) => s + (parseFloat(p.initialValue) || 0), 0);
+          }
+        } catch {}
+      }
+
+      // ── Realized P&L from trade log (SELL trades today) ──
+      const sellTrades = await edb()?.all(
+        `SELECT price, size, token_id FROM poly_trade_log WHERE agent_id = ? AND side = 'SELL' AND created_at >= ? AND status = 'placed' AND clob_order_id IS NOT NULL`,
+        [agentId, todayStart]
+      ).catch(() => []) as any[] || [];
+      // Match sells to buys for realized P&L
+      let realizedPnl = 0;
+      let winsToday = 0;
+      let lossesToday = 0;
+      for (const sell of sellTrades) {
+        // Find matching buy for this token
+        const buy = await edb()?.get(
+          `SELECT price FROM poly_trade_log WHERE agent_id = ? AND token_id = ? AND side = 'BUY' AND status = 'placed' AND clob_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+          [agentId, sell.token_id]
+        ).catch(() => null) as any;
+        const buyPrice = parseFloat(buy?.price) || 0;
+        const sellPrice = parseFloat(sell.price) || 0;
+        const sellSize = parseFloat(sell.size) || 0;
+        const pnl = (sellPrice - buyPrice) * sellSize;
+        realizedPnl += pnl;
+        if (pnl > 0) winsToday++;
+        else if (pnl < 0) lossesToday++;
+      }
+
+      // Trade count from counter (most accurate) or trade log
+      const tradesToday = counter?.trade_count || 0;
 
       // Daily goal target
       const dailyGoal = await edb()?.get(`SELECT target_value FROM poly_goals WHERE agent_id = ? AND type IN ('daily_pnl_usd', 'daily_pnl_pct') AND enabled = 1 ORDER BY type ASC LIMIT 1`, [agentId]).catch(() => null) as any;
       const dailyTarget = dailyGoal?.target_value || 0;
 
-      const totalPnl = dailyPnl + unrealizedPnl;
+      const totalPnl = realizedPnl + unrealizedPnl;
       const progressPct = dailyTarget > 0 ? (totalPnl / dailyTarget) * 100 : 0;
-      const tradesToday = counter?.trade_count || closedToday.length;
-      const winRate = tradesToday > 0 ? (winsToday / tradesToday) * 100 : 0;
-      const invested = openPositions.reduce((s: number, p: any) => s + ((p.entry_price || 0) * (p.size || 0)), 0);
+      const winRate = (winsToday + lossesToday) > 0 ? (winsToday / (winsToday + lossesToday)) * 100 : 0;
 
       let status = 'ON_TRACK';
       if (totalPnl <= -(counter?.max_daily_loss || 50)) status = 'STOP_TRADING';
@@ -5086,7 +5125,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       return c.json({
         date: today,
         total_pnl: +totalPnl.toFixed(2),
-        realized_pnl: +dailyPnl.toFixed(2),
+        realized_pnl: +realizedPnl.toFixed(2),
         unrealized_pnl: +unrealizedPnl.toFixed(2),
         daily_target: dailyTarget,
         target_progress_pct: +progressPct.toFixed(1),
@@ -5094,9 +5133,9 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         wins_today: winsToday,
         losses_today: lossesToday,
         win_rate_today: +winRate.toFixed(1),
-        open_positions: openPositions.length,
+        open_positions: livePositions.length,
         available_capital: +usdcBalance.toFixed(2),
-        deployed_capital: +invested.toFixed(2),
+        deployed_capital: +deployed.toFixed(2),
         daily_loss: +(counter?.daily_loss || 0).toFixed(2),
         paused: !!counter?.paused,
         status,
