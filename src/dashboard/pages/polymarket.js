@@ -6,7 +6,7 @@ import { HelpButton } from '../components/help-button.js';
 import { Modal } from '../components/modal.js';
 import { useOrgContext } from '../components/org-switcher.js';
 
-var CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#84cc16'];
+var CHART_COLORS = ['#6366f1', '#10b981', '#b45309', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#84cc16'];
 
 export function PolymarketPage() {
   var orgCtx = useOrgContext();
@@ -446,7 +446,7 @@ export function PolymarketPage() {
   var scoreColor = function(score) {
     if (score >= 70) return '#10b981';
     if (score >= 50) return '#3b82f6';
-    if (score >= 30) return '#f59e0b';
+    if (score >= 30) return '#b45309';
     return '#6b7280';
   };
   var liquidityGrade = function(m) {
@@ -454,12 +454,12 @@ export function PolymarketPage() {
     var liq = s.liquidity || 0;
     if (liq >= 20 && s.spread >= 10) return { grade: 'A', color: '#10b981', label: 'Excellent' };
     if (liq >= 15) return { grade: 'B', color: '#3b82f6', label: 'Good' };
-    if (liq >= 8) return { grade: 'C', color: '#f59e0b', label: 'Fair' };
+    if (liq >= 8) return { grade: 'C', color: '#b45309', label: 'Fair' };
     return { grade: 'D', color: '#ef4444', label: 'Thin' };
   };
   var scoreBar = function(label, value, max) {
     var pct = Math.min(100, (value / (max || 25)) * 100);
-    var clr = value >= max * 0.7 ? '#10b981' : value >= max * 0.4 ? '#3b82f6' : value >= max * 0.2 ? '#f59e0b' : '#6b7280';
+    var clr = value >= max * 0.7 ? '#10b981' : value >= max * 0.4 ? '#3b82f6' : value >= max * 0.2 ? '#b45309' : '#6b7280';
     return h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 4 } },
       h('span', { style: { width: 60, color: 'var(--text-muted)', fontWeight: 500 } }, label),
       h('div', { style: { flex: 1, height: 6, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' } },
@@ -571,7 +571,7 @@ export function PolymarketPage() {
                       onMouseEnter: function(e) { showTip(e, ['Liquidity: ' + liq.grade + ' \u2014 ' + liq.label, '$' + fmtCompact(m.liquidity) + ' available liquidity']); }, onMouseLeave: hideTip
                     }, liq.grade),
                     pl.regime && h('span', { style: { fontSize: 8, color: 'var(--text-muted)' } }, pl.regime),
-                    pl.manipulation_risk && pl.manipulation_risk !== 'LOW' && h('span', { style: { fontSize: 8, color: pl.manipulation_risk === 'HIGH' ? '#ef4444' : '#f59e0b' } }, '\u26a0 ' + pl.manipulation_risk),
+                    pl.manipulation_risk && pl.manipulation_risk !== 'LOW' && h('span', { style: { fontSize: 8, color: pl.manipulation_risk === 'HIGH' ? '#ef4444' : '#b45309' } }, '\u26a0 ' + pl.manipulation_risk),
                     m.volume24hr > 0 && h('span', { style: { fontSize: 9, color: 'var(--text-muted)' } }, 'Vol $' + fmtCompact(m.volume24hr)),
                     m.liquidity > 0 && h('span', { style: { fontSize: 9, color: 'var(--text-muted)' } }, 'Liq $' + fmtCompact(m.liquidity)),
                     pl.confidence ? h('span', { style: { fontSize: 9, color: 'var(--text-muted)' } }, pl.confidence.toFixed(0) + '% conf') : rec.confidence && h('span', { style: { fontSize: 9, color: 'var(--text-muted)' } }, rec.confidence.toFixed(0) + '% conf')
@@ -1364,7 +1364,7 @@ export function PolymarketPage() {
         h('div', { className: 'card-header' }, h('h3', { style: { fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 } },
           'Live Position Prices',
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 4 } },
-            h('div', { style: { width: 6, height: 6, borderRadius: '50%', background: hasPositions ? '#f59e0b' : 'var(--text-muted)' } }),
+            h('div', { style: { width: 6, height: 6, borderRadius: '50%', background: hasPositions ? '#b45309' : 'var(--text-muted)' } }),
             h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, hasPositions ? 'Waiting for data...' : 'No positions')
           )
         )),
@@ -1570,7 +1570,7 @@ export function PolymarketPage() {
                 h('span', { style: { color: 'var(--text-muted)' } }, 'Available'),
                 h('span', { style: { fontWeight: 600, color: insufficientFunds ? '#ef4444' : '#10b981' } }, '$' + availableCash.toFixed(2))
               ),
-              size < 5 && h('div', { style: { color: '#f59e0b', marginTop: 4 } }, '\u26a0 Min 5 shares'),
+              size < 5 && h('div', { style: { color: '#b45309', marginTop: 4 } }, '\u26a0 Min 5 shares'),
               insufficientFunds && h('div', { style: { color: '#ef4444', fontWeight: 600, marginTop: 4 } }, '\u26d4 Need $' + (cost - availableCash).toFixed(2) + ' more')
             ),
             // Pipeline analysis (compact)
@@ -1588,7 +1588,7 @@ export function PolymarketPage() {
               var sigColor = bsPl.action?.includes('BUY') ? '#10b981' : bsPl.action?.includes('SELL') ? '#ef4444' : '#6b7280';
               return h('div', { style: { padding: '8px 12px', background: sigColor + '08', borderRadius: 8, marginBottom: 14, border: '1px solid ' + sigColor + '20', fontSize: 11, lineHeight: 1.6 } },
                 h('div', { style: { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: sigColor, marginBottom: 4 } }, 'Analysis Pipeline'),
-                insights.map(function(line, li) { return h('div', { key: li, style: { color: line.startsWith('\u26a0') ? '#f59e0b' : 'var(--text-muted)' } }, line); })
+                insights.map(function(line, li) { return h('div', { key: li, style: { color: line.startsWith('\u26a0') ? '#b45309' : 'var(--text-muted)' } }, line); })
               );
             })(),
             // Actions
@@ -1858,7 +1858,7 @@ export function PolymarketPage() {
             h('span', null, '\u23F3'),
             h('span', null, h('strong', null, autoPlaced.length), ' order(s) placed and awaiting exchange execution'),
           ),
-          needsApproval.length > 0 && h('div', { style: { padding: '8px 12px', background: 'rgba(245,158,11,0.08)', borderRadius: 8, border: '1px solid rgba(245,158,11,0.2)', marginBottom: 12, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 } },
+          needsApproval.length > 0 && h('div', { style: { padding: '8px 12px', background: 'rgba(180,83,9,0.08)', borderRadius: 8, border: '1px solid rgba(180,83,9,0.2)', marginBottom: 12, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 } },
             h('span', null, '\u26A0\uFE0F'),
             h('span', null, h('strong', null, needsApproval.length), ' order(s) awaiting your approval'),
           )
@@ -1987,7 +1987,7 @@ export function PolymarketPage() {
         h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 8 } },
           livePrices.positions.some(function(p) { return p.redeemable && !p.isLost; })
             ? h('button', { className: 'btn btn-sm', disabled: redeemExecuting === 'all',
-                style: { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: 600, cursor: redeemExecuting === 'all' ? 'not-allowed' : 'pointer' },
+                style: { background: 'rgba(180,83,9,0.15)', border: '1px solid rgba(180,83,9,0.3)', color: '#b45309', fontWeight: 600, cursor: redeemExecuting === 'all' ? 'not-allowed' : 'pointer' },
                 onClick: executeRedeemAll
               }, redeemExecuting === 'all' ? 'Claiming All...' : I('award'), ' Redeem All Winnings')
             : null,
@@ -2003,7 +2003,7 @@ export function PolymarketPage() {
             var cost = (p.entry || 0) * (p.size || 0);
             var winAmount = (p.size || 0); // each winning share pays $1, so total payout = number of shares
             var statusBadge = p.redeemable
-              ? h('span', { className: 'badge', style: { background: 'rgba(245,158,11,0.15)', color: '#f59e0b', fontSize: 9, marginLeft: 6 } }, 'REDEEM')
+              ? h('span', { className: 'badge', style: { background: 'rgba(180,83,9,0.15)', color: '#b45309', fontSize: 9, marginLeft: 6 } }, 'REDEEM')
               : isWon
                 ? h('span', { className: 'badge', style: { background: 'rgba(16,185,129,0.15)', color: '#10b981', fontSize: 9, marginLeft: 6 } }, 'WON')
                 : isLost
@@ -2046,15 +2046,15 @@ export function PolymarketPage() {
                         var days = Math.floor(diff / 86400000);
                         var label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                         if (diff < 0) return h('span', { style: { color: '#ef4444' } }, 'Ended');
-                        if (days === 0) return h('span', { style: { color: '#f59e0b', fontWeight: 600 } }, 'Today');
-                        if (days <= 3) return h('span', { style: { color: '#f59e0b' } }, days + 'd · ' + label);
+                        if (days === 0) return h('span', { style: { color: '#b45309', fontWeight: 600 } }, 'Today');
+                        if (days <= 3) return h('span', { style: { color: '#b45309' } }, days + 'd · ' + label);
                         return label;
                       })() : '--'
               ),
               h('td', { key: 'act' },
                 p.redeemable && !isLost
                   ? h('button', { className: 'btn btn-sm', disabled: redeemExecuting === p.conditionId || redeemExecuting === 'all',
-                      style: { minWidth: 50, fontSize: 11, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: 600, cursor: (redeemExecuting === p.conditionId || redeemExecuting === 'all') ? 'not-allowed' : 'pointer' },
+                      style: { minWidth: 50, fontSize: 11, background: 'rgba(180,83,9,0.15)', border: '1px solid rgba(180,83,9,0.3)', color: '#b45309', fontWeight: 600, cursor: (redeemExecuting === p.conditionId || redeemExecuting === 'all') ? 'not-allowed' : 'pointer' },
                       onClick: function(e) { e.stopPropagation(); executeRedeem(p); }
                     }, redeemExecuting === p.conditionId ? 'Claiming...' : 'Redeem')
                   : isLost
@@ -2094,7 +2094,7 @@ export function PolymarketPage() {
               )
             ),
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
-              walletLoading && h('div', { style: { width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1s infinite' } }),
+              walletLoading && h('div', { style: { width: 8, height: 8, borderRadius: '50%', background: '#b45309', animation: 'pulse 1s infinite' } }),
               h('span', { style: { fontSize: 11, color: 'var(--text-muted)' } }, walletLoading ? 'Refreshing...' : 'Auto-refreshes every 15s')
             )
           ),
@@ -2120,14 +2120,14 @@ export function PolymarketPage() {
               );
             })(),
             // Native USDC (not directly usable on Polymarket)
-            (walletBalance.balances.usdcNative != null && walletBalance.balances.usdcNative > 0) && h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 16px', background: 'rgba(251,191,36,0.06)', borderRadius: 8, border: '1px solid rgba(251,191,36,0.2)' } },
+            (walletBalance.balances.usdcNative != null && walletBalance.balances.usdcNative > 0) && h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 16px', background: 'rgba(180,83,9,0.06)', borderRadius: 8, border: '1px solid rgba(180,83,9,0.2)' } },
               h('div', null,
                 h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 } }, 'USDC (Native)',
-                  h('span', { style: { fontSize: 9, padding: '1px 5px', background: 'rgba(251,191,36,0.15)', borderRadius: 4, color: '#f59e0b', fontWeight: 600 } }, 'NEEDS SWAP')
+                  h('span', { style: { fontSize: 9, padding: '1px 5px', background: 'rgba(180,83,9,0.15)', borderRadius: 4, color: '#b45309', fontWeight: 600 } }, 'NEEDS SWAP')
                 ),
                 h('div', { style: { fontSize: 18, fontWeight: 600 } }, '$' + (walletBalance.balances.usdcNative || 0).toFixed(2))
               ),
-              h('div', { style: { fontSize: 11, color: '#f59e0b', textAlign: 'right' } },
+              h('div', { style: { fontSize: 11, color: '#b45309', textAlign: 'right' } },
                 h('div', null, 'Not usable on Polymarket'),
                 h('div', null, 'Swap to USDC.e to trade')
               )
@@ -2160,7 +2160,7 @@ export function PolymarketPage() {
                   }
                 }, 'Swap USDC.e \u2192 Native USDC')
               ),
-              walletBalance.needsSwap && h('div', { style: { marginTop: 8, fontSize: 11, color: '#f59e0b' } },
+              walletBalance.needsSwap && h('div', { style: { marginTop: 8, fontSize: 11, color: '#b45309' } },
                 '\u26A0\uFE0F Polymarket requires USDC.e. Swap your native USDC above to start trading.'
               )
             ),
@@ -2230,7 +2230,7 @@ export function PolymarketPage() {
               h('li', null, 'You can also deposit via ', h('a', { href: 'https://polymarket.com', target: '_blank', style: { color: 'var(--brand)' } }, 'polymarket.com'), ' bridge from Ethereum, Arbitrum, Base, or Optimism')
             )
           ),
-          h('div', { style: { marginTop: 12, padding: 10, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6, fontSize: 12, color: '#f59e0b' } },
+          h('div', { style: { marginTop: 12, padding: 10, background: 'rgba(180,83,9,0.1)', border: '1px solid rgba(180,83,9,0.2)', borderRadius: 6, fontSize: 12, color: '#b45309' } },
             h('strong', null, '\u26A0 '), 'Only send USDC on Polygon. Sending other tokens or on other networks will result in loss of funds.'
           )
         )
@@ -2312,7 +2312,7 @@ export function PolymarketPage() {
         )
       },
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
-          h('div', { style: { padding: 12, background: swapModal.direction === 'native_to_bridged' ? 'rgba(251,191,36,0.08)' : 'rgba(99,102,241,0.08)', borderRadius: 8, fontSize: 13, lineHeight: 1.6 } },
+          h('div', { style: { padding: 12, background: swapModal.direction === 'native_to_bridged' ? 'rgba(180,83,9,0.08)' : 'rgba(99,102,241,0.08)', borderRadius: 8, fontSize: 13, lineHeight: 1.6 } },
             swapModal.direction === 'native_to_bridged'
               ? 'Convert your native USDC to USDC.e (bridged), which is required for trading on Polymarket.'
               : 'Convert your USDC.e (bridged) back to native USDC. Note: Native USDC cannot be used for trading on Polymarket.'
@@ -2376,8 +2376,8 @@ export function PolymarketPage() {
                 walletSecurity && walletSecurity.hasPin && h('button', { className: 'btn btn-secondary', style: { marginBottom: 8, width: '100%' }, onClick: function() { setTransferVerifyStep('pin'); setTransferCode(''); } },
                   I('key'), ' Verify with Wallet PIN'
                 ),
-                (!walletSecurity || (!walletSecurity.has2fa && !walletSecurity.hasPin)) && h('div', { style: { padding: 16, background: 'rgba(245,158,11,0.08)', borderRadius: 8, border: '1px solid rgba(245,158,11,0.2)', marginTop: 12 } },
-                  h('p', { style: { fontWeight: 600, marginBottom: 8, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 6 } }, I('warning'), ' No Security Method Set Up'),
+                (!walletSecurity || (!walletSecurity.has2fa && !walletSecurity.hasPin)) && h('div', { style: { padding: 16, background: 'rgba(180,83,9,0.08)', borderRadius: 8, border: '1px solid rgba(180,83,9,0.2)', marginTop: 12 } },
+                  h('p', { style: { fontWeight: 600, marginBottom: 8, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 } }, I('warning'), ' No Security Method Set Up'),
                   h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 } }, 'You need to set up either 2FA (from Settings page) or a 6-digit Wallet PIN to enable transfers.'),
                   h('button', { className: 'btn btn-warning', style: { width: '100%' }, onClick: function() { setTransferVerifyStep('setup_pin'); setTransferPinSetup({ pin: '', confirm: '' }); } },
                     I('plus'), ' Set Up Wallet PIN'
@@ -2501,7 +2501,7 @@ export function PolymarketPage() {
                     h('option', { value: '' }, 'Select whitelisted address...'),
                     whitelist.map(function(a) { return h('option', { key: a.address, value: a.address }, a.label + ' (' + a.address.slice(0,6) + '...' + a.address.slice(-4) + ')'); })
                   )
-                  : h('div', { style: { fontSize: 12, color: '#f59e0b', padding: '8px 12px', background: 'rgba(245,158,11,0.08)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 } }, I('warning'), ' No whitelisted addresses. Add one in the Withdrawal Addresses section first.')
+                  : h('div', { style: { fontSize: 12, color: '#b45309', padding: '8px 12px', background: 'rgba(180,83,9,0.08)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 } }, I('warning'), ' No whitelisted addresses. Add one in the Withdrawal Addresses section first.')
               ),
               h('div', { style: { display: 'flex', gap: 8, marginBottom: 12 } },
                 h('div', { style: { flex: 1 } },
@@ -2620,7 +2620,7 @@ export function PolymarketPage() {
                 createdWallet.address, ' ', h('span', { style: { color: 'var(--text-muted)', fontSize: 11 } }, '(click to copy)')
               ),
               h('label', { style: Object.assign({}, _labelStyle, { marginTop: 12 }) }, 'Private Key'),
-              h('div', { style: Object.assign({}, _inputStyle, { fontFamily: 'monospace', fontSize: 12, cursor: 'pointer', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', wordBreak: 'break-all' }), onClick: function() { navigator.clipboard.writeText(createdWallet.privateKey); toast('Private key copied', 'success'); } },
+              h('div', { style: Object.assign({}, _inputStyle, { fontFamily: 'monospace', fontSize: 12, cursor: 'pointer', background: 'rgba(180,83,9,0.06)', border: '1px solid rgba(180,83,9,0.2)', wordBreak: 'break-all' }), onClick: function() { navigator.clipboard.writeText(createdWallet.privateKey); toast('Private key copied', 'success'); } },
                 createdWallet.privateKey, ' ', h('span', { style: { color: 'var(--text-muted)', fontSize: 11 } }, '(click to copy)')
               ),
               h('div', { style: { marginTop: 12, padding: '10px 14px', background: 'rgba(239,68,68,0.08)', borderRadius: 6, border: '1px solid rgba(239,68,68,0.2)', fontSize: 12, color: '#ef4444', lineHeight: 1.5 } },
@@ -2664,7 +2664,7 @@ export function PolymarketPage() {
                 placeholder: '0x...', value: importKey,
                 onChange: function(e) { setImportKey(e.target.value); },
               }),
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 12px', background: 'rgba(245,158,11,0.08)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.2)' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 12px', background: 'rgba(180,83,9,0.08)', borderRadius: 6, border: '1px solid rgba(180,83,9,0.2)' } },
                 I('shield'),
                 h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'Encrypted with AES-256-GCM. Never leaves the server.')
               ),
@@ -2701,7 +2701,7 @@ export function PolymarketPage() {
               h('input', { type: 'password', style: Object.assign({}, _inputStyle, { fontFamily: 'monospace', fontSize: 13 }), placeholder: 'Hex passphrase', value: apiCredsForm.api_passphrase, onChange: function(e) { setApiCredsForm(Object.assign({}, apiCredsForm, { api_passphrase: e.target.value })); } }),
               h('label', { style: Object.assign({}, _labelStyle, { marginTop: 10 }) }, 'Wallet Address (optional)'),
               h('input', { type: 'text', style: Object.assign({}, _inputStyle, { fontFamily: 'monospace', fontSize: 13 }), placeholder: '0x... (shown in your Polymarket profile)', value: apiCredsForm.wallet_address, onChange: function(e) { setApiCredsForm(Object.assign({}, apiCredsForm, { wallet_address: e.target.value })); } }),
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 12px', background: 'rgba(245,158,11,0.08)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.2)' } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '8px 12px', background: 'rgba(180,83,9,0.08)', borderRadius: 6, border: '1px solid rgba(180,83,9,0.2)' } },
                 I('shield'),
                 h('span', { style: { fontSize: 12, color: 'var(--text-muted)' } }, 'All credentials are encrypted with AES-256-GCM before storage.')
               )
@@ -2935,7 +2935,7 @@ export function PolymarketPage() {
       ),
 
       // ── Pending Transfers (approval required) ──
-      transfers.filter(function(t) { return t.status === 'pending'; }).length > 0 && h('div', { className: 'card', style: { padding: 20, marginTop: 16, border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.04)' } },
+      transfers.filter(function(t) { return t.status === 'pending'; }).length > 0 && h('div', { className: 'card', style: { padding: 20, marginTop: 16, border: '1px solid rgba(180,83,9,0.3)', background: 'rgba(180,83,9,0.04)' } },
         h('div', { style: { fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 } },
           I('zap'), 'Pending Transfers ',
           h(HelpButton, { label: 'Pending Transfers' },
@@ -3037,7 +3037,7 @@ export function PolymarketPage() {
               h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setShowAddAddr(false); } }, '\u00d7')
             ),
             h('div', { className: 'modal-body', style: { padding: 20 } },
-              h('div', { style: { padding: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#f59e0b', lineHeight: 1.6 } },
+              h('div', { style: { padding: 12, background: 'rgba(180,83,9,0.08)', border: '1px solid rgba(180,83,9,0.25)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#b45309', lineHeight: 1.6 } },
                 h('strong', null, '\u26A0 Cooling Period'), h('br'),
                 'New addresses cannot receive transfers for the configured cooling period after being added. This protects against unauthorized address additions. Set to 0 to disable (not recommended).'
               ),
@@ -3743,7 +3743,7 @@ export function PolymarketPage() {
             function(s) { return [
               h('td', null, '$' + (s.total_value || 0).toFixed(2)),
               h('td', null, '$' + (s.peak_value || 0).toFixed(2)),
-              h('td', null, h('span', { style: { color: s.drawdown_pct > 15 ? '#ef4444' : s.drawdown_pct > 10 ? '#f59e0b' : '#10b981' } }, s.drawdown_pct?.toFixed(1) + '%')),
+              h('td', null, h('span', { style: { color: s.drawdown_pct > 15 ? '#ef4444' : s.drawdown_pct > 10 ? '#b45309' : '#10b981' } }, s.drawdown_pct?.toFixed(1) + '%')),
               h('td', null, pnlCell(s.unrealized_pnl)),
               h('td', null, fmtDate(s.timestamp)),
             ]; },
@@ -3836,7 +3836,7 @@ export function PolymarketPage() {
             h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Goals Met')
           ),
           h('div', { className: 'card', style: { padding: 16, textAlign: 'center' } },
-            h('div', { style: { fontSize: 24, fontWeight: 700, color: overallProgress >= 75 ? '#10b981' : overallProgress >= 50 ? '#f59e0b' : '#ef4444' } }, overallProgress.toFixed(0) + '%'),
+            h('div', { style: { fontSize: 24, fontWeight: 700, color: overallProgress >= 75 ? '#10b981' : overallProgress >= 50 ? '#b45309' : '#ef4444' } }, overallProgress.toFixed(0) + '%'),
             h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } }, 'Overall Progress')
           ),
           h('div', { className: 'card', style: { padding: 16, textAlign: 'center' } },
@@ -3923,14 +3923,14 @@ export function PolymarketPage() {
                         goal.type.includes('pct') || goal.type === 'win_rate' || goal.type === 'max_drawdown' ? '%' : goal.type.includes('usd') || goal.type === 'portfolio_value' || goal.type === 'balance_target' ? '$' : ''
                       )
                     ),
-                    !met && remaining > 0 && h('div', { style: { fontSize: 11, color: '#f59e0b' } }, remaining.toFixed(2) + ' remaining')
+                    !met && remaining > 0 && h('div', { style: { fontSize: 11, color: '#b45309' } }, remaining.toFixed(2) + ' remaining')
                   )
                 ),
                 // Progress bar
                 h('div', { style: { height: 6, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' } },
                   h('div', { style: { height: '100%', borderRadius: 3, transition: 'width 0.3s',
                     width: progress + '%',
-                    background: met ? '#10b981' : progress >= 75 ? '#f59e0b' : progress >= 50 ? '#3b82f6' : '#ef4444'
+                    background: met ? '#10b981' : progress >= 75 ? '#b45309' : progress >= 50 ? '#3b82f6' : '#ef4444'
                   } })
                 ),
                 // Stats row
@@ -4361,9 +4361,9 @@ export function PolymarketPage() {
         ),
 
         // Explainer banner
-        h('div', { className: 'card', style: { padding: 16, marginBottom: 20, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8 } },
+        h('div', { className: 'card', style: { padding: 16, marginBottom: 20, background: 'rgba(180,83,9,0.1)', border: '1px solid rgba(180,83,9,0.3)', borderRadius: 8 } },
           h('div', { style: { display: 'flex', gap: 10, alignItems: 'flex-start' } },
-            I('alert-triangle', { style: { color: '#f59e0b', flexShrink: 0 } }),
+            I('alert-triangle', { style: { color: '#b45309', flexShrink: 0 } }),
             h('div', null,
               h('div', { style: { fontWeight: 700, marginBottom: 4 } }, 'Why do I need this?'),
               h('p', { style: { margin: '0 0 8px 0', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 } },
@@ -4513,7 +4513,7 @@ export function PolymarketPage() {
                   var r = await apiCall('/polymarket/proxy/setup', { method: 'POST', body: JSON.stringify(body) });
                   if (logEl && r.logs) {
                     logEl.innerHTML = r.logs.map(function(l) {
-                      var color = l.includes('Warning') ? '#d29922' : l.includes('failed') || l.includes('Failed') ? '#f85149' : '#8b949e';
+                      var color = l.includes('Warning') ? '#b45309' : l.includes('failed') || l.includes('Failed') ? '#f85149' : '#8b949e';
                       return '<div style="color:' + color + '">&#9654; ' + l + '</div>';
                     }).join('');
                   }
@@ -4526,11 +4526,11 @@ export function PolymarketPage() {
                         if (logEl) logEl.innerHTML += '<div style="color:#3fb950;font-weight:bold">Connected! Orders will now route through your proxy.</div>';
                         toast('All set! Proxy is active.', 'success');
                       } else {
-                        if (logEl) logEl.innerHTML += '<div style="color:#d29922">Setup done but auto-connect failed. Click the Connect button above.</div>';
+                        if (logEl) logEl.innerHTML += '<div style="color:#b45309">Setup done but auto-connect failed. Click the Connect button above.</div>';
                         toast('Setup done! Click Connect above to activate.', 'success');
                       }
                     } catch(ce) {
-                      if (logEl) logEl.innerHTML += '<div style="color:#d29922">Setup done! Click the Connect button above to activate.</div>';
+                      if (logEl) logEl.innerHTML += '<div style="color:#b45309">Setup done! Click the Connect button above to activate.</div>';
                     }
                     loadProxyStatus();
                   } else {
@@ -4566,7 +4566,7 @@ export function PolymarketPage() {
             // Recommended provider
             h('div', { style: { padding: 16, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, marginBottom: 16 } },
               h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
-                I('star', { style: { color: '#f59e0b' } }),
+                I('star', { style: { color: '#b45309' } }),
                 h('span', { style: { fontWeight: 700, fontSize: 14 } }, 'Recommended: Vultr (Mumbai, India) \u2014 $5/mo')
               ),
               h('a', { href: 'https://www.vultr.com/', target: '_blank', style: { display: 'inline-block', padding: '8px 16px', background: '#6366f1', color: '#fff', borderRadius: 6, textDecoration: 'none', fontWeight: 600, fontSize: 13, marginBottom: 12 } }, 'Sign Up at Vultr \u2192'),
