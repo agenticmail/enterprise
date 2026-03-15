@@ -124,8 +124,8 @@ export function OverviewSection(props) {
   var advanceDelete = async function() {
     if (deleteStep < 5) { setDeleteStep(deleteStep + 1); setDeleteChecked(false); return; }
     if (deleteStep === 5) {
-      var expectedName = (engineAgent?.name || '').trim().toLowerCase();
-      if (deleteTyped.trim().toLowerCase() !== expectedName) {
+      var expectedName = (agent?.name || engineAgent?.name || engineAgent?.config?.name || '').trim().toLowerCase();
+      if (!expectedName || deleteTyped.trim().toLowerCase() !== expectedName) {
         toast('Agent name does not match', 'error');
         return;
       }
@@ -660,13 +660,13 @@ export function OverviewSection(props) {
               autoFocus: true,
               onInput: function(e) { setDeleteTyped(e.target.value); },
               onKeyDown: function(e) { if (e.key === 'Enter') advanceDelete(); },
-              style: { marginBottom: 16, borderColor: deleteTyped.trim().toLowerCase() === (engineAgent?.name || '').trim().toLowerCase() ? 'var(--danger)' : 'var(--border)' }
+              style: { marginBottom: 16, borderColor: deleteTyped.trim().toLowerCase() === (agent?.name || engineAgent?.name || engineAgent?.config?.name || '').trim().toLowerCase() ? 'var(--danger)' : 'var(--border)' }
             }),
             h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
               h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
               h('button', {
                 className: 'btn btn-danger',
-                disabled: deleteTyped.trim().toLowerCase() !== (engineAgent?.name || '').trim().toLowerCase() || acting === 'delete',
+                disabled: !deleteTyped.trim() || deleteTyped.trim().toLowerCase() !== (agent?.name || engineAgent?.name || engineAgent?.config?.name || '').trim().toLowerCase() || acting === 'delete',
                 onClick: advanceDelete
               }, acting === 'delete' ? 'Deleting...' : 'Permanently delete agent')
             )

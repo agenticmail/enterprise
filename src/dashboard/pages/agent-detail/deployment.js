@@ -946,7 +946,7 @@ export function DeploymentSection(props) {
               h('button', { className: 'btn btn-secondary', onClick: cancelDelete }, 'Cancel'),
               h('button', {
                 className: 'btn btn-danger',
-                disabled: deleteTyped.trim().toLowerCase() !== _agentName.trim().toLowerCase() || deleting,
+                disabled: !deleteTyped.trim() || deleteTyped.trim().toLowerCase() !== _agentName.trim().toLowerCase() || deleting,
                 onClick: advanceDelete
               }, deleting ? 'Deleting...' : 'Permanently delete agent')
             )
