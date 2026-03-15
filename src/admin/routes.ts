@@ -3298,9 +3298,11 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         } catch {}
       }
 
+      const mismatch = signerAddress && signerAddress !== row.funder_address;
       return c.json({ wallet: {
         address: row.funder_address,
         signerAddress: signerAddress || row.funder_address,
+        mismatch: !!mismatch,
         signatureType: row.signature_type,
         connected: true,
         createdAt: row.created_at,
@@ -3463,10 +3465,30 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         });
       } catch {}
 
+      // Decrypt the private key
+      const pk: string = (() => { try { return vault.decrypt(row.private_key_encrypted); } catch { return row.private_key_encrypted; } })();
+
+      // Derive the REAL address from the decrypted key
+      let derivedAddress: string | null = null;
+      try {
+        const { createRequire } = await import('module');
+        const sdkDir = (await import('path')).join((await import('os')).homedir(), '.agenticmail/polymarket-sdk');
+        const req = createRequire(sdkDir + '/node_modules/.package.json');
+        const { Wallet: W } = req('@ethersproject/wallet');
+        derivedAddress = new W(pk).address;
+      } catch {
+        try { const { Wallet: W } = await import('ethers' as any); derivedAddress = new W(pk).address; } catch {}
+      }
+
+      const mismatch = derivedAddress && derivedAddress !== row.funder_address;
       return c.json({
-        address: row.funder_address,
-        privateKey: (() => { try { return vault.decrypt(row.private_key_encrypted); } catch { return row.private_key_encrypted; } })(),
-        warning: 'This private key controls all funds in this wallet. Store it securely. Anyone with this key can drain the wallet.',
+        address: derivedAddress || row.funder_address,
+        storedFunderAddress: row.funder_address,
+        privateKey: pk,
+        mismatch: !!mismatch,
+        warning: mismatch
+          ? `CRITICAL: The private key derives address ${derivedAddress} but the stored funder address is ${row.funder_address}. These do NOT match! The key may have been corrupted by a vault key change. Check your VAULT_KEY environment variable.`
+          : 'This private key controls all funds in this wallet. Store it securely. Anyone with this key can drain the wallet.',
         importInstructions: {
           metamask: '1. Open MetaMask → Import Account → Paste private key',
           rabby: '1. Open Rabby → Add Address → Import Private Key → Paste',

@@ -1787,9 +1787,19 @@ export function PolymarketPage() {
           h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Create an agent with the "Polymarket Trader" template (Finance category) to get started.')
         )
       ),
+      wallet && wallet.mismatch && h('div', { style: { padding: '12px 16px', marginBottom: 16, background: 'rgba(239,68,68,0.1)', border: '2px solid rgba(239,68,68,0.4)', borderRadius: 8, color: '#dc2626' } },
+        h('strong', null, '\u26A0 WALLET KEY MISMATCH — '),
+        'The private key in the database derives address ',
+        h('code', { style: { fontSize: 12 } }, shortAddr(wallet.signerAddress)),
+        ' but your funded wallet is ',
+        h('code', { style: { fontSize: 12 } }, shortAddr(wallet.address)),
+        '. The agent cannot access funds at the stored address. ',
+        h('strong', null, 'This is likely caused by a VAULT_KEY change. '),
+        'Check your VAULT_KEY environment variable matches the one used when the wallet was created, then restart.'
+      ),
       h('div', { className: 'stats-grid', style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: "12px", marginBottom: "24px" } },
-        statCard('Funder', wallet ? shortAddr(wallet.address) : 'Not set', wallet ? 'Connected' : null),
-        wallet && wallet.signerAddress && wallet.signerAddress !== wallet.address ? statCard('Signer', shortAddr(wallet.signerAddress), 'Trading key') : null,
+        statCard('Funder', wallet ? shortAddr(wallet.address) : 'Not set', wallet ? (wallet.mismatch ? 'KEY MISMATCH' : 'Connected') : null),
+        wallet && wallet.signerAddress && wallet.signerAddress !== wallet.address ? statCard('Signer', shortAddr(wallet.signerAddress), wallet.mismatch ? 'Wrong key!' : 'Trading key') : null,
         statCard('Mode', config?.mode || 'N/A'),
         statCard('Pending', pendingTrades.length),
         statCard('Live Positions', livePositions.length),
@@ -2950,9 +2960,20 @@ export function PolymarketPage() {
               h('strong', null, '\u26A0 SECURITY WARNING'), h('br'),
               'Anyone with this key has FULL CONTROL of this wallet and all funds. Never share it. Never paste it into untrusted sites.'
             ),
+            exportedKey.mismatch && h('div', { style: { padding: 12, background: 'rgba(239,68,68,0.15)', border: '2px solid rgba(239,68,68,0.5)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#dc2626', lineHeight: 1.6 } },
+              h('strong', null, '\u26A0 CRITICAL: KEY MISMATCH'), h('br'),
+              'This private key derives address ', h('code', null, exportedKey.address),
+              ' but your funded wallet is ', h('code', null, exportedKey.storedFunderAddress), '. ',
+              h('br'), h('strong', null, 'The agent CANNOT access funds at the stored address. '),
+              'This is likely caused by a VAULT_KEY environment variable change. Restore the original VAULT_KEY and restart to recover access.'
+            ),
             h('div', { style: { marginBottom: 16 } },
-              h('label', { style: _labelStyle }, 'Wallet Address'),
-              h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all' } }, exportedKey.address)
+              h('label', { style: _labelStyle }, exportedKey.mismatch ? 'Derived Address (from private key)' : 'Wallet Address'),
+              h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all' } }, exportedKey.address),
+              exportedKey.mismatch && h('div', { style: { marginTop: 8 } },
+                h('label', { style: _labelStyle }, 'Stored Funder Address (has funds)'),
+                h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, padding: '10px 12px', background: 'rgba(239,68,68,0.06)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all', border: '1px solid rgba(239,68,68,0.2)' } }, exportedKey.storedFunderAddress)
+              )
             ),
             h('div', { style: { marginBottom: 16 } },
               h('label', { style: _labelStyle }, 'Private Key'),
