@@ -16,6 +16,7 @@
 
 import type { AgentMessage, StreamEvent, ToolCall } from './types.js';
 import { resolveProvider, type ApiType } from './providers.js';
+import { createHash } from 'crypto';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -507,13 +508,19 @@ async function callOpenAICompatible(
       else if (choice.finish_reason === 'stop') stopReason = 'end_turn';
     }
 
-    // Usage — capture cached tokens from OpenAI's prompt_tokens_details
+    // Usage — capture cached tokens from multiple providers
     if (chunk.usage) {
       usage.inputTokens = chunk.usage.prompt_tokens || 0;
       usage.outputTokens = chunk.usage.completion_tokens || 0;
+      // OpenAI, xAI Grok, Groq: prompt_tokens_details.cached_tokens
       var promptDetails = (chunk.usage as any).prompt_tokens_details;
       if (promptDetails?.cached_tokens) {
         usage.cacheReadInputTokens = promptDetails.cached_tokens;
+      }
+      // DeepSeek: uses custom top-level fields
+      var dsHit = (chunk.usage as any).prompt_cache_hit_tokens;
+      if (dsHit && dsHit > 0) {
+        usage.cacheReadInputTokens = dsHit;
       }
     }
   }
@@ -539,6 +546,86 @@ async function callOpenAICompatible(
       ...(usage.cacheReadInputTokens > 0 ? { cacheReadInputTokens: usage.cacheReadInputTokens } : {}),
     },
   };
+}
+
+// ─── Google Gemini Context Cache ─────────────────────────
+// Explicit caching of system prompt + tools via cachedContents API.
+// Cached tokens cost ~90% less. Cache is model-specific with TTL.
+
+var _geminiCaches = new Map<string, { name: string; expiresAt: number; tokenCount: number }>();
+
+function geminiCacheKey(modelId: string, sysText: string, toolsJson: string): string {
+  return createHash('sha256').update(`${modelId}:${sysText}:${toolsJson}`).digest('hex').slice(0, 20);
+}
+
+async function ensureGeminiCache(
+  apiKey: string,
+  modelId: string,
+  systemInstruction: any,
+  geminiTools: any[],
+): Promise<string | null> {
+  var sysJson = JSON.stringify(systemInstruction || '');
+  var toolsJson = JSON.stringify(geminiTools);
+  var key = geminiCacheKey(modelId, sysJson, toolsJson);
+
+  // Check existing cache (with 2 min buffer before expiry)
+  var existing = _geminiCaches.get(key);
+  if (existing && existing.expiresAt > Date.now() + 120_000) {
+    return existing.name;
+  }
+
+  // Estimate tokens — skip if below Gemini minimum (1024 for Flash, 4096 for Pro)
+  var contentLen = sysJson.length + toolsJson.length;
+  var estimatedTokens = Math.ceil(contentLen / 4);
+  var minTokens = modelId.includes('pro') ? 4096 : 1024;
+  if (estimatedTokens < minTokens) {
+    return null;
+  }
+
+  // Create cached content resource
+  var cacheBody: Record<string, any> = {
+    model: `models/${modelId}`,
+    ttl: '1800s', // 30 min — covers most agent sessions
+  };
+  if (systemInstruction) cacheBody.systemInstruction = systemInstruction;
+  if (geminiTools.length > 0) cacheBody.tools = geminiTools;
+
+  try {
+    var resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cacheBody),
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+
+    if (!resp.ok) {
+      var errText = await resp.text().catch(function() { return ''; });
+      console.log(`[llm-client] Gemini cache creation failed (${resp.status}): ${errText.slice(0, 200)}`);
+      return null;
+    }
+
+    var result = await resp.json() as any;
+    var cacheName = result.name;
+    var expiresAt = result.expireTime ? new Date(result.expireTime).getTime() : Date.now() + 1800_000;
+    var tokenCount = result.usageMetadata?.totalTokenCount || estimatedTokens;
+
+    _geminiCaches.set(key, { name: cacheName, expiresAt, tokenCount });
+    console.log(`[llm-client] Gemini cache created: ${cacheName} (${tokenCount} tokens, TTL 30m)`);
+    return cacheName;
+  } catch (err: any) {
+    console.log(`[llm-client] Gemini cache creation error: ${err.message}`);
+    return null;
+  }
+}
+
+function cleanupGeminiCaches() {
+  var now = Date.now();
+  for (var [key, val] of _geminiCaches) {
+    if (val.expiresAt < now) _geminiCaches.delete(key);
+  }
 }
 
 // ─── Google Gemini Client ────────────────────────────────
@@ -611,20 +698,10 @@ async function callGoogle(
 ): Promise<LLMResponse> {
   var { systemInstruction, contents } = convertToGeminiContents(messages);
 
-  var requestBody: Record<string, any> = {
-    contents: contents,
-    generationConfig: {
-      maxOutputTokens: options.maxTokens,
-      temperature: options.temperature,
-    },
-  };
-
-  if (systemInstruction) {
-    requestBody.systemInstruction = systemInstruction;
-  }
-
+  // Build Gemini tools array
+  var geminiTools: any[] = [];
   if (tools.length > 0) {
-    requestBody.tools = [{
+    geminiTools = [{
       functionDeclarations: tools.map(function(t) {
         return {
           name: t.name,
@@ -635,6 +712,33 @@ async function callGoogle(
     }];
   }
 
+  // Clean up expired caches periodically
+  if (Math.random() < 0.1) cleanupGeminiCaches();
+
+  // Try explicit context caching for system prompt + tools
+  var cacheName = await ensureGeminiCache(config.apiKey, config.modelId, systemInstruction, geminiTools);
+
+  var requestBody: Record<string, any> = {
+    contents: contents,
+    generationConfig: {
+      maxOutputTokens: options.maxTokens,
+      temperature: options.temperature,
+    },
+  };
+
+  if (cacheName) {
+    // When using cached content, MUST NOT set systemInstruction, tools, or toolConfig
+    requestBody.cachedContent = cacheName;
+  } else {
+    // No cache — include system prompt and tools directly
+    if (systemInstruction) {
+      requestBody.systemInstruction = systemInstruction;
+    }
+    if (geminiTools.length > 0) {
+      requestBody.tools = geminiTools;
+    }
+  }
+
   var url = `https://generativelanguage.googleapis.com/v1beta/models/${config.modelId}:streamGenerateContent?key=${config.apiKey}&alt=sse`;
 
   var resp = await fetch(url, {
@@ -643,6 +747,25 @@ async function callGoogle(
     body: JSON.stringify(requestBody),
     signal: options.signal,
   });
+
+  // If cache reference failed (404 = expired, 400 = invalid), retry without cache
+  if (!resp.ok && cacheName && (resp.status === 404 || resp.status === 400)) {
+    console.log(`[llm-client] Gemini cached content ${resp.status} — retrying without cache`);
+    // Evict the expired/invalid cache entry
+    for (var [k, v] of _geminiCaches) {
+      if (v.name === cacheName) { _geminiCaches.delete(k); break; }
+    }
+    // Rebuild request without cache
+    delete requestBody.cachedContent;
+    if (systemInstruction) requestBody.systemInstruction = systemInstruction;
+    if (geminiTools.length > 0) requestBody.tools = geminiTools;
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+      signal: options.signal,
+    });
+  }
 
   if (!resp.ok) {
     var errText = await resp.text().catch(function() { return ''; });

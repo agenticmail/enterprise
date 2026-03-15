@@ -792,6 +792,33 @@ var FALLBACK_PRICES: Record<string, { input: number; output: number }> = {
   'meta-llama/Llama-3.3-70B-Instruct-Turbo': { input: 0.88, output: 0.88 },
 };
 
+/**
+ * Per-provider cache discount rate.
+ * Returns the fraction of input price that cached tokens cost.
+ * e.g., 0.1 = cached tokens cost 10% of input price (90% discount)
+ */
+function getCacheRate(provider: string, modelId: string): number {
+  switch (provider) {
+    case 'anthropic': return 0.1;   // 90% off
+    case 'google': return 0.1;      // ~90% off for Gemini 2.5+
+    case 'deepseek': return 0.1;    // 90% off
+    case 'openai':
+      // GPT-4.1 family: 75% off; GPT-4o/o-series: 50% off
+      if (modelId.startsWith('gpt-4.1') || modelId.startsWith('gpt-5')) return 0.25;
+      return 0.5;
+    case 'xai': return 0.25;        // 75% off
+    case 'groq': return 0.5;        // 50% off
+    case 'fireworks': return 0.5;   // 50% off
+    default: return 0.5;            // conservative default
+  }
+}
+
+/** Returns the surcharge rate for cache creation tokens (only Anthropic charges extra). */
+function getCacheCreationRate(provider: string): number {
+  if (provider === 'anthropic') return 1.25; // 25% surcharge
+  return 0; // other providers don't charge extra for cache creation
+}
+
 async function estimateCostAsync(
   hooks: import('./types.js').RuntimeHooks,
   model: import('./types.js').ModelConfig,
@@ -800,12 +827,13 @@ async function estimateCostAsync(
   cacheCreationTokens?: number,
   cacheReadTokens?: number,
 ): Promise<number> {
-  // Cost formula:
+  // Cost formula (per-provider cache rates):
   //   inputTokens = non-cached input tokens (full price)
-  //   cacheReadTokens = cached input tokens (10% of input price — 90% discount)
-  //   cacheCreationTokens = tokens written to cache (125% of input price — 25% surcharge)
+  //   cacheReadTokens = cached tokens (getCacheRate() of input price)
+  //   cacheCreationTokens = tokens written to cache (getCacheCreationRate() of input price)
   //   outputTokens = output tokens (full price)
-  // Note: Anthropic reports inputTokens as ONLY non-cached; cacheReadTokens is separate/additive.
+  var cacheRate = getCacheRate(model.provider, model.modelId);
+  var creationRate = getCacheCreationRate(model.provider);
 
   // Try DB pricing via hook
   if (hooks.getModelPricing) {
@@ -814,28 +842,24 @@ async function estimateCostAsync(
       if (dbPricing) {
         var inputPrice = dbPricing.inputCostPerMillion;
         var cost = (inputTokens * inputPrice + outputTokens * dbPricing.outputCostPerMillion) / 1_000_000;
-        // Cache reads cost 10% of input price (90% discount)
         if (cacheReadTokens && cacheReadTokens > 0) {
-          cost += (cacheReadTokens * inputPrice * 0.1) / 1_000_000;
+          cost += (cacheReadTokens * inputPrice * cacheRate) / 1_000_000;
         }
-        // Cache creation costs 125% of input price (25% surcharge)
-        if (cacheCreationTokens && cacheCreationTokens > 0) {
-          cost += (cacheCreationTokens * inputPrice * 1.25) / 1_000_000;
+        if (cacheCreationTokens && cacheCreationTokens > 0 && creationRate > 0) {
+          cost += (cacheCreationTokens * inputPrice * creationRate) / 1_000_000;
         }
         return Math.max(0, cost);
       }
     } catch {}
   }
-  // Fall back to built-in pricing (cache-aware)
+  // Fall back to built-in pricing
   var p = FALLBACK_PRICES[model.modelId] || { input: 3, output: 15 };
   var cost = (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
-  // Cache reads cost 10% of input price (90% discount)
   if (cacheReadTokens && cacheReadTokens > 0) {
-    cost += (cacheReadTokens * p.input * 0.1) / 1_000_000;
+    cost += (cacheReadTokens * p.input * cacheRate) / 1_000_000;
   }
-  // Cache creation costs 125% of input price (25% surcharge)
-  if (cacheCreationTokens && cacheCreationTokens > 0) {
-    cost += (cacheCreationTokens * p.input * 1.25) / 1_000_000;
+  if (cacheCreationTokens && cacheCreationTokens > 0 && creationRate > 0) {
+    cost += (cacheCreationTokens * p.input * creationRate) / 1_000_000;
   }
   return Math.max(0, cost);
 }
