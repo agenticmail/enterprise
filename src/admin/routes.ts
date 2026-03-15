@@ -266,6 +266,23 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       agents = agents.filter((a: any) => a.client_org_id === clientOrgId);
       total = agents.length;
     }
+    // Merge engine identity.role (source of truth) into admin agent records
+    try {
+      const edb = db.getEngineDB?.();
+      if (edb) {
+        const managed = await edb.all(`SELECT id, config FROM managed_agents`) || [];
+        const roleMap = new Map<string, string>();
+        for (const m of managed as any[]) {
+          const cfg = typeof m.config === 'string' ? JSON.parse(m.config) : m.config;
+          const identityRole = cfg?.identity?.role;
+          if (identityRole) roleMap.set(m.id, identityRole);
+        }
+        agents = agents.map((a: any) => {
+          const engineRole = roleMap.get(a.id);
+          return engineRole ? { ...a, role: engineRole } : a;
+        });
+      }
+    } catch {}
     return c.json({ agents, total, limit, offset });
   });
 
