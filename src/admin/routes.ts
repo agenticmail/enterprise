@@ -3899,7 +3899,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const { to_address, amount, token, reason } = await c.req.json();
       if (!to_address || !amount || amount <= 0) return c.json({ error: 'Invalid transfer parameters' }, 400);
       // Verify address is whitelisted
-      const wl = await edb()?.get(`SELECT id, label, per_tx_limit, daily_limit FROM poly_withdrawal_addresses WHERE agent_id = ? AND address = ? AND cooling_until < CURRENT_TIMESTAMP`, [agentId, to_address]) as any;
+      const wl = await edb()?.get(`SELECT id, label, per_tx_limit, daily_limit FROM poly_whitelisted_addresses WHERE agent_id = ? AND address = ? AND cooling_until < CURRENT_TIMESTAMP`, [agentId, to_address]) as any;
       if (!wl) return c.json({ error: 'Address not whitelisted or still in cooling period' }, 403);
       if (wl.per_tx_limit && amount > wl.per_tx_limit) return c.json({ error: `Exceeds per-transaction limit of $${wl.per_tx_limit}` }, 400);
       // Check daily limit
