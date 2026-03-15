@@ -1078,11 +1078,12 @@ export function PolymarketPage() {
     // Custom modal for pending orders on a position
     if (selectedRow.tab === 'pendingForPosition' && d.orders) {
       return h('div', { className: 'modal-overlay', onClick: function() { setSelectedRow(null); } },
-        h('div', { className: 'modal-content', style: { maxWidth: 560, maxHeight: '80vh', overflow: 'auto' }, onClick: function(e) { e.stopPropagation(); } },
-          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
-            h('h3', { style: { margin: 0 } }, 'Pending Orders'),
-            h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { setSelectedRow(null); } }, '\u2715')
+        h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { width: 560, maxHeight: '85vh', overflow: 'auto' } },
+          h('div', { className: 'modal-header' },
+            h('h2', { style: { fontSize: 16, flex: 1, display: 'flex', alignItems: 'center', gap: 8 } }, I('clock'), ' Pending Orders'),
+            h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setSelectedRow(null); } }, '\u00d7')
           ),
+          h('div', { className: 'modal-body', style: { padding: 20 } },
           h('div', { style: { marginBottom: 16, padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 13 } },
             h('div', { style: { fontWeight: 600, marginBottom: 4 } }, d.market || 'Position'),
             h('div', { style: { color: 'var(--text-muted)' } }, 'Filled shares: ', h('strong', null, (d.filled_shares || 0).toFixed(1)),
@@ -1107,6 +1108,10 @@ export function PolymarketPage() {
           ),
           h('div', { style: { marginTop: 12, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' } },
             'Total pending capital: $' + d.orders.reduce(function(s, o) { return s + (o.price || 0) * (o.size || 0); }, 0).toFixed(2))
+          ),
+          h('div', { className: 'modal-footer' },
+            h('button', { className: 'btn btn-primary', onClick: function() { setSelectedRow(null); } }, 'Close')
+          )
         )
       );
     }
