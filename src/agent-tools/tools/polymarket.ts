@@ -1186,13 +1186,14 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
                 pol_gas: polBal,
                 wallet_usdc_total: walletUSDC,
                 exchange_balance: updatedExchBal,
-                available_to_trade: (parseFloat(usdceBal) + parseFloat(updatedExchBal)).toFixed(2),
+                available_to_trade: parseFloat(updatedExchBal).toFixed(2),
+                pending_order_capital: '0.00',
                 trading_approved: allApproved,
                 status: 'allowances_auto_set',
                 needs_swap: parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0,
                 message: parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0
                   ? `⚠️ Wallet has $${usdcNativeBal} native USDC but $0 USDC.e. Polymarket ONLY accepts USDC.e! Run poly_swap_to_usdce to convert.`
-                  : `Wallet has $${usdceBal} USDC.e + $${updatedExchBal} on exchange. Contracts approved — you can now trade.`,
+                  : `Exchange balance: $${updatedExchBal}. Contracts approved — you can now trade.`,
               });
             } catch (e: any) {
               const errExchBal = (Number(exchangeBalance.balance || 0) / 1e6).toFixed(2);
@@ -1202,7 +1203,8 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
                 usdc_native: usdcNativeBal,
                 pol_gas: polBal,
                 exchange_balance: errExchBal,
-                available_to_trade: (parseFloat(usdceBal) + parseFloat(errExchBal)).toFixed(2),
+                available_to_trade: parseFloat(errExchBal).toFixed(2),
+                pending_order_capital: '0.00',
                 trading_approved: false,
                 status: 'needs_allowances',
                 message: `Approval failed: ${e.message}`,
@@ -1213,7 +1215,19 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           const allApproved = Object.values(exchangeBalance?.allowances || {}).every((v: any) => v !== '0' && v !== 0);
           const needsSwap = parseFloat(usdceBal) === 0 && parseFloat(usdcNativeBal) > 0;
           const exchBalHuman = (Number(exchangeBalance.balance || 0) / 1e6).toFixed(2);
-          const totalAvailable = (parseFloat(usdceBal) + parseFloat(exchBalHuman)).toFixed(2);
+
+          // Calculate capital locked in pending (placed but unfilled) orders
+          let pendingCapital = 0;
+          try {
+            const pendingRows = await db?.execute(`SELECT side, price, size FROM poly_trade_log WHERE agent_id = $1 AND status = 'placed'`, [agentId]) || [];
+            const rows = Array.isArray(pendingRows) ? pendingRows : (pendingRows as any)?.rows || [];
+            for (const r of rows as any[]) {
+              pendingCapital += (parseFloat(r.price) || 0) * (parseFloat(r.size) || 0);
+            }
+          } catch {}
+
+          // available_to_trade = exchange balance (already includes deposited wallet funds) minus pending order capital
+          const totalAvailable = Math.max(0, parseFloat(exchBalHuman) - pendingCapital).toFixed(2);
 
           return jsonResult({
             address: client.address,
@@ -1224,11 +1238,14 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             exchange_balance: exchBalHuman,
             trading_approved: allApproved,
             available_to_trade: totalAvailable,
+            pending_order_capital: pendingCapital.toFixed(2),
             needs_swap: needsSwap,
             status: needsSwap ? 'needs_swap' : (parseFloat(totalAvailable) > 0 ? 'funded' : 'no_funds'),
             message: needsSwap
               ? `⚠️ You have $${usdcNativeBal} native USDC but Polymarket requires USDC.e (bridged). Run poly_swap_to_usdce to convert.`
-              : undefined,
+              : pendingCapital > 0
+                ? `Note: $${pendingCapital.toFixed(2)} is locked in pending orders awaiting fill. Available to trade: $${totalAvailable}`
+                : undefined,
           });
         } catch (e: any) {
           return jsonResult({ address: client.address, status: 'balance_check_failed', message: e.message });

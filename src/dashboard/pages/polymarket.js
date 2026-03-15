@@ -1041,6 +1041,7 @@ export function PolymarketPage() {
   function renderFilteredTable(tabId, data, emptyMsg, headers, rowFn, opts) {
     var clickFn = opts.onRowClick || function(item) { setSelectedRow({ tab: tabId, data: item }); };
     var filtered = applySearchFilter(data, tabId, opts.searchFields || [], opts.filters || []);
+    if (opts.sortFn) filtered = filtered.slice().sort(opts.sortFn);
     var result = paginateData(filtered, tabId, opts.pageSize);
     var hasData = data && data.length > 0;
     var s = getTC(tabId);
@@ -1879,8 +1880,9 @@ export function PolymarketPage() {
           h('ul', { style: _ul },
             h('li', null, h('strong', null, 'Pending Buy Orders'), ' — Buy orders placed by the agent or awaiting approval before execution.'),
             h('li', null, h('strong', null, 'Pending Sell Orders'), ' — Sell orders placed automatically (e.g. stop-loss, take-profit) or manually, awaiting execution.'),
-            h('li', null, h('strong', null, 'Approve'), ' — Executes the trade on Polymarket via the CLOB API.'),
-            h('li', null, h('strong', null, 'Reject'), ' — Cancels the trade. The agent learns from rejections.')
+            h('li', null, h('strong', null, 'Awaiting fill'), ' — Order is on the exchange, waiting to be matched. No action needed.'),
+            h('li', null, h('strong', null, 'Approve'), ' — (Approval mode only) Executes the trade on Polymarket via the CLOB API.'),
+            h('li', null, h('strong', null, 'Reject'), ' — (Approval mode only) Cancels the trade. The agent learns from rejections.')
           ),
           h('div', { style: _tip }, h('strong', null, 'Tip: '), 'Switch to "autonomous" mode in Config to let the agent trade without approval (within risk limits).')
         )
@@ -1930,14 +1932,18 @@ export function PolymarketPage() {
         h('td', null, '$' + ((t.price || 0) * (t.size || 0)).toFixed(2)),
         h('td', null, h('span', { className: 'badge badge-' + (t.urgency === 'high' ? 'warning' : 'secondary') }, t.urgency || 'normal')),
         h('td', null, fmtDate(t.created_at)),
-        h('td', null, h('div', { style: { display: "flex", gap: "4px" } },
-          h('button', { className: 'btn btn-sm btn-success', onClick: function() { decideTrade(t.id, 'approve'); } }, I('check')),
-          h('button', { className: 'btn btn-sm btn-danger', onClick: function() { decideTrade(t.id, 'reject'); } }, I('x'))
-        )),
+        h('td', null, t.source === 'placed' || t.status === 'placed'
+          ? h('span', { style: { fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' } }, 'Awaiting fill')
+          : h('div', { style: { display: "flex", gap: "4px" } },
+              h('button', { className: 'btn btn-sm btn-success', onClick: function() { decideTrade(t.id, 'approve'); } }, I('check')),
+              h('button', { className: 'btn btn-sm btn-danger', onClick: function() { decideTrade(t.id, 'reject'); } }, I('x'))
+            )
+        ),
       ]; },
       { searchFields: ['market_question', 'outcome'], filters: [
         { key: 'side', label: 'Side', options: ['BUY', 'SELL'] },
-        { key: 'status', label: 'Status', options: ['pending', 'placed', 'cancelled'] },
+        { key: 'status', label: 'Status', options: ['pending', 'placed'] },
+        { key: 'source', label: 'Type', options: ['approval', 'placed'] },
         { key: 'urgency', label: 'Urgency', options: ['normal', 'high'] }
       ]}
     )),
@@ -1993,8 +1999,11 @@ export function PolymarketPage() {
       { searchFields: ['market_question', 'token_id', 'outcome'], filters: [
         { key: 'side', label: 'Side', options: ['BUY', 'SELL'] },
         { key: 'outcome', label: 'Outcome', options: ['Yes', 'No'] },
-        { key: 'status', label: 'Status', options: ['placed', 'filled', 'failed', 'no_wallet', 'pending', 'cancelled', 'rejected'] }
-      ]}
+        { key: 'status', label: 'Status', options: ['filled', 'failed', 'no_wallet', 'cancelled', 'rejected'] }
+      ], sortFn: function(a, b) {
+        // Most recent first
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      }}
     )),
 
     // ═══ WALLET ═══
@@ -2070,7 +2079,18 @@ export function PolymarketPage() {
                 ? h('span', { className: 'badge ' + (oc.toLowerCase() === 'yes' ? 'badge-success' : oc.toLowerCase() === 'no' ? 'badge-danger' : 'badge-secondary') }, oc)
                 : h('span', { className: 'text-muted' }, '--')
               ),
-              h('td', { key: 'sh' }, (p.size || 0).toFixed(1)),
+              h('td', { key: 'sh' }, h('div', null,
+                (p.size || 0).toFixed(1),
+                (function() {
+                  var pendingForToken = pendingTrades.filter(function(pt) { return pt.token_id === p.token_id && (pt.status === 'placed' || pt.source === 'placed'); });
+                  if (!pendingForToken.length) return null;
+                  return pendingForToken.map(function(pt, i) {
+                    return h('div', { key: i, style: { fontSize: 10, color: '#b45309', fontStyle: 'italic', marginTop: 2 } },
+                      'pending ' + (pt.size || 0).toFixed(1) + ' ' + (pt.side || '').toLowerCase()
+                    );
+                  });
+                })()
+              )),
               h('td', { key: 'e' }, (p.entry * 100).toFixed(1) + '\u00a2'),
               h('td', { key: 'c', style: { fontWeight: 600, color: isWon ? '#10b981' : isLost ? '#ef4444' : undefined } },
                 isWon ? '100.0\u00a2' : isLost ? '0.0\u00a2' : (p.current * 100).toFixed(1) + '\u00a2'
@@ -2119,7 +2139,17 @@ export function PolymarketPage() {
                         }, sellExecuting === p.token_id ? '...' : 'Sell')
               )
             ];
-          }, { searchKeys: ['market', 'outcome'], pageSize: 6 }
+          }, { searchFields: ['market', 'outcome', 'token_id'], filters: [
+            { key: 'side', label: 'Side', options: ['BUY', 'SELL'] },
+            { key: 'outcome', label: 'Outcome', options: ['Yes', 'No'] },
+          ], sortFn: function(a, b) {
+            // Sort by closing date — soonest first
+            var aEnd = a.endDate ? new Date(a.endDate).getTime() : Infinity;
+            var bEnd = b.endDate ? new Date(b.endDate).getTime() : Infinity;
+            if (isNaN(aEnd)) aEnd = Infinity;
+            if (isNaN(bEnd)) bEnd = Infinity;
+            return aEnd - bEnd;
+          }, pageSize: 20 }
         )
       ),
 
