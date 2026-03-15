@@ -3275,7 +3275,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       // Also query archive for filled trades
       let archived: any[] = [];
       try {
-        archived = await edb()?.all(`SELECT *, 'archive' as source FROM poly_trade_log_archive WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
+        archived = await edb()?.all(`SELECT *, 'archive' as source FROM poly_trade_log_archive WHERE agent_id = ? AND status != 'placed' ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
       } catch {} // archive table may not exist
       // Merge and sort by date, dedup by id
       const seen = new Set<string>();
