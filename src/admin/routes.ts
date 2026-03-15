@@ -3930,8 +3930,8 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const crypto = await import('node:crypto');
       const txId = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + 4 * 3600000).toISOString();
-      await edb()?.run(`INSERT INTO poly_transfer_requests (id, agent_id, to_address, to_label, amount, token, reason, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, ?)`,
-        [txId, agentId, to_address, wl.label, amount, token || 'USDC.e', reason || '', expiresAt]);
+      await edb()?.run(`INSERT INTO poly_transfer_requests (id, agent_id, whitelist_id, to_address, to_label, amount, token, reason, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, ?)`,
+        [txId, agentId, wl.id, to_address, wl.label, amount, token || 'USDC.e', reason || '', expiresAt]);
       try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.transfer_created', resourceType: 'agent', resourceId: agentId, details: { txId, to_address, amount, token, reason }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
       return c.json({ ok: true, txId, message: `Transfer of ${amount} ${token || 'USDC.e'} to ${wl.label} submitted. Awaiting execution.` });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
