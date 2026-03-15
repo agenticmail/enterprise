@@ -2124,7 +2124,7 @@ export function PolymarketPage() {
             : null,
           h('button', { className: 'btn btn-sm btn-primary', onClick: function() { setShowBuyModal(true); setBuySearch(''); setBuyResults([]); setBuySelected(null); } }, I('plus'), ' Buy Position')
         ),
-        renderFilteredTable('livePositions', livePrices.positions, '',
+        renderFilteredTable('livePositions', livePrices.positions.filter(function(p) { return (parseFloat(p.size) || 0) > 0; }), '',
           ['Market', 'Position', 'Outcome', 'Shares', 'Entry', 'Current', 'Cost', 'Win Amount', 'P&L', 'P&L %', 'Ends', ''],
           function(p) {
             var oc = p.outcome || resolveOutcome(p.side, p.outcome);
