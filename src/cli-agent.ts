@@ -411,6 +411,31 @@ export async function runAgent(_args: string[]) {
   process.on('uncaughtException', (err) => { console.error('[FATAL] Uncaught exception:', err.message, err.stack?.slice(0, 500)); });
   process.on('unhandledRejection', (reason: any) => { console.error('[FATAL] Unhandled rejection:', reason?.message || reason, reason?.stack?.slice(0, 500)); });
 
+  // Auto-load .env file — PM2/Docker don't auto-load .env, causing vault key mismatches
+  {
+    const { join } = await import('path');
+    const { homedir: _home } = await import('os');
+    const envPaths = [join(process.cwd(), '.env'), '../.env', join(_home(), '.agenticmail', '.env')];
+    for (const ep of envPaths) {
+      if (!existsSync(ep)) continue;
+      try {
+        const content = readFileSync(ep, 'utf8');
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx < 1) continue;
+          const key = trimmed.slice(0, eqIdx).trim();
+          let val = trimmed.slice(eqIdx + 1).trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
+          if (!process.env[key]) process.env[key] = val;
+        }
+        console.log(`[agent] Loaded env from ${ep}`);
+        break;
+      } catch {}
+    }
+  }
+
   const DATABASE_URL = process.env.DATABASE_URL;
   const JWT_SECRET = process.env.JWT_SECRET;
   const AGENT_ID = process.env.AGENTICMAIL_AGENT_ID;
