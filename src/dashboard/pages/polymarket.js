@@ -2024,22 +2024,30 @@ export function PolymarketPage() {
       showArchive.trades ? (
         archiveLoading ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }, 'Loading archive...') :
         h('div', null,
-          h('div', { style: { fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text-muted)' } }, I('database'), ' Archived Trades (', (showArchive.trades_data?.total || 0), ')'),
-          (showArchive.trades_data?.rows || []).length === 0 ? h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text-muted)' } }, 'No archived trades yet.') :
-          h('div', { className: 'table-container' }, h('table', { className: 'data-table' },
-            h('thead', null, h('tr', null, ['Market','Side','Outcome','Shares','Price','Status','Date'].map(function(hd) { return h('th', { key: hd }, hd); }))),
-            h('tbody', null, (showArchive.trades_data?.rows || []).map(function(t) {
-              return h('tr', { key: t.id },
-                h('td', null, h('div', { style: { maxWidth: 220 } }, t.market_question || '')),
-                h('td', null, sideBadge(t.side)),
-                h('td', null, t.outcome ? h('span', { className: 'badge badge-' + (t.outcome.toLowerCase() === 'yes' ? 'success' : 'danger') }, t.outcome) : '--'),
-                h('td', null, (t.size || 0).toFixed(1)),
-                h('td', null, ((t.price || 0) * 100).toFixed(1) + '\u00a2'),
-                h('td', null, h('span', { className: 'badge badge-' + (t.status === 'filled' ? 'success' : t.status === 'failed' ? 'danger' : 'secondary') }, t.status)),
-                h('td', null, fmtDate(t.created_at))
-              );
-            }))
-          ))
+          h('div', { style: { fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 } },
+            I('database'), ' Archived Trades (', (showArchive.trades_data?.total || 0), ')',
+            showArchive.trades_data?.message && h('span', { style: { fontWeight: 400, fontStyle: 'italic' } }, ' — ', showArchive.trades_data.message)
+          ),
+          renderFilteredTable('archive', showArchive.trades_data?.rows || [], 'No archived trades yet. Only trades for closed positions (sold or resolved markets) are archived.',
+          ['Market', 'Side', 'Outcome', 'Shares', 'Price', 'Cost', 'Status', 'P&L', 'Date'],
+          function(t) { return [
+            h('td', null, h('div', { style: { maxWidth: "220px" } }, t.market_question || shortId(t.token_id))),
+            h('td', null, sideBadge(t.side)),
+            h('td', null, t.outcome
+              ? h('span', { className: 'badge ' + (t.outcome.toLowerCase() === 'yes' ? 'badge-success' : t.outcome.toLowerCase() === 'no' ? 'badge-danger' : 'badge-secondary') }, t.outcome)
+              : '--'),
+            h('td', null, (t.size || 0).toFixed(1)),
+            h('td', null, ((t.fill_price || t.price || 0) * 100).toFixed(1) + '\u00a2'),
+            h('td', null, '$' + ((t.fill_price || t.price || 0) * (t.size || 0)).toFixed(2)),
+            h('td', null, h('span', { className: 'badge badge-' + (t.status === 'filled' ? 'success' : t.status === 'failed' || t.status === 'no_wallet' ? 'danger' : 'secondary') }, t.status)),
+            h('td', null, t.pnl != null ? pnlCell(t.pnl) : '--'),
+            h('td', null, fmtDate(t.created_at)),
+          ]; },
+          { searchFields: ['market_question', 'token_id', 'outcome'], filters: [
+            { key: 'side', label: 'Side', options: ['BUY', 'SELL'] },
+            { key: 'outcome', label: 'Outcome', options: ['Yes', 'No'] },
+            { key: 'status', label: 'Status', options: ['filled', 'failed', 'cancelled', 'rejected', 'no_wallet'] }
+          ], sortFn: function(a, b) { return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(); } })
         )
       ) :
       renderFilteredTable('history', tradeHistory, 'No trade history',

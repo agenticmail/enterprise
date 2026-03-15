@@ -4286,29 +4286,39 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
   // ── Archive System ──────────────────────────────────────────
 
-  // Get archived data for a specific tab
+  // Get archived data for a specific tab (with pagination and filters)
   api.get('/polymarket/:agentId/archive/:tab', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
       const tab = c.req.param('tab');
       const e = edb();
-      const limit = parseInt(c.req.query('limit') || '100');
+      const page = parseInt(c.req.query('page') || '1');
+      const pageSize = parseInt(c.req.query('pageSize') || '20');
+      const side = c.req.query('side') || '';
+      const status = c.req.query('status') || '';
+      const search = c.req.query('search') || '';
+      const offset = (page - 1) * pageSize;
 
       let tableName = '';
       if (tab === 'trades') tableName = 'poly_trade_log_archive';
       else if (tab === 'exits') tableName = 'poly_exit_rules_archive';
       else if (tab === 'alerts') tableName = 'poly_price_alerts_archive';
       else if (tab === 'events') tableName = 'poly_watcher_events_archive';
-      else return c.json({ rows: [], total: 0, message: 'Unknown archive tab: ' + tab });
+      else return c.json({ rows: [], total: 0, page, pageSize, message: 'Unknown archive tab: ' + tab });
 
-      // Check if archive table exists
       try {
-        const rows = await e?.all(`SELECT * FROM ${tableName} WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
-        const countRow = await e?.get(`SELECT COUNT(*) as cnt FROM ${tableName} WHERE agent_id = ?`, [agentId]) as any;
-        return c.json({ rows, total: countRow?.cnt || rows.length });
+        let where = `agent_id = ?`;
+        const params: any[] = [agentId];
+        if (side) { where += ` AND side = ?`; params.push(side.toUpperCase()); }
+        if (status) { where += ` AND status = ?`; params.push(status); }
+        if (search) { where += ` AND (market_question LIKE ? OR outcome LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
+
+        const countRow = await e?.get(`SELECT COUNT(*) as cnt FROM ${tableName} WHERE ${where}`, params) as any;
+        const total = countRow?.cnt || 0;
+        const rows = await e?.all(`SELECT * FROM ${tableName} WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`, [...params, pageSize, offset]) || [];
+        return c.json({ rows, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
       } catch {
-        // Archive table doesn't exist yet — no archived data
-        return c.json({ rows: [], total: 0, message: 'No archived data yet. Use the Archive action to move old data here.' });
+        return c.json({ rows: [], total: 0, page, pageSize, totalPages: 0, message: 'No archived data yet.' });
       }
     } catch (e: any) { return c.json({ rows: [], total: 0, error: e.message }); }
   });
@@ -4331,13 +4341,16 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       }
 
       if (tab === 'trades' || tab === 'all') {
-        // Archive non-active trades (filled, failed, rejected, cancelled, no_position, no_wallet)
+        // Only archive trades that are truly closed:
+        // 1. Failed, rejected, cancelled, no_position, no_wallet — these never executed
+        // 2. Filled trades ONLY if the position is no longer held on-chain (sold or market resolved)
+        // Do NOT archive filled trades for positions we still hold!
         await e?.run(`
-          INSERT INTO poly_trade_log_archive SELECT * FROM poly_trade_log 
-          WHERE agent_id = $1 AND status NOT IN ('placed', 'pending')
+          INSERT INTO poly_trade_log_archive SELECT * FROM poly_trade_log
+          WHERE agent_id = $1 AND status IN ('failed', 'rejected', 'cancelled', 'no_position', 'no_wallet')
         `, [agentId]).catch(() => {});
         await e?.run(`
-          DELETE FROM poly_trade_log WHERE agent_id = $1 AND status NOT IN ('placed', 'pending')
+          DELETE FROM poly_trade_log WHERE agent_id = $1 AND status IN ('failed', 'rejected', 'cancelled', 'no_position', 'no_wallet')
         `, [agentId]).catch(() => {});
 
         // Also archive 'placed' trades for positions that no longer exist on-chain
