@@ -263,7 +263,7 @@ export function DeploymentSection(props) {
   // 5-step delete confirmation flow
   var [deleteStep, setDeleteStep] = useState(0);
   var [deleteTyped, setDeleteTyped] = useState('');
-  var _agentName = ea.name || identity.name || agentId;
+  var _agentName = agent?.name || ea.name || identity.name || config.name || agentId;
 
   var startDelete = function() { setDeleteStep(1); setDeleteTyped(''); };
   var cancelDelete = function() { setDeleteStep(0); setDeleteTyped(''); };

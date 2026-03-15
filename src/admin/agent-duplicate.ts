@@ -1,14 +1,27 @@
 /**
- * Agent Duplication — creates exact replicas of an existing agent
- * with new ID, name, and email but identical config, memory, and identity.
+ * Agent Duplication — creates EXACT replicas of an agent.
+ * Copies: config, identity, personality, memory, skills, permissions, budget,
+ * security, tool security, workforce, work schedule, onboarding.
+ * Does NOT copy: activity logs, sessions, tool calls, channels (telegram/whatsapp/email).
  */
 
 import type { Hono } from 'hono';
 import crypto from 'crypto';
 
-interface DuplicateRequest {
-  agents: Array<{ name: string; email: string }>;
-}
+interface DuplicateEntry { name: string; email: string }
+interface DuplicateRequest { agents: DuplicateEntry[] }
+
+// Tables to copy with agent_id column
+const COPY_TABLES = [
+  // Core
+  { table: 'agent_memory', idCol: 'agent_id', resetCols: {} },
+  { table: 'work_schedules', idCol: 'agent_id', resetCols: {} },
+  { table: 'task_queue', idCol: 'agent_id', resetCols: { status: 'pending' } },
+  { table: 'conversations', idCol: 'agent_id', resetCols: {} },
+  { table: 'agent_followups', idCol: 'agent_id', resetCols: {} },
+  // Budget alerts (copy structure, reset counts)
+  { table: 'budget_alerts', idCol: 'agent_id', resetCols: { triggered_count: 0 } },
+];
 
 export function registerDuplicateRoutes(
   api: Hono<any>,
@@ -22,170 +35,203 @@ export function registerDuplicateRoutes(
 ) {
   const { getAdminDb, getEngineDb, getLifecycle, getPermissions, requireRole } = opts;
 
-  /**
-   * POST /agents/:id/duplicate
-   * Body: { agents: [{ name: "New Agent", email: "new@example.com" }, ...] }
-   * Creates one or more exact duplicates of the source agent.
-   */
   api.post('/agents/:id/duplicate', requireRole('owner'), async (c) => {
     try {
       const sourceId = c.req.param('id');
       const body: DuplicateRequest = await c.req.json();
       const actor = (c as any).get('userId') || 'system';
 
-      if (!body.agents || !Array.isArray(body.agents) || body.agents.length === 0) {
-        return c.json({ error: 'agents array is required with at least one { name, email } entry' }, 400);
+      if (!body.agents?.length) {
+        return c.json({ error: 'agents array required with { name, email } entries' }, 400);
       }
-
-      // Validate all names and emails upfront
       for (const a of body.agents) {
-        if (!a.name || a.name.length < 1 || a.name.length > 64) {
-          return c.json({ error: `Invalid name: "${a.name}". Must be 1-64 characters.` }, 400);
-        }
-        if (!a.email || !a.email.includes('@')) {
-          return c.json({ error: `Invalid email: "${a.email}".` }, 400);
-        }
+        if (!a.name?.trim() || a.name.length > 64) return c.json({ error: `Invalid name: "${a.name}"` }, 400);
+        if (!a.email?.includes('@')) return c.json({ error: `Invalid email: "${a.email}"` }, 400);
       }
 
       const adminDb = getAdminDb();
       const engineDb = getEngineDb();
-      const lifecycle = getLifecycle();
       const permissions = getPermissions();
 
-      // 1. Get source agent from admin DB
-      const sourceAgent = adminDb ? await adminDb.getAgent(sourceId) : null;
-      if (!sourceAgent) {
-        return c.json({ error: 'Source agent not found' }, 404);
+      // ── Load source agent from admin DB ──
+      const sourceAdmin = adminDb ? await adminDb.getAgent(sourceId) : null;
+      if (!sourceAdmin) return c.json({ error: 'Source agent not found' }, 404);
+
+      // ── Load source managed_agents record (engine) ──
+      let sourceManaged: any = null;
+      try {
+        sourceManaged = await engineDb?.get(`SELECT * FROM managed_agents WHERE id = ?`, [sourceId]);
+      } catch {}
+
+      // ── Load source config ──
+      let sourceConfig: any = {};
+      if (sourceManaged?.config) {
+        sourceConfig = typeof sourceManaged.config === 'string' ? JSON.parse(sourceManaged.config) : sourceManaged.config;
       }
 
-      // 2. Get source agent engine config
-      let sourceConfig: any = null;
-      try {
-        const edb = engineDb;
-        if (edb) {
-          const row = await edb.get(`SELECT * FROM managed_agents WHERE agent_id = ?`, [sourceId]);
-          if (row) {
-            sourceConfig = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
-          }
+      // ── Load budget config ──
+      let budgetConfig: any = null;
+      if (sourceManaged?.budget_config) {
+        budgetConfig = typeof sourceManaged.budget_config === 'string' ? JSON.parse(sourceManaged.budget_config) : sourceManaged.budget_config;
+        // Reset usage counters
+        if (budgetConfig) {
+          budgetConfig.tokensUsedToday = 0;
+          budgetConfig.tokensUsedMonth = 0;
+          budgetConfig.costToday = 0;
+          budgetConfig.costMonth = 0;
         }
-      } catch {}
+      }
 
-      // 3. Get source agent permission profile
-      let sourcePermissions: any = null;
-      try {
-        sourcePermissions = permissions?.getProfile?.(sourceId);
-      } catch {}
+      // ── Load security overrides ──
+      let securityOverrides: any = null;
+      if (sourceManaged?.security_overrides) {
+        securityOverrides = typeof sourceManaged.security_overrides === 'string' ? JSON.parse(sourceManaged.security_overrides) : sourceManaged.security_overrides;
+      }
 
-      // 4. Get source agent memory (observations + index)
-      let sourceMemory: any[] = [];
-      let sourceMemoryIndex: any[] = [];
-      try {
-        const edb = engineDb;
-        if (edb) {
-          sourceMemory = await edb.all(`SELECT * FROM agent_observations WHERE agent_id = ?`, [sourceId]).catch(() => []) || [];
-          sourceMemoryIndex = await edb.all(`SELECT * FROM agent_memory_index WHERE agent_id = ?`, [sourceId]).catch(() => []) || [];
-        }
-      } catch {}
+      // ── Load permission profile ──
+      let permProfile: any = null;
+      try { permProfile = permissions?.getProfile?.(sourceId); } catch {}
 
-      // 5. Create duplicates
+      // ── Create duplicates ──
       const created: any[] = [];
       const errors: any[] = [];
+      const totalSteps = body.agents.length;
 
-      for (const newAgent of body.agents) {
+      for (let i = 0; i < body.agents.length; i++) {
+        const entry = body.agents[i];
         const newId = crypto.randomUUID();
+        const steps: string[] = [];
+
         try {
-          // Check for duplicate name/email
+          // Check uniqueness
           if (adminDb) {
-            const existingName = await adminDb.getAgentByName?.(newAgent.name).catch(() => null);
-            const existingEmail = await adminDb.getAgentByEmail?.(newAgent.email).catch(() => null);
-            if (existingName) { errors.push({ name: newAgent.name, error: 'Name already exists' }); continue; }
-            if (existingEmail) { errors.push({ name: newAgent.name, error: 'Email already exists' }); continue; }
+            try {
+              const existing = await adminDb.listAgents({ limit: 1000, offset: 0 });
+              const agents = Array.isArray(existing?.agents) ? existing.agents : Array.isArray(existing) ? existing : [];
+              if (agents.find((a: any) => a.name === entry.name)) { errors.push({ name: entry.name, error: 'Name already exists' }); continue; }
+              if (agents.find((a: any) => a.email === entry.email)) { errors.push({ name: entry.name, error: 'Email already exists' }); continue; }
+            } catch {}
           }
 
-          // Build new config from source
-          const newConfig = sourceConfig ? JSON.parse(JSON.stringify(sourceConfig)) : {};
-          newConfig.id = newId;
-          newConfig.name = newAgent.name;
-          newConfig.displayName = newAgent.name;
-          newConfig.email = newAgent.email;
-          if (newConfig.identity) {
-            newConfig.identity.name = newAgent.name;
-            newConfig.identity.displayName = newAgent.name;
-            newConfig.identity.email = newAgent.email;
-          }
-
-          // Create admin record
+          // ── 1. Admin agent record ──
           if (adminDb) {
+            const meta = typeof sourceAdmin.metadata === 'string' ? JSON.parse(sourceAdmin.metadata) : (sourceAdmin.metadata || {});
             await adminDb.createAgent({
               id: newId,
-              name: newAgent.name,
-              email: newAgent.email,
-              role: sourceAgent.role || 'assistant',
-              metadata: typeof sourceAgent.metadata === 'string'
-                ? JSON.parse(sourceAgent.metadata)
-                : sourceAgent.metadata || {},
+              name: entry.name,
+              email: entry.email,
+              role: sourceAdmin.role || 'assistant',
+              metadata: { ...meta, duplicatedFrom: sourceId, duplicatedAt: new Date().toISOString() },
               createdBy: actor,
             });
+            steps.push('admin record');
           }
 
-          // Create engine managed agent
-          if (lifecycle && sourceConfig) {
-            const orgId = sourceConfig.orgId || (typeof sourceAgent.metadata === 'string' ? JSON.parse(sourceAgent.metadata) : sourceAgent.metadata)?.orgId || 'default';
-            await lifecycle.createAgent(orgId, newConfig, actor);
+          // ── 2. Engine managed_agents record ──
+          if (engineDb && sourceManaged) {
+            const newConfig = JSON.parse(JSON.stringify(sourceConfig));
+            newConfig.id = newId;
+            newConfig.name = entry.name;
+            newConfig.displayName = entry.name;
+            newConfig.email = entry.email;
+            if (newConfig.identity) {
+              newConfig.identity.name = entry.name;
+              newConfig.identity.displayName = entry.name;
+              newConfig.identity.email = entry.email;
+            }
+
+            await engineDb.run(
+              `INSERT INTO managed_agents (id, org_id, name, display_name, state, config, budget_config, security_overrides, permission_profile_id, client_org_id, created_by, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+              [
+                newId,
+                sourceManaged.org_id,
+                entry.name,
+                entry.name,
+                'idle',
+                JSON.stringify(newConfig),
+                budgetConfig ? JSON.stringify(budgetConfig) : null,
+                securityOverrides ? JSON.stringify(securityOverrides) : null,
+                sourceManaged.permission_profile_id || null,
+                sourceManaged.client_org_id || null,
+                actor,
+              ]
+            );
+            steps.push('engine config + budget + security');
           }
 
-          // Copy permission profile
-          if (sourcePermissions && permissions?.setProfile) {
-            const newProfile = JSON.parse(JSON.stringify(sourcePermissions));
-            newProfile.id = newId;
-            newProfile.name = newAgent.name;
-            const orgId = sourceConfig?.orgId || 'default';
-            permissions.setProfile(newId, newProfile, orgId);
+          // ── 3. Permission profile ──
+          if (permProfile && permissions?.setProfile) {
+            const newProf = JSON.parse(JSON.stringify(permProfile));
+            newProf.id = newId;
+            newProf.name = entry.name;
+            permissions.setProfile(newId, newProf, sourceManaged?.org_id || 'default');
+            steps.push('permissions');
           }
 
-          // Copy memory
+          // ── 4. Copy all agent-specific tables ──
           if (engineDb) {
-            for (const mem of sourceMemory) {
+            for (const spec of COPY_TABLES) {
               try {
-                const memId = crypto.randomUUID();
-                await engineDb.run(
-                  `INSERT INTO agent_observations (id, agent_id, type, content, context, importance, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                  [memId, newId, mem.type, mem.content, mem.context, mem.importance, mem.created_at]
-                ).catch(() => {});
-              } catch {}
+                const rows = await engineDb.all(`SELECT * FROM ${spec.table} WHERE ${spec.idCol} = ?`, [sourceId]);
+                if (rows && rows.length > 0) {
+                  let copied = 0;
+                  for (const row of rows) {
+                    const newRow = { ...row };
+                    newRow[spec.idCol] = newId;
+                    if (newRow.id) newRow.id = crypto.randomUUID();
+                    // Apply resets
+                    for (const [k, v] of Object.entries(spec.resetCols)) {
+                      newRow[k] = v;
+                    }
+                    const cols = Object.keys(newRow);
+                    const vals = cols.map(k => newRow[k]);
+                    const placeholders = cols.map((_, j) => `?`).join(',');
+                    await engineDb.run(`INSERT INTO ${spec.table} (${cols.join(',')}) VALUES (${placeholders})`, vals).catch(() => {});
+                    copied++;
+                  }
+                  if (copied > 0) steps.push(`${spec.table} (${copied})`);
+                }
+              } catch {} // Table might not exist
             }
-            for (const idx of sourceMemoryIndex) {
-              try {
-                const idxId = crypto.randomUUID();
+
+            // ── 5. Copy onboarding record (reset to current state) ──
+            try {
+              const onb = await engineDb.get(`SELECT * FROM onboarding_records WHERE agent_id = ?`, [sourceId]);
+              if (onb) {
                 await engineDb.run(
-                  `INSERT INTO agent_memory_index (id, agent_id, key, value, category, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-                  [idxId, newId, idx.key, idx.value, idx.category, idx.created_at]
+                  `INSERT INTO onboarding_records (agent_id, status, config_completed, identity_completed, skills_completed, deployment_completed, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                  [newId, 'completed', 1, 1, 1, 0, ] // deployment not completed — user must configure
                 ).catch(() => {});
-              } catch {}
-            }
+                steps.push('onboarding');
+              }
+            } catch {}
           }
 
-          created.push({
-            id: newId,
-            name: newAgent.name,
-            email: newAgent.email,
-            duplicatedFrom: sourceId,
-            sourceName: sourceAgent.name,
-          });
-
-          // Audit log
+          // ── 6. Audit log ──
           try {
             await adminDb?.createAuditLog?.({
               userId: actor,
               action: 'agent.duplicated',
               resourceType: 'agent',
               resourceId: newId,
-              details: { sourceId, sourceName: sourceAgent.name, newName: newAgent.name },
+              details: { sourceId, sourceName: sourceAdmin.name, newName: entry.name, steps },
             });
           } catch {}
 
+          created.push({
+            id: newId,
+            name: entry.name,
+            email: entry.email,
+            duplicatedFrom: sourceId,
+            sourceName: sourceAdmin.name,
+            copiedSteps: steps,
+            needsSetup: ['Deployment', 'Channels (Telegram/WhatsApp/Email)', 'Manager'],
+          });
+
         } catch (err: any) {
-          errors.push({ name: newAgent.name, error: err.message });
+          errors.push({ name: entry.name, error: err.message });
         }
       }
 
@@ -195,6 +241,9 @@ export function registerDuplicateRoutes(
         failed: errors.length,
         agents: created,
         errors: errors.length > 0 ? errors : undefined,
+        message: created.length > 0
+          ? `${created.length} agent(s) duplicated. Go to each new agent and configure: Deployment, Channels, and Manager tabs.`
+          : 'No agents were created.',
       });
 
     } catch (e: any) {

@@ -580,7 +580,7 @@ export function OverviewSection(props) {
 
           // Step 1 — Initial warning
           deleteStep === 1 && h(Fragment, null,
-            h('p', { style: { marginBottom: 12 } }, 'You are about to delete agent ', h('strong', null, engineAgent?.name || agentId), '.'),
+            h('p', { style: { marginBottom: 12 } }, 'You are about to delete agent ', h('strong', null, agent?.name || engineAgent?.name || engineAgent?.config?.name || agentId), '.'),
             h('p', { style: { color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 } }, 'This is a destructive action that will permanently remove this agent and everything associated with it. There is no undo, no recycle bin, and no way to recover.'),
             h('p', { style: { fontSize: 13 } }, 'Please proceed through the next steps to understand exactly what will be lost.'),
             h('div', { style: { display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' } },
@@ -651,7 +651,7 @@ export function OverviewSection(props) {
             h('div', { style: { background: 'var(--danger-soft)', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', padding: 12, marginBottom: 16, textAlign: 'center' } },
               h('strong', { style: { color: 'var(--danger)', fontSize: 15 } }, 'THIS ACTION IS PERMANENT AND IRREVERSIBLE')
             ),
-            h('p', { style: { marginBottom: 12 } }, 'To confirm deletion, type the agent name ', h('strong', { style: { fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 } }, engineAgent?.name || agentId), ' below:'),
+            h('p', { style: { marginBottom: 12 } }, 'To confirm deletion, type the agent name ', h('strong', { style: { fontFamily: 'var(--font-mono)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4 } }, agent?.name || engineAgent?.name || engineAgent?.config?.name || agentId), ' below:'),
             h('input', {
               type: 'text',
               className: 'form-control',
