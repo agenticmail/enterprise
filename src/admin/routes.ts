@@ -3918,17 +3918,20 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       const { to_address, amount, token, reason } = await c.req.json();
       if (!to_address || !amount || amount <= 0) return c.json({ error: 'Invalid transfer parameters' }, 400);
       // Verify address is whitelisted
-      const wl = await edb()?.get(`SELECT id, label, per_tx_limit, daily_limit FROM poly_whitelisted_addresses WHERE agent_id = ? AND address = ? AND cooling_until < CURRENT_TIMESTAMP`, [agentId, to_address]) as any;
+      const wl = await edb()?.get(`SELECT id, label, per_tx_limit, daily_limit, cooling_until FROM poly_whitelisted_addresses WHERE agent_id = ? AND address = ?`, [agentId, to_address]) as any;
+      if (wl && wl.cooling_until && new Date(wl.cooling_until) > new Date()) return c.json({ error: 'Address is still in cooling period until ' + wl.cooling_until }, 403);
       if (!wl) return c.json({ error: 'Address not whitelisted or still in cooling period' }, 403);
       if (wl.per_tx_limit && amount > wl.per_tx_limit) return c.json({ error: `Exceeds per-transaction limit of $${wl.per_tx_limit}` }, 400);
       // Check daily limit
-      const todayTotal = await edb()?.get(`SELECT COALESCE(SUM(amount), 0) as total FROM poly_transfer_requests WHERE agent_id = ? AND to_address = ? AND status = 'completed' AND created_at > datetime('now', '-1 day')`, [agentId, to_address]) as any;
+      const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
+      const todayTotal = await edb()?.get(`SELECT COALESCE(SUM(amount), 0) as total FROM poly_transfer_requests WHERE agent_id = ? AND to_address = ? AND status = 'completed' AND created_at > ?`, [agentId, to_address, oneDayAgo]) as any;
       if (wl.daily_limit && (todayTotal?.total || 0) + amount > wl.daily_limit) return c.json({ error: `Exceeds daily limit of $${wl.daily_limit}` }, 400);
       // Create transfer request
       const crypto = await import('node:crypto');
       const txId = crypto.randomUUID();
-      await edb()?.run(`INSERT INTO poly_transfer_requests (id, agent_id, to_address, to_label, amount, token, reason, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, datetime('now', '+4 hours'))`,
-        [txId, agentId, to_address, wl.label, amount, token || 'USDC.e', reason || '']);
+      const expiresAt = new Date(Date.now() + 4 * 3600000).toISOString();
+      await edb()?.run(`INSERT INTO poly_transfer_requests (id, agent_id, to_address, to_label, amount, token, reason, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, ?)`,
+        [txId, agentId, to_address, wl.label, amount, token || 'USDC.e', reason || '', expiresAt]);
       try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.transfer_created', resourceType: 'agent', resourceId: agentId, details: { txId, to_address, amount, token, reason }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
       return c.json({ ok: true, txId, message: `Transfer of ${amount} ${token || 'USDC.e'} to ${wl.label} submitted. Awaiting execution.` });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
