@@ -4683,11 +4683,11 @@ export function createAdminRoutes(db: DatabaseAdapter) {
             try {
               const wallet = await e?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
               if (wallet?.funder_address) {
-                const posResp = await fetch(`https://data-api.polymarket.com/positions?user=${wallet.funder_address}&sizeThreshold=0`);
+                const posResp = await fetch(`https://data-api.polymarket.com/positions?user=${wallet.funder_address}&sizeThreshold=0.01`);
                 const posData = await posResp.json();
                 if (Array.isArray(posData)) {
                   const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-                  liveTradeRows = posData.filter((p: any) => parseFloat(p.size) > 0).map((p: any) => {
+                  liveTradeRows = posData.filter((p: any) => parseFloat(p.size) >= 0.01).map((p: any) => {
                     // If position is redeemable or curPrice is exactly 0 or 1, it's resolved
                     const curPrice = parseFloat(p.curPrice) || 0;
                     const isResolved = p.redeemable || curPrice === 1 || curPrice === 0;
@@ -4852,10 +4852,10 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
       // Fetch real positions from Polymarket Data API
       try {
-        const resp = await fetch(`https://data-api.polymarket.com/positions?user=${address}`);
+        const resp = await fetch(`https://data-api.polymarket.com/positions?user=${address}&sizeThreshold=0.01`);
         const data = await resp.json();
         if (Array.isArray(data)) {
-          const positions = data.filter((p: any) => parseFloat(p.size) > 0).map((p: any) => ({
+          const positions = data.filter((p: any) => parseFloat(p.size) >= 0.01).map((p: any) => ({
             id: p.conditionId || p.asset,
             token_id: p.asset,
             market_question: p.title || 'Unknown',
