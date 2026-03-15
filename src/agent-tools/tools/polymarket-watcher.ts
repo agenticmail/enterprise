@@ -254,18 +254,35 @@ export async function getAIConfig(agentId: string, edb: any): Promise<{
     if (!cfg) return null;
 
     let apiKey = cfg.ai_api_key || '';
-    // Fallback: use environment API key if none stored in config
+    // Fallback: pull API key from system settings (database) — where all LLM keys are stored
+    if (!apiKey) {
+      try {
+        const adminDb = _engineDb;
+        const settings = adminDb?.getSettings ? await adminDb.getSettings() : null;
+        const apiKeys = (settings as any)?.apiKeys || (settings as any)?.api_keys || {};
+        const provider = (cfg.ai_provider || '').toLowerCase();
+        // Try exact provider name, then common aliases
+        apiKey = apiKeys[provider] || apiKeys[cfg.ai_provider] || '';
+        // Also try the agent's own model config API key
+        if (!apiKey) {
+          try {
+            const agentRow = await adminDb?.getAgent?.(agentId) || await adminDb?.get?.(`SELECT * FROM agents WHERE id = ?`, [agentId]);
+            const agentConfig = typeof agentRow?.config === 'string' ? JSON.parse(agentRow.config) : agentRow?.config;
+            const modelProvider = agentConfig?.model?.provider || '';
+            if (modelProvider.toLowerCase() === provider || !apiKey) {
+              apiKey = apiKeys[modelProvider] || '';
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+    // Last resort: check environment variables
     if (!apiKey) {
       const provider = (cfg.ai_provider || '').toLowerCase();
       if (provider === 'anthropic') apiKey = process.env.ANTHROPIC_API_KEY || '';
       else if (provider === 'openai') apiKey = process.env.OPENAI_API_KEY || '';
       else if (provider === 'xai') apiKey = process.env.XAI_API_KEY || '';
       else if (provider === 'groq') apiKey = process.env.GROQ_API_KEY || '';
-      else if (provider === 'deepseek') apiKey = process.env.DEEPSEEK_API_KEY || '';
-      else if (provider === 'openrouter') apiKey = process.env.OPENROUTER_API_KEY || '';
-      else if (provider === 'together') apiKey = process.env.TOGETHER_API_KEY || '';
-      else if (provider === 'fireworks') apiKey = process.env.FIREWORKS_API_KEY || '';
-      else if (provider === 'cerebras') apiKey = process.env.CEREBRAS_API_KEY || '';
     }
     if (!apiKey) return null;
 
