@@ -3265,13 +3265,26 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
-  // Get trade history for an agent
+  // Get trade history for an agent (includes both active and archived trades)
   api.get('/polymarket/:agentId/trades', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const limit = parseInt(c.req.query('limit') || '50');
-      const rows = await edb()?.all(`SELECT * FROM poly_trade_log WHERE agent_id = ? AND status != 'placed' ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
-      return c.json({ trades: rows });
+      const limit = parseInt(c.req.query('limit') || '100');
+      // Query active trade log
+      const active = await edb()?.all(`SELECT *, 'active' as source FROM poly_trade_log WHERE agent_id = ? AND status != 'placed' ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
+      // Also query archive for filled trades
+      let archived: any[] = [];
+      try {
+        archived = await edb()?.all(`SELECT *, 'archive' as source FROM poly_trade_log_archive WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
+      } catch {} // archive table may not exist
+      // Merge and sort by date, dedup by id
+      const seen = new Set<string>();
+      const merged = [...active, ...archived].filter((r: any) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      }).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, limit);
+      return c.json({ trades: merged });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
