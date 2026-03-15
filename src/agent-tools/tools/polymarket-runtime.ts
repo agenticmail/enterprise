@@ -1134,23 +1134,45 @@ export async function saveWalletCredentials(agentId: string, db: any, creds: Wal
     }
     try { return vault ? vault.encrypt(val) : val; } catch { return val; }
   };
-  await db.execute(`
-    INSERT INTO poly_wallet_credentials (agent_id, private_key_encrypted, funder_address, signature_type, api_key, api_secret, api_passphrase, rpc_url, updated_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-    ON CONFLICT (agent_id) DO UPDATE SET
-      private_key_encrypted = $2, funder_address = $3, signature_type = $4,
-      api_key = $5, api_secret = $6, api_passphrase = $7, rpc_url = $8,
-      updated_at = CURRENT_TIMESTAMP
-  `, [
-    agentId,
-    encryptField(creds.privateKey),
-    creds.funderAddress || null,
-    creds.signatureType || 0,
-    encryptField(creds.apiCreds?.apiKey),
-    encryptField(creds.apiCreds?.secret),
-    encryptField(creds.apiCreds?.passphrase),
-    creds.rpcUrl || null,
-  ]);
+  // SAFETY: If only API creds are being saved (no private key), don't overwrite the existing private key
+  const hasPrivateKey = !!creds.privateKey;
+  if (hasPrivateKey) {
+    await db.execute(`
+      INSERT INTO poly_wallet_credentials (agent_id, private_key_encrypted, funder_address, signature_type, api_key, api_secret, api_passphrase, rpc_url, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+      ON CONFLICT (agent_id) DO UPDATE SET
+        private_key_encrypted = $2, funder_address = $3, signature_type = $4,
+        api_key = $5, api_secret = $6, api_passphrase = $7, rpc_url = $8,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      agentId,
+      encryptField(creds.privateKey),
+      creds.funderAddress || null,
+      creds.signatureType || 0,
+      encryptField(creds.apiCreds?.apiKey),
+      encryptField(creds.apiCreds?.secret),
+      encryptField(creds.apiCreds?.passphrase),
+      creds.rpcUrl || null,
+    ]);
+  } else {
+    // Only update API creds + metadata — never touch private_key_encrypted
+    await db.execute(`
+      INSERT INTO poly_wallet_credentials (agent_id, private_key_encrypted, funder_address, signature_type, api_key, api_secret, api_passphrase, rpc_url, updated_at)
+      VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+      ON CONFLICT (agent_id) DO UPDATE SET
+        funder_address = COALESCE($2, poly_wallet_credentials.funder_address), signature_type = $3,
+        api_key = $4, api_secret = $5, api_passphrase = $6, rpc_url = $7,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      agentId,
+      creds.funderAddress || null,
+      creds.signatureType || 0,
+      encryptField(creds.apiCreds?.apiKey),
+      encryptField(creds.apiCreds?.secret),
+      encryptField(creds.apiCreds?.passphrase),
+      creds.rpcUrl || null,
+    ]);
+  }
 }
 
 // ─── Trading Config (DB-backed) ─────────────────────────────
@@ -1593,35 +1615,6 @@ export async function saveAutoApproveRule(db: any, rule: { id: string; agentId: 
 export async function deleteAutoApproveRule(db: any, ruleId: string): Promise<void> {
   if (!db) return;
   await db.execute(`DELETE FROM poly_auto_approve_rules WHERE id = $1`, [ruleId]);
-}
-
-// ─── Wallet Generation ──────────────────────────────────────
-
-/**
- * Generate a fresh Ethereum wallet (no Polymarket account yet).
- * The agent can then use the browser to create a Polymarket account with this wallet.
- */
-export async function generateWallet(): Promise<{ address: string; privateKey: string } | null> {
-  const sdk = await ensureSDK();
-  if (!sdk.ready) {
-    // Fallback: use Node.js crypto to generate a key
-    const crypto = await import('crypto');
-    const privateKey = '0x' + crypto.randomBytes(32).toString('hex');
-    // Derive address manually (simplified — needs ethers for proper derivation)
-    return { address: '(install ethers to derive address)', privateKey };
-  }
-
-  try {
-    const ethWallet = await importSDK('@ethersproject/wallet');
-    if (!ethWallet) throw new Error('importSDK returned null for @ethersproject/wallet');
-    const Wallet = ethWallet.Wallet || ethWallet.default?.Wallet;
-    if (!Wallet) throw new Error('Wallet class not found in module. Keys: ' + Object.keys(ethWallet).join(','));
-    const wallet = Wallet.createRandom();
-    return { address: wallet.address, privateKey: wallet.privateKey };
-  } catch (err: any) {
-    console.error('[polymarket] generateWallet failed:', err.message);
-    return null;
-  }
 }
 
 // ─── Trading Journal & Learning System ──────────────────────

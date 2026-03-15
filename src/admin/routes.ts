@@ -3418,6 +3418,17 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         }
       }
 
+      // SAFETY: Check if wallet already exists — require explicit confirmation to overwrite
+      const existing = await edb()?.get(`SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (existing?.funder_address && existing.funder_address !== address && !body.confirm_overwrite) {
+        return c.json({
+          error: 'EXISTING_WALLET',
+          existing_address: existing.funder_address,
+          new_address: address,
+          message: `This agent already has a wallet at ${existing.funder_address}. Importing a new key will PERMANENTLY replace it. Export and back up the existing private key first. Send confirm_overwrite: true to proceed.`,
+        }, 409);
+      }
+
       // Encrypt and store
       const { SecureVault } = await import('../engine/vault.js');
       let vault: any;
@@ -3436,7 +3447,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       `, [agentId, encrypt(pk), address, encrypt(pk), address]);
 
       flushClobClient(agentId);
-      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.imported', resourceType: 'agent', resourceId: agentId, details: { address }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
+      try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.imported', resourceType: 'agent', resourceId: agentId, details: { address, replaced: existing?.funder_address || null }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
 
       return c.json({ status: 'ok', address, message: 'Wallet imported successfully. API keys will be derived automatically on first use.' });
     } catch (e: any) { return c.json({ error: e.message }, 500); }

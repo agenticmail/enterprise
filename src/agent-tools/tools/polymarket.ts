@@ -229,7 +229,7 @@ export async function executeOrder(agentId: string, db: any, tradeId: string, p:
       outcome: p.outcome, side: p.side, price: p.price, size: p.size,
       status: 'no_wallet', rationale: p.rationale,
     });
-    return errorResult('No wallet configured. Use poly_create_account or poly_setup_wallet first.');
+    return errorResult('No wallet configured. The admin must configure a wallet in the dashboard first.');
   }
 
   // ── Enforce TradingConfig limits ──
@@ -1004,7 +1004,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       parameters: { type: 'object' as const, properties: {} },
       async execute() {
         const client = await getClobClient(agentId, db);
-        if (!client) return jsonResult({ connected: false, message: 'No wallet connected. Run poly_create_account or poly_setup_wallet.' });
+        if (!client) return jsonResult({ connected: false, message: 'No wallet connected. The admin must configure a wallet in the dashboard first.' });
         return jsonResult({ connected: true, address: client.address, funder: client.funderAddress, signatureType: client.signatureType });
       },
     },
@@ -1016,7 +1016,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       parameters: { type: 'object' as const, properties: {} },
       async execute() {
         const client = await getClobClient(agentId, db);
-        if (!client) return errorResult('Wallet not connected. Run poly_create_account first.');
+        if (!client) return errorResult('Wallet not connected. The admin must configure a wallet in the dashboard first.');
         try {
           const creds = await loadWalletCredentials(agentId, db);
           if (!creds) return errorResult('No wallet credentials');

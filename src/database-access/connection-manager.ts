@@ -474,6 +474,7 @@ export class DatabaseConnectionManager {
     if (query._trusted) {
       // Internal system tools (db_list_tables, db_describe_table) bypass sanitizer
       finalSql = query.sql;
+      sanitizeResult = { allowed: true, operation: 'read' };
     } else {
       sanitizeResult = sanitizeQuery(query.sql, access.permissions, config, access);
       if (!sanitizeResult.allowed) {

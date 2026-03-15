@@ -2778,7 +2778,26 @@ export function PolymarketPage() {
                   var res = await apiCall('/polymarket/' + selectedAgent + '/wallet/import', { method: 'POST', body: JSON.stringify({ private_key: importKey.trim() }) });
                   toast('Wallet imported: ' + (res.address || ''), 'success');
                   setShowImportWallet(false); setImportKey(''); loadAgentData(selectedAgent);
-                } catch (e) { toast('Import failed: ' + e.message, 'error'); }
+                } catch (e) {
+                  // If server says existing wallet exists, ask for confirmation before overwriting
+                  if (e.message === 'EXISTING_WALLET') {
+                    var existAddr = walletBalance?.address || 'unknown';
+                    var shortExist = typeof existAddr === 'string' && existAddr.length > 10 ? existAddr.slice(0, 6) + '...' + existAddr.slice(-4) : existAddr;
+                    var confirmed = await showConfirm(
+                      'This agent already has a wallet at ' + shortExist +
+                      '.\n\nIMPORTANT: Export and back up the current private key BEFORE replacing it. Once replaced, the old key is PERMANENTLY LOST and any funds on it will be unrecoverable.\n\nAre you sure you want to replace it?'
+                    );
+                    if (confirmed) {
+                      try {
+                        var res2 = await apiCall('/polymarket/' + selectedAgent + '/wallet/import', { method: 'POST', body: JSON.stringify({ private_key: importKey.trim(), confirm_overwrite: true }) });
+                        toast('Wallet replaced: ' + (res2.address || ''), 'success');
+                        setShowImportWallet(false); setImportKey(''); loadAgentData(selectedAgent);
+                      } catch (e2) { toast('Import failed: ' + e2.message, 'error'); }
+                    }
+                  } else {
+                    toast('Import failed: ' + e.message, 'error');
+                  }
+                }
                 setWalletSetupLoading(false);
               }
             }, 'Import Wallet'),

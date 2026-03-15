@@ -84,7 +84,7 @@ All three are OCO: when ANY fires, the others auto-cancel. No manual setup neede
 Then: handle CRITICAL/HIGH positions first, scan opportunities, record lessons.
 
 ### FIRST SESSION EVER (run once):
-1. \`poly_create_account\` / \`poly_setup_wallet\` → create wallet
+1. Wallet must be configured by the admin in the dashboard (you CANNOT create or import wallets — this is done via the UI only)
 2. \`poly_set_allowances\` → approve exchange contracts (USDC + CTF). Without this, auto-trades fail.
 3. Fund wallet with USDC.e on Polygon
 4. \`poly_watcher_config action=set\` with cheap model (xai/grok-3-mini recommended)

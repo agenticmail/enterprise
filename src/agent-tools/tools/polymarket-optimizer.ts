@@ -46,7 +46,7 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
             const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
             addr = (creds[0] as any)?.funder_address || '';
           }
-          if (!addr) return errorResult('No wallet found. Run poly_setup_wallet first.');
+          if (!addr) return errorResult('No wallet found. The admin must configure a wallet in the dashboard first.');
 
           // Get daily target from goals if not provided
           let dailyTarget = p.daily_target;
@@ -141,7 +141,7 @@ export function createPolymarketOptimizerTools(opts?: ToolCreationOptions): AnyA
             const creds = await safeDbQuery(db, `SELECT funder_address FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]);
             addr = (creds[0] as any)?.funder_address || '';
           }
-          if (!addr) return errorResult('No wallet found. Run poly_setup_wallet first.');
+          if (!addr) return errorResult('No wallet found. The admin must configure a wallet in the dashboard first.');
 
           return jsonResult(await positionHeatmap({
             walletAddress: addr,
