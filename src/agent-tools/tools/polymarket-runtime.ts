@@ -774,14 +774,6 @@ export async function getClobClient(agentId: string, db: any): Promise<ClobClien
       createdAt: Date.now(),
     };
 
-    // Sync funder_address in DB if it doesn't match the actual signer address
-    if (creds.funderAddress !== signer.address) {
-      try {
-        await db.execute(`UPDATE poly_wallet_credentials SET funder_address = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2`, [signer.address, agentId]);
-        console.log(`[polymarket] Synced funder_address to signer address ${signer.address} for agent ${agentId.slice(0, 8)}`);
-      } catch {}
-    }
-
     clientInstances.set(agentId, instance);
     return instance;
   } catch (err: any) {

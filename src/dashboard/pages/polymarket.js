@@ -1788,7 +1788,8 @@ export function PolymarketPage() {
         )
       ),
       h('div', { className: 'stats-grid', style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: "12px", marginBottom: "24px" } },
-        statCard('Wallet', wallet ? shortAddr(wallet.address) : 'Not set', wallet ? 'Connected' : null),
+        statCard('Funder', wallet ? shortAddr(wallet.address) : 'Not set', wallet ? 'Connected' : null),
+        wallet && wallet.signerAddress && wallet.signerAddress !== wallet.address ? statCard('Signer', shortAddr(wallet.signerAddress), 'Trading key') : null,
         statCard('Mode', config?.mode || 'N/A'),
         statCard('Pending', pendingTrades.length),
         statCard('Live Positions', livePositions.length),
@@ -2295,7 +2296,7 @@ export function PolymarketPage() {
           } catch (e) { toast(e.message, 'error'); setTxHistory([]); }
           setTxLoading(false);
         } }, I('clock'), ' Transaction History'),
-        h('a', { href: 'https://polygonscan.com/address/' + (wallet?.address || walletBalance?.address), target: '_blank', className: 'btn btn-sm btn-secondary' }, I('globe'), ' View on PolygonScan'),
+        h('a', { href: 'https://polygonscan.com/address/' + (wallet?.signerAddress || wallet?.address || walletBalance?.address), target: '_blank', className: 'btn btn-sm btn-secondary' }, I('globe'), ' View on PolygonScan'),
         h('button', { className: 'btn btn-sm btn-secondary', title: 'Flush in-memory wallet cache and reload from database', onClick: async function() {
           try {
             var res = await apiCall('/polymarket/' + selectedAgent + '/wallet/sync', { method: 'POST' });
