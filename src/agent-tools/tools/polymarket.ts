@@ -726,6 +726,23 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
               m = Array.isArray(arr) && arr[0];
             } catch {}
           }
+          // Try token_id lookup — agent often passes the CLOB token ID (long numeric string)
+          if (!m) {
+            try {
+              const arr = await apiFetch(`${GAMMA_API}/markets?clob_token_ids=${encodeURIComponent(p.market_id)}&limit=1`).catch(() => []);
+              m = Array.isArray(arr) && arr[0];
+            } catch {}
+          }
+          // Try as CLOB token via the data API
+          if (!m) {
+            try {
+              const tokenData = await apiFetch(`https://clob.polymarket.com/markets/${p.market_id}`).catch(() => null);
+              if (tokenData && tokenData.condition_id) {
+                const arr = await apiFetch(`${GAMMA_API}/markets?condition_id=${tokenData.condition_id}&limit=1`).catch(() => []);
+                m = Array.isArray(arr) && arr[0];
+              }
+            } catch {}
+          }
           // Final fallback: slug lookup (in case it looks numeric but is actually a slug)
           if (!m && (p.market_id.startsWith('0x') || /^\d+$/.test(p.market_id))) {
             try {
@@ -733,7 +750,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
               m = Array.isArray(arr) && arr[0];
             } catch {}
           }
-          if (!m) return errorResult('Market not found');
+          if (!m) return errorResult('Market not found. Tried slug, ID, condition_id, and token_id lookups. Input: ' + p.market_id);
 
           const result: any = {
             ...slimMarket(m),
@@ -1825,28 +1842,49 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           placedOrders = (Array.isArray(rows) ? rows : (rows as any)?.rows || []) as any[];
         } catch {}
 
-        // 3. Also try to get live orders from CLOB API
+        // 3. Get live orders from CLOB API (primary source of truth)
         let clobLiveOrders: any[] = [];
+        let clobError = '';
         try {
           const client = await getClobClient(agentId, db);
           if (client) {
             const openOrders = await client.client.getOpenOrders();
             if (Array.isArray(openOrders)) clobLiveOrders = openOrders.map((o: any) => ({
-              clob_order_id: o.id, token_id: o.asset_id, side: o.side, price: o.price,
-              original_size: o.original_size, size_matched: o.size_matched, size_remaining: (parseFloat(o.original_size) - parseFloat(o.size_matched)).toFixed(2),
-              status: 'live_on_exchange', created_at: o.created_at,
+              clob_order_id: o.id, token_id: o.asset_id, side: o.side?.toUpperCase(), price: o.price,
+              original_size: o.original_size, size_matched: o.size_matched,
+              size_remaining: (parseFloat(o.original_size || '0') - parseFloat(o.size_matched || '0')).toFixed(2),
+              price_cents: (parseFloat(o.price || '0') * 100).toFixed(1) + '¢',
+              cost: '$' + (parseFloat(o.price || '0') * parseFloat(o.original_size || '0')).toFixed(2),
+              status: parseFloat(o.size_matched || '0') > 0 ? 'partially_filled' : 'open',
+              created_at: o.created_at,
             }));
           }
-        } catch {}
+        } catch (e: any) { clobError = e.message; }
 
-        const totalPendingCapital = placedOrders.reduce((s: number, o: any) => s + (parseFloat(o.price) || 0) * (parseFloat(o.size) || 0), 0);
+        // CLOB is source of truth — sync DB statuses
+        const clobIds = new Set(clobLiveOrders.map(o => o.clob_order_id));
+        const dbOnlyPlaced = placedOrders.filter((o: any) => !clobIds.has(o.clob_order_id));
+        let syncedCount = 0;
+
+        // Orders in DB as 'placed' but NOT on CLOB anymore = filled or cancelled
+        // Update their status so they show correctly in Trade History
+        for (const stale of dbOnlyPlaced) {
+          try {
+            await db?.execute(`UPDATE poly_trade_log SET status = 'filled' WHERE id = $1 AND status = 'placed'`, [stale.id]);
+            syncedCount++;
+          } catch {}
+        }
+
+        const totalPendingCapital = clobLiveOrders.reduce((s: number, o: any) => s + (parseFloat(o.price || '0')) * (parseFloat(o.original_size || '0')), 0);
 
         return jsonResult({
-          summary: `${approvalPending.length} awaiting approval, ${placedOrders.length} placed (unfilled), ${clobLiveOrders.length} live on exchange`,
+          summary: `${clobLiveOrders.length} open on exchange, ${approvalPending.length} awaiting approval` + (syncedCount > 0 ? `, ${syncedCount} stale orders synced to filled` : ''),
+          total_open_orders: clobLiveOrders.length,
           total_pending_capital: '$' + totalPendingCapital.toFixed(2),
           awaiting_approval: approvalPending,
-          placed_unfilled: placedOrders.map((o: any) => ({ ...o, price_cents: ((parseFloat(o.price) || 0) * 100).toFixed(1) + '¢', cost: '$' + ((parseFloat(o.price) || 0) * (parseFloat(o.size) || 0)).toFixed(2) })),
-          live_on_exchange: clobLiveOrders,
+          open_orders: clobLiveOrders,
+          ...(syncedCount > 0 ? { synced_to_filled: syncedCount, sync_note: `${syncedCount} orders were in DB as "placed" but no longer on exchange — marked as filled. They will now appear in Trade History.` } : {}),
+          ...(clobError ? { clob_error: clobError } : {}),
         });
       },
     },
