@@ -3449,18 +3449,49 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
-  // Sync wallet — flush in-memory cache, force reload from DB
+  // Sync wallet — flush in-memory cache, derive true address from private key, fix DB if mismatched
   api.post('/polymarket/:agentId/wallet/sync', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
       const flushed = flushClobClient(agentId);
-      // Verify wallet exists in DB
-      const row = await edb()?.get(`SELECT funder_address, updated_at FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      const row = await edb()?.get(`SELECT funder_address, private_key_encrypted, updated_at FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      if (!row) return c.json({ status: 'ok', flushed, wallet: null, message: 'No wallet found in database.' });
+
+      // Derive the real address from the private key
+      let derivedAddress: string | null = null;
+      if (row.private_key_encrypted) {
+        try {
+          const { SecureVault } = await import('../engine/vault.js');
+          let vault: any; try { vault = new SecureVault(); } catch {}
+          const pk = vault ? vault.decrypt(row.private_key_encrypted) : row.private_key_encrypted;
+          try {
+            const { createRequire } = await import('module');
+            const sdkDir = (await import('path')).join((await import('os')).homedir(), '.agenticmail/polymarket-sdk');
+            const req = createRequire(sdkDir + '/node_modules/.package.json');
+            const { Wallet } = req('@ethersproject/wallet');
+            derivedAddress = new Wallet(pk).address;
+          } catch {
+            try { const { Wallet } = await import('ethers' as any); derivedAddress = new Wallet(pk).address; } catch {}
+          }
+        } catch {}
+      }
+
+      // Fix DB if funder_address doesn't match derived address
+      let fixed = false;
+      if (derivedAddress && row.funder_address !== derivedAddress) {
+        await edb()?.run(`UPDATE poly_wallet_credentials SET funder_address = ?, updated_at = CURRENT_TIMESTAMP WHERE agent_id = ?`, [derivedAddress, agentId]);
+        fixed = true;
+      }
+
+      const address = derivedAddress || row.funder_address;
       return c.json({
         status: 'ok',
         flushed,
-        wallet: row ? { address: row.funder_address, updatedAt: row.updated_at } : null,
-        message: flushed ? 'In-memory wallet cache flushed. Agent will reload from DB on next use.' : 'No cached wallet found. Agent will load from DB on next use.',
+        fixed,
+        wallet: { address, updatedAt: row.updated_at },
+        message: fixed
+          ? `Address corrected: ${row.funder_address} → ${derivedAddress}. Cache flushed.`
+          : flushed ? 'Cache flushed. Agent will reload from DB on next use.' : 'Wallet is in sync.',
       });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
