@@ -927,7 +927,12 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
           const midpoint = parseFloat(mid?.mid || '0');
           const bestBid = parseFloat(book?.bids?.[0]?.price || '0');
           const bestAsk = parseFloat(book?.asks?.[0]?.price || '0');
-          const spread = bestAsk - bestBid;
+          const spread = bestAsk > 0 && bestBid > 0 ? bestAsk - bestBid : 0;
+
+          // If no orderbook exists at all, tell agent clearly
+          if (!midpoint && !bestBid && !bestAsk && (!book || (!book.bids?.length && !book.asks?.length))) {
+            return errorResult(`NO ORDERBOOK for this token. The market has zero CLOB liquidity — no bids, no asks, no midpoint. Do NOT attempt to trade this token. Find a different market with actual liquidity.`);
+          }
           const bidDepth = (book?.bids || []).reduce((s: number, b: any) => s + parseFloat(b.size || '0'), 0);
           const askDepth = (book?.asks || []).reduce((s: number, a: any) => s + parseFloat(a.size || '0'), 0);
 
