@@ -64,7 +64,7 @@ export function DuplicateAgentModal({ agent, onClose, onDuplicated, toast }) {
   return h('div', { className: 'modal-overlay', onClick: onClose },
     h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { width: 580, maxHeight: '85vh', overflow: 'auto' } },
       h('div', { className: 'modal-header' },
-        h('h2', { style: { fontSize: 16, flex: 1, display: 'flex', alignItems: 'center', gap: 8 } }, I('copy'), ' Duplicate Agent'),
+        h('h2', { style: { fontSize: 16, flex: 1, display: 'flex', alignItems: 'center', gap: 8 } }, I.copy(), ' Duplicate Agent'),
         h('button', { className: 'btn btn-ghost btn-icon', onClick: onClose }, '\u00d7')
       ),
       h('div', { className: 'modal-body', style: { padding: 20 } },
@@ -79,7 +79,7 @@ export function DuplicateAgentModal({ agent, onClose, onDuplicated, toast }) {
           return h('div', { key: idx, style: { padding: 12, border: '1px solid var(--border)', borderRadius: 8, marginBottom: 10, background: agents.length > 1 ? 'var(--bg-secondary)' : 'transparent' } },
             agents.length > 1 && h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
               h('span', { style: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' } }, 'Agent #' + (idx + 1)),
-              h('button', { className: 'btn btn-sm btn-ghost', style: { fontSize: 11, color: '#ef4444' }, onClick: function() { removeRow(idx); } }, I('trash'), ' Remove')
+              h('button', { className: 'btn btn-sm btn-ghost', style: { fontSize: 11, color: '#ef4444' }, onClick: function() { removeRow(idx); } }, I.trash(), ' Remove')
             ),
             h('div', { style: { marginBottom: 8 } },
               h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Name *'),
@@ -97,13 +97,13 @@ export function DuplicateAgentModal({ agent, onClose, onDuplicated, toast }) {
         }),
 
         h('button', { className: 'btn btn-sm btn-secondary', style: { width: '100%', marginTop: 4 }, onClick: addRow },
-          I('plus'), ' Add Another Duplicate'
+          I.plus(), ' Add Another Duplicate'
         )
       ),
       h('div', { className: 'modal-footer', style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
         h('button', { className: 'btn btn-secondary', onClick: onClose, disabled: loading }, 'Cancel'),
         h('button', { className: 'btn btn-primary', onClick: handleDuplicate, disabled: loading || agents.some(function(a) { return !a.name.trim() || !a.email.trim(); }) },
-          loading ? 'Duplicating...' : (I('copy'), ' Duplicate ' + agents.length + ' Agent' + (agents.length > 1 ? 's' : ''))
+          loading ? 'Duplicating...' : (I.copy(), ' Duplicate ' + agents.length + ' Agent' + (agents.length > 1 ? 's' : ''))
         )
       )
     )
