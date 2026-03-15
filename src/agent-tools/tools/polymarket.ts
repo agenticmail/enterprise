@@ -1921,7 +1921,16 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
         try {
           const client = await getClobClient(agentId, db);
           if (client) {
-            await client.client.cancelOrder(p.order_id);
+            // cancelOrder expects an object with id, not a raw string
+            // Try multiple formats since SDK versions vary
+            try {
+              await client.client.cancelOrder({ id: p.order_id });
+            } catch {
+              try { await client.client.cancelOrder(p.order_id); } catch {
+                // Last resort: use cancelOrders with array
+                await client.client.cancelOrders([p.order_id]);
+              }
+            }
             // Update trade log status
             try { await db?.execute(`UPDATE poly_trade_log SET status = 'cancelled' WHERE (clob_order_id = $1 OR id = $1) AND agent_id = $2`, [p.order_id, agentId]); } catch {}
             return jsonResult({ status: 'cancelled', type: 'clob_exchange', order_id: p.order_id });
@@ -1934,9 +1943,12 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             if (rows.length > 0 && (rows[0] as any).clob_order_id) {
               const client2 = await getClobClient(agentId, db);
               if (client2) {
-                await client2.client.cancelOrder((rows[0] as any).clob_order_id);
+                const clobId = (rows[0] as any).clob_order_id;
+                try { await client2.client.cancelOrder({ id: clobId }); } catch {
+                  try { await client2.client.cancelOrders([clobId]); } catch { await client2.client.cancelOrder(clobId); }
+                }
                 await db?.execute(`UPDATE poly_trade_log SET status = 'cancelled' WHERE id = $1`, [p.order_id]);
-                return jsonResult({ status: 'cancelled', type: 'clob_exchange', order_id: p.order_id, clob_order_id: (rows[0] as any).clob_order_id });
+                return jsonResult({ status: 'cancelled', type: 'clob_exchange', order_id: p.order_id, clob_order_id: clobId });
               }
             }
           } catch {}
