@@ -734,7 +734,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_get_market',
-      description: 'Get market details. market_id can be a numeric ID, condition ID (0x...), or slug.',
+      description: 'Get market details. Accepts: slug (e.g. "atp-medvede-sinner-2026-03-15"), condition ID (0x...), CLOB token ID (long numeric string), or short numeric market ID.',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { market_id: { type: 'string' } }, required: ['market_id'] },
       async execute(_id: string, p: any) {
@@ -750,8 +750,8 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
               m = Array.isArray(arr) && arr[0];
             } catch {}
           }
-          // Try numeric/direct ID
-          if (!m) {
+          // Try numeric/direct ID — but NOT for long numbers (>15 digits = CLOB token IDs, not market IDs)
+          if (!m && !(p.market_id.length > 15 && /^\d+$/.test(p.market_id))) {
             try { m = await apiFetch(`${GAMMA_API}/markets/${p.market_id}`); } catch {}
           }
           // If condition ID (0x...), search by condition_id param (try both naming conventions)
