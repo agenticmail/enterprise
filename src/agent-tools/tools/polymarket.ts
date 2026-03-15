@@ -357,16 +357,54 @@ export async function executeOrder(agentId: string, db: any, tradeId: string, p:
     if (p.neg_risk !== undefined) orderArgs.negRisk = p.neg_risk;
 
     // Create and submit order
-    const signedOrder = await client.client.createOrder(orderArgs);
-    const response = await client.client.postOrder(signedOrder, p.order_type || 'GTC');
+    const orderType = (p.order_type || 'GTC').toUpperCase();
+    let response: any;
+    let clobOrderId: string | null = null;
+    let orderStatus = 'rejected';
+    let fillPrice: number | undefined;
+    let fillSize: number | undefined;
 
-    const clobOrderId = response?.orderID || response?.id;
-    const orderStatus = clobOrderId ? 'placed' : 'rejected';
+    if (orderType === 'FOK' || orderType === 'FAK' || orderType === 'MARKET') {
+      // Market order — fills immediately or fails. Uses createAndPostMarketOrder.
+      // amount = dollars to spend (BUY) or shares to sell (SELL)
+      const marketOrderArgs: any = {
+        tokenID: p.token_id,
+        side,
+        amount: p.side === 'BUY' ? (p.price || 0.5) * p.size : p.size, // BUY: dollar amount, SELL: shares
+      };
+      if (orderPrice !== undefined) marketOrderArgs.price = orderPrice;
+      if (p.neg_risk !== undefined) marketOrderArgs.negRisk = p.neg_risk;
+
+      try {
+        response = await client.client.createAndPostMarketOrder(marketOrderArgs, undefined, orderType === 'FAK' ? 'FAK' : 'FOK');
+        clobOrderId = response?.orderID || response?.id || null;
+        // FOK orders are either fully filled or rejected — no partial fills
+        orderStatus = clobOrderId ? 'filled' : 'rejected';
+        fillPrice = response?.avgPrice || response?.price || orderPrice;
+        fillSize = response?.filledSize || p.size;
+      } catch (fokErr: any) {
+        // FOK failed — market doesn't have enough liquidity at this price
+        orderStatus = 'rejected';
+        await logTrade(db, {
+          id: tradeId, agentId, tokenId: p.token_id, marketQuestion: p.market_question,
+          outcome: p.outcome, side: p.side, price: p.price, size: p.size,
+          status: 'rejected', rationale: p.rationale + ' [FOK rejected: ' + fokErr.message + ']',
+        });
+        return errorResult(`Market order (${orderType}) rejected — not enough liquidity. Error: ${fokErr.message}. Try a limit order (GTC) at a better price, or reduce size.`);
+      }
+    } else {
+      // Limit order (GTC) — sits on the book until filled
+      const signedOrder = await client.client.createOrder(orderArgs);
+      response = await client.client.postOrder(signedOrder, orderType);
+      clobOrderId = response?.orderID || response?.id;
+      orderStatus = clobOrderId ? 'placed' : 'rejected';
+    }
 
     await logTrade(db, {
       id: tradeId, agentId, tokenId: p.token_id, marketQuestion: p.market_question,
       outcome: p.outcome, side: p.side, price: p.price, size: p.size,
-      status: orderStatus, rationale: p.rationale, clobOrderId: clobOrderId || null,
+      fillPrice, fillSize,
+      status: orderStatus, rationale: p.rationale, clobOrderId: clobOrderId || undefined,
     });
 
     if (!clobOrderId) {
@@ -1636,13 +1674,14 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_place_order',
-      description: 'Place an order. IMPORTANT: price must be between 0.01 and 0.99 (Polymarket range). Size minimum is 5 shares. If you omit price, the current midpoint is used automatically.',
+      description: 'Place an order. IMPORTANT: price must be between 0.01 and 0.99. Size minimum is 5 shares. Use order_type="FOK" for market orders that fill immediately at best available price (Fill or Kill). Default "GTC" places a limit order that sits on the book. For sports/event markets with wide CLOB spreads, FOK at market price may work better than limit orders.',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: {
         token_id: { type: 'string' }, side: { type: 'string', description: 'BUY or SELL' },
-        price: { type: 'number', description: 'Limit price between 0.01 and 0.99. Omit for market order at midpoint.' },
+        price: { type: 'number', description: 'Limit price 0.01-0.99. For FOK/market orders: omit to use best available price, or set as max price willing to pay.' },
         size: { type: 'number', description: 'Number of shares (minimum 5)' },
-        order_type: { type: 'string' }, expiration: { type: 'string' },
+        order_type: { type: 'string', description: 'GTC (limit, default) | FOK (fill-or-kill market order) | FAK (fill-and-kill, partial fills ok)' },
+        expiration: { type: 'string' },
         max_slippage_pct: { type: 'number' }, tick_size: { type: 'string' },
         neg_risk: { type: 'boolean' }, market_question: { type: 'string' },
         outcome: { type: 'string' }, rationale: { type: 'string' }, urgency: { type: 'string' },
