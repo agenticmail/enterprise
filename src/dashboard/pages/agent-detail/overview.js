@@ -131,7 +131,7 @@ export function OverviewSection(props) {
       }
       setActing('delete');
       try {
-        await apiCall('/bridge/agents/' + agentId, { method: 'DELETE' });
+        await engineCall('/bridge/agents/' + agentId, { method: 'DELETE' });
         toast('Agent deleted', 'success');
         if (props.onBack) props.onBack();
       } catch (err) {

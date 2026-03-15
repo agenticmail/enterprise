@@ -277,7 +277,7 @@ export function DeploymentSection(props) {
       }
       setDeleting(true);
       try {
-        await apiCall('/bridge/agents/' + agentId, { method: 'DELETE' });
+        await engineCall('/bridge/agents/' + agentId, { method: 'DELETE' });
         toast('Agent deleted', 'success');
         if (onBack) onBack();
       } catch (err) { toast(err.message, 'error'); }
