@@ -3,6 +3,7 @@ import { I } from '../components/icons.js';
 import { E } from '../assets/icons/emoji-icons.js';
 import { CULTURES, LANGUAGES, PersonaForm, LanguageSelect, getLanguageName } from '../components/persona-fields.js';
 import { HelpButton } from '../components/help-button.js';
+import { DuplicateAgentModal } from '../components/duplicate-agent.js';
 import { useOrgContext } from '../components/org-switcher.js';
 import { KnowledgeLink } from '../components/knowledge-link.js';
 
@@ -1133,6 +1134,7 @@ export function AgentsPage({ onSelectAgent }) {
   const [agents, setAgents] = useState([]);
   const [creating, setCreating] = useState(false);
   const [liveStatuses, setLiveStatuses] = useState({});
+  const [duplicatingAgent, setDuplicatingAgent] = useState(null);
 
   // Subscribe to real-time agent status
   useEffect(function() {
@@ -1224,6 +1226,7 @@ export function AgentsPage({ onSelectAgent }) {
                   h('td', null,
                     h('div', { style: { display: 'flex', gap: 4 } },
                       h('button', { className: 'btn btn-primary btn-sm', onClick: () => onSelectAgent && onSelectAgent(a.id) }, 'View Details'),
+                      h('button', { className: 'btn btn-ghost btn-sm', title: 'Duplicate Agent', onClick: (e) => { e.stopPropagation(); setDuplicatingAgent(a); } }, I.copy()),
                       h('button', { className: 'btn btn-ghost btn-sm', title: 'Restart', onClick: () => engineCall('/agents/' + a.id + '/restart', { method: 'POST', body: JSON.stringify({ restartedBy: 'dashboard' }) }).then(() => toast('Restarting...', 'info')).catch(e => toast(e.message, 'error')) }, I.refresh())
                     )
                   )
@@ -1231,7 +1234,14 @@ export function AgentsPage({ onSelectAgent }) {
               ))
             )
           )
-        )
+        ),
+    // Duplicate Agent Modal
+    duplicatingAgent && h(DuplicateAgentModal, {
+      agent: duplicatingAgent,
+      onClose: function() { setDuplicatingAgent(null); },
+      onDuplicated: function() { load(); },
+      toast: toast,
+    })
   );
 }
 

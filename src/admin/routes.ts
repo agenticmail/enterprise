@@ -11,6 +11,7 @@ import { configBus } from '../engine/config-bus.js';
 import type { AppEnv } from '../types/hono-env.js';
 import type { DatabaseAdapter } from '../db/adapter.js';
 import { validate, requireRole, ValidationError, transportEncryptionMiddleware } from '../middleware/index.js';
+import { registerDuplicateRoutes } from './agent-duplicate.js';
 import { PROVIDER_REGISTRY, type ProviderDef } from '../runtime/providers.js';
 import { USDC_ADDRESS as USDC_E_SHARED } from '../polymarket-engines/shared.js';
 
@@ -5768,6 +5769,17 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       console.warn(`[polymarket-proxy] Startup auto-connect failed: ${e.message}`);
     }
   }, 5000);
+
+  // ─── Agent Duplication ──────────────────────────────────────
+  try {
+    registerDuplicateRoutes(api, {
+      getAdminDb: () => db,
+      getEngineDb: () => db.getEngineDB?.(),
+      getLifecycle: () => { try { const r = require('../engine/routes.js'); return r.getLifecycle?.(); } catch { return null; } },
+      getPermissions: () => { try { const r = require('../engine/routes.js'); return r.getPermissions?.(); } catch { return null; } },
+      requireRole,
+    });
+  } catch (e: any) { console.warn('[admin] Agent duplicate routes failed to register:', e.message); }
 
   return api;
 }
