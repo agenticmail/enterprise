@@ -141,8 +141,8 @@ export function registerDuplicateRoutes(
             }
 
             await engineDb.run(
-              `INSERT INTO managed_agents (id, org_id, name, display_name, state, config, budget_config, security_overrides, permission_profile_id, client_org_id, created_by, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+              `INSERT INTO managed_agents (id, org_id, name, display_name, state, config, budget_config, security_overrides, permission_profile_id, client_org_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
               [
                 newId,
                 sourceManaged.org_id,
@@ -154,7 +154,6 @@ export function registerDuplicateRoutes(
                 securityOverrides ? JSON.stringify(securityOverrides) : null,
                 sourceManaged.permission_profile_id || null,
                 sourceManaged.client_org_id || null,
-                actor,
               ]
             );
             steps.push('engine config + budget + security');
