@@ -1093,7 +1093,15 @@ export async function loadWalletCredentials(agentId: string, db: any): Promise<W
     const vault = getVaultInstance();
     const decryptField = (val: string | null) => {
       if (!val) return val;
-      try { return vault ? vault.decrypt(val) : val; } catch { return val; } // fallback to raw if not encrypted
+      if (vault) {
+        try { return vault.decrypt(val); } catch {
+          // If decryption failed and the value looks like encrypted JSON, DO NOT return it raw
+          // (returning encrypted blobs as "private keys" causes wrong wallet address + potential double-encryption)
+          try { const p = JSON.parse(val); if (p && p.v === 1 && p.alg) { console.error('[polymarket] CRITICAL: vault decryption failed for encrypted value — check AGENTICMAIL_VAULT_KEY'); return null; } } catch {}
+          return val; // genuinely unencrypted value (legacy or dev mode)
+        }
+      }
+      return val;
     };
     return {
       privateKey: decryptField(row.private_key_encrypted) as string,
@@ -1114,8 +1122,16 @@ export async function saveWalletCredentials(agentId: string, db: any, creds: Wal
   await initPolymarketDB(db);
   // Encrypt sensitive fields via vault
   const vault = getVaultInstance();
+  const isAlreadyEncrypted = (val: string) => {
+    try { const p = JSON.parse(val); return p && p.v === 1 && p.alg === 'aes-256-gcm'; } catch { return false; }
+  };
   const encryptField = (val: string | null | undefined) => {
     if (!val) return val || null;
+    // SAFETY: never double-encrypt — if the value is already a vault payload, return as-is
+    if (isAlreadyEncrypted(val)) {
+      console.warn(`[polymarket] WARNING: saveWalletCredentials received already-encrypted value — skipping re-encryption to prevent corruption`);
+      return val;
+    }
     try { return vault ? vault.encrypt(val) : val; } catch { return val; }
   };
   await db.execute(`
