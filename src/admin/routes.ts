@@ -4286,6 +4286,33 @@ export function createAdminRoutes(db: DatabaseAdapter) {
 
   // ── Archive System ──────────────────────────────────────────
 
+  // Get archived data for a specific tab
+  api.get('/polymarket/:agentId/archive/:tab', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const tab = c.req.param('tab');
+      const e = edb();
+      const limit = parseInt(c.req.query('limit') || '100');
+
+      let tableName = '';
+      if (tab === 'trades') tableName = 'poly_trade_log_archive';
+      else if (tab === 'exits') tableName = 'poly_exit_rules_archive';
+      else if (tab === 'alerts') tableName = 'poly_price_alerts_archive';
+      else if (tab === 'events') tableName = 'poly_watcher_events_archive';
+      else return c.json({ rows: [], total: 0, message: 'Unknown archive tab: ' + tab });
+
+      // Check if archive table exists
+      try {
+        const rows = await e?.all(`SELECT * FROM ${tableName} WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
+        const countRow = await e?.get(`SELECT COUNT(*) as cnt FROM ${tableName} WHERE agent_id = ?`, [agentId]) as any;
+        return c.json({ rows, total: countRow?.cnt || rows.length });
+      } catch {
+        // Archive table doesn't exist yet — no archived data
+        return c.json({ rows: [], total: 0, message: 'No archived data yet. Use the Archive action to move old data here.' });
+      }
+    } catch (e: any) { return c.json({ rows: [], total: 0, error: e.message }); }
+  });
+
   // Create archive tables on first use (lazy init in the archive endpoint below)
 
   // Archive completed/closed data for a specific tab

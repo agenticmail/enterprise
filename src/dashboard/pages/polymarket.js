@@ -1624,9 +1624,11 @@ export function PolymarketPage() {
         setShowArchive(next);
         if (!next[tabKey]) return;
         setArchiveLoading(true);
-        apiCall('/polymarket/' + agentId + '/archive/' + tabKey).then(function(r) {
+        apiCall('/polymarket/' + selectedAgent + '/archive/' + tabKey).then(function(r) {
           var next2 = Object.assign({}, showArchive); next2[tabKey] = true; next2[tabKey + '_data'] = r; setShowArchive(next2); setArchiveLoading(false);
-        }).catch(function() { setArchiveLoading(false); });
+        }).catch(function(e) {
+          var next2 = Object.assign({}, showArchive); next2[tabKey] = true; next2[tabKey + '_data'] = { rows: [], total: 0, message: e.message || 'Failed to load archive' }; setShowArchive(next2); setArchiveLoading(false);
+        });
       }
     }, I('database'), isOpen ? ' Active' : ' Archive (' + (label || '') + ')');
   };
