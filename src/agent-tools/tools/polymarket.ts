@@ -1807,18 +1807,47 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_get_open_orders',
-      description: 'Get open orders',
+      description: 'Get all open/pending orders — includes orders awaiting approval AND orders placed on the exchange that have not been filled yet. Always check this before placing new orders to avoid duplicates.',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { market_id: { type: 'string' }, token_id: { type: 'string' } }},
       async execute() {
-        // Check both in-memory and DB for pending trades
+        // 1. In-memory pending trades (approval mode)
         const memPending = Array.from(pendingTrades.values()).filter(t => t.agentId === agentId);
         const dbPending = await getPendingTrades(agentId, db);
-        // Merge and deduplicate
         const seen = new Set(memPending.map(t => t.id));
-        const merged = [...memPending];
-        for (const t of dbPending) { if (!seen.has(t.id)) merged.push(t); }
-        return jsonResult({ count: merged.length, pending_approvals: merged });
+        const approvalPending = [...memPending];
+        for (const t of dbPending) { if (!seen.has(t.id)) approvalPending.push(t); }
+
+        // 2. Placed but unfilled orders from trade log
+        let placedOrders: any[] = [];
+        try {
+          const rows = await db?.execute(`SELECT id, token_id, market_question, outcome, side, price, size, clob_order_id, created_at FROM poly_trade_log WHERE agent_id = $1 AND status = 'placed' ORDER BY created_at DESC`, [agentId]);
+          placedOrders = (Array.isArray(rows) ? rows : (rows as any)?.rows || []) as any[];
+        } catch {}
+
+        // 3. Also try to get live orders from CLOB API
+        let clobLiveOrders: any[] = [];
+        try {
+          const client = await getClobClient(agentId, db);
+          if (client) {
+            const openOrders = await client.client.getOpenOrders();
+            if (Array.isArray(openOrders)) clobLiveOrders = openOrders.map((o: any) => ({
+              clob_order_id: o.id, token_id: o.asset_id, side: o.side, price: o.price,
+              original_size: o.original_size, size_matched: o.size_matched, size_remaining: (parseFloat(o.original_size) - parseFloat(o.size_matched)).toFixed(2),
+              status: 'live_on_exchange', created_at: o.created_at,
+            }));
+          }
+        } catch {}
+
+        const totalPendingCapital = placedOrders.reduce((s: number, o: any) => s + (parseFloat(o.price) || 0) * (parseFloat(o.size) || 0), 0);
+
+        return jsonResult({
+          summary: `${approvalPending.length} awaiting approval, ${placedOrders.length} placed (unfilled), ${clobLiveOrders.length} live on exchange`,
+          total_pending_capital: '$' + totalPendingCapital.toFixed(2),
+          awaiting_approval: approvalPending,
+          placed_unfilled: placedOrders.map((o: any) => ({ ...o, price_cents: ((parseFloat(o.price) || 0) * 100).toFixed(1) + '¢', cost: '$' + ((parseFloat(o.price) || 0) * (parseFloat(o.size) || 0)).toFixed(2) })),
+          live_on_exchange: clobLiveOrders,
+        });
       },
     },
 
@@ -1840,15 +1869,42 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_cancel_order',
-      description: 'Cancel an order',
+      description: 'Cancel an order — works for both approval-pending orders and live orders on the exchange.',
       category: 'enterprise' as const,
-      parameters: { type: 'object' as const, properties: { order_id: { type: 'string' } }, required: ['order_id'] },
+      parameters: { type: 'object' as const, properties: { order_id: { type: 'string', description: 'The order ID or CLOB order ID to cancel' } }, required: ['order_id'] },
       async execute(_id: string, p: any) {
+        // 1. Check in-memory pending (approval mode)
         if (pendingTrades.has(p.order_id)) {
           pendingTrades.delete(p.order_id);
           return jsonResult({ status: 'cancelled', type: 'pending_approval', order_id: p.order_id });
         }
-        return jsonResult({ status: 'requires_sdk', message: 'Cancelling live orders requires CLOB client SDK' });
+
+        // 2. Try to cancel on the CLOB exchange
+        try {
+          const client = await getClobClient(agentId, db);
+          if (client) {
+            await client.client.cancelOrder(p.order_id);
+            // Update trade log status
+            try { await db?.execute(`UPDATE poly_trade_log SET status = 'cancelled' WHERE (clob_order_id = $1 OR id = $1) AND agent_id = $2`, [p.order_id, agentId]); } catch {}
+            return jsonResult({ status: 'cancelled', type: 'clob_exchange', order_id: p.order_id });
+          }
+        } catch (e: any) {
+          // Maybe the order_id is our internal ID — look up the clob_order_id
+          try {
+            const row = await db?.execute(`SELECT clob_order_id FROM poly_trade_log WHERE id = $1 AND agent_id = $2 AND status = 'placed'`, [p.order_id, agentId]);
+            const rows = Array.isArray(row) ? row : (row as any)?.rows || [];
+            if (rows.length > 0 && (rows[0] as any).clob_order_id) {
+              const client2 = await getClobClient(agentId, db);
+              if (client2) {
+                await client2.client.cancelOrder((rows[0] as any).clob_order_id);
+                await db?.execute(`UPDATE poly_trade_log SET status = 'cancelled' WHERE id = $1`, [p.order_id]);
+                return jsonResult({ status: 'cancelled', type: 'clob_exchange', order_id: p.order_id, clob_order_id: (rows[0] as any).clob_order_id });
+              }
+            }
+          } catch {}
+          return errorResult(`Cancel failed: ${e.message}`);
+        }
+        return jsonResult({ status: 'not_found', message: 'Order not found in pending trades or CLOB.' });
       },
     },
 
@@ -1880,16 +1936,28 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
 
     {
       name: 'poly_cancel_all',
-      description: 'Cancel ALL orders (emergency)',
+      description: 'Cancel ALL orders — both approval-pending and live exchange orders (emergency)',
       category: 'enterprise' as const,
       parameters: { type: 'object' as const, properties: { confirm: { type: 'boolean' } }},
       async execute(_id: string, p: any) {
         if (!p.confirm) return errorResult('Set confirm=true to cancel all orders');
         const cancelled: string[] = [];
+        // 1. Cancel in-memory pending
         for (const [id, t] of pendingTrades) {
           if (t.agentId === agentId) { pendingTrades.delete(id); cancelled.push(id); }
         }
-        return jsonResult({ status: 'all_cancelled', cancelled_pending: cancelled.length, note: 'Live CLOB orders require SDK to cancel' });
+        // 2. Cancel all live CLOB orders
+        let clobCancelled = 0;
+        try {
+          const client = await getClobClient(agentId, db);
+          if (client) {
+            await client.client.cancelAll();
+            clobCancelled++;
+            // Mark all placed orders as cancelled in DB
+            try { await db?.execute(`UPDATE poly_trade_log SET status = 'cancelled' WHERE agent_id = $1 AND status = 'placed'`, [agentId]); } catch {}
+          }
+        } catch {}
+        return jsonResult({ status: 'all_cancelled', cancelled_pending: cancelled.length, clob_cancel_all: clobCancelled > 0, note: 'All pending and live orders cancelled.' });
       },
     },
 

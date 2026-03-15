@@ -131,6 +131,7 @@ export function PolymarketPage() {
   const [swapAmount, setSwapAmount] = useState('');
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapCountdown, setSwapCountdown] = useState(0);
+  const [chartVisible, setChartVisible] = useState(function() { try { return localStorage.getItem('pm_chart_visible') !== 'false'; } catch { return true; } });
 
   // Countdown timer during swap
   useEffect(function() {
@@ -1067,6 +1068,43 @@ export function PolymarketPage() {
   function renderDetailModal() {
     if (!selectedRow) return null;
     var d = selectedRow.data;
+
+    // Custom modal for pending orders on a position
+    if (selectedRow.tab === 'pendingForPosition' && d.orders) {
+      return h('div', { className: 'modal-overlay', onClick: function() { setSelectedRow(null); } },
+        h('div', { className: 'modal-content', style: { maxWidth: 560, maxHeight: '80vh', overflow: 'auto' }, onClick: function(e) { e.stopPropagation(); } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
+            h('h3', { style: { margin: 0 } }, 'Pending Orders'),
+            h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { setSelectedRow(null); } }, '\u2715')
+          ),
+          h('div', { style: { marginBottom: 16, padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 13 } },
+            h('div', { style: { fontWeight: 600, marginBottom: 4 } }, d.market || 'Position'),
+            h('div', { style: { color: 'var(--text-muted)' } }, 'Filled shares: ', h('strong', null, (d.filled_shares || 0).toFixed(1)),
+              ' \u00b7 Pending orders: ', h('strong', null, d.orders.length))
+          ),
+          h('table', { className: 'data-table', style: { width: '100%' } },
+            h('thead', null, h('tr', null,
+              h('th', null, 'Side'), h('th', null, 'Outcome'), h('th', null, 'Shares'), h('th', null, 'Price'), h('th', null, 'Cost'), h('th', null, 'Placed')
+            )),
+            h('tbody', null, d.orders.map(function(o, i) {
+              return h('tr', { key: i },
+                h('td', null, sideBadge(o.side)),
+                h('td', null, o.outcome
+                  ? h('span', { className: 'badge ' + (o.outcome.toLowerCase() === 'yes' ? 'badge-success' : 'badge-danger') }, o.outcome)
+                  : '--'),
+                h('td', null, (o.size || 0).toFixed(1)),
+                h('td', null, ((o.price || 0) * 100).toFixed(1) + '\u00a2'),
+                h('td', null, '$' + ((o.price || 0) * (o.size || 0)).toFixed(2)),
+                h('td', { style: { fontSize: 11, color: 'var(--text-muted)' } }, fmtDate(o.created_at))
+              );
+            }))
+          ),
+          h('div', { style: { marginTop: 12, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' } },
+            'Total pending capital: $' + d.orders.reduce(function(s, o) { return s + (o.price || 0) * (o.size || 0); }, 0).toFixed(2))
+        )
+      );
+    }
+
     var title = d.market_question || d.title || d.headline || d.strategy_name || d.strategy ||
       d.topic || d.label || d.signal_source || d.category || d.name ||
       (d.lesson ? (d.lesson.length > 60 ? d.lesson.slice(0, 60) + '\u2026' : d.lesson) : null) ||
@@ -1679,9 +1717,20 @@ export function PolymarketPage() {
       );
     })(),
 
-    // ═══ HEADER P&L CHART (sticky — always visible) ═══
+    // ═══ HEADER P&L CHART (sticky — toggle visibility, persisted to localStorage) ═══
     h('div', { style: { position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: 0, marginTop: '-16px' } },
-      renderLiveChart()
+      h('div', { style: { display: 'flex', justifyContent: 'flex-end', padding: '4px 8px 0' } },
+        h('button', {
+          className: 'btn btn-sm',
+          style: { fontSize: 11, padding: '2px 8px', opacity: 0.7 },
+          onClick: function() {
+            var next = !chartVisible;
+            setChartVisible(next);
+            try { localStorage.setItem('pm_chart_visible', String(next)); } catch {}
+          }
+        }, chartVisible ? 'Hide Chart' : 'Show Chart')
+      ),
+      chartVisible ? renderLiveChart() : null
     ),
 
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 } },
@@ -2079,16 +2128,24 @@ export function PolymarketPage() {
                 ? h('span', { className: 'badge ' + (oc.toLowerCase() === 'yes' ? 'badge-success' : oc.toLowerCase() === 'no' ? 'badge-danger' : 'badge-secondary') }, oc)
                 : h('span', { className: 'text-muted' }, '--')
               ),
-              h('td', { key: 'sh' }, h('div', null,
+              h('td', { key: 'sh' }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 4 } },
                 (p.size || 0).toFixed(1),
                 (function() {
                   var pendingForToken = pendingTrades.filter(function(pt) { return pt.token_id === p.token_id && (pt.status === 'placed' || pt.source === 'placed'); });
                   if (!pendingForToken.length) return null;
-                  return pendingForToken.map(function(pt, i) {
-                    return h('div', { key: i, style: { fontSize: 10, color: '#b45309', fontStyle: 'italic', marginTop: 2 } },
-                      'pending ' + (pt.size || 0).toFixed(1) + ' ' + (pt.side || '').toLowerCase()
-                    );
-                  });
+                  return h('button', {
+                    title: pendingForToken.length + ' pending order(s)',
+                    style: { background: 'rgba(180,83,9,0.15)', border: '1px solid rgba(180,83,9,0.3)', borderRadius: 4, padding: '1px 5px', cursor: 'pointer', fontSize: 10, color: '#b45309', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 },
+                    onClick: function(e) {
+                      e.stopPropagation();
+                      setSelectedRow({ tab: 'pendingForPosition', data: {
+                        market: p.market || shortId(p.token_id),
+                        token_id: p.token_id,
+                        filled_shares: p.size || 0,
+                        orders: pendingForToken,
+                      }});
+                    }
+                  }, I('clock'), ' ' + pendingForToken.length);
                 })()
               )),
               h('td', { key: 'e' }, (p.entry * 100).toFixed(1) + '\u00a2'),
@@ -2149,7 +2206,7 @@ export function PolymarketPage() {
             if (isNaN(aEnd)) aEnd = Infinity;
             if (isNaN(bEnd)) bEnd = Infinity;
             return aEnd - bEnd;
-          }, pageSize: 20 }
+          }, pageSize: 10 }
         )
       ),
 

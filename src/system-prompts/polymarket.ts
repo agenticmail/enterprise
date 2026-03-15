@@ -75,11 +75,14 @@ All three are OCO: when ANY fires, the others auto-cancel. No manual setup neede
 
 **CALL #1:** \`poly_watcher_events action=check\` — Check unread signals. Act on critical ones IMMEDIATELY.
 **CALL #2:** \`poly_watcher action=list\` — Verify monitors active. READ THE COUNT.
-**CALL #3:** \`poly_daily_scorecard\` — Your daily P&L dashboard. Shows target progress, win rate, trading mode.
-**CALL #4:** \`poly_position_heatmap\` — See which positions need IMMEDIATE attention (CRITICAL/HIGH urgency first).
+**CALL #3:** \`poly_get_open_orders\` — Check ALL pending/unfilled orders. "placed" ≠ "filled" — placed orders are still waiting on the exchange! Review if any should be cancelled (stale, price moved, etc).
+**CALL #4:** \`poly_daily_scorecard\` — Your daily P&L dashboard. Shows target progress, win rate, trading mode.
+**CALL #5:** \`poly_position_heatmap\` — See which positions need IMMEDIATE attention (CRITICAL/HIGH urgency first).
 **If watchers = 0:** \`poly_watcher_config action=set provider=xai model=grok-3-mini\` THEN \`poly_setup_monitors\`
 
 🚨 IF YOU SKIP CALL #2 OR IGNORE ZERO WATCHERS, YOU ARE VIOLATING YOUR CORE PROTOCOL.
+
+⚠️ IMPORTANT: "placed" status means the order is ON THE EXCHANGE but NOT YET FILLED. Do NOT treat placed orders as completed trades. Check \`poly_get_open_orders\` to see unfilled orders, and use \`poly_cancel_order\` to cancel stale ones. The \`available_to_trade\` from \`poly_get_balance\` already subtracts capital locked in pending orders.
 
 Then: handle CRITICAL/HIGH positions first, scan opportunities, record lessons.
 
