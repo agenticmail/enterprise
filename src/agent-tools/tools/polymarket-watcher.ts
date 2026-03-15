@@ -253,7 +253,20 @@ export async function getAIConfig(agentId: string, edb: any): Promise<{
     const cfg = await edb.get(`SELECT * FROM poly_watcher_config WHERE agent_id = ?`, [agentId]);
     if (!cfg) return null;
 
-    const apiKey = cfg.ai_api_key || '';
+    let apiKey = cfg.ai_api_key || '';
+    // Fallback: use environment API key if none stored in config
+    if (!apiKey) {
+      const provider = (cfg.ai_provider || '').toLowerCase();
+      if (provider === 'anthropic') apiKey = process.env.ANTHROPIC_API_KEY || '';
+      else if (provider === 'openai') apiKey = process.env.OPENAI_API_KEY || '';
+      else if (provider === 'xai') apiKey = process.env.XAI_API_KEY || '';
+      else if (provider === 'groq') apiKey = process.env.GROQ_API_KEY || '';
+      else if (provider === 'deepseek') apiKey = process.env.DEEPSEEK_API_KEY || '';
+      else if (provider === 'openrouter') apiKey = process.env.OPENROUTER_API_KEY || '';
+      else if (provider === 'together') apiKey = process.env.TOGETHER_API_KEY || '';
+      else if (provider === 'fireworks') apiKey = process.env.FIREWORKS_API_KEY || '';
+      else if (provider === 'cerebras') apiKey = process.env.CEREBRAS_API_KEY || '';
+    }
     if (!apiKey) return null;
 
     // Check daily budget
