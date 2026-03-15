@@ -45,6 +45,7 @@ export class MessagingPoller {
   private telegramMode: 'webhook' | 'polling' | 'off' = 'off';
   private untrustedReplySent = new Map<string, number>(); // senderId → last reply timestamp
   private rateLimitMap = new Map<string, number[]>(); // senderId → timestamps
+  private telegramBots = new Map<string, { agentId: string; stop: () => void }>(); // botToken → { agentId, stop }
 
   constructor(config: MessagingPollerConfig) {
     this.config = config;
@@ -99,26 +100,30 @@ export class MessagingPoller {
     }
 
     // Telegram — webhook preferred, polling fallback
+    // Start a separate polling/webhook loop per unique bot token (one per agent)
     if (this.config.getCapability('telegram')) {
-      // Check vault first, then per-agent channel config
-      var tgToken = this.config.getVaultKey('skill:telegram:access_token');
-      if (!tgToken) {
-        // Check each agent's channel config for bot token
-        for (var ag2 of agents) {
-          var chanCfg = this.config.getAgentChannelConfig(ag2.id);
-          var agTgToken = chanCfg?.telegram?.botToken;
-          if (agTgToken) {
-            tgToken = agTgToken;
-            var _dataDir2 = process.env.DATA_DIR || '/tmp/agenticmail-data';
-            defaultAgent = { id: ag2.id, displayName: ag2.displayName || ag2.name || 'Agent', host: ag2.host || 'localhost', port: ag2.port || 3100, dataDir: `${_dataDir2}/agents/${ag2.id}` };
-            break;
-          }
+      var startedBots = 0;
+      for (var ag2 of agents) {
+        var chanCfg = this.config.getAgentChannelConfig(ag2.id);
+        var agTgToken = chanCfg?.telegram?.botToken;
+        if (!agTgToken) continue;
+        // Skip if this bot token is already running (two agents sharing one bot)
+        if (this.telegramBots.has(agTgToken)) {
+          console.log(`[messaging] Telegram: bot token already active, skipping agent ${ag2.name || ag2.id.slice(0,8)}`);
+          continue;
         }
+        var ep2: AgentEndpoint = { id: ag2.id, displayName: ag2.displayName || ag2.name || 'Agent', host: ag2.host || 'localhost', port: ag2.port || 3100 };
+        await this.startTelegram(agTgToken, ep2);
+        startedBots++;
       }
-      if (tgToken) {
-        await this.startTelegram(tgToken, defaultAgent);
-      } else {
-        console.log('[messaging] Telegram enabled but no bot token in vault or channel config');
+      // Fallback: check vault for a shared token if no per-agent tokens found
+      if (startedBots === 0) {
+        var vaultToken = this.config.getVaultKey('skill:telegram:access_token');
+        if (vaultToken) {
+          await this.startTelegram(vaultToken, defaultAgent);
+        } else {
+          console.log('[messaging] Telegram enabled but no bot token in vault or channel config');
+        }
       }
     }
 
@@ -128,13 +133,13 @@ export class MessagingPoller {
     var self = this;
     var unsub1 = configBus.onConfigKey('messagingChannels', (event) => {
       console.log(`[messaging] Config changed for agent ${event.agentId.slice(0,8)}: ${event.key}`);
-      // Telegram: if bot token was added/changed and Telegram isn't running, start it
+      // Telegram: if bot token was added/changed and this bot isn't already running, start it
       var tgConfig = event.config?.telegram;
-      if (tgConfig?.botToken && self.telegramMode === 'off') {
+      if (tgConfig?.botToken && !self.telegramBots.has(tgConfig.botToken)) {
         var agent = self.config.agents.find(a => a.id === event.agentId);
         if (agent) {
           var ep: AgentEndpoint = { id: agent.id, displayName: agent.displayName || agent.name || 'Agent', host: agent.host || 'localhost', port: agent.port || 3100 };
-          console.log('[messaging] Starting Telegram (config changed)...');
+          console.log(`[messaging] Starting Telegram for ${agent.name || agent.id.slice(0,8)} (config changed)...`);
           self.startTelegram(tgConfig.botToken, ep).catch((e: any) => console.error('[messaging] Telegram start failed:', e.message));
         }
       }
@@ -149,16 +154,15 @@ export class MessagingPoller {
 
     // Listen for capability toggles
     var unsubCap = (event: any) => {
-      if (event.capability === 'telegram' && event.enabled && self.telegramMode === 'off') {
-        console.log('[messaging] Telegram capability enabled — checking for bot token...');
-        // Try to find a token and start
+      if (event.capability === 'telegram' && event.enabled) {
+        console.log('[messaging] Telegram capability enabled — checking for bot tokens...');
+        // Start all agents with bot tokens that aren't already running
         for (var ag3 of self.config.agents) {
           var chanCfg3 = self.config.getAgentChannelConfig(ag3.id);
           var token3 = chanCfg3?.telegram?.botToken;
-          if (token3) {
+          if (token3 && !self.telegramBots.has(token3)) {
             var ep3: AgentEndpoint = { id: ag3.id, displayName: ag3.displayName || ag3.name || 'Agent', host: ag3.host || 'localhost', port: ag3.port || 3100 };
             self.startTelegram(token3, ep3).catch((e: any) => console.error('[messaging] Telegram start failed:', e.message));
-            break;
           }
         }
       }
@@ -171,6 +175,8 @@ export class MessagingPoller {
     this.running = false;
     for (var fn of this.cleanups) fn();
     this.cleanups = [];
+    this.telegramBots.clear();
+    this.telegramMode = 'off';
     console.log('[messaging] Stopped');
   }
 
@@ -193,11 +199,12 @@ export class MessagingPoller {
       return;
     }
 
-    // Stop existing Telegram (webhook cleanup + polling stop)
-    var oldCleanups = this.cleanups;
-    this.cleanups = [];
-    for (var fn of oldCleanups) fn(); // runs cleanup functions (stops polling, deletes webhook)
-    this.telegramMode = 'off';
+    // Stop only this agent's bot (not all bots)
+    var existingBot = this.telegramBots.get(botToken);
+    if (existingBot) {
+      existingBot.stop();
+      this.telegramBots.delete(botToken);
+    }
 
     // Re-resolve agent endpoint
     var managed = this.config.lifecycle.getAgent(agentId);
@@ -211,7 +218,7 @@ export class MessagingPoller {
     console.log(`[messaging] Restarting Telegram for agent ${agent.displayName} (${agentId.slice(0, 8)}...)`);
     this.running = true;
     await this.startTelegram(botToken, agent);
-    console.log(`[messaging] Telegram restarted (mode=${this.telegramMode})`);
+    console.log(`[messaging] Telegram restarted for ${agent.displayName} (mode=${this.telegramMode})`);
   }
 
   getStatus() {
@@ -264,10 +271,12 @@ export class MessagingPoller {
     // Try webhook first if we have a public URL and Hono app
     if (this.config.publicUrl && this.config.app) {
       try {
-        var webhookUrl = `${this.config.publicUrl}/api/webhooks/telegram`;
+        // Per-agent webhook path so multiple bots don't collide
+        var webhookPath = `/api/webhooks/telegram/${agent.id.slice(0, 12)}`;
+        var webhookUrl = `${this.config.publicUrl}${webhookPath}`;
 
         // Mount webhook route
-        this.config.app.post('/api/webhooks/telegram', async (c) => {
+        this.config.app.post(webhookPath, async (c) => {
           // Verify secret
           var secretHeader = c.req.header('x-telegram-bot-api-secret-token');
           if (secretHeader !== webhookSecret) {
@@ -287,12 +296,14 @@ export class MessagingPoller {
           var cleanupWebhook = async () => {
             try { await deleteTelegramWebhook(botToken); } catch {}
           };
-          this.cleanups.push(() => { cleanupWebhook(); });
-          console.log(`[messaging] Telegram: webhook at ${webhookUrl}`);
+          var stopFn = () => { cleanupWebhook(); };
+          this.cleanups.push(stopFn);
+          this.telegramBots.set(botToken, { agentId: agent.id, stop: stopFn });
+          console.log(`[messaging] Telegram: webhook for ${agent.displayName} at ${webhookUrl}`);
           return;
         }
       } catch (err: any) {
-        console.log(`[messaging] Telegram webhook setup failed (${err.message}), falling back to polling`);
+        console.log(`[messaging] Telegram webhook setup failed for ${agent.displayName} (${err.message}), falling back to polling`);
       }
     }
 
@@ -305,14 +316,24 @@ export class MessagingPoller {
     var offset = 0;
     var running = true;
     var db = this.config.engineDb;
-    this.cleanups.push(() => { running = false; });
+    var stopFn = () => { running = false; };
+    this.cleanups.push(stopFn);
     this.telegramMode = 'polling';
+
+    // Register this bot so we can track and stop it independently
+    this.telegramBots.set(botToken, { agentId: agent.id, stop: stopFn });
+
+    // Per-agent offset key so multiple bots don't overwrite each other
+    var offsetKey = `telegram_offset_${agent.id.slice(0, 12)}`;
 
     var loadOffset = async (): Promise<number> => {
       if (!db?.pool) return 0;
       try {
-        var r = await db.pool.query(`SELECT value FROM engine_settings WHERE key = 'telegram_offset' LIMIT 1`);
-        return parseInt(r.rows?.[0]?.value || '0', 10);
+        // Try agent-specific key first, fall back to legacy shared key for migration
+        var r = await db.pool.query(`SELECT value FROM engine_settings WHERE key = $1 LIMIT 1`, [offsetKey]);
+        if (r.rows?.[0]?.value) return parseInt(r.rows[0].value, 10);
+        var r2 = await db.pool.query(`SELECT value FROM engine_settings WHERE key = 'telegram_offset' LIMIT 1`);
+        return parseInt(r2.rows?.[0]?.value || '0', 10);
       } catch { return 0; }
     };
 
@@ -320,9 +341,9 @@ export class MessagingPoller {
       if (!db?.pool) return;
       try {
         await db.pool.query(
-          `INSERT INTO engine_settings (key, value, updated_at) VALUES ('telegram_offset', $1, NOW())
-           ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
-          [String(off)]
+          `INSERT INTO engine_settings (key, value, updated_at) VALUES ($1, $2, NOW())
+           ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+          [offsetKey, String(off)]
         );
       } catch {}
     };
@@ -335,18 +356,18 @@ export class MessagingPoller {
           var { updates, nextOffset } = await pollTelegramUpdates(botToken, offset, 25);
           if (nextOffset > offset) {
             offset = nextOffset;
-            await saveOffset(offset); // Persist to Postgres
+            await saveOffset(offset);
           }
           for (var update of updates) this.handleTelegramUpdate(update, agent);
         } catch (err: any) {
           if (!running) break;
-          console.error('[messaging] Telegram poll error:', err.message);
+          console.error(`[messaging] Telegram poll error (${agent.displayName}):`, err.message);
           await new Promise(r => setTimeout(r, 5000));
         }
       }
     };
     poll();
-    console.log('[messaging] Telegram: long-polling, offset in Postgres');
+    console.log(`[messaging] Telegram: long-polling for ${agent.displayName} (${agent.id.slice(0,8)})`);
   }
 
   private handleTelegramUpdate(update: any, agent: AgentEndpoint) {
