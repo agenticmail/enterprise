@@ -174,8 +174,11 @@ export async function navigateViaPlaywright(opts: {
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
   await page.goto(url, {
-    timeout: Math.max(1000, Math.min(120_000, opts.timeoutMs ?? 20_000)),
+    timeout: Math.max(1000, Math.min(120_000, opts.timeoutMs ?? 30_000)),
+    waitUntil: 'networkidle',
   });
+  // Extra wait for SPA frameworks (React/Next.js) that render after network settles
+  await page.waitForTimeout(1500);
   return { url: page.url() };
 }
 

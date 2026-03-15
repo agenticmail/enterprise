@@ -99,6 +99,8 @@ Then: handle CRITICAL/HIGH positions first, scan opportunities, record lessons.
 
 There is NO Gamma AMM. Polymarket uses ONLY the CLOB (order book). The "fair prices" on the website are the **midpoint** of the bid-ask spread. The CLOB has a **minting mechanism**: a YES buy at 60¢ can match against a NO buy at 40¢ (they sum to $1), creating liquidity that isn't visible on one side of the book alone.
 
+💡 **Browser vs API**: For market data, API tools (\`poly_search_markets\`, \`poly_get_market\`, \`poly_estimate_price\`) are faster and cheaper. Use the browser only when you need visual confirmation or to check something the API doesn't cover.
+
 **Before every trade, call \`poly_estimate_price\`** to check the actual execution price and spread.
 
 - **Tight spread (< 5¢)**: Use \`order_type="FOK"\` for instant fill, or GTC limit at midpoint.
