@@ -450,7 +450,7 @@ async function callOpenAICompatible(
   var toolCalls: ToolCall[] = [];
   var textParts: string[] = [];
   var stopReason: LLMResponse['stopReason'] = 'end_turn';
-  var usage = { inputTokens: 0, outputTokens: 0 };
+  var usage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
 
   // Track partial tool calls
   var partialToolCalls = new Map<number, { id: string; name: string; args: string }>();
@@ -507,10 +507,14 @@ async function callOpenAICompatible(
       else if (choice.finish_reason === 'stop') stopReason = 'end_turn';
     }
 
-    // Usage
+    // Usage — capture cached tokens from OpenAI's prompt_tokens_details
     if (chunk.usage) {
       usage.inputTokens = chunk.usage.prompt_tokens || 0;
       usage.outputTokens = chunk.usage.completion_tokens || 0;
+      var promptDetails = (chunk.usage as any).prompt_tokens_details;
+      if (promptDetails?.cached_tokens) {
+        usage.cacheReadInputTokens = promptDetails.cached_tokens;
+      }
     }
   }
 
@@ -529,7 +533,11 @@ async function callOpenAICompatible(
     textContent: textParts.join(''),
     thinkingContent: '',
     stopReason,
-    usage,
+    usage: {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      ...(usage.cacheReadInputTokens > 0 ? { cacheReadInputTokens: usage.cacheReadInputTokens } : {}),
+    },
   };
 }
 
@@ -647,7 +655,7 @@ async function callGoogle(
   var toolCalls: ToolCall[] = [];
   var textParts: string[] = [];
   var stopReason: LLMResponse['stopReason'] = 'end_turn';
-  var usage = { inputTokens: 0, outputTokens: 0 };
+  var usage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
   var toolCallCounter = 0;
 
   // Parse SSE stream
@@ -708,6 +716,10 @@ async function callGoogle(
       if (chunk.usageMetadata) {
         usage.inputTokens = chunk.usageMetadata.promptTokenCount || 0;
         usage.outputTokens = chunk.usageMetadata.candidatesTokenCount || 0;
+        // Google reports cached content token count when using context caching
+        if (chunk.usageMetadata.cachedContentTokenCount) {
+          usage.cacheReadInputTokens = chunk.usageMetadata.cachedContentTokenCount;
+        }
       }
     }
   }
@@ -723,7 +735,11 @@ async function callGoogle(
     textContent: textParts.join(''),
     thinkingContent: '',
     stopReason,
-    usage,
+    usage: {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      ...(usage.cacheReadInputTokens > 0 ? { cacheReadInputTokens: usage.cacheReadInputTokens } : {}),
+    },
   };
 }
 

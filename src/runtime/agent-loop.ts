@@ -800,35 +800,42 @@ async function estimateCostAsync(
   cacheCreationTokens?: number,
   cacheReadTokens?: number,
 ): Promise<number> {
+  // Cost formula:
+  //   inputTokens = non-cached input tokens (full price)
+  //   cacheReadTokens = cached input tokens (10% of input price — 90% discount)
+  //   cacheCreationTokens = tokens written to cache (125% of input price — 25% surcharge)
+  //   outputTokens = output tokens (full price)
+  // Note: Anthropic reports inputTokens as ONLY non-cached; cacheReadTokens is separate/additive.
+
   // Try DB pricing via hook
   if (hooks.getModelPricing) {
     try {
       var dbPricing = await hooks.getModelPricing(model.provider, model.modelId);
       if (dbPricing) {
-        var baseCost = (inputTokens * dbPricing.inputCostPerMillion + outputTokens * dbPricing.outputCostPerMillion) / 1_000_000;
-        // Adjust for cached tokens: cache reads cost 90% less, cache creation costs 25% more
+        var inputPrice = dbPricing.inputCostPerMillion;
+        var cost = (inputTokens * inputPrice + outputTokens * dbPricing.outputCostPerMillion) / 1_000_000;
+        // Cache reads cost 10% of input price (90% discount)
         if (cacheReadTokens && cacheReadTokens > 0) {
-          var inputPrice = dbPricing.inputCostPerMillion;
-          baseCost -= (cacheReadTokens * inputPrice * 0.9) / 1_000_000; // 90% discount on cached reads
+          cost += (cacheReadTokens * inputPrice * 0.1) / 1_000_000;
         }
+        // Cache creation costs 125% of input price (25% surcharge)
         if (cacheCreationTokens && cacheCreationTokens > 0) {
-          var inputPrice2 = dbPricing.inputCostPerMillion;
-          baseCost += (cacheCreationTokens * inputPrice2 * 0.25) / 1_000_000; // 25% surcharge on cache writes
+          cost += (cacheCreationTokens * inputPrice * 1.25) / 1_000_000;
         }
-        return Math.max(0, baseCost);
+        return Math.max(0, cost);
       }
     } catch {}
   }
   // Fall back to built-in pricing (cache-aware)
   var p = FALLBACK_PRICES[model.modelId] || { input: 3, output: 15 };
   var cost = (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
-  // Cache reads cost 90% less than regular input tokens
+  // Cache reads cost 10% of input price (90% discount)
   if (cacheReadTokens && cacheReadTokens > 0) {
-    cost -= (cacheReadTokens * p.input * 0.9) / 1_000_000;
+    cost += (cacheReadTokens * p.input * 0.1) / 1_000_000;
   }
-  // Cache creation costs 25% more than regular input tokens
+  // Cache creation costs 125% of input price (25% surcharge)
   if (cacheCreationTokens && cacheCreationTokens > 0) {
-    cost += (cacheCreationTokens * p.input * 0.25) / 1_000_000;
+    cost += (cacheCreationTokens * p.input * 1.25) / 1_000_000;
   }
   return Math.max(0, cost);
 }
