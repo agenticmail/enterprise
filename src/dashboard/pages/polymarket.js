@@ -1986,8 +1986,8 @@ export function PolymarketPage() {
         h('td', null, (t.size || 0).toFixed(1)),
         h('td', null, ((t.fill_price || t.price || 0) * 100).toFixed(1) + '\u00a2'),
         h('td', null, '$' + ((t.fill_price || t.price || 0) * (t.size || 0)).toFixed(2)),
-        h('td', null, h('span', { className: 'badge badge-' + (t.status === 'placed' || t.status === 'filled' ? 'success' : t.status === 'failed' || t.status === 'no_wallet' ? 'danger' : 'secondary') }, t.status)),
-        h('td', null, t.pnl != null ? pnlCell(t.pnl) : (t.status === 'placed' || t.status === 'filled' ? h('span', { className: 'text-muted', style: { fontSize: 11 } }, 'Open') : '--')),
+        h('td', null, h('span', { className: 'badge badge-' + (t.status === 'filled' ? 'success' : t.status === 'placed' ? 'warning' : t.status === 'failed' || t.status === 'no_wallet' ? 'danger' : 'secondary') }, t.status === 'placed' ? 'pending' : t.status)),
+        h('td', null, t.pnl != null ? pnlCell(t.pnl) : (t.status === 'filled' ? h('span', { className: 'text-muted', style: { fontSize: 11 } }, 'Open') : t.status === 'placed' ? h('span', { className: 'text-muted', style: { fontSize: 11 } }, 'Awaiting fill') : '--')),
         h('td', null, fmtDate(t.created_at)),
       ]; },
       { searchFields: ['market_question', 'token_id', 'outcome'], filters: [

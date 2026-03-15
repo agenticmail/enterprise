@@ -3216,12 +3216,15 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
-  // Get pending trades for an agent
+  // Get pending trades for an agent (includes approval-pending AND placed-but-unfilled orders)
   api.get('/polymarket/:agentId/pending', requireRole('admin'), async (c) => {
     try {
       const agentId = c.req.param('agentId');
-      const rows = await edb()?.all(`SELECT * FROM poly_pending_trades WHERE agent_id = ? AND status = 'pending' ORDER BY created_at DESC`, [agentId]) || [];
-      return c.json({ trades: rows });
+      // Approval-mode pending trades
+      const pendingRows = await edb()?.all(`SELECT *, 'approval' as source FROM poly_pending_trades WHERE agent_id = ? AND status = 'pending' ORDER BY created_at DESC`, [agentId]) || [];
+      // Auto-placed but not yet filled orders from trade log
+      const placedRows = await edb()?.all(`SELECT *, 'placed' as source FROM poly_trade_log WHERE agent_id = ? AND status = 'placed' ORDER BY created_at DESC`, [agentId]) || [];
+      return c.json({ trades: [...pendingRows, ...placedRows] });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
 
@@ -3267,7 +3270,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
     try {
       const agentId = c.req.param('agentId');
       const limit = parseInt(c.req.query('limit') || '50');
-      const rows = await edb()?.all(`SELECT * FROM poly_trade_log WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
+      const rows = await edb()?.all(`SELECT * FROM poly_trade_log WHERE agent_id = ? AND status != 'placed' ORDER BY created_at DESC LIMIT ?`, [agentId, limit]) || [];
       return c.json({ trades: rows });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });
@@ -4803,10 +4806,10 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         console.warn(`[live-positions] Data API failed, falling back to trade log: ${apiErr.message}`);
       }
 
-      // Fallback: trade log (but net out buys/sells per token)
+      // Fallback: trade log — only use FILLED orders for position calculation
       const rows = await edb()?.all(
         `SELECT token_id, market_question, outcome, side, price as entry_price, size, created_at
-         FROM poly_trade_log WHERE agent_id = ? AND status = 'placed' AND clob_order_id IS NOT NULL
+         FROM poly_trade_log WHERE agent_id = ? AND status = 'filled' AND clob_order_id IS NOT NULL
          ORDER BY created_at DESC`, [agentId]
       ) || [];
       // Net positions by token_id
