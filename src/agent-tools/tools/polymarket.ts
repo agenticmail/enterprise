@@ -901,6 +901,80 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
     },
 
     {
+      name: 'poly_estimate_price',
+      description: 'Estimate execution price BEFORE placing a trade. Shows what price you would actually get for a given order size. Use this to check if a market has enough liquidity and what slippage to expect. ALWAYS call this before FOK orders.',
+      category: 'enterprise' as const,
+      parameters: { type: 'object' as const, properties: {
+        token_id: { type: 'string', description: 'Token ID to check' },
+        side: { type: 'string', description: 'BUY or SELL' },
+        amount: { type: 'number', description: 'For BUY: dollars to spend. For SELL: shares to sell.' },
+      }, required: ['token_id', 'side', 'amount'] },
+      async execute(_id: string, p: any) {
+        try {
+          const client = await getClobClient(agentId, db);
+          if (!client) return errorResult('No wallet connected.');
+
+          const clobModule = await importSDK('@polymarket/clob-client');
+          const { Side } = clobModule;
+          const side = p.side === 'BUY' ? Side.BUY : Side.SELL;
+
+          // Get midpoint, best prices, and spread
+          const [mid, book] = await Promise.all([
+            apiFetch(`${CLOB_API}/midpoint?token_id=${p.token_id}`).catch(() => null),
+            apiFetch(`${CLOB_API}/book?token_id=${p.token_id}`).catch(() => null),
+          ]);
+
+          const midpoint = parseFloat(mid?.mid || '0');
+          const bestBid = parseFloat(book?.bids?.[0]?.price || '0');
+          const bestAsk = parseFloat(book?.asks?.[0]?.price || '0');
+          const spread = bestAsk - bestBid;
+          const bidDepth = (book?.bids || []).reduce((s: number, b: any) => s + parseFloat(b.size || '0'), 0);
+          const askDepth = (book?.asks || []).reduce((s: number, a: any) => s + parseFloat(a.size || '0'), 0);
+
+          // Estimate execution price using SDK
+          let estimatedPrice: number | null = null;
+          try {
+            estimatedPrice = await client.client.calculateMarketPrice(p.token_id, side, p.amount);
+          } catch {}
+
+          // Walk the book manually to estimate fill
+          let fillable = 0;
+          let totalCost = 0;
+          const levels = p.side === 'BUY' ? (book?.asks || []) : (book?.bids || []);
+          for (const level of levels) {
+            const levelPrice = parseFloat(level.price);
+            const levelSize = parseFloat(level.size);
+            const needed = p.side === 'BUY' ? (p.amount - totalCost) / levelPrice : p.amount - fillable;
+            if (needed <= 0) break;
+            const take = Math.min(levelSize, needed);
+            fillable += take;
+            totalCost += take * levelPrice;
+          }
+          const avgPrice = fillable > 0 ? totalCost / fillable : 0;
+
+          return jsonResult({
+            token_id: p.token_id,
+            side: p.side,
+            amount: p.amount,
+            midpoint: midpoint ? (midpoint * 100).toFixed(1) + '¢' : 'unknown',
+            best_bid: bestBid ? (bestBid * 100).toFixed(1) + '¢' : 'none',
+            best_ask: bestAsk ? (bestAsk * 100).toFixed(1) + '¢' : 'none',
+            spread: spread ? (spread * 100).toFixed(1) + '¢ (' + (spread / (bestAsk || 1) * 100).toFixed(1) + '%)' : 'unknown',
+            bid_depth_shares: bidDepth.toFixed(1),
+            ask_depth_shares: askDepth.toFixed(1),
+            estimated_avg_price: avgPrice ? (avgPrice * 100).toFixed(2) + '¢' : 'insufficient liquidity',
+            estimated_shares: fillable.toFixed(2),
+            estimated_cost: '$' + totalCost.toFixed(2),
+            sdk_estimate: estimatedPrice != null ? (estimatedPrice * 100).toFixed(2) + '¢' : 'unavailable',
+            recommendation: spread > 0.10
+              ? 'Wide spread (' + (spread * 100).toFixed(0) + '¢). Place a GTC limit at midpoint (' + (midpoint * 100).toFixed(1) + '¢) and wait for fill, or use FOK only if you accept the spread.'
+              : 'Tight spread (' + (spread * 100).toFixed(1) + '¢). FOK market order should fill near midpoint.',
+          });
+        } catch (e: any) { return errorResult(e.message); }
+      },
+    },
+
+    {
       name: 'poly_get_trades',
       description: 'Get recent trades',
       category: 'enterprise' as const,

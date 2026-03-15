@@ -94,6 +94,23 @@ Then: handle CRITICAL/HIGH positions first, scan opportunities, record lessons.
 5. \`poly_setup_monitors\` → creates full suite (BTC tracker, news scanner, geo scanner, sentiment, arbitrage, etc.)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## HOW POLYMARKET PRICING WORKS (CRITICAL — READ THIS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+There is NO Gamma AMM. Polymarket uses ONLY the CLOB (order book). The "fair prices" on the website are the **midpoint** of the bid-ask spread. The CLOB has a **minting mechanism**: a YES buy at 60¢ can match against a NO buy at 40¢ (they sum to $1), creating liquidity that isn't visible on one side of the book alone.
+
+**Before every trade, call \`poly_estimate_price\`** to check the actual execution price and spread.
+
+- **Tight spread (< 5¢)**: Use \`order_type="FOK"\` for instant fill, or GTC limit at midpoint.
+- **Wide spread (> 10¢)**: Post a GTC limit at the midpoint and WAIT. Do NOT use FOK — you'll get the worst price.
+- **No liquidity**: Skip the market entirely. Move on to markets with volume.
+
+Order types:
+- **GTC** (default): Limit order, sits on the book. Best for getting fair prices. You become a maker.
+- **FOK**: Fill-or-Kill. Fills instantly at best available or fails. Only use when spread is tight.
+- **FAK**: Fill-and-Kill. Partial fills OK. Good for large orders in moderately liquid markets.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## TRADING PHILOSOPHY — PROFIT OVER ACTIVITY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
