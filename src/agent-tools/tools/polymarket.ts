@@ -3048,6 +3048,27 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       }, required: ['token_id', 'predicted_outcome', 'predicted_probability', 'confidence'] },
       async execute(_id: string, p: any) {
         try {
+          // Check for duplicate — don't allow multiple unresolved predictions for same token
+          try {
+            const existing = await db?.execute(
+              `SELECT id, predicted_outcome, predicted_probability, confidence, created_at FROM poly_predictions WHERE agent_id = $1 AND token_id = $2 AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+              [agentId, p.token_id]
+            );
+            const rows = Array.isArray(existing) ? existing : (existing as any)?.rows || [];
+            if (rows.length > 0) {
+              const prev = rows[0] as any;
+              return jsonResult({
+                status: 'duplicate',
+                existing_prediction_id: prev.id,
+                existing_outcome: prev.predicted_outcome,
+                existing_probability: `${(parseFloat(prev.predicted_probability) * 100).toFixed(1)}%`,
+                existing_confidence: `${(parseFloat(prev.confidence) * 100).toFixed(0)}%`,
+                created_at: prev.created_at,
+                message: 'You already have an unresolved prediction for this token. Resolve the existing one with poly_resolve_prediction first, or use a different token_id.',
+              });
+            }
+          } catch {} // table might not exist yet
+
           // Get current market price
           let marketPrice = 0.5;
           try {
@@ -3064,6 +3085,16 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             signalsUsed: p.signals_used, category: p.category,
           });
 
+          // Store in agent memory so the agent can recall its predictions
+          try {
+            const edb = db;
+            const memContent = `Prediction: ${p.market_question || p.token_id} → ${p.predicted_outcome} at ${(p.predicted_probability * 100).toFixed(0)}% (market: ${(marketPrice * 100).toFixed(0)}%, edge: ${((p.predicted_probability - marketPrice) * 100).toFixed(1)}%). Confidence: ${(p.confidence * 100).toFixed(0)}%. Reasoning: ${p.reasoning || 'none'}`;
+            await edb?.execute(
+              `INSERT INTO agent_memory (id, agent_id, type, content, context, importance, created_at) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+              [`mem_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`, agentId, 'prediction', memContent, JSON.stringify({ prediction_id: predId, token_id: p.token_id, market_question: p.market_question }), 7]
+            ).catch(() => {});
+          } catch {}
+
           const edge = p.predicted_probability - marketPrice;
           return jsonResult({
             status: 'recorded',
@@ -3072,7 +3103,7 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
             market_price: `${(marketPrice * 100).toFixed(1)}%`,
             edge: `${(edge * 100).toFixed(1)}%`,
             confidence: `${(p.confidence * 100).toFixed(0)}%`,
-            message: 'Prediction journaled. After the market resolves, use poly_resolve_prediction to log the outcome and learn.',
+            message: 'Prediction journaled and saved to memory. After the market resolves, use poly_resolve_prediction to log the outcome and learn.',
           });
         } catch (e: any) { return errorResult(e.message); }
       },
@@ -3089,13 +3120,32 @@ export function createPolymarketTools(options: ToolCreationOptions): AnyAgentToo
       }, required: ['prediction_id', 'actual_outcome'] },
       async execute(_id: string, p: any) {
         try {
+          // Get the prediction details before resolving for memory
+          let predDetails: any = null;
+          try {
+            const rows = await db?.execute(`SELECT * FROM poly_predictions WHERE id = $1`, [p.prediction_id]);
+            const arr = Array.isArray(rows) ? rows : (rows as any)?.rows || [];
+            if (arr.length > 0) predDetails = arr[0];
+          } catch {}
+
           await resolvePrediction(db, p.prediction_id, p.actual_outcome, p.pnl || 0);
+
+          // Save resolution to agent memory for learning
+          try {
+            const wasCorrect = predDetails && predDetails.predicted_outcome?.toLowerCase() === p.actual_outcome?.toLowerCase();
+            const memContent = `Trade result: ${predDetails?.market_question || p.prediction_id} → Predicted ${predDetails?.predicted_outcome || '?'}, Actual: ${p.actual_outcome}. ${wasCorrect ? 'CORRECT ✓' : 'WRONG ✗'}. P&L: $${(p.pnl || 0).toFixed(2)}. Confidence was ${((predDetails?.confidence || 0) * 100).toFixed(0)}%. Edge was ${(((predDetails?.predicted_probability || 0) - (predDetails?.market_price_at_prediction || 0)) * 100).toFixed(1)}%.`;
+            await db?.execute(
+              `INSERT INTO agent_memory (id, agent_id, type, content, context, importance, created_at) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+              [`mem_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`, agentId, 'trade_result', memContent, JSON.stringify({ prediction_id: p.prediction_id, was_correct: wasCorrect, pnl: p.pnl || 0 }), wasCorrect ? 6 : 9] // Wrong predictions get higher importance for learning
+            ).catch(() => {});
+          } catch {}
+
           return jsonResult({
             status: 'resolved',
             prediction_id: p.prediction_id,
             actual_outcome: p.actual_outcome,
             pnl: p.pnl || 0,
-            message: 'Prediction resolved. Calibration and strategy stats updated. Run poly_trade_review to extract lessons.',
+            message: 'Prediction resolved and saved to memory. Calibration and strategy stats updated. Run poly_trade_review to extract lessons.',
           });
         } catch (e: any) { return errorResult(e.message); }
       },
