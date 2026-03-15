@@ -193,7 +193,7 @@ async function validateProviderApiKey(
 import { deployToFly, getAppStatus, destroyApp, type FlyConfig, type AppConfig } from '../deploy/fly.js';
 import { SecureVault } from '../engine/vault.js';
 import { getWatcherEngineStatus, controlWatcherEngine } from '../agent-tools/tools/polymarket-watcher.js';
-import { importSDK, getProxyState, loadProxyConfig, saveProxyConfig, startProxy, stopProxy, deployProxyToVPS, autoConnectProxy, initPolymarketDB } from '../agent-tools/tools/polymarket-runtime.js';
+import { importSDK, getProxyState, loadProxyConfig, saveProxyConfig, startProxy, stopProxy, deployProxyToVPS, autoConnectProxy, initPolymarketDB, flushClobClient } from '../agent-tools/tools/polymarket-runtime.js';
 import { executeOrder } from '../agent-tools/tools/polymarket.js';
 
 // Shared vault instance for encrypting/decrypting provider API keys
@@ -3322,6 +3322,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
         VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
       `, [agentId, encrypt(privateKey), address]);
 
+      flushClobClient(agentId);
       try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.created', resourceType: 'agent', resourceId: agentId, details: { address }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
 
       return c.json({ status: 'ok', address, privateKey });
@@ -3352,6 +3353,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           [agentId, encrypt(body.api_key), encrypt(body.api_secret), encrypt(body.api_passphrase), body.wallet_address || '']);
       }
 
+      flushClobClient(agentId);
       try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.api_creds_imported', resourceType: 'agent', resourceId: agentId, details: { hasKey: true }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
 
       return c.json({ status: 'ok', message: 'API credentials imported. Agent can now trade using your existing Polymarket account.' });
@@ -3404,6 +3406,7 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           private_key_encrypted = ?, funder_address = ?, signature_type = 0, api_key = NULL, api_secret = NULL, api_passphrase = NULL, updated_at = CURRENT_TIMESTAMP
       `, [agentId, encrypt(pk), address, encrypt(pk), address]);
 
+      flushClobClient(agentId);
       try { await (db as any).createAuditLog({ userId: c.get('userId' as any), action: 'wallet.imported', resourceType: 'agent', resourceId: agentId, details: { address }, ipAddress: c.req.header('x-forwarded-for') || 'unknown' }); } catch {}
 
       return c.json({ status: 'ok', address, message: 'Wallet imported successfully. API keys will be derived automatically on first use.' });
@@ -3442,6 +3445,22 @@ export function createAdminRoutes(db: DatabaseAdapter) {
           rabby: '1. Open Rabby → Add Address → Import Private Key → Paste',
           polymarket: 'Use this key to sign into polymarket.com via wallet connect',
         }
+      });
+    } catch (e: any) { return c.json({ error: e.message }, 500); }
+  });
+
+  // Sync wallet — flush in-memory cache, force reload from DB
+  api.post('/polymarket/:agentId/wallet/sync', requireRole('admin'), async (c) => {
+    try {
+      const agentId = c.req.param('agentId');
+      const flushed = flushClobClient(agentId);
+      // Verify wallet exists in DB
+      const row = await edb()?.get(`SELECT funder_address, updated_at FROM poly_wallet_credentials WHERE agent_id = ?`, [agentId]) as any;
+      return c.json({
+        status: 'ok',
+        flushed,
+        wallet: row ? { address: row.funder_address, updatedAt: row.updated_at } : null,
+        message: flushed ? 'In-memory wallet cache flushed. Agent will reload from DB on next use.' : 'No cached wallet found. Agent will load from DB on next use.',
       });
     } catch (e: any) { return c.json({ error: e.message }, 500); }
   });

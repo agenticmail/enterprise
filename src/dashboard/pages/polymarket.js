@@ -2296,6 +2296,13 @@ export function PolymarketPage() {
           setTxLoading(false);
         } }, I('clock'), ' Transaction History'),
         h('a', { href: 'https://polygonscan.com/address/' + (wallet?.address || walletBalance?.address), target: '_blank', className: 'btn btn-sm btn-secondary' }, I('globe'), ' View on PolygonScan'),
+        h('button', { className: 'btn btn-sm btn-secondary', title: 'Flush in-memory wallet cache and reload from database', onClick: async function() {
+          try {
+            var res = await apiCall('/polymarket/' + selectedAgent + '/wallet/sync', { method: 'POST' });
+            toast(res.message || 'Wallet synced', 'success');
+            loadAgentData(selectedAgent);
+          } catch (e) { toast(e.message || 'Sync failed', 'error'); }
+        } }, I('refresh'), ' Sync Wallet'),
         h('button', { className: 'btn btn-sm btn-primary', onClick: function() {
           setTransferForm({ to_address: '', amount: '', token: 'USDC.e', reason: '' });
           setTransferCode('');

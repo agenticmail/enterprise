@@ -659,6 +659,17 @@ interface ClobClientInstance {
 const clientInstances = new Map<string, ClobClientInstance>();
 
 /**
+ * Flush cached CLOB client for an agent, forcing reload from DB on next use.
+ * Call this when wallet credentials are updated (import, create, sync).
+ */
+export function flushClobClient(agentId: string): boolean {
+  const had = clientInstances.has(agentId);
+  clientInstances.delete(agentId);
+  if (had) console.log(`[polymarket] Flushed cached CLOB client for agent ${agentId.slice(0, 8)}`);
+  return had;
+}
+
+/**
  * Get or create a CLOB client for an agent.
  * Credentials are loaded from the DB.
  */
