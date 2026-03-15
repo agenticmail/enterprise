@@ -132,6 +132,12 @@ export function PolymarketPage() {
   const [swapLoading, setSwapLoading] = useState(false);
   const [swapCountdown, setSwapCountdown] = useState(0);
   const [chartVisible, setChartVisible] = useState(function() { try { return localStorage.getItem('pm_chart_visible') !== 'false'; } catch { return true; } });
+  // Export key PIN verification
+  const [exportStep, setExportStep] = useState('idle'); // 'idle' | 'pin' | 'setup_pin' | 'revealed'
+  const [exportPin, setExportPin] = useState('');
+  const [exportPinSetup, setExportPinSetup] = useState({ pin: '', confirm: '' });
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportAutoCloseTimer, setExportAutoCloseTimer] = useState(null);
 
   // Countdown timer during swap
   useEffect(function() {
@@ -2376,13 +2382,13 @@ export function PolymarketPage() {
       ),
       // Wallet management bar
       (wallet || walletBalance) && h('div', { style: { display: 'flex', gap: 8, marginTop: 16, marginBottom: 4 } },
-        h('button', { className: 'btn btn-sm btn-secondary', onClick: async function() {
-          if (!(await showConfirm('Export your wallet private key?\n\nThis will reveal the private key that controls all funds. Only do this if you need to import the wallet into MetaMask, Rabby, or another wallet app.\n\nThis action is logged in the audit trail.'))) return;
-          try {
-            var res = await apiCall('/polymarket/' + selectedAgent + '/wallet/export', { method: 'POST', body: JSON.stringify({ confirm: 'EXPORT' }) });
-            if (res.privateKey) { setExportedKey(res); }
-            else { toast(res.error || 'Export failed', 'error'); }
-          } catch (e) { toast(e.message || 'Export failed — owner access required', 'error'); }
+        h('button', { className: 'btn btn-sm btn-secondary', onClick: function() {
+          // Start PIN verification flow for export
+          if (walletSecurity && walletSecurity.hasPin) {
+            setExportStep('pin'); setExportPin('');
+          } else {
+            setExportStep('setup_pin'); setExportPinSetup({ pin: '', confirm: '' });
+          }
         } }, I('key'), ' Export Private Key'),
         h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { setImportKey(''); setShowImportWallet(true); } }, I('download'), ' Import Wallet'),
         h('button', { className: 'btn btn-sm btn-secondary', onClick: async function() {
@@ -3054,58 +3060,136 @@ export function PolymarketPage() {
         )
       ),
 
-      // Export key modal
-      exportedKey && h('div', { className: 'modal-overlay', onMouseMove: hideTip, onClick: function() { setExportedKey(null); } },
+      // Export key modal — PIN-gated with auto-close
+      exportStep !== 'idle' && h('div', { className: 'modal-overlay', onMouseMove: hideTip, onClick: function() { setExportStep('idle'); setExportedKey(null); if (exportAutoCloseTimer) clearTimeout(exportAutoCloseTimer); } },
         h('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); }, style: { width: 520, maxHeight: '85vh', overflow: 'auto' } },
           h('div', { className: 'modal-header' },
-            h('h2', { style: { fontSize: 16, flex: 1, display: 'flex', alignItems: 'center', gap: 8 } }, I('key'), ' Wallet Private Key'),
-            h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setExportedKey(null); } }, '\u00d7')
+            h('h2', { style: { fontSize: 16, flex: 1, display: 'flex', alignItems: 'center', gap: 8 } }, I('key'), ' Export Private Key'),
+            h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setExportStep('idle'); setExportedKey(null); if (exportAutoCloseTimer) clearTimeout(exportAutoCloseTimer); } }, '\u00d7')
           ),
           h('div', { className: 'modal-body', style: { padding: 20 } },
-            h('div', { style: { padding: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#ef4444', lineHeight: 1.6 } },
-              h('strong', null, '\u26A0 SECURITY WARNING'), h('br'),
-              'Anyone with this key has FULL CONTROL of this wallet and all funds. Never share it. Never paste it into untrusted sites.'
-            ),
-            exportedKey.mismatch && h('div', { style: { padding: 12, background: 'rgba(239,68,68,0.15)', border: '2px solid rgba(239,68,68,0.5)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#dc2626', lineHeight: 1.6 } },
-              h('strong', null, '\u26A0 CRITICAL: KEY MISMATCH'), h('br'),
-              'This private key derives address ', h('code', null, exportedKey.address),
-              ' but your funded wallet is ', h('code', null, exportedKey.storedFunderAddress), '. ',
-              h('br'), h('strong', null, 'The agent CANNOT access funds at the stored address. '),
-              'This is likely caused by a VAULT_KEY environment variable change. Restore the original VAULT_KEY and restart to recover access.'
-            ),
-            h('div', { style: { marginBottom: 16 } },
-              h('label', { style: _labelStyle }, exportedKey.mismatch ? 'Derived Address (from private key)' : 'Wallet Address'),
-              h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all' } }, exportedKey.address),
-              exportedKey.mismatch && h('div', { style: { marginTop: 8 } },
-                h('label', { style: _labelStyle }, 'Stored Funder Address (has funds)'),
-                h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, padding: '10px 12px', background: 'rgba(239,68,68,0.06)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all', border: '1px solid rgba(239,68,68,0.2)' } }, exportedKey.storedFunderAddress)
+
+            // Step: Enter PIN
+            exportStep === 'pin' && h('div', null,
+              h('div', { style: { textAlign: 'center', padding: '16px 0' } },
+                h('div', { style: { marginBottom: 12, color: 'var(--text-muted)' } }, I('lock', 40)),
+                h('h3', { style: { marginBottom: 8 } }, 'Enter Wallet PIN'),
+                h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 } }, 'Enter your 6-digit wallet PIN to reveal the private key.')
+              ),
+              h('input', { type: 'password', value: exportPin, maxLength: 6, placeholder: '\u2022\u2022\u2022\u2022\u2022\u2022', autoFocus: true,
+                style: { width: '100%', padding: '12px 16px', fontSize: 24, textAlign: 'center', letterSpacing: 8, fontFamily: 'var(--font-mono)', border: '2px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' },
+                onChange: function(e) { setExportPin(e.target.value.replace(/\D/g, '').slice(0, 6)); }
+              }),
+              h('div', { style: { display: 'flex', gap: 8, marginTop: 16 } },
+                h('button', { className: 'btn btn-secondary', onClick: function() { setExportStep('idle'); } }, 'Cancel'),
+                h('button', { className: 'btn btn-primary', disabled: exportPin.length !== 6 || exportLoading, onClick: async function() {
+                  setExportLoading(true);
+                  try {
+                    var verify = await apiCall('/polymarket/' + selectedAgent + '/wallet/verify-transfer', { method: 'POST', body: JSON.stringify({ method: 'pin', code: exportPin }) });
+                    if (verify.ok) {
+                      var res = await apiCall('/polymarket/' + selectedAgent + '/wallet/export', { method: 'POST', body: JSON.stringify({ confirm: 'EXPORT' }) });
+                      if (res.privateKey) {
+                        setExportedKey(res); setExportStep('revealed');
+                        // Auto-close after 60 seconds
+                        var timer = setTimeout(function() { setExportStep('idle'); setExportedKey(null); toast('Export modal auto-closed for security', 'info'); }, 60000);
+                        setExportAutoCloseTimer(timer);
+                      } else { toast(res.error || 'Export failed', 'error'); }
+                    } else { toast(verify.error || 'Invalid PIN', 'error'); }
+                  } catch (e) { toast(e.message || 'Verification failed', 'error'); }
+                  setExportLoading(false);
+                } }, exportLoading ? 'Verifying...' : 'Verify & Export')
               )
             ),
-            h('div', { style: { marginBottom: 16 } },
-              h('label', { style: _labelStyle }, 'Private Key'),
-              h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 12, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all', border: '1px solid rgba(239,68,68,0.3)' } }, exportedKey.privateKey)
-            ),
-            h('div', { style: { display: 'flex', gap: 8, marginBottom: 16 } },
-              h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navigator.clipboard?.writeText(exportedKey.privateKey); toast('Private key copied', 'success'); } }, 'Copy Key'),
-              h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navigator.clipboard?.writeText(exportedKey.address); toast('Address copied', 'success'); } }, 'Copy Address')
-            ),
-            h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
-              h('div', { style: { fontWeight: 600, marginBottom: 6 } }, 'Import into a wallet app:'),
-              h('div', { style: { display: 'grid', gap: 8 } },
-                h('div', { style: { padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 12 } },
-                  h('strong', null, 'MetaMask: '), 'Open MetaMask \u2192 Account menu \u2192 Import Account \u2192 Paste private key'
+
+            // Step: Set up PIN (first time)
+            exportStep === 'setup_pin' && (function() {
+              var pinVal = exportPinSetup.pin;
+              var confVal = exportPinSetup.confirm;
+              var isTrivial = pinVal.length === 6 && (/^(.)\1{5}$/.test(pinVal) || pinVal === '123456' || pinVal === '654321');
+              var mismatch = pinVal.length === 6 && confVal.length === 6 && pinVal !== confVal;
+              var canSubmit = pinVal.length === 6 && confVal.length === 6 && pinVal === confVal && !isTrivial && !exportLoading;
+              return h('div', null,
+                h('div', { style: { textAlign: 'center', padding: '12px 0 16px' } },
+                  h('div', { style: { marginBottom: 12, color: '#b45309' } }, I('shield', 40)),
+                  h('h3', { style: { marginBottom: 8 } }, 'Set Up Wallet PIN First'),
+                  h('p', { style: { fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 } }, 'A 6-digit wallet PIN is required to export your private key. This PIN is also used for fund transfers.')
                 ),
-                h('div', { style: { padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 12 } },
-                  h('strong', null, 'Rabby: '), 'Open Rabby \u2192 Add Address \u2192 Import Private Key \u2192 Paste'
+                h('div', { style: { marginBottom: 12 } },
+                  h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'PIN (6 digits)'),
+                  h('input', { type: 'password', inputMode: 'numeric', value: pinVal, maxLength: 6, placeholder: '\u2022\u2022\u2022\u2022\u2022\u2022', autoComplete: 'new-password',
+                    style: { width: '100%', padding: '10px 14px', fontSize: 20, textAlign: 'center', letterSpacing: 8, fontFamily: 'var(--font-mono)', border: '2px solid ' + (isTrivial ? '#ef4444' : 'var(--border)'), borderRadius: 8, background: 'var(--bg-secondary)' },
+                    onInput: function(e) { setExportPinSetup(Object.assign({}, exportPinSetup, { pin: e.target.value.replace(/\D/g, '').slice(0, 6) })); }
+                  }),
+                  isTrivial && h('div', { style: { fontSize: 11, color: '#ef4444', marginTop: 4 } }, 'PIN is too simple. Choose a less predictable PIN.')
                 ),
-                h('div', { style: { padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 12 } },
-                  h('strong', null, 'Polymarket: '), 'Go to polymarket.com \u2192 Login \u2192 Connect Wallet \u2192 Use imported wallet via MetaMask/Rabby'
+                h('div', { style: { marginBottom: 12 } },
+                  h('label', { style: { fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 } }, 'Confirm PIN'),
+                  h('input', { type: 'password', inputMode: 'numeric', value: confVal, maxLength: 6, placeholder: '\u2022\u2022\u2022\u2022\u2022\u2022', autoComplete: 'new-password',
+                    style: { width: '100%', padding: '10px 14px', fontSize: 20, textAlign: 'center', letterSpacing: 8, fontFamily: 'var(--font-mono)', border: '2px solid ' + (mismatch ? '#ef4444' : 'var(--border)'), borderRadius: 8, background: 'var(--bg-secondary)' },
+                    onInput: function(e) { setExportPinSetup(Object.assign({}, exportPinSetup, { confirm: e.target.value.replace(/\D/g, '').slice(0, 6) })); }
+                  }),
+                  mismatch && h('div', { style: { fontSize: 11, color: '#ef4444', marginTop: 4 } }, 'PINs do not match')
+                ),
+                h('div', { style: { display: 'flex', gap: 8, marginTop: 16 } },
+                  h('button', { className: 'btn btn-secondary', onClick: function() { setExportStep('idle'); } }, 'Cancel'),
+                  h('button', { className: 'btn btn-primary', disabled: !canSubmit, onClick: async function() {
+                    setExportLoading(true);
+                    try {
+                      var res = await apiCall('/polymarket/' + selectedAgent + '/wallet/setup-pin', { method: 'POST', body: JSON.stringify({ pin: pinVal }) });
+                      if (res.ok) {
+                        toast('Wallet PIN created!', 'success');
+                        setWalletSecurity(Object.assign({}, walletSecurity, { hasPin: true }));
+                        // Now export immediately
+                        var exp = await apiCall('/polymarket/' + selectedAgent + '/wallet/export', { method: 'POST', body: JSON.stringify({ confirm: 'EXPORT' }) });
+                        if (exp.privateKey) {
+                          setExportedKey(exp); setExportStep('revealed');
+                          var timer = setTimeout(function() { setExportStep('idle'); setExportedKey(null); toast('Export modal auto-closed for security', 'info'); }, 60000);
+                          setExportAutoCloseTimer(timer);
+                        }
+                      } else { toast(res.error || 'PIN setup failed', 'error'); }
+                    } catch (e) { toast(e.message, 'error'); }
+                    setExportLoading(false);
+                  } }, exportLoading ? 'Setting up...' : 'Create PIN & Export Key')
+                )
+              );
+            })(),
+
+            // Step: Key revealed (auto-closes in 60s)
+            exportStep === 'revealed' && exportedKey && h('div', null,
+              h('div', { style: { padding: 10, background: 'rgba(180,83,9,0.1)', border: '1px solid rgba(180,83,9,0.3)', borderRadius: 8, marginBottom: 12, fontSize: 12, color: '#b45309', textAlign: 'center' } },
+                I('clock'), ' This window will auto-close in 60 seconds for security.'
+              ),
+              h('div', { style: { padding: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#ef4444', lineHeight: 1.6 } },
+                h('strong', null, '\u26A0 SECURITY WARNING'), h('br'),
+                'Anyone with this key has FULL CONTROL of this wallet and all funds. Never share it.'
+              ),
+              exportedKey.mismatch && h('div', { style: { padding: 12, background: 'rgba(239,68,68,0.15)', border: '2px solid rgba(239,68,68,0.5)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#dc2626', lineHeight: 1.6 } },
+                h('strong', null, '\u26A0 KEY MISMATCH'), h('br'),
+                'Key derives ', h('code', null, exportedKey.address), ' but funded wallet is ', h('code', null, exportedKey.storedFunderAddress)
+              ),
+              h('div', { style: { marginBottom: 16 } },
+                h('label', { style: _labelStyle }, 'Wallet Address'),
+                h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 13, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all' } }, exportedKey.address)
+              ),
+              h('div', { style: { marginBottom: 16 } },
+                h('label', { style: _labelStyle }, 'Private Key'),
+                h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 12, padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all', border: '1px solid rgba(239,68,68,0.3)' } }, exportedKey.privateKey)
+              ),
+              h('div', { style: { display: 'flex', gap: 8, marginBottom: 16 } },
+                h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navigator.clipboard?.writeText(exportedKey.privateKey); toast('Private key copied', 'success'); } }, 'Copy Key'),
+                h('button', { className: 'btn btn-sm btn-secondary', onClick: function() { navigator.clipboard?.writeText(exportedKey.address); toast('Address copied', 'success'); } }, 'Copy Address')
+              ),
+              h('div', { style: { fontSize: 13, color: 'var(--text-secondary)' } },
+                h('div', { style: { fontWeight: 600, marginBottom: 6 } }, 'Import into a wallet app:'),
+                h('div', { style: { display: 'grid', gap: 8 } },
+                  h('div', { style: { padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 12 } }, h('strong', null, 'MetaMask: '), 'Account menu \u2192 Import Account \u2192 Paste key'),
+                  h('div', { style: { padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 12 } }, h('strong', null, 'Rabby: '), 'Add Address \u2192 Import Private Key \u2192 Paste')
                 )
               )
             )
           ),
           h('div', { className: 'modal-footer' },
-            h('button', { className: 'btn btn-primary', onClick: function() { setExportedKey(null); } }, 'Done')
+            h('button', { className: 'btn btn-primary', onClick: function() { setExportStep('idle'); setExportedKey(null); if (exportAutoCloseTimer) clearTimeout(exportAutoCloseTimer); } }, 'Close')
           )
         )
       ),
