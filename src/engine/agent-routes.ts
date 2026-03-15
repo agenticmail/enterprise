@@ -1638,7 +1638,7 @@ export function createAgentRoutes(opts: {
               'poly_portfolio_summary', 'poly_place_order', 'poly_place_batch_orders',
               'poly_get_open_orders', 'poly_get_order', 'poly_cancel_order', 'poly_cancel_orders', 'poly_cancel_all',
               'poly_replace_order', 'poly_trade_history', 'poly_export_trades',
-              'poly_analyze_market', 'poly_compare_markets', 'poly_estimate_fill', 'poly_scan_opportunities',
+              'poly_analyze_market', 'poly_compare_markets', 'poly_estimate_fill', 'poly_estimate_price', 'poly_scan_opportunities',
               'poly_set_config', 'poly_get_config', 'poly_circuit_breaker',
               'poly_set_alert', 'poly_list_alerts', 'poly_delete_alert',
               'poly_pending_trades', 'poly_approve_trade', 'poly_reject_trade', 'poly_auto_approve_rule',

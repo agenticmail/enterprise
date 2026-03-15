@@ -787,6 +787,23 @@ export const TOOLS: ToolDefinition[] = [
   },
 
   {
+    id: 'poly_estimate_price',
+    name: 'Estimate Execution Price',
+    description: 'Check what price you would actually get BEFORE placing a trade. Shows midpoint, spread, depth, and estimated avg fill price. ALWAYS call before FOK orders. Recommends GTC vs FOK based on spread.',
+    category: 'read',
+    risk: 'low',
+    skillId: 'polymarket',
+    sideEffects: [],
+    parameters: {
+      type: 'object',
+      properties: {
+        token_id: { type: 'string', description: 'Token ID to check' },
+        side: { type: 'string', description: 'BUY or SELL' },
+        amount: { type: 'number', description: 'BUY: dollars to spend. SELL: shares to sell.' },
+      },
+    },
+  },
+  {
     id: 'poly_scan_opportunities',
     name: 'Scan Opportunities',
     description: 'Automated opportunity scanner: finds markets with unusual volume spikes, price dislocations, closing-soon with wide spreads, new markets with thin books, or arbitrage between related markets.',

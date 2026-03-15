@@ -561,6 +561,7 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   poly_analyze_market: 'polymarket',
   poly_compare_markets: 'polymarket',
   poly_estimate_fill: 'polymarket',
+  poly_estimate_price: 'polymarket',
   poly_related_markets: 'polymarket',
   // ── Polymarket Research (on-demand — social, leaderboard, news) ──
   poly_market_comments: 'polymarket_feeds',
