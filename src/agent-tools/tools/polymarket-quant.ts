@@ -15,14 +15,18 @@ export function createPolymarketQuantTools(_opts?: ToolCreationOptions): AnyAgen
   return [
     {
       name: 'poly_kelly_criterion',
-      description: 'Calculate optimal position size using the Kelly Criterion. Given your estimated true probability and market price, returns the mathematically optimal fraction of bankroll to bet. Also returns half-Kelly and quarter-Kelly (more conservative). Formula: f* = (p·b - q) / b where b = (1/price - 1), p = true probability, q = 1-p.',
+      description: 'Calculate optimal position size using an enhanced Kelly Criterion built for prediction markets. Factors in: confidence level in your estimate, orderbook spread costs, time to market close, account drawdown, existing exposure, and liquidity constraints. Returns both dollar amounts AND exact share counts. ALWAYS pass bankroll and token_id for best results. Use the "adjusted" recommendation — it accounts for all real-world factors that raw Kelly ignores.',
       parameters: {
         type: 'object', properties: {
           true_probability: { type: 'number', description: 'Your estimated true probability of the outcome (0-1)' },
-          market_price: { type: 'number', description: 'Current market price (0-1). If omitted, fetched from token_id.' },
-          token_id: { type: 'string', description: 'Token ID to fetch live price' },
-          bankroll: { type: 'number', description: 'Total available capital (USDC)' },
-          max_fraction: { type: 'number', description: 'Max fraction of bankroll per bet (risk cap)', default: 0.25 },
+          market_price: { type: 'number', description: 'Current market price (0-1). If omitted, fetched live from token_id.' },
+          token_id: { type: 'string', description: 'Token ID — provides live price, spread, and liquidity data' },
+          bankroll: { type: 'number', description: 'Total available capital (USDC). ALWAYS provide this.' },
+          confidence: { type: 'number', description: 'How confident are you in your probability estimate (0.1-1.0)? 0.5=coinflip, 0.7=reasonable, 0.9=very confident. This is the single most important adjustment.' },
+          time_to_close_hours: { type: 'number', description: 'Hours until market closes/resolves. Reduces sizing for imminent closes.' },
+          current_exposure: { type: 'number', description: 'Dollar amount already deployed in this or correlated markets.' },
+          drawdown_pct: { type: 'number', description: 'Current account drawdown %. Reduces sizing in losing streaks.' },
+          max_fraction: { type: 'number', description: 'Max fraction of bankroll per bet (default 0.20 = 20%)' },
         }, required: ['true_probability'],
       },
       async execute(_id: string, p: any) {

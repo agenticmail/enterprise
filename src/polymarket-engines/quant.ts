@@ -36,12 +36,22 @@ import {
 
 export interface KellyResult {
   formula: string;
-  inputs: { true_probability: number; market_price: number; odds: string };
-  kelly: { full: number; half: number; quarter: number; capped: number };
+  inputs: { true_probability: number; market_price: number; odds: string; confidence: number; spread: number };
+  kelly: { full: number; half: number; quarter: number; capped: number; adjusted: number };
   expected_value_per_dollar: number;
   edge_pct: number;
   signal: 'BUY' | 'SELL' | 'NO_EDGE';
-  recommended_bet?: { full_kelly: number; half_kelly: number; quarter_kelly: number; capped: number };
+  recommended_bet?: { full_kelly: number; half_kelly: number; quarter_kelly: number; capped: number; adjusted: number };
+  recommended_shares?: { full_kelly: number; half_kelly: number; quarter_kelly: number; capped: number; adjusted: number };
+  sizing_reasoning: string;
+  market_context: {
+    spread: number;
+    spread_cost_pct: number;
+    available_liquidity: number;
+    max_shares_available: number;
+    time_to_close_hours: number | null;
+    liquidity_warning: boolean;
+  };
   warnings: string[];
 }
 
@@ -51,48 +61,180 @@ export async function calculateKelly(params: {
   token_id?: string;
   bankroll?: number;
   max_fraction?: number;
+  confidence?: number;
+  time_to_close_hours?: number;
+  current_exposure?: number;
+  drawdown_pct?: number;
 }): Promise<KellyResult> {
   let price = params.market_price;
-  if (!price && params.token_id) {
-    const mid = await apiFetch(`${CLOB_API}/midpoint?token_id=${params.token_id}`);
-    price = parseFloat(mid?.mid || '0.5');
+  let spread = 0;
+  let bestAsk = 0;
+  let bestBid = 0;
+  let askDepth = 0;
+  let bidDepth = 0;
+
+  // Fetch live market data if token_id provided
+  if (params.token_id) {
+    try {
+      const [midRes, bookRes] = await Promise.all([
+        apiFetch(`${CLOB_API}/midpoint?token_id=${params.token_id}`).catch(() => null),
+        apiFetch(`${CLOB_API}/book?token_id=${params.token_id}`).catch(() => null),
+      ]);
+      if (!price && midRes) price = parseFloat(midRes?.mid || '0.5');
+      if (bookRes) {
+        bestBid = parseFloat(bookRes?.bids?.[0]?.price || '0');
+        bestAsk = parseFloat(bookRes?.asks?.[0]?.price || '0');
+        spread = bestAsk > 0 && bestBid > 0 ? bestAsk - bestBid : 0;
+        // Calculate available liquidity (total shares on the relevant side)
+        askDepth = (bookRes?.asks || []).reduce((s: number, a: any) => s + parseFloat(a.size || '0'), 0);
+        bidDepth = (bookRes?.bids || []).reduce((s: number, b: any) => s + parseFloat(b.size || '0'), 0);
+      }
+    } catch {}
   }
   if (!price) throw new Error('Provide market_price or token_id');
 
   const prob = params.true_probability;
+  const confidence = Math.max(0.1, Math.min(1.0, params.confidence || 0.7));
   const q = 1 - prob;
   const b = (1 / price) - 1;
-  const kellyFraction = (prob * b - q) / b;
-  const halfKelly = kellyFraction / 2;
-  const quarterKelly = kellyFraction / 4;
-  const maxF = params.max_fraction || 0.25;
-  const cappedKelly = Math.min(Math.max(kellyFraction, 0), maxF);
+
+  // ── Raw Kelly ──
+  const rawKelly = (prob * b - q) / b;
+
+  // ── Confidence-Adjusted Kelly ──
+  // If you're only 70% confident in your probability estimate, shrink proportionally.
+  // This is the biggest single improvement over naive Kelly for prediction markets
+  // where your "true probability" is itself uncertain.
+  const confidenceAdjusted = rawKelly * confidence;
+
+  // ── Spread Cost Penalty ──
+  // The spread is a guaranteed cost. If spread is 5¢ on a 50¢ market, that's 10% drag.
+  // Reduce Kelly by the spread cost relative to edge.
+  const edgePct = prob - price;
+  const spreadCostPct = price > 0 ? spread / (2 * price) : 0; // half-spread as % of price
+  const spreadPenalty = edgePct > 0 ? Math.max(0, 1 - (spreadCostPct / edgePct)) : 1;
+
+  // ── Time Decay Factor ──
+  // Markets closing within hours: reduce position (less time for mean reversion / resolution info)
+  // Markets weeks out: full sizing
+  let timeFactor = 1.0;
+  if (params.time_to_close_hours != null) {
+    const h = params.time_to_close_hours;
+    if (h < 1) timeFactor = 0.3;        // < 1 hour: very aggressive time pressure
+    else if (h < 6) timeFactor = 0.5;   // < 6 hours
+    else if (h < 24) timeFactor = 0.7;  // < 1 day
+    else if (h < 72) timeFactor = 0.85; // < 3 days
+    else if (h < 168) timeFactor = 0.95; // < 1 week
+    // > 1 week: full sizing (timeFactor = 1.0)
+  }
+
+  // ── Drawdown Protection ──
+  // If the account is in drawdown, reduce sizing to avoid ruin
+  let drawdownFactor = 1.0;
+  if (params.drawdown_pct != null && params.drawdown_pct > 0) {
+    const dd = params.drawdown_pct;
+    if (dd > 30) drawdownFactor = 0.25;      // > 30% drawdown: quarter size
+    else if (dd > 20) drawdownFactor = 0.4;  // > 20%
+    else if (dd > 10) drawdownFactor = 0.6;  // > 10%
+    else if (dd > 5) drawdownFactor = 0.8;   // > 5%
+  }
+
+  // ── Exposure Limit ──
+  // If already exposed to this market/correlated markets, reduce
+  let exposureFactor = 1.0;
+  if (params.current_exposure != null && params.bankroll && params.bankroll > 0) {
+    const exposurePct = params.current_exposure / params.bankroll;
+    if (exposurePct > 0.4) exposureFactor = 0.2;       // >40% in one market: barely add
+    else if (exposurePct > 0.25) exposureFactor = 0.4;  // >25%
+    else if (exposurePct > 0.15) exposureFactor = 0.7;  // >15%
+  }
+
+  // ── Final Adjusted Kelly ──
+  const adjustedKelly = confidenceAdjusted * spreadPenalty * timeFactor * drawdownFactor * exposureFactor;
+  const halfKelly = rawKelly / 2;
+  const quarterKelly = rawKelly / 4;
+  const maxF = params.max_fraction || 0.20; // Default 20% cap (more conservative than 25%)
+  const cappedKelly = Math.min(Math.max(rawKelly, 0), maxF);
+  const finalKelly = Math.min(Math.max(adjustedKelly, 0), maxF);
+
   const ev = prob * (1 / price - 1) - q;
   const bankroll = params.bankroll || 0;
-  const optimalBet = bankroll * cappedKelly;
+
+  // ── Liquidity Constraint ──
+  // Don't size larger than what the orderbook can fill
+  const relevantDepth = askDepth; // for BUY orders
+  const maxSharesFromLiquidity = relevantDepth > 0 ? relevantDepth * 0.5 : Infinity; // don't take more than 50% of book
+
+  // ── Calculate shares ──
+  const calcShares = (dollarAmt: number) => {
+    if (dollarAmt <= 0 || price <= 0) return 0;
+    const fillPrice = bestAsk > 0 ? bestAsk : price; // use actual ask, not midpoint
+    const rawShares = dollarAmt / fillPrice;
+    return Math.min(rawShares, maxSharesFromLiquidity);
+  };
+
+  const betAmounts = bankroll > 0 ? {
+    full_kelly: parseFloat((bankroll * Math.max(rawKelly, 0)).toFixed(2)),
+    half_kelly: parseFloat((bankroll * Math.max(halfKelly, 0)).toFixed(2)),
+    quarter_kelly: parseFloat((bankroll * Math.max(quarterKelly, 0)).toFixed(2)),
+    capped: parseFloat((bankroll * cappedKelly).toFixed(2)),
+    adjusted: parseFloat((bankroll * finalKelly).toFixed(2)),
+  } : undefined;
+
+  const shareAmounts = bankroll > 0 ? {
+    full_kelly: parseFloat(calcShares(bankroll * Math.max(rawKelly, 0)).toFixed(1)),
+    half_kelly: parseFloat(calcShares(bankroll * Math.max(halfKelly, 0)).toFixed(1)),
+    quarter_kelly: parseFloat(calcShares(bankroll * Math.max(quarterKelly, 0)).toFixed(1)),
+    capped: parseFloat(calcShares(bankroll * cappedKelly).toFixed(1)),
+    adjusted: parseFloat(calcShares(bankroll * finalKelly).toFixed(1)),
+  } : undefined;
+
+  // ── Build reasoning ──
+  const factors: string[] = [];
+  factors.push(`Raw Kelly: ${(rawKelly * 100).toFixed(1)}% of bankroll`);
+  if (confidence < 1) factors.push(`Confidence adjustment (${(confidence * 100).toFixed(0)}%): ${(rawKelly * 100).toFixed(1)}% → ${(confidenceAdjusted * 100).toFixed(1)}%`);
+  if (spreadPenalty < 1) factors.push(`Spread penalty (${(spread * 100).toFixed(1)}¢ spread): -${((1 - spreadPenalty) * 100).toFixed(0)}%`);
+  if (timeFactor < 1) factors.push(`Time decay (${params.time_to_close_hours?.toFixed(0)}h to close): -${((1 - timeFactor) * 100).toFixed(0)}%`);
+  if (drawdownFactor < 1) factors.push(`Drawdown protection (${params.drawdown_pct?.toFixed(1)}% down): -${((1 - drawdownFactor) * 100).toFixed(0)}%`);
+  if (exposureFactor < 1) factors.push(`Exposure limit: -${((1 - exposureFactor) * 100).toFixed(0)}%`);
+  factors.push(`Final adjusted: ${(finalKelly * 100).toFixed(2)}% of bankroll`);
+  if (bankroll > 0 && shareAmounts) factors.push(`→ ${shareAmounts.adjusted} shares ($${betAmounts?.adjusted})`);
+
+  const liquidityWarning = maxSharesFromLiquidity < Infinity && shareAmounts && shareAmounts.adjusted > maxSharesFromLiquidity * 0.8;
 
   return {
-    formula: 'f* = (p·b - q) / b',
-    inputs: { true_probability: prob, market_price: price, odds: b.toFixed(4) },
+    formula: 'f* = (p·b - q) / b × confidence × spread_penalty × time_factor × drawdown_factor × exposure_factor',
+    inputs: { true_probability: prob, market_price: price, odds: b.toFixed(4), confidence, spread: parseFloat(spread.toFixed(4)) },
     kelly: {
-      full: parseFloat(kellyFraction.toFixed(6)),
+      full: parseFloat(rawKelly.toFixed(6)),
       half: parseFloat(halfKelly.toFixed(6)),
       quarter: parseFloat(quarterKelly.toFixed(6)),
       capped: parseFloat(cappedKelly.toFixed(6)),
+      adjusted: parseFloat(finalKelly.toFixed(6)),
     },
     expected_value_per_dollar: parseFloat(ev.toFixed(6)),
-    edge_pct: parseFloat(((prob - price) * 100).toFixed(2)),
-    signal: kellyFraction > 0 ? 'BUY' : kellyFraction < -0.01 ? 'SELL' : 'NO_EDGE',
-    recommended_bet: bankroll > 0 ? {
-      full_kelly: parseFloat((bankroll * Math.max(kellyFraction, 0)).toFixed(2)),
-      half_kelly: parseFloat((bankroll * Math.max(halfKelly, 0)).toFixed(2)),
-      quarter_kelly: parseFloat((bankroll * Math.max(quarterKelly, 0)).toFixed(2)),
-      capped: parseFloat(optimalBet.toFixed(2)),
-    } : undefined,
+    edge_pct: parseFloat((edgePct * 100).toFixed(2)),
+    signal: rawKelly > 0.005 ? 'BUY' : rawKelly < -0.01 ? 'SELL' : 'NO_EDGE',
+    recommended_bet: betAmounts,
+    recommended_shares: shareAmounts,
+    sizing_reasoning: factors.join(' | '),
+    market_context: {
+      spread: parseFloat(spread.toFixed(4)),
+      spread_cost_pct: parseFloat((spreadCostPct * 100).toFixed(2)),
+      available_liquidity: parseFloat(askDepth.toFixed(1)),
+      max_shares_available: parseFloat(maxSharesFromLiquidity.toFixed(1)),
+      time_to_close_hours: params.time_to_close_hours || null,
+      liquidity_warning: !!liquidityWarning,
+    },
     warnings: [
-      kellyFraction > 0.5 ? 'WARNING: Full Kelly > 50% — extremely aggressive, use half or quarter Kelly' : '',
-      kellyFraction <= 0 ? 'No edge detected at this price — do not bet' : '',
-      Math.abs(prob - price) < 0.02 ? 'Edge is very thin (<2%) — transaction costs may eliminate profit' : '',
+      rawKelly > 0.5 ? 'DANGER: Full Kelly > 50% of bankroll — NEVER use full Kelly. Use adjusted or quarter Kelly.' : '',
+      rawKelly <= 0 ? 'No edge detected at this price. Do NOT trade.' : '',
+      edgePct > 0 && edgePct < 0.03 ? 'Edge is razor thin (<3%). Spread costs + fees likely eat the profit. Skip unless high confidence.' : '',
+      spread > 0.10 ? `WIDE SPREAD (${(spread * 100).toFixed(0)}¢). Use GTC limit at midpoint, NOT market order. Spread alone costs ${(spreadCostPct * 100).toFixed(1)}% of position.` : '',
+      liquidityWarning ? `LOW LIQUIDITY: Only ${askDepth.toFixed(0)} shares on ask side. Your order would move the market. Reduce size.` : '',
+      params.drawdown_pct && params.drawdown_pct > 15 ? `IN DRAWDOWN (${params.drawdown_pct.toFixed(1)}%). Sizing reduced. Focus on high-conviction trades only.` : '',
+      confidence < 0.5 ? 'LOW CONFIDENCE. Your probability estimate is very uncertain. Use quarter Kelly or skip.' : '',
+      finalKelly > 0 && finalKelly < 0.005 ? 'Position too small to be worth the transaction cost. Skip this trade.' : '',
     ].filter(Boolean),
   };
 }
