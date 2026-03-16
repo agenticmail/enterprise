@@ -80,7 +80,13 @@ function parseMessage(msg: any, format: string): any {
     isStarred: msg.labelIds?.includes('STARRED'),
     isImportant: msg.labelIds?.includes('IMPORTANT'),
     isDraft: msg.labelIds?.includes('DRAFT'),
+    isSent: msg.labelIds?.includes('SENT'),
+    isFromSelf: msg.labelIds?.includes('SENT') || false,
   };
+  // Add warning if this is from the agent itself
+  if (result.isFromSelf) {
+    result._note = 'This email was sent BY YOU. Do NOT reply to your own emails — you will create an infinite loop.';
+  }
 
   if (format !== 'metadata') {
     // Extract body

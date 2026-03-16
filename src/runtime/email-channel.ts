@@ -65,6 +65,30 @@ export class EmailChannel {
       throw new Error(`No agent found for email address: ${email.to}`);
     }
 
+    // 1b. Self-reply detection — skip if the agent is replying to itself
+    var fromNorm = (email.from || '').toLowerCase().trim();
+    var toNorm = (email.to || '').toLowerCase().trim();
+    // Strip display name: "Agent Name <agent@example.com>" → "agent@example.com"
+    var fromEmail = fromNorm.includes('<') ? fromNorm.replace(/.*<([^>]+)>.*/, '$1') : fromNorm;
+    var toEmail = toNorm.includes('<') ? toNorm.replace(/.*<([^>]+)>.*/, '$1') : toNorm;
+    if (fromEmail === toEmail) {
+      throw new Error(`Self-reply detected — agent ${toEmail} is replying to itself. Skipping to prevent loop.`);
+    }
+    // Also check if sender is any known agent email (multi-agent self-reply)
+    try {
+      var senderAgent = await this.config.resolveAgent(fromEmail);
+      if (senderAgent && senderAgent.agentId) {
+        console.log(`[email-channel] Agent-to-agent email: ${fromEmail} → ${toEmail} (agent ${senderAgent.agentId} → agent ${agent.agentId})`);
+        // Allow agent-to-agent communication, but block exact same agent
+        if (senderAgent.agentId === agent.agentId) {
+          throw new Error(`Self-reply detected — agent ${agent.agentId} sent email to itself. Skipping.`);
+        }
+      }
+    } catch (e: any) {
+      if (e.message.includes('Self-reply')) throw e;
+      // resolveAgent failed — sender is not an agent, which is fine
+    }
+
     // 2. Find active session or create new one
     var isNewSession = false;
     var session = await this.config.findActiveSession(agent.agentId, email.from);
