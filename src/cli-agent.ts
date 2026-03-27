@@ -1817,6 +1817,19 @@ export async function runAgent(_args: string[]) {
       const agentName = config.displayName || config.name;
       const emailCfg = (config as any).emailConfig || {};
       const agentEmail = (emailCfg.email || config.email?.address || '').toLowerCase();
+
+      // ── Self-reply detection — CRITICAL: prevent infinite email loops ──
+      if (senderEmail.toLowerCase() === agentEmail && agentEmail) {
+        console.log(`[email] ⛔ SELF-REPLY BLOCKED — agent ${agentEmail} sent email to itself. Skipping to prevent loop.`);
+        return;
+      }
+      // Also check Google Workspace alias (fola@agenticmail.io might send as different display name)
+      const toEmails = [email.to?.email, ...(email.cc || []).map((c: any) => c.email)].filter(Boolean).map((e: any) => e.toLowerCase());
+      if (toEmails.includes(senderEmail.toLowerCase()) && senderEmail.toLowerCase() === agentEmail) {
+        console.log(`[email] ⛔ SELF-REPLY BLOCKED — sender and recipient are the same agent.`);
+        return;
+      }
+
       const role = config.identity?.role || 'AI Agent';
       const identity = config.identity || {};
       const managerEmail = (config as any).managerEmail || ((config as any).manager?.type === 'external' ? (config as any).manager.email : null) || '';
