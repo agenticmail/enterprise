@@ -520,11 +520,15 @@ export class EmailPoller {
     const from = this.extractFrom(fullMsg);
     const subject = this.getHeader(fullMsg, 'Subject');
 
-    // Skip emails from the agent itself
-    if (from.email.toLowerCase() === mailbox.agentEmail.toLowerCase()) return;
+    // Skip agent's own outbound messages (SENT label = sent by this account, not inbound)
+    const labels = fullMsg.labelIds || [];
+    if (labels.includes('SENT')) return;
+
+    // Skip emails from the agent itself (fallback in case SENT label missing)
+    if (from.email && mailbox.agentEmail && from.email.toLowerCase() === mailbox.agentEmail.toLowerCase()) return;
 
     // Skip drafts (no From header or has DRAFT label)
-    if (!from.email || (fullMsg.labelIds || []).includes('DRAFT')) return;
+    if (!from.email || labels.includes('DRAFT')) return;
 
     // ── Work hours enforcement ──
     // Only manager emails bypass off-hours restriction

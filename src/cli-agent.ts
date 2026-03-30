@@ -1819,15 +1819,15 @@ export async function runAgent(_args: string[]) {
       const agentEmail = (emailCfg.email || config.email?.address || '').toLowerCase();
 
       // ── Self-reply detection — CRITICAL: prevent infinite email loops ──
+      // 1. SENT label check — most reliable, catches all outbound messages
+      if ((email.labelIds || []).includes('SENT')) {
+        console.log(`[email] ⛔ SELF-REPLY BLOCKED — message has SENT label (outbound, not inbound). Skipping.`);
+        return c.json({ ok: true, skipped: true, reason: 'sent-label' });
+      }
+      // 2. From-address match
       if (senderEmail.toLowerCase() === agentEmail && agentEmail) {
         console.log(`[email] ⛔ SELF-REPLY BLOCKED — agent ${agentEmail} sent email to itself. Skipping to prevent loop.`);
-        return;
-      }
-      // Also check Google Workspace alias (fola@agenticmail.io might send as different display name)
-      const toEmails = [email.to?.email, ...(email.cc || []).map((c: any) => c.email)].filter(Boolean).map((e: any) => e.toLowerCase());
-      if (toEmails.includes(senderEmail.toLowerCase()) && senderEmail.toLowerCase() === agentEmail) {
-        console.log(`[email] ⛔ SELF-REPLY BLOCKED — sender and recipient are the same agent.`);
-        return;
+        return c.json({ ok: true, skipped: true, reason: 'self-reply' });
       }
 
       const role = config.identity?.role || 'AI Agent';
