@@ -2,6 +2,58 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.567] - 2026-05-16
+
+### Fixed — Telegram/WhatsApp messages silently dropped on local deployments
+
+Operator (Windows): "I set up Telegram for halo, sent it a message, but nothing happened." Logs showed:
+
+```
+[messaging] Telegram: long-polling for Halo (db38522f)
+[messaging] Ready (telegram=polling)
+[messaging] Dispatching telegram message to Halo
+[messaging] Telegram typing sent to 7096812530: {"ok":true,"result":true}
+[messaging] Dispatching to Halo at localhost:3100
+```
+
+Telegram polling worked, typing indicator went out, but the actual message dispatch went to `localhost:3100` while the agent was listening on `3101`. Nothing on 3100 → POST got refused → halo never saw the message → no response generated.
+
+### Two root causes
+
+**1. Default port mismatch.** `src/engine/agent-provisioner.ts` (the function that picks a port when a local agent is deployed) defaulted to **3101**. `src/engine/messaging-poller.ts` (the dispatcher) defaulted to **3100**. Both fell back to their independent defaults whenever `config.deployment.port` was unset — which is the common case for newly-created agents.
+
+Fix: align provisioner default to **3100**, AND have `deployer.deployLocal` write the assigned port back into `config.deployment.port` + `config.deployment.config.local.port` so the messaging-poller reads the actual port even when multiple agents are deployed on the same box (port 3101, 3102, …).
+
+**2. Generated wrapper's regex doesn't tolerate CRLF.** The auto-generated `agent-<slug>.cjs` wrapper had:
+
+```js
+const lines = readFileSync(envFile, 'utf8').split('\n');
+for (const line of lines) {
+  const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+  if (m) process.env[m[1]] = m[2];
+}
+```
+
+The provisioner writes the env file with LF, so this worked initially. But:
+
+- If anything downstream re-saves the file (PowerShell `Set-Content` defaults to CRLF on Windows; Notepad does the same), every line ends with `\r`.
+- JavaScript's `.` doesn't match `\r`, and `$` (without `/m` flag) anchors to end-of-string. So the regex fails to match the trailing-CR line, no env var gets set, and the wrapper aborts with `[agent-wrapper] FATAL: Missing required env var: AGENTICMAIL_AGENT_ID` even though the file clearly contains it.
+
+Fix: change the split to `.split(/\r?\n/)` in the wrapper generator. Tolerates both LF and CRLF; rest of the parser logic unchanged.
+
+### Files
+
+- `src/engine/agent-provisioner.ts` — default port 3101 → 3100; wrapper-generator template uses `/\\r?\\n/` for line splitting (the inline regex inside the generated wrapper string).
+- `src/engine/deployer.ts deployLocal` — writes `provision.port` back into `config.deployment.port` and `config.deployment.config.local.port` immediately after provisioning, so the messaging-poller has the right value to read.
+
+### Existing operators
+
+Re-running `npx @agenticmail/enterprise@latest setup` regenerates the wrappers + env files cleanly. If you don't want to re-run setup, the minimal manual fix is:
+
+1. Open `~/.agenticmail/agent-<slug>.cjs` and change the line `const lines = readFileSync(envFile, 'utf8').split('\n');` to `const lines = readFileSync(envFile, 'utf8').split(/\r?\n/);`.
+2. Edit `~/.env.<slug>` and set `PORT=3100` (or whichever port the messaging-poller is dispatching to — visible in the enterprise log as `Dispatching to <Agent> at localhost:<port>`).
+3. `pm2 restart all`.
+
 ## [0.5.566] - 2026-05-16
 
 ### Fixed — Windows: website went down on screen lock / sleep

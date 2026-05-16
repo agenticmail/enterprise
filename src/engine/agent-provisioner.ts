@@ -78,7 +78,12 @@ export function provisionAgent(config: AgentConfig): ProvisionResult {
   const amDirEnvFile = resolve(amDir, `.env.${slug}`);
   const envFile = existsSync(cwdEnvFile) ? cwdEnvFile : existsSync(amDirEnvFile) ? amDirEnvFile : cwdEnvFile;
   const wrapperScript = resolve(amDir, `agent-${slug}.cjs`);
-  const port = (config.deployment?.config as any)?.local?.port || 3101;
+  // Default port aligned with messaging-poller's expectation of 3100. The
+  // poller's per-agent dispatch reads `managed.config.deployment.port` first,
+  // falling back to 3100. Provisioner used to default to 3101 which silently
+  // broke Telegram/WhatsApp dispatch — messages flowed into the poller, got
+  // POSTed to localhost:3100, no listener there, dropped on the floor.
+  const port = (config.deployment?.config as any)?.local?.port || 3100;
 
   // ── Step 1: Ensure directory exists ──
   try {
@@ -202,9 +207,18 @@ export function provisionAgent(config: AgentConfig): ProvisionResult {
     `const { readFileSync } = require('fs');`,
     ``,
     `// ── Load agent env file ──`,
+    `//`,
+    `// We split on both LF and CRLF: the provisioner writes LF, but any`,
+    `// downstream tool that re-saves the file (PowerShell Set-Content,`,
+    `// Notepad, etc.) can convert to CRLF. Without the \\\\r-tolerant split,`,
+    `// every line ends with a trailing \\\\r, and the regex below fails to`,
+    `// match because JS \\\`.\\\` doesn't match \\\\r and \\\`$\\\` (without /m flag)`,
+    `// anchors to end-of-string, not end-of-line. Symptom: "FATAL: Missing`,
+    `// required env var: AGENTICMAIL_AGENT_ID" even though the file clearly`,
+    `// has that line.`,
     `const envFile = ${JSON.stringify(envFile)};`,
     `try {`,
-    `  const lines = readFileSync(envFile, 'utf8').split('\\n');`,
+    `  const lines = readFileSync(envFile, 'utf8').split(/\\r?\\n/);`,
     `  for (const line of lines) {`,
     `    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);`,
     `    if (m) process.env[m[1]] = m[2];`,

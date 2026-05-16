@@ -433,6 +433,19 @@ export class DeploymentEngine {
     }
     emit('provision', 'completed', `Agent files created: ${provision.envFile}, ${provision.wrapperScript}${provision.cliScript ? ' (direct mode)' : ' (npx mode)'}`);
 
+    // Persist the assigned port back into the agent config so the
+    // messaging-poller (and any other consumer that reads
+    // `managed.config.deployment.port`) can dispatch to the right
+    // listener. Without this, both dispatchers + provisioners default
+    // independently and the values silently drift apart — symptom is
+    // Telegram/WhatsApp messages getting POSTed to localhost:3100 while
+    // the agent is actually listening on 3101 or higher.
+    if (!config.deployment) config.deployment = { target: 'local', config: {} } as any;
+    if (!config.deployment.config) config.deployment.config = {} as any;
+    if (!(config.deployment.config as any).local) (config.deployment.config as any).local = {};
+    (config.deployment.config as any).local.port = provision.port;
+    (config.deployment as any).port = provision.port;
+
     // ── Step 2: Ensure PM2 is installed ──
     emit('install', 'started', 'Checking PM2 installation...');
     const pm2Status = await ensurePm2();
