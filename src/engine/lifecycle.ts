@@ -377,7 +377,12 @@ export class AgentLifecycleManager {
       throw new Error(`Cannot update config while agent is ${agent.state}. Please wait.`);
     }
 
-    // Deep-merge nested objects (identity, model, deployment) to prevent field loss
+    // Deep-merge nested objects (identity, model, deployment, permissions,
+    // autonomy). Partial updates from the dashboard (e.g. a form that only
+    // touches `permissions.requireApproval.enabled`) used to wholesale-replace
+    // the parent object, dropping unrelated sibling fields (rateLimits,
+    // constraints, blockedSideEffects). Same for arrays: an empty `skills`
+    // array in a partial update used to clear all skills.
     const merged: any = { ...agent.config, ...updates, updatedAt: new Date().toISOString() };
     if (updates.identity && agent.config.identity) {
       merged.identity = { ...agent.config.identity, ...updates.identity };
@@ -387,6 +392,23 @@ export class AgentLifecycleManager {
     }
     if (updates.deployment && agent.config.deployment) {
       merged.deployment = { ...agent.config.deployment, ...updates.deployment };
+    }
+    if ((updates as any).permissions && (agent.config as any).permissions) {
+      merged.permissions = { ...(agent.config as any).permissions, ...(updates as any).permissions };
+      if ((updates as any).permissions.requireApproval && (agent.config as any).permissions.requireApproval) {
+        merged.permissions.requireApproval = { ...(agent.config as any).permissions.requireApproval, ...(updates as any).permissions.requireApproval };
+      }
+    }
+    if ((updates as any).autonomy && (agent.config as any).autonomy) {
+      merged.autonomy = { ...(agent.config as any).autonomy, ...(updates as any).autonomy };
+    }
+    // Preserve non-empty array fields when the update sends an empty array
+    // (almost always an oversight in a partial form-submit).
+    if (Array.isArray((updates as any).skills) && (updates as any).skills.length === 0 && Array.isArray((agent.config as any).skills) && (agent.config as any).skills.length > 0) {
+      merged.skills = (agent.config as any).skills;
+    }
+    if (Array.isArray((updates as any).knowledgeBases) && (updates as any).knowledgeBases.length === 0 && Array.isArray((agent.config as any).knowledgeBases) && (agent.config as any).knowledgeBases.length > 0) {
+      merged.knowledgeBases = (agent.config as any).knowledgeBases;
     }
     agent.config = merged;
     agent.updatedAt = new Date().toISOString();
@@ -526,7 +548,12 @@ export class AgentLifecycleManager {
     const prevState = agent.state;
     this.transition(agent, 'updating', 'Hot config update', updatedBy);
 
-    // Deep-merge nested objects (identity, model, deployment) to prevent field loss
+    // Deep-merge nested objects (identity, model, deployment, permissions,
+    // autonomy). Partial updates from the dashboard (e.g. a form that only
+    // touches `permissions.requireApproval.enabled`) used to wholesale-replace
+    // the parent object, dropping unrelated sibling fields (rateLimits,
+    // constraints, blockedSideEffects). Same for arrays: an empty `skills`
+    // array in a partial update used to clear all skills.
     const merged: any = { ...agent.config, ...updates, updatedAt: new Date().toISOString() };
     if (updates.identity && agent.config.identity) {
       merged.identity = { ...agent.config.identity, ...updates.identity };
@@ -536,6 +563,23 @@ export class AgentLifecycleManager {
     }
     if (updates.deployment && agent.config.deployment) {
       merged.deployment = { ...agent.config.deployment, ...updates.deployment };
+    }
+    if ((updates as any).permissions && (agent.config as any).permissions) {
+      merged.permissions = { ...(agent.config as any).permissions, ...(updates as any).permissions };
+      if ((updates as any).permissions.requireApproval && (agent.config as any).permissions.requireApproval) {
+        merged.permissions.requireApproval = { ...(agent.config as any).permissions.requireApproval, ...(updates as any).permissions.requireApproval };
+      }
+    }
+    if ((updates as any).autonomy && (agent.config as any).autonomy) {
+      merged.autonomy = { ...(agent.config as any).autonomy, ...(updates as any).autonomy };
+    }
+    // Preserve non-empty array fields when the update sends an empty array
+    // (almost always an oversight in a partial form-submit).
+    if (Array.isArray((updates as any).skills) && (updates as any).skills.length === 0 && Array.isArray((agent.config as any).skills) && (agent.config as any).skills.length > 0) {
+      merged.skills = (agent.config as any).skills;
+    }
+    if (Array.isArray((updates as any).knowledgeBases) && (updates as any).knowledgeBases.length === 0 && Array.isArray((agent.config as any).knowledgeBases) && (agent.config as any).knowledgeBases.length > 0) {
+      merged.knowledgeBases = (agent.config as any).knowledgeBases;
     }
     agent.config = merged;
     agent.version++;

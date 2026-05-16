@@ -2,6 +2,63 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.569] - 2026-05-16
+
+### Fixed — three structural bugs causing agents to silently use stale config
+
+Three related issues all surfaced during one operator session — PM2's saved env was pinning the enterprise to a pre-migration Supabase DATABASE_URL, the messaging-poller refused to dispatch to agents in the `ready` lifecycle state, and partial config updates from the dashboard were nuking unrelated fields by shallow-replace.
+
+### 1. `start.cjs` must overwrite from `.env`, not honor PM2's stale env
+
+The setup-wizard's generated `start.cjs` had this env-load loop:
+
+```js
+if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+```
+
+`!process.env[m[1]]` was meant to "respect existing env vars" but in practice PM2's `dump.pm2` captures the entire env at `pm2 save` time and replays it on resurrect. If an operator changed `~/.agenticmail/.env` after a `pm2 save` (e.g. migrated their DB), the on-disk `.env` was silently ignored and the app kept using the cached env — including a dead Supabase URL.
+
+Symptom (Windows operator): "I migrated to local Postgres, restarted enterprise, but it still says `Connected (..., pgbouncer=true)` and the local DB stays empty for new dashboard saves." The Supabase pooler hostname triggered the `db/factory.ts` Supabase auto-detect even though `.env` clearly didn't have a Supabase URL.
+
+Fixed in `src/setup/provision.ts` — `start.cjs` generator now does `if (m) process.env[m[1]] = m[2];` (always overwrite). The on-disk `.env` is the canonical source.
+
+### 2. `messaging-poller` rejected agents in `ready` state
+
+`src/engine/routes.ts startMessagingPoller` filtered agents by lifecycle state:
+
+```js
+a.state === 'running' || a.state === 'draft' || a.state === 'stopped' || (a as any).status === 'active'
+```
+
+Agents in state `ready` (the natural post-restore-from-backup state, also the state right after creation before deploy) were silently filtered out → `[messaging-poller] No active agents` → Telegram/WhatsApp messages dispatched into the void.
+
+Fixed: filter now also accepts `state === 'ready'`. The downstream dispatcher already handles connection failures gracefully if the agent isn't actually listening.
+
+### 3. `lifecycle.hotUpdate` shallow-merge dropped sibling fields
+
+`updateConfig` and `hotUpdate` did:
+
+```js
+const merged = { ...agent.config, ...updates };
+// then deep-merge for identity / model / deployment only
+```
+
+If the dashboard sent `{permissions: {requireApproval: {enabled: false}}}` (just toggling one nested flag), the entire `permissions` object got replaced — losing `rateLimits`, `constraints`, `blockedSideEffects`, etc. Same risk for `autonomy`. And an empty `skills: []` from a misbehaved form would clear all 32 of an agent's skills.
+
+Fixed: deep-merge now extends to `permissions` (+ its `requireApproval` sub-object) and `autonomy`. Empty `skills` / `knowledgeBases` arrays in a partial update are treated as oversights and the previous value is preserved.
+
+### Files
+
+- `src/setup/provision.ts` — `start.cjs` generator: drop the `!process.env[key]` guard
+- `src/engine/routes.ts` — messaging-poller filter accepts `ready` state
+- `src/engine/lifecycle.ts` — `updateConfig` + `hotUpdate` deep-merge `permissions` and `autonomy`; preserve `skills` and `knowledgeBases` against accidental empty-array replacement
+
+### Existing operators
+
+For #1: `pm2 delete enterprise && pm2 start ~/.agenticmail/start.cjs --name enterprise && pm2 save` clears the stale dump, OR re-run `npx @agenticmail/enterprise@latest setup` to regenerate `start.cjs`. After upgrading the package, the cleaner future is automatic.
+
+For #2 and #3: just `pm2 restart enterprise` after upgrade.
+
 ## [0.5.568] - 2026-05-16
 
 ### Fixed — Provider API keys don't hot-reload in running agent processes

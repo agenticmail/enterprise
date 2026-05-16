@@ -1205,7 +1205,12 @@ let _messagingPoller: MessagingPoller | null = null;
 
 async function startMessagingPoller(engineDb: any): Promise<void> {
   const allAgents = lifecycle.getAllAgents();
-  const agents = allAgents.filter(a => a.state === 'running' || a.state === 'draft' || a.state === 'stopped' || (a as any).status === 'active').map(a => {
+  // Accept all non-deleted lifecycle states. Operators reported messaging
+  // poller returning "No active agents" when their agent was in state
+  // `ready` (the natural post-restore-from-backup state). Anything that
+  // isn't explicitly deleted/errored should be dispatched to — the
+  // downstream dispatcher already handles connection failures gracefully.
+  const agents = allAgents.filter(a => a.state === 'running' || a.state === 'ready' || a.state === 'draft' || a.state === 'stopped' || (a as any).status === 'active').map(a => {
     const dep = a.config?.deployment;
     const port = dep?.port || dep?.config?.local?.port || 3100;
     const host = dep?.host || dep?.config?.local?.host || 'localhost';
