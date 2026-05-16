@@ -29,7 +29,13 @@ export function WorkforceSection(props) {
   var loading = _loading[0]; var setLoading = _loading[1];
   var _showAddTask = useState(false);
   var showAddTask = _showAddTask[0]; var setShowAddTask = _showAddTask[1];
-  var _taskForm = useState({ title: '', description: '', priority: 'normal', type: 'general' });
+  var _taskForm = useState({
+    title: '', description: '', priority: 'normal', type: 'general',
+    // Recurring fields — empty means "one-shot task" (default).
+    recurring: false,
+    recurrenceRule: '0 9,13,18 * * 1-5',
+    recurrenceTimezone: 'America/Chicago',
+  });
   var taskForm = _taskForm[0]; var setTaskForm = _taskForm[1];
   var _editing = useState(false);
   var editing = _editing[0]; var setEditing = _editing[1];
@@ -183,11 +189,42 @@ export function WorkforceSection(props) {
 
   var addTask = function() {
     if (!taskForm.title) { toast('Task title is required', 'error'); return; }
-    engineCall('/workforce/tasks', { method: 'POST', body: JSON.stringify({ agentId: agentId, title: taskForm.title, description: taskForm.description, priority: taskForm.priority, type: taskForm.type }) })
+
+    // Two endpoints, same modal — recurring posts to /workforce/recurring-tasks
+    // with a cron rule + tz, one-shot posts to /workforce/tasks. Routing on the
+    // recurring toggle keeps the operator UX simple: one button, two shapes.
+    var isRecurring = !!taskForm.recurring;
+    var endpoint = isRecurring ? '/workforce/recurring-tasks' : '/workforce/tasks';
+    var body = isRecurring
+      ? {
+          agentId: agentId,
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          recurrenceRule: (taskForm.recurrenceRule || '').trim(),
+          recurrenceTimezone: (taskForm.recurrenceTimezone || 'UTC').trim(),
+        }
+      : {
+          agentId: agentId,
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          type: taskForm.type,
+        };
+
+    if (isRecurring && !body.recurrenceRule) {
+      toast('Cron expression is required for recurring tasks', 'error');
+      return;
+    }
+
+    engineCall(endpoint, { method: 'POST', body: JSON.stringify(body) })
       .then(function() {
-        toast('Task created', 'success');
+        toast(isRecurring ? 'Recurring task template created' : 'Task created', 'success');
         setShowAddTask(false);
-        setTaskForm({ title: '', description: '', priority: 'normal', type: 'general' });
+        setTaskForm({
+          title: '', description: '', priority: 'normal', type: 'general',
+          recurring: false, recurrenceRule: '0 9,13,18 * * 1-5', recurrenceTimezone: 'America/Chicago',
+        });
         loadAll();
       })
       .catch(function(err) { toast(err.message, 'error'); });
@@ -733,7 +770,7 @@ export function WorkforceSection(props) {
                 h('option', { value: 'urgent' }, 'Urgent')
               )
             ),
-            h('div', { className: 'form-group' },
+            !taskForm.recurring && h('div', { className: 'form-group' },
               h('label', { className: 'form-label' }, 'Type'),
               h('select', { className: 'input', value: taskForm.type, onChange: function(e) { setTaskForm(Object.assign({}, taskForm, { type: e.target.value })); } },
                 h('option', { value: 'general' }, 'General'),
@@ -742,11 +779,47 @@ export function WorkforceSection(props) {
                 h('option', { value: 'communication' }, 'Communication')
               )
             )
+          ),
+          // ── Recurring toggle + fields ─────────────────────
+          h('div', { className: 'form-group', style: { marginTop: 8, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)' } },
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 500 } },
+              h('input', {
+                type: 'checkbox',
+                checked: !!taskForm.recurring,
+                onChange: function(e) { setTaskForm(Object.assign({}, taskForm, { recurring: e.target.checked })); }
+              }),
+              'Recurring task',
+              h('span', { style: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 } }, '— fires repeatedly on a schedule')
+            ),
+            taskForm.recurring && h('div', { style: { marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
+              h('div', { className: 'form-group', style: { marginBottom: 0 } },
+                h('label', { className: 'form-label' }, 'Cron expression *'),
+                h('input', {
+                  className: 'input',
+                  style: { fontFamily: 'var(--font-mono, monospace)' },
+                  placeholder: '0 9,13,18 * * 1-5',
+                  value: taskForm.recurrenceRule,
+                  onChange: function(e) { setTaskForm(Object.assign({}, taskForm, { recurrenceRule: e.target.value })); }
+                }),
+                h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
+                  'min hour dom mon dow · ',
+                  h('code', null, '0 9,13,18 * * 1-5'),
+                  ' = 9am/1pm/6pm weekdays'
+                )
+              ),
+              h('div', { className: 'form-group', style: { marginBottom: 0 } },
+                h('label', { className: 'form-label' }, 'Timezone'),
+                h(TimezoneSelect, {
+                  value: taskForm.recurrenceTimezone,
+                  onChange: function(v) { setTaskForm(Object.assign({}, taskForm, { recurrenceTimezone: v })); }
+                })
+              )
+            )
           )
         ),
         h('div', { className: 'modal-footer' },
           h('button', { className: 'btn btn-ghost', onClick: function() { setShowAddTask(false); } }, 'Cancel'),
-          h('button', { className: 'btn btn-primary', onClick: addTask }, 'Create Task')
+          h('button', { className: 'btn btn-primary', onClick: addTask }, taskForm.recurring ? 'Create Recurring Task' : 'Create Task')
         )
       )
     )

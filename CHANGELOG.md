@@ -2,6 +2,23 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.578] - 2026-05-16
+
+### Added — Per-agent Add Task modal supports recurring tasks
+
+The 0.5.577 release surfaced existing recurring templates in the task queue view, but the only way to *create* one was to curl the API. The Add Task modal on `/dashboard/agents/:id/workforce` was still one-shot-only, so operators couldn't author halo-style growth shifts through the UI.
+
+Now the same modal handles both shapes:
+
+- A "Recurring task" checkbox at the bottom of the form
+- When checked: the Type field hides (recurring templates don't have a type) and two new fields appear — a monospace **Cron expression** input (default `0 9,13,18 * * 1-5`, with an inline cheatsheet) and a **Timezone** dropdown (default `America/Chicago`, full IANA list via the existing `TimezoneSelect` component)
+- The submit button label switches to "Create Recurring Task" when the toggle is on, and POSTs to `/api/engine/workforce/recurring-tasks` instead of `/api/engine/workforce/tasks` — the API handles validation (cron parse + next-fire computation) and stores the template
+- After submit, the new template shows up in the same task list as a row with the blue **Recurring** badge + the cron rule + next fire timestamp
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`, then hard-refresh the agent workforce page.
+
 ## [0.5.577] - 2026-05-16
 
 ### Added — Recurring task templates now visible in the dashboard
