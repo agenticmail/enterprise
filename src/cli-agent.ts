@@ -574,6 +574,17 @@ export async function runAgent(_args: string[]) {
         if (!(k in fresh)) delete dbApiKeys[k];
       }
       Object.assign(dbApiKeys, fresh);
+      // Wire the same keys into the KnowledgeBaseEngine. Without this call
+      // its `apiKeys` stays at {} and `generateEmbeddings` exits early
+      // because `apiKeys.openai` is undefined — so imported chunks never
+      // get embeddings even when the OpenAI key is configured. This bug
+      // was undiagnosable from the dashboard (KB import shows "completed"
+      // and the document count goes up, but `knowledge_search` returns 0
+      // hits forever).
+      try {
+        const routesMod = await import('./engine/routes.js');
+        (routesMod as any).knowledgeBase?.setApiKeys?.(dbApiKeys);
+      } catch { /* engine routes module might not be loaded yet */ }
       return Object.keys(fresh).length;
     } catch { return 0; }
   }
@@ -583,6 +594,12 @@ export async function runAgent(_args: string[]) {
     var firstChar = apiKey.charCodeAt(0);
     console.log(`   🔑 Loaded API key for ${providerId}: starts="${apiKey.slice(0,8)}..." len=${apiKey.length} firstCharCode=${firstChar}`);
   }
+  // Explicit second wire-up after the routes module is for sure loaded.
+  // _loadProviderKeys runs early enough that the engine routes may not yet
+  // have been imported by other parts of the boot.
+  try {
+    (routes as any).knowledgeBase?.setApiKeys?.(dbApiKeys);
+  } catch { /* ignore */ }
 
   // Refresh every 30 s so dashboard-side API-key edits land without a
   // pm2 restart. Cheap query — single row from company_settings.

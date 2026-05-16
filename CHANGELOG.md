@@ -2,6 +2,40 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.571] - 2026-05-16
+
+### Fixed — KnowledgeBaseEngine.setApiKeys() was never called
+
+Operator-reported: configured OpenAI key in `Settings → Models & API Keys`, triggered a fresh GitHub import — job marked "completed", 1148 chunks created — but `knowledge_search` returned `No results found` for every query. Vector search couldn't find anything.
+
+Root cause: `src/engine/knowledge.ts KnowledgeBaseEngine` has a public `setApiKeys(keys)` method (line 95), but **nothing in the codebase called it**. So `this.apiKeys` stayed `{}` for the entire process lifetime. When `generateEmbeddings` ran for a fresh import, line 497 (`const apiKey = this.apiKeys.openai; if (!apiKey) return;`) bailed silently and no embeddings ever got generated. Chunks were stored, but `embedding` column stayed NULL.
+
+Result: every operator who'd ever added an OpenAI key thought RAG was working (UI showed chunks, import jobs succeeded), but the KB was effectively keyword-search only — and even that depended on `loadFromDb` populating in-memory `kb.documents[].chunks[]`. Operators reported it as "the agent doesn't read the knowledge base."
+
+### What changed
+
+Two places now wire `dbApiKeys` → `KnowledgeBaseEngine.setApiKeys`:
+
+1. **`src/cli-agent.ts`** — when the per-agent process loads provider API keys from `company_settings.modelPricingConfig`, it now also calls `routes.knowledgeBase.setApiKeys(dbApiKeys)`. The 30s refresh poll repeats the call so dashboard-side key updates land without an agent restart.
+2. **`src/server.ts`** — the enterprise process loads its own provider keys for `config.runtime.apiKeys`; now it also passes the decrypted map to `routes.knowledgeBase.setApiKeys()`. Logs `[knowledge] API keys wired to embedding engine: openai, ...` so operators can confirm.
+
+### How to recover an existing un-embedded KB
+
+`generateEmbeddings` only fires during initial chunk creation. Existing chunks created BEFORE this fix won't get embeddings just from upgrading. Two options:
+
+- **Delete + re-import** (cleanest, ~1 min):
+  ```sql
+  DELETE FROM kb_chunks WHERE document_id IN (SELECT id FROM kb_documents WHERE knowledge_base_id='<kbId>');
+  DELETE FROM kb_documents WHERE knowledge_base_id='<kbId>';
+  ```
+  Then trigger import again via the dashboard.
+
+- **Manually call `generateEmbeddings`** via a one-off script if you have lots of chunks you don't want to re-fetch. Not exposed as an endpoint yet — TODO for 0.5.572+.
+
+### Defensive fallback already in place
+
+Even without embeddings, `KnowledgeBaseEngine.search()` falls back to `keywordScore` (line 294 in `knowledge.ts`) — but the default `minSimilarityScore: 0.7` is too tight for keyword search (you'd need 70% of query words present in a chunk). Worth lowering for keyword-fallback mode in a future release.
+
 ## [0.5.570] - 2026-05-16
 
 ### Added — surface the active permission profile in the engine log

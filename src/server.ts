@@ -711,6 +711,7 @@ export function createServer(config: ServerConfig): ServerInstance {
               const { SecureVault } = await import('./engine/vault.js');
               const vaultInst = new SecureVault();
               const keys = settings?.modelPricingConfig?.providerApiKeys;
+              const decryptedKeys: Record<string, string> = {};
               if (keys && typeof keys === 'object') {
                 for (const [providerId, apiKey] of Object.entries(keys)) {
                   if (apiKey && typeof apiKey === 'string') {
@@ -723,10 +724,25 @@ export function createServer(config: ServerConfig): ServerInstance {
                     if (config.runtime?.apiKeys) {
                       (config.runtime.apiKeys as Record<string, string>)[providerId] = decrypted;
                     }
+                    decryptedKeys[providerId] = decrypted;
                     console.log(`   🔑 Loaded API key for ${providerId} from DB`);
                   }
                 }
               }
+              // Wire the same keys into the KnowledgeBaseEngine. Without
+              // this, `apiKeys.openai` is undefined inside the KB engine
+              // and `generateEmbeddings` exits at line 497, leaving every
+              // imported chunk un-embedded. Operators hit the same trap:
+              // import job shows "completed", chunks exist, but
+              // `knowledge_search` returns 0 hits because vector search
+              // has nothing to match.
+              try {
+                const routesMod = await import('./engine/routes.js');
+                (routesMod as any).knowledgeBase?.setApiKeys?.(decryptedKeys);
+                if (Object.keys(decryptedKeys).length > 0) {
+                  console.log(`[knowledge] API keys wired to embedding engine: ${Object.keys(decryptedKeys).join(', ')}`);
+                }
+              } catch { /* engine routes not loaded yet */ }
             }).catch(() => {});
 
             // Eagerly initialize engine (loads lifecycle, starts chat poller, etc.)
