@@ -2,6 +2,37 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.562] - 2026-05-16
+
+### Fixed — visible cmd.exe console flashes on Windows from `which` shellouts
+
+Operator report (Windows): "a terminal keeps starting and closing in my view." Diagnosed in the enterprise error log:
+
+```
+'which' is not recognized as an internal or external command,
+operable program or batch file.
+The system cannot find the path specified.
+```
+
+…repeated dozens of times a minute. Three code paths shelled out to `which X` to check whether a command was available on PATH. On Linux/Mac that's fine (silent). On Windows there's no `which` binary, so each call:
+
+1. Spawned `cmd.exe` (briefly visible as a flashing console window).
+2. Got `'which' is not recognized` on stderr.
+3. Returned non-zero → caller treated it as "not installed".
+
+The dashboard's `/system/process-managers` endpoint polls every few seconds, and `runtime/environment.ts` capability detection runs whenever an agent is scheduled — so the flashes were constant on a Windows desktop.
+
+### What changed
+
+- `src/runtime/environment.ts` — new `findCommandPath(cmd)` and `commandExists(cmd)` use a native PATH walk (read `process.env.PATH`, check each dir for `cmd` + `PATHEXT` on Windows). No child processes, no console flashes, faster than spawning cmd.exe anyway.
+- `src/runtime/environment.ts` — `findBrowser()` no longer falls back to `execSync('which chromium ...')`; uses `findCommandPath` for the same three candidates.
+- `src/runtime/environment.ts` — `hasVCam()` now returns `false` early on Windows (the `/dev/video*` glob is a Linux concept; the `ls /dev/video*` shellout was also flashing).
+- `src/engine/agent-routes.ts` — `GET /system/process-managers` swapped its inline `check(cmd)` for the new `commandExists`. The `pm2 -v` call gates on `commandExists('pm2')` first and adds `windowsHide: true` to the remaining shellout so even when it DOES run, no console flashes.
+
+### What I didn't touch
+
+Other `which`-style callers in `cli-update.ts`, `cli-agent.ts`, and the `agent-tools/local/*` modules are one-shot commands operators run on demand, not recurring background pollers. They still use `which` for now; sweeping them is a follow-up if anyone reports flashes from those paths.
+
 ## [0.5.561] - 2026-05-16
 
 ### Fixed — `npm install -g @agenticmail/enterprise@latest` now actually takes effect on Windows

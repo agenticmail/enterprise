@@ -8,6 +8,7 @@
 
 import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { join } from 'node:path';
 
 export type DeploymentType = 'container' | 'vm' | 'local' | 'unknown' | 'Fly.io (container)' | 'Railway (container)' | 'Render (container)' | `Local (${string})`;
 
@@ -57,11 +58,38 @@ export interface SystemCapabilities {
 /** Cached result */
 let _cachedCapabilities: SystemCapabilities | null = null;
 
-function commandExists(cmd: string): boolean {
-  try {
-    execSync(`which ${cmd} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 });
-    return true;
-  } catch { return false; }
+/**
+ * Native PATH lookup — no shell-out, works on Windows + Unix.
+ *
+ * Previously `commandExists` called `execSync('which X 2>/dev/null')`,
+ * which on Windows spawned `cmd.exe`, failed (Windows has no `which`),
+ * and flashed a console window on every call. Capability checks run
+ * frequently (browser detection, display server check, dashboard
+ * `/system/process-managers` poll), so the flash was visible to
+ * operators on Windows desktops. Now we walk PATH ourselves the same
+ * way `which` does, no child processes involved.
+ */
+export function findCommandPath(cmd: string): string | null {
+  const isWin = process.platform === 'win32';
+  const pathSep = isWin ? ';' : ':';
+  const exts = isWin
+    ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').map(e => e.toLowerCase())
+    : [''];
+  const dirs = (process.env.PATH || '').split(pathSep);
+  for (const dir of dirs) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      const full = join(dir, cmd + ext);
+      try {
+        if (existsSync(full)) return full;
+      } catch { /* permission denied / not a file */ }
+    }
+  }
+  return null;
+}
+
+export function commandExists(cmd: string): boolean {
+  return findCommandPath(cmd) !== null;
 }
 
 function envSet(key: string): boolean {
@@ -116,13 +144,11 @@ function findBrowser(): string | null {
     if (existsSync(p)) return p;
   }
 
-  // Try which
-  try {
-    const path = execSync('which chromium || which chromium-browser || which google-chrome 2>/dev/null', {
-      encoding: 'utf-8', timeout: 3000,
-    }).trim();
-    if (path) return path;
-  } catch { /* ignore */ }
+  // PATH lookup — native, no shell-out (no Windows console flash).
+  for (const cmd of ['chromium', 'chromium-browser', 'google-chrome']) {
+    const found = findCommandPath(cmd);
+    if (found) return found;
+  }
 
   return null;
 }
@@ -161,7 +187,8 @@ function hasAudioSystem(): boolean {
 
 function hasVCam(): boolean {
   if (process.platform === 'darwin') return false; // Need OBS virtual cam or similar
-  // v4l2loopback
+  if (process.platform === 'win32') return false; // /dev/video* is a Linux concept; would flash a cmd window for `ls`
+  // v4l2loopback on Linux
   try {
     execSync('ls /dev/video* 2>/dev/null', { encoding: 'utf-8', timeout: 2000 });
     return true;

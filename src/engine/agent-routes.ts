@@ -392,11 +392,18 @@ export function createAgentRoutes(opts: {
 
   router.get('/system/process-managers', async (c) => {
     const { execSync } = await import('child_process');
-    const check = (cmd: string): boolean => {
-      try { execSync(`which ${cmd}`, { stdio: 'pipe' }); return true; } catch { return false; }
-    };
-    const pm2Version = (() => { try { return execSync('pm2 -v', { stdio: 'pipe', encoding: 'utf-8' }).trim(); } catch { return null; } })();
-    const systemdAvailable = check('systemctl');
+    // Use native PATH lookup instead of `which X` — `which` does not
+    // exist on Windows, so this spawned a cmd.exe console window
+    // every time the dashboard polled this endpoint. See
+    // runtime/environment.ts findCommandPath for the rationale.
+    const { commandExists } = await import('../runtime/environment.js');
+    const pm2Version = (() => {
+      if (!commandExists('pm2')) return null;
+      try {
+        return execSync('pm2 -v', { stdio: 'pipe', encoding: 'utf-8', windowsHide: true }).trim();
+      } catch { return null; }
+    })();
+    const systemdAvailable = commandExists('systemctl');
     const platform = process.platform;
 
     return c.json({
