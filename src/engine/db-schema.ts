@@ -1891,6 +1891,22 @@ CREATE INDEX idx_custom_roles_slug ON custom_roles(slug);
     `,
     nosql: async () => {},
   },
+  {
+    version: 33,
+    name: 'recurring_task_queue',
+    sql: `
+-- Recurring task scheduling. A row with recurrence_rule set is a TEMPLATE
+-- that the workforce scheduler clones into execution rows when next_fire_at
+-- falls due. Execution rows point back via parent_task_id.
+ALTER TABLE task_queue ADD COLUMN recurrence_rule TEXT;
+ALTER TABLE task_queue ADD COLUMN recurrence_timezone TEXT;
+ALTER TABLE task_queue ADD COLUMN parent_task_id TEXT;
+ALTER TABLE task_queue ADD COLUMN next_fire_at TEXT;
+ALTER TABLE task_queue ADD COLUMN last_fired_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_task_queue_next_fire ON task_queue(next_fire_at);
+CREATE INDEX IF NOT EXISTS idx_task_queue_parent ON task_queue(parent_task_id);
+    `,
+  },
 ];
 
 // ─── Dynamic Table Definitions ─────────────────────────

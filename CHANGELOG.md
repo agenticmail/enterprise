@@ -2,6 +2,61 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.575] - 2026-05-16
+
+### Added — Recurring task scheduler
+
+Agents can now be put on durable, cron-style schedules. A template task with a `recurrenceRule` fires repeatedly forever; each fire spawns a fresh queued execution row that the existing session router picks up and routes to the agent like any other task.
+
+Use case that drove this: setting up halo (growth/devrel agent) on a recurring "growth shift" — wake three times a day on weekdays, read the latest CHANGELOG, post to X via the browser tool, engage with recent mentions, log what shipped. Previously `task_queue.scheduled_for` only supported one-shot future tasks; there was no native recurrence.
+
+### New endpoints
+
+```
+POST   /api/engine/workforce/recurring-tasks   { agentId, title, description, recurrenceRule, recurrenceTimezone? }
+GET    /api/engine/workforce/recurring-tasks   [?agentId=...]
+PATCH  /api/engine/workforce/recurring-tasks/:id   { title?, description?, recurrenceRule?, recurrenceTimezone?, priority?, context?, enabled? }
+DELETE /api/engine/workforce/recurring-tasks/:id
+```
+
+`recurrenceRule` is a standard 5-field cron expression (`minute hour day-of-month month day-of-week`). `recurrenceTimezone` is an IANA timezone name; defaults to UTC. Examples:
+
+- `0 9,13,18 * * 1-5` (America/Chicago) — 9am, 1pm, 6pm on weekdays, Chicago time
+- `0 8 * * 1` (Europe/London) — 8am every Monday, London time
+- `*/30 * * * *` — every 30 minutes
+
+### How it works
+
+A row with `recurrence_rule` set is a TEMPLATE (`status='template'`) — it never executes itself. The workforce scheduler, on its 60s tick, queries for templates with `next_fire_at <= now`, clones each into a `status='queued'` execution row (`parent_task_id` links back to the template), and recomputes `next_fire_at` from the cron rule. Templates are hidden from the normal `getAgentTasks` listing so dashboard task views don't get cluttered.
+
+The cron evaluator (`src/engine/cron.ts`) is timezone-aware via `Intl.DateTimeFormat`. DST jumps are handled by re-projecting each candidate minute through the IANA zone. A 1-hour minimum step on day-mismatch keeps it correct across UTC-offset boundaries (a naive "skip to next UTC day" would leapfrog valid local-day windows in non-UTC timezones).
+
+### Schema (migration v33)
+
+```sql
+ALTER TABLE task_queue ADD COLUMN recurrence_rule TEXT;
+ALTER TABLE task_queue ADD COLUMN recurrence_timezone TEXT;
+ALTER TABLE task_queue ADD COLUMN parent_task_id TEXT;
+ALTER TABLE task_queue ADD COLUMN next_fire_at TEXT;
+ALTER TABLE task_queue ADD COLUMN last_fired_at TEXT;
+```
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`. The migration runs on boot. To schedule halo's growth shift today:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/engine/workforce/recurring-tasks \
+  -H "X-API-Key: <key>" -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "<halo-id>",
+    "title": "Growth shift",
+    "description": "Search KB for what shipped recently. Pick one item. Post to X via browser tool. Reply to 3-5 mentions.",
+    "recurrenceRule": "0 9,13,18 * * 1-5",
+    "recurrenceTimezone": "America/Chicago"
+  }'
+```
+
 ## [0.5.574] - 2026-05-16
 
 ### Fixed — `PUT /api/engine/knowledge-bases/:id` never persisted to DB

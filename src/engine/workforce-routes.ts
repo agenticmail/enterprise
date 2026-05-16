@@ -306,6 +306,82 @@ export function createWorkforceRoutes(workforce: WorkforceManager, opts?: { life
     }
   });
 
+  // ─── Recurring Tasks ────────────────────────────────────
+
+  /**
+   * Create a recurring task template.
+   * Body:
+   *   agentId           required
+   *   title             required
+   *   description       optional — the standing brief the agent reads each fire
+   *   recurrenceRule    required — 5-field cron expression (e.g. "0 9,13,18 * * 1-5")
+   *   recurrenceTimezone optional — IANA tz (default UTC)
+   *   priority          optional — low | normal | high | urgent
+   *   context           optional — arbitrary JSON the agent gets on each fire
+   *   type              optional — defaults to 'recurring'
+   */
+  router.post('/recurring-tasks', async (c) => {
+    try {
+      const body = await c.req.json();
+      if (!body.agentId) return c.json({ error: 'agentId is required' }, 400);
+      if (!body.title) return c.json({ error: 'title is required' }, 400);
+      if (!body.recurrenceRule) return c.json({ error: 'recurrenceRule is required' }, 400);
+
+      const orgId = resolveOrgId(c, body);
+      const task = await workforce.addTask({
+        agentId: body.agentId,
+        orgId,
+        type: body.type || 'recurring',
+        title: body.title,
+        description: body.description || '',
+        context: body.context || {},
+        priority: body.priority || 'normal',
+        source: body.source || 'api',
+        status: 'template' as const,
+        recurrenceRule: body.recurrenceRule,
+        recurrenceTimezone: body.recurrenceTimezone || 'UTC',
+      });
+      return c.json({ task }, 201);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  /** List recurring templates (all orgs, optionally filtered by agentId). */
+  router.get('/recurring-tasks', async (c) => {
+    try {
+      const agentId = c.req.query('agentId') || undefined;
+      const templates = await workforce.listRecurringTemplates(agentId);
+      return c.json({ templates, total: templates.length });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  /** Update a template: title, description, rule, timezone, priority, enabled. */
+  router.patch('/recurring-tasks/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const body = await c.req.json();
+      const updated = await workforce.updateRecurringTemplate(id, body);
+      if (!updated) return c.json({ error: 'Template not found' }, 404);
+      return c.json({ task: updated });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  /** Delete a recurring template (executions already spawned are kept). */
+  router.delete('/recurring-tasks/:id', async (c) => {
+    try {
+      const id = c.req.param('id');
+      const ok = await workforce.deleteRecurringTemplate(id);
+      return ok ? c.json({ success: true }) : c.json({ error: 'Template not found' }, 404);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   // ─── Budget Overview ────────────────────────────────────
 
   /** Extended budget overview, requires lifecycle manager to be configured */

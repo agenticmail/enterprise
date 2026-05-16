@@ -12,6 +12,7 @@
 import type { EngineDatabase } from './db-adapter.js';
 import type { AgentLifecycleManager, ManagedAgent, LifecycleEventType } from './lifecycle.js';
 import type { GuardrailEngine } from './guardrails.js';
+import { computeNextFire, validateCron } from './cron.js';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -68,16 +69,30 @@ export interface QueuedTask {
   id: string;
   agentId: string;
   orgId: string;
-  type: 'continue' | 'new' | 'scheduled' | 'delegation';
+  type: 'continue' | 'new' | 'scheduled' | 'delegation' | 'recurring';
   title: string;
   description?: string;
   context: Record<string, any>;
   priority: 'low' | 'normal' | 'high' | 'urgent';
-  status: 'queued' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'queued' | 'in_progress' | 'completed' | 'cancelled' | 'template';
   source: string;
   scheduledFor?: string;
   startedAt?: string;
   completedAt?: string;
+  /**
+   * Cron expression. When set, this row is a recurring TEMPLATE — it never
+   * executes itself; the scheduler clones it into a queued execution row
+   * each time `nextFireAt` falls due.
+   */
+  recurrenceRule?: string;
+  /** IANA timezone for cron evaluation (defaults to UTC) */
+  recurrenceTimezone?: string;
+  /** Execution rows point back to their template via this field */
+  parentTaskId?: string;
+  /** Templates only: next computed fire time (UTC ISO) */
+  nextFireAt?: string;
+  /** Templates only: most recent fire time (UTC ISO) */
+  lastFiredAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -359,11 +374,32 @@ export class WorkforceManager {
 
   /**
    * Add a task to the agent's queue.
+   *
+   * If `recurrenceRule` is set the row is stored as a TEMPLATE
+   * (status='template'). The scheduler will clone it into execution
+   * rows on each fire of the cron expression. `nextFireAt` is computed
+   * here so the scheduler can pick it up on its next tick.
    */
   async addTask(task: Omit<QueuedTask, 'id' | 'createdAt' | 'updatedAt'>): Promise<QueuedTask> {
     const now = new Date().toISOString();
+
+    // Validate + compute next fire for recurring templates
+    let nextFireAt: string | undefined;
+    let status = task.status;
+    if (task.recurrenceRule) {
+      const err = validateCron(task.recurrenceRule);
+      if (err) throw new Error(`invalid recurrenceRule: ${err}`);
+      const tz = task.recurrenceTimezone || 'UTC';
+      const next = computeNextFire(task.recurrenceRule, tz);
+      if (!next) throw new Error('recurrenceRule produced no future fire time within 1 year');
+      nextFireAt = next.toISOString();
+      status = 'template';
+    }
+
     const queued: QueuedTask = {
       ...task,
+      status,
+      nextFireAt: nextFireAt || task.nextFireAt,
       id: crypto.randomUUID(),
       createdAt: now,
       updatedAt: now,
@@ -371,19 +407,23 @@ export class WorkforceManager {
 
     if (this.engineDb) {
       await this.engineDb.execute(
-        `INSERT INTO task_queue (id, agent_id, org_id, type, title, description, context, priority, status, source, scheduled_for, started_at, completed_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO task_queue (id, agent_id, org_id, type, title, description, context, priority, status, source, scheduled_for, started_at, completed_at, recurrence_rule, recurrence_timezone, parent_task_id, next_fire_at, last_fired_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           queued.id, queued.agentId, queued.orgId, queued.type,
           queued.title, queued.description || null, JSON.stringify(queued.context),
           queued.priority, queued.status, queued.source,
           queued.scheduledFor || null, queued.startedAt || null,
-          queued.completedAt || null, queued.createdAt, queued.updatedAt,
+          queued.completedAt || null,
+          queued.recurrenceRule || null, queued.recurrenceTimezone || null,
+          queued.parentTaskId || null, queued.nextFireAt || null,
+          queued.lastFiredAt || null,
+          queued.createdAt, queued.updatedAt,
         ]
       ).catch((err) => { console.error('[workforce] Failed to persist task:', err); });
     }
 
-    this.emitEvent('task_added', { task: queued });
+    this.emitEvent(queued.status === 'template' ? 'recurring_task_added' : 'task_added', { task: queued });
     return queued;
   }
 
@@ -395,7 +435,10 @@ export class WorkforceManager {
     if (!this.engineDb) return [];
 
     const priorityOrder = "CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 END";
-    let sql = `SELECT * FROM task_queue WHERE agent_id = ?`;
+    // Exclude recurring templates from the regular task queue — they're
+    // surfaced via listRecurringTemplates(). Without this filter, dashboard
+    // listings would mix templates and one-shot tasks confusingly.
+    let sql = `SELECT * FROM task_queue WHERE agent_id = ? AND status != 'template'`;
     const params: any[] = [agentId];
 
     if (status) {
@@ -540,6 +583,192 @@ export class WorkforceManager {
       } catch (err) {
         console.error(`[workforce] Scheduler error for agent ${schedule.agentId}:`, err);
       }
+    }
+
+    // Fire any recurring task templates that are due
+    await this.fireRecurringTasks(now).catch((err) => {
+      console.error('[workforce] Recurring task fire error:', err);
+    });
+  }
+
+  /**
+   * Find recurring task TEMPLATES whose next_fire_at has come due, clone each
+   * into a fresh queued execution row, and compute the next fire time.
+   *
+   * Executions point back to their template via parent_task_id so history is
+   * preserved across runs. The template's own status stays 'template'; it
+   * never executes itself.
+   *
+   * `fireBudget` caps how many executions we'll spawn per tick to prevent a
+   * thundering herd if the engine has been offline for a while — extra fires
+   * are still scheduled correctly on subsequent ticks via next_fire_at.
+   */
+  private async fireRecurringTasks(now: Date, fireBudget = 25): Promise<void> {
+    if (!this.engineDb) return;
+
+    const nowIso = now.toISOString();
+    let dueTemplates: any[] = [];
+    try {
+      dueTemplates = await this.engineDb.query<any>(
+        `SELECT * FROM task_queue WHERE status = 'template' AND recurrence_rule IS NOT NULL AND next_fire_at IS NOT NULL AND next_fire_at <= ? ORDER BY next_fire_at ASC LIMIT ?`,
+        [nowIso, fireBudget],
+      );
+    } catch {
+      // Column may not exist yet on a partially-migrated DB — bail silently.
+      return;
+    }
+
+    for (const r of dueTemplates) {
+      try {
+        const tpl = this.rowToTask(r);
+        const execId = crypto.randomUUID();
+        const cloneCreatedAt = nowIso;
+
+        // Clone into a queued execution row. The execution inherits the
+        // template's title/description/context so downstream session
+        // routing sees a normal one-shot task with no special handling.
+        await this.engineDb.execute(
+          `INSERT INTO task_queue (id, agent_id, org_id, type, title, description, context, priority, status, source, scheduled_for, parent_task_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)`,
+          [
+            execId, tpl.agentId, tpl.orgId,
+            // Surface 'scheduled' so existing pollers treat this as a wake-up.
+            'scheduled',
+            tpl.title, tpl.description || null,
+            JSON.stringify({ ...tpl.context, _recurringTemplateId: tpl.id }),
+            tpl.priority, tpl.source || 'recurring',
+            tpl.nextFireAt || nowIso, tpl.id, cloneCreatedAt, cloneCreatedAt,
+          ],
+        );
+
+        // Compute the next fire time strictly after the fire we just emitted.
+        // Using nextFireAt (rather than `now`) keeps the cadence stable even
+        // if a tick was delayed.
+        const afterDate = tpl.nextFireAt ? new Date(tpl.nextFireAt) : now;
+        const next = computeNextFire(
+          tpl.recurrenceRule!,
+          tpl.recurrenceTimezone || 'UTC',
+          afterDate,
+        );
+        await this.engineDb.execute(
+          `UPDATE task_queue SET next_fire_at = ?, last_fired_at = ?, updated_at = ? WHERE id = ?`,
+          [next ? next.toISOString() : null, nowIso, nowIso, tpl.id],
+        );
+
+        this.emitEvent('recurring_task_fired', {
+          templateId: tpl.id,
+          executionId: execId,
+          agentId: tpl.agentId,
+          title: tpl.title,
+          nextFireAt: next ? next.toISOString() : null,
+        });
+      } catch (err: any) {
+        console.error(`[workforce] Failed to fire recurring task ${r.id}:`, err.message);
+        // Push next_fire_at forward by one minute on failure so we don't hot-loop.
+        try {
+          const fallback = new Date(now.getTime() + 60_000).toISOString();
+          await this.engineDb.execute(
+            `UPDATE task_queue SET next_fire_at = ?, updated_at = ? WHERE id = ?`,
+            [fallback, nowIso, r.id],
+          );
+        } catch { /* best effort */ }
+      }
+    }
+  }
+
+  // ─── Recurring Task API ──────────────────────────────
+
+  /** List recurring task templates, optionally filtered by agent. */
+  async listRecurringTemplates(agentId?: string): Promise<QueuedTask[]> {
+    if (!this.engineDb) return [];
+    try {
+      const sql = agentId
+        ? `SELECT * FROM task_queue WHERE status = 'template' AND agent_id = ? ORDER BY next_fire_at ASC`
+        : `SELECT * FROM task_queue WHERE status = 'template' ORDER BY next_fire_at ASC`;
+      const rows = await this.engineDb.query<any>(sql, agentId ? [agentId] : []);
+      return rows.map((r: any) => this.rowToTask(r));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Update a recurring template. Only fields meaningful for recurrence are
+   * editable; status changes go through the normal updateTask path.
+   * Recomputes nextFireAt when the rule or timezone changes.
+   */
+  async updateRecurringTemplate(
+    templateId: string,
+    updates: {
+      title?: string;
+      description?: string;
+      priority?: QueuedTask['priority'];
+      recurrenceRule?: string;
+      recurrenceTimezone?: string;
+      context?: Record<string, any>;
+      enabled?: boolean;
+    },
+  ): Promise<QueuedTask | null> {
+    if (!this.engineDb) return null;
+    const rows = await this.engineDb.query<any>(
+      `SELECT * FROM task_queue WHERE id = ? AND status IN ('template', 'cancelled')`,
+      [templateId],
+    );
+    if (rows.length === 0) return null;
+    const existing = this.rowToTask(rows[0]);
+
+    const newRule = updates.recurrenceRule ?? existing.recurrenceRule;
+    const newTz = updates.recurrenceTimezone ?? existing.recurrenceTimezone ?? 'UTC';
+    if (newRule) {
+      const err = validateCron(newRule);
+      if (err) throw new Error(`invalid recurrenceRule: ${err}`);
+    }
+
+    const ruleChanged = updates.recurrenceRule !== undefined || updates.recurrenceTimezone !== undefined;
+    let nextFireAt = existing.nextFireAt;
+    if (ruleChanged && newRule) {
+      const next = computeNextFire(newRule, newTz);
+      nextFireAt = next ? next.toISOString() : undefined;
+    }
+
+    const status = updates.enabled === false ? 'cancelled' : 'template';
+    const nowIso = new Date().toISOString();
+    const sets: string[] = [];
+    const vals: any[] = [];
+    const push = (col: string, val: any) => { sets.push(`${col} = ?`); vals.push(val); };
+
+    if (updates.title !== undefined) push('title', updates.title);
+    if (updates.description !== undefined) push('description', updates.description);
+    if (updates.priority !== undefined) push('priority', updates.priority);
+    if (updates.context !== undefined) push('context', JSON.stringify(updates.context));
+    if (updates.recurrenceRule !== undefined) push('recurrence_rule', newRule || null);
+    if (updates.recurrenceTimezone !== undefined) push('recurrence_timezone', newTz);
+    if (ruleChanged) push('next_fire_at', nextFireAt || null);
+    if (updates.enabled !== undefined) push('status', status);
+    push('updated_at', nowIso);
+    vals.push(templateId);
+
+    await this.engineDb.execute(
+      `UPDATE task_queue SET ${sets.join(', ')} WHERE id = ?`,
+      vals,
+    );
+
+    const updated = await this.engineDb.query<any>('SELECT * FROM task_queue WHERE id = ?', [templateId]);
+    return updated.length ? this.rowToTask(updated[0]) : null;
+  }
+
+  /** Delete a recurring template. Existing execution rows are preserved. */
+  async deleteRecurringTemplate(templateId: string): Promise<boolean> {
+    if (!this.engineDb) return false;
+    try {
+      await this.engineDb.execute(
+        `DELETE FROM task_queue WHERE id = ? AND status = 'template'`,
+        [templateId],
+      );
+      return true;
+    } catch (err: any) {
+      console.error(`[workforce] Failed to delete template ${templateId}:`, err.message);
+      return false;
     }
   }
 
@@ -1154,6 +1383,11 @@ export class WorkforceManager {
       scheduledFor: r.scheduled_for || undefined,
       startedAt: r.started_at || undefined,
       completedAt: r.completed_at || undefined,
+      recurrenceRule: r.recurrence_rule || undefined,
+      recurrenceTimezone: r.recurrence_timezone || undefined,
+      parentTaskId: r.parent_task_id || undefined,
+      nextFireAt: r.next_fire_at || undefined,
+      lastFiredAt: r.last_fired_at || undefined,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     };
