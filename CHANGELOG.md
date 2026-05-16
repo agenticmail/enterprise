@@ -2,6 +2,47 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.573] - 2026-05-16
+
+### Fixed — RAG search returned 0 hits despite chunks being embedded
+
+Continuation of the 0.5.571 / 0.5.572 RAG saga. After embeddings were generated and verified at the DB layer (1118/1118 chunks had non-NULL `embedding` columns), `knowledge_base_search` still returned `No results found` for every query.
+
+Two bugs:
+
+### 1. Embedding format mismatch in storage vs decode
+
+`db-adapter.ts insertKBDocument` writes embeddings as **binary `Float32Array` buffers** (Float32 bytes packed into a SQL blob). `getKBDocuments` decoded them with `new Float32Array(c.embedding)`.
+
+But `regenerateEmbeddings` (0.5.572) and the inline-embed in `import-manager.ts insertChunk` (also 0.5.572) wrote embeddings as **JSON-stringified number arrays** (`JSON.stringify(vec)`). When the decoder hit those strings, `new Float32Array(<utf-8 bytes>)` reinterpreted the JSON characters as IEEE-754 floats — producing garbage values, NaN-ish or wildly out-of-range. Cosine similarity against garbage = ~0, never above the 0.7 minScore threshold.
+
+Fix: new `decodeEmbedding(val)` helper at the top of `db-adapter.ts` that detects the format. Supports:
+- Float32 Buffer (legacy, original format from `addDocument` path)
+- JSON string (newer, from `regenerateEmbeddings` and `import-manager`)
+- Buffer-wrapping-a-JSON-string (some Postgres drivers return TEXT columns as Buffer)
+- Plain `number[]` (in-memory pass-through)
+
+Includes a sanity check: if the bytes look like Float32 but the values are out-of-range for real embeddings (|val| > 100), it falls through to string-parse.
+
+### 2. `warnAboutMissingEmbeddings` used a PostgreSQL-only `FILTER (WHERE …)` clause
+
+The engine adapter doesn't support FILTER syntax — fails with `syntax error at or near "FILTER"`. Replaced with portable `SUM(CASE WHEN c.embedding IS NULL THEN 1 ELSE 0 END)`.
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all` — no DB changes or re-embedding needed. The fix is purely on the read path. Existing JSON-string embeddings from 0.5.572 now decode correctly, and the startup warning runs without syntax errors.
+
+If you still see `[knowledge] ⚠️` warnings about missing embeddings after this release, follow the `POST /api/engine/knowledge-bases/<id>/regenerate-embeddings` instruction in the log — that endpoint is now confirmed working end-to-end.
+
+### Why FOUR releases (0.5.570 → 0.5.573) to make RAG work
+
+- 0.5.570 — visibility into permission profiles (unrelated; surfaced separately)
+- 0.5.571 — wired `dbApiKeys` into `KnowledgeBaseEngine.setApiKeys()` (which had never been called)
+- 0.5.572 — taught the import-manager to actually call OpenAI during chunk insert + added the backfill endpoint + startup warning
+- 0.5.573 — fixed the format mismatch between storage and decode that made every embedding read as garbage
+
+Each release fixed one real bug. None of them alone would have produced working search.
+
 ## [0.5.572] - 2026-05-16
 
 ### Fixed — KB import path now embeds inline + new `/regenerate-embeddings` endpoint + startup warning

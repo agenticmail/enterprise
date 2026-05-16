@@ -16,6 +16,68 @@ function sj(val: any, fallback: any = {}): any {
   if (typeof val !== 'string') return fallback;
   try { return JSON.parse(val); } catch { return fallback; }
 }
+
+/**
+ * Decode a chunk's embedding column to a number[]. Supports both storage
+ * formats encountered in the wild:
+ *
+ *  - **Float32Array binary Buffer** — original format from
+ *    `KnowledgeBaseEngine.addDocument` (sqlite + early Postgres builds).
+ *    Bytes are `byteLength = 4 * dimensions`.
+ *  - **JSON-stringified number array** — used by `regenerateEmbeddings`
+ *    (added 0.5.572) and the inline-embed path in `import-manager.ts
+ *    insertChunk`. Plain JSON of `number[]`.
+ *  - **Postgres `text` column already returned as a string** — same as
+ *    above, just no extra parsing needed.
+ *
+ * Operators who imported via the dashboard before 0.5.572 have Float32
+ * buffers. Operators who imported on 0.5.572+ have JSON strings. Both
+ * have to round-trip correctly or RAG search returns garbage scores.
+ *
+ * Returns `undefined` if the column is null or unparseable (rather than
+ * an empty array, so downstream cosine-similarity calls skip it cleanly).
+ */
+function decodeEmbedding(val: any): number[] | undefined {
+  if (val == null) return undefined;
+  // Postgres `bytea` returns a Buffer in node-postgres; sqlite returns a Buffer
+  // for BLOB columns. Float32Array fits 4 bytes per float.
+  if (Buffer.isBuffer(val)) {
+    if (val.length === 0) return undefined;
+    // Heuristic: if the buffer length is a multiple of 4 AND the bytes look
+    // like a Float32 (most bytes will NOT be ASCII for genuine float data),
+    // treat as Float32Array. Otherwise fall through to string parsing —
+    // because some Postgres drivers return TEXT columns as Buffer too.
+    if (val.length % 4 === 0) {
+      try {
+        // Copy to ensure proper alignment (Buffer.buffer may have offset)
+        const copy = Buffer.from(val);
+        const f32 = new Float32Array(copy.buffer, copy.byteOffset, copy.length / 4);
+        // Sanity check: a real embedding has values roughly in [-1, 1] and
+        // 1536 dims for text-embedding-3-small. If the first few values
+        // are wildly out of range, it's probably JSON-as-Buffer.
+        const sample = f32[0];
+        if (Number.isFinite(sample) && Math.abs(sample) < 100) {
+          return Array.from(f32);
+        }
+      } catch { /* fall through */ }
+    }
+    // Not a clean Float32 — try as a UTF-8 string and JSON-parse
+    try {
+      const parsed = JSON.parse(val.toString('utf8'));
+      if (Array.isArray(parsed) && parsed.every(n => typeof n === 'number')) return parsed;
+    } catch { /* unknown format */ }
+    return undefined;
+  }
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed) && parsed.every(n => typeof n === 'number')) return parsed;
+    } catch { /* unknown format */ }
+    return undefined;
+  }
+  if (Array.isArray(val)) return val;
+  return undefined;
+}
 import type { AgentPermissionProfile } from './skills.js';
 import type { Organization, OrgPlan } from './tenant.js';
 import type { ApprovalRequest, ApprovalPolicy } from './approvals.js';
@@ -535,7 +597,7 @@ export class EngineDatabase {
         chunks: chunks.map((c: any) => ({
           id: c.id, documentId: c.document_id, content: c.content,
           tokenCount: c.token_count, position: c.position,
-          embedding: c.embedding ? Array.from(new Float32Array(c.embedding)) : undefined,
+          embedding: decodeEmbedding(c.embedding),
           metadata: sj(c.metadata),
         })),
       });

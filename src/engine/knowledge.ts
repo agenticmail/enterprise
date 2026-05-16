@@ -199,10 +199,14 @@ export class KnowledgeBaseEngine {
   async warnAboutMissingEmbeddings(): Promise<void> {
     if (!this.engineDb) return;
     try {
+      // FILTER (WHERE …) is PostgreSQL-only and isn't supported by the
+      // generic engineDb adapter (it strips the syntax on sqlite-style
+      // dialects and the query throws on Postgres because the adapter
+      // doesn't recognize it). Use a portable CASE WHEN aggregate instead.
       const rows = await this.engineDb.query<any>(
         `SELECT d.knowledge_base_id AS kb_id,
-                count(*)::int FILTER (WHERE c.embedding IS NULL) AS missing,
-                count(*)::int AS total
+                SUM(CASE WHEN c.embedding IS NULL THEN 1 ELSE 0 END) AS missing,
+                COUNT(*) AS total
          FROM kb_chunks c
          JOIN kb_documents d ON c.document_id = d.id
          GROUP BY d.knowledge_base_id`
