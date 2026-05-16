@@ -2,6 +2,39 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.570] - 2026-05-16
+
+### Added — surface the active permission profile in the engine log
+
+Operator-reported (session continuing the local-deploy thread): "the agent is having access issue for tools or even browser even though i enabled all tools for it."
+
+Diagnosis from the DB: their permission profile in `permission_profiles` was actually `"Customer Support Agent"` (`maxRiskLevel: medium`, `requireApproval: enabled`, narrow skills allowlist) — almost certainly applied by the dashboard's Permissions tab when the operator clicked a preset card. They thought they were ADDING permissions; they were REPLACING them.
+
+There was no log line saying which profile was active. Operators couldn't tell the dashboard's preset had overwritten the prior "Full Access (Owner)" config. They diagnosed for an hour while halo silently rejected every tool call.
+
+### What changed
+
+`src/engine/skills.ts`:
+
+1. **`setDb()` startup log** now lists every loaded permission profile with its name, max risk level, skills mode (allowlist/blocklist), skills list length, and require-approval flag. Example output:
+
+```
+[permissions] Loaded 1 permission profiles from DB
+[permissions]   • agent=db38522f…  profile="Full Access (Owner)"  maxRisk=critical  skills=blocklist(0)  requireApproval=false
+```
+
+2. **`setProfile()` mid-run log** prints a one-liner when a profile is replaced (via the dashboard's preset picker or any other path):
+
+```
+[permissions] setProfile agent=db38522f…  "Full Access (Owner)" → "Customer Support Agent"  maxRisk=medium  skills=allowlist(7)  requireApproval=true
+```
+
+3. **`refreshProfiles()` diff-only log** — the 30s background refresh now detects actual changes vs the in-memory copy and logs only when something differs (so the log doesn't spam every 30 seconds with unchanged profiles). Surfaces the moment a dashboard edit lands in the running engine.
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`. Next time tool calls get blocked, the enterprise log + halo-agent log both make it obvious which profile is in effect.
+
 ## [0.5.569] - 2026-05-16
 
 ### Fixed — three structural bugs causing agents to silently use stale config

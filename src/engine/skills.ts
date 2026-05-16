@@ -558,7 +558,23 @@ export class PermissionEngine {
       const profiles = await this.engineDb.getAllPermissionProfiles();
       for (const profile of profiles) {
         if (profile && profile.id) {
+          // Detect profile changes vs the in-memory copy. Logging only on
+          // actual diff avoids 30-second log spam; surfaces the moment a
+          // dashboard edit lands in the running agent's permission engine.
+          const prev = this.profiles.get(profile.id) as any;
+          const next: any = profile;
+          const changed = !prev
+            || prev.name !== next.name
+            || prev.maxRiskLevel !== next.maxRiskLevel
+            || !!prev.requireApproval?.enabled !== !!next.requireApproval?.enabled
+            || (prev.skills?.mode || 'blocklist') !== (next.skills?.mode || 'blocklist')
+            || JSON.stringify(prev.skills?.list || []) !== JSON.stringify(next.skills?.list || []);
           this.profiles.set(profile.id, profile);
+          if (changed && prev) {
+            const skillsMode = next.skills?.mode || 'blocklist';
+            const skillsCount = Array.isArray(next.skills?.list) ? next.skills.list.length : 0;
+            console.log(`[permissions] refreshed agent=${next.id?.slice(0, 8)}…  "${prev.name || '(unnamed)'}" → "${next.name || '(unnamed)'}"  maxRisk=${next.maxRiskLevel || '?'}  skills=${skillsMode}(${skillsCount})`);
+          }
         }
       }
       // Notify listeners (e.g., dependency manager policy sync)
@@ -606,7 +622,22 @@ export class PermissionEngine {
           this.profiles.set(profile.id, profile);
         }
       }
-      if (profiles.length > 0) console.log(`[permissions] Loaded ${profiles.length} permission profiles from DB`);
+      if (profiles.length > 0) {
+        console.log(`[permissions] Loaded ${profiles.length} permission profiles from DB`);
+        // Surface the active profile per agent so operators can tell at a
+        // glance whether the engine is enforcing a permissive or restrictive
+        // policy. Operators were confused why "Full Access" agents were
+        // getting tool calls BLOCKED — the actual profile in DB was a
+        // restrictive preset (e.g. "Customer Support Agent") and there
+        // was no log indicating that.
+        for (const profile of profiles) {
+          const p: any = profile;
+          const skillsMode = p.skills?.mode || 'blocklist';
+          const skillsCount = Array.isArray(p.skills?.list) ? p.skills.list.length : 0;
+          const approvalEnabled = !!p.requireApproval?.enabled;
+          console.log(`[permissions]   • agent=${p.id?.slice(0, 8)}…  profile="${p.name || '(unnamed)'}"  maxRisk=${p.maxRiskLevel || '?'}  skills=${skillsMode}(${skillsCount})  requireApproval=${approvalEnabled}`);
+        }
+      }
     } catch { /* table may not exist yet */ }
   }
 
@@ -639,7 +670,17 @@ export class PermissionEngine {
   }
 
   setProfile(agentId: string, profile: AgentPermissionProfile, orgId?: string) {
+    const prev = this.profiles.get(agentId) as any;
     this.profiles.set(agentId, profile);
+    // Log the change so operators can see in the enterprise log when the
+    // dashboard applied a new preset. Surfaces the most common silent
+    // tool-blocking cause: an operator picked "Customer Support Agent"
+    // (or similar restrictive preset) thinking it was additive.
+    const p: any = profile;
+    const skillsMode = p.skills?.mode || 'blocklist';
+    const skillsCount = Array.isArray(p.skills?.list) ? p.skills.list.length : 0;
+    const prevName = prev?.name || '(none)';
+    console.log(`[permissions] setProfile agent=${agentId.slice(0, 8)}…  "${prevName}" → "${p.name || '(unnamed)'}"  maxRisk=${p.maxRiskLevel || '?'}  skills=${skillsMode}(${skillsCount})  requireApproval=${!!p.requireApproval?.enabled}`);
     if (this.engineDb && orgId) {
       this.engineDb.upsertPermissionProfile(orgId, profile).catch((err) => {
         console.error(`[permissions] Failed to persist profile for agent ${agentId}:`, err);
