@@ -28,12 +28,35 @@ import { KnowledgeLink, AGENT_TAB_DOCS } from '../../components/knowledge-link.j
 export function AgentDetailPage(props) {
   var agentId = props.agentId;
   var onBack = props.onBack;
+  // `agentTab` + `onTabChange` are owned by the parent App so the URL
+  // contract for /dashboard/agents/<id>/<tab> lives in one place. If the
+  // parent doesn't provide them (older callers / tests) we fall back to
+  // standalone state so this component still works in isolation.
+  var initialTabFromProps = props.agentTab;
+  var onTabChangeFromProps = props.onTabChange;
 
   var app = useApp();
   var toast = app.toast;
 
-  var _tab = useState('overview');
+  var _tab = useState(initialTabFromProps || 'overview');
   var tab = _tab[0]; var setTab = _tab[1];
+
+  // Mirror prop changes (e.g. operator hit browser-back, parent re-parsed
+  // the URL, our agentTab prop just changed) into local state so the
+  // rendered tab follows the URL.
+  useEffect(function() {
+    if (initialTabFromProps && initialTabFromProps !== tab) {
+      setTab(initialTabFromProps);
+    }
+  }, [initialTabFromProps]);
+
+  // Tab-button click handler — local state + URL push via the parent.
+  // Kept as a single function so every tab transition goes through the
+  // same code path; new tabs added to ALL_TABS pick this up automatically.
+  function changeTab(t) {
+    setTab(t);
+    if (onTabChangeFromProps) onTabChangeFromProps(t);
+  }
   var _agent = useState(null);
   var agent = _agent[0]; var setAgent = _agent[1];
   var _engineAgent = useState(null);
@@ -231,7 +254,7 @@ export function AgentDetailPage(props) {
       TABS.map(function(t) {
         var isActive = tab === t;
         var label = TAB_LABELS[t] || t.charAt(0).toUpperCase() + t.slice(1);
-        return h('button', { key: t, onClick: function() { setTab(t); }, style: {
+        return h('button', { key: t, onClick: function() { changeTab(t); }, style: {
           padding: '8px 18px', borderRadius: 999, border: isActive ? '1.5px solid var(--brand-color, #6366f1)' : '1.5px solid var(--border)', background: isActive ? 'var(--brand-color, #6366f1)' : 'transparent', color: isActive ? '#fff' : 'var(--text-secondary)', fontSize: 13, fontWeight: isActive ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0
         }, onMouseEnter: function(e) { if (!isActive) { e.currentTarget.style.borderColor = 'var(--brand-color, #6366f1)'; e.currentTarget.style.color = 'var(--text)'; } }, onMouseLeave: function(e) { if (!isActive) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; } } }, label);
       })
@@ -247,7 +270,7 @@ export function AgentDetailPage(props) {
     tab === 'overview' && h(OverviewSection, { agentId: agentId, agent: agent, engineAgent: engineAgent, profile: profile, reload: load, agents: agents, onBack: onBack }),
     tab === 'personal' && h(PersonalDetailsSection, { agentId: agentId, agent: agent, engineAgent: engineAgent, reload: load }),
     tab === 'email' && h(EmailSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
-    tab === 'whatsapp' && h(WhatsAppSection, { agentId: agentId, engineAgent: engineAgent, reload: load, setTab: setTab }),
+    tab === 'whatsapp' && h(WhatsAppSection, { agentId: agentId, engineAgent: engineAgent, reload: load, setTab: changeTab }),
     tab === 'channels' && h(ChannelsSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'configuration' && h(ConfigurationSection, { agentId: agentId, engineAgent: engineAgent, reload: load }),
     tab === 'manager' && h(ManagerCatchUpSection, { agentId: agentId, engineAgent: engineAgent, agents: agents, reload: load }),

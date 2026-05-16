@@ -2,6 +2,37 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.560] - 2026-05-16
+
+### Fixed — agent-detail tab URL now reflects the active tab
+
+Operator report (correct): clicking a tab on the agent-detail page (Overview, Email, Tools, Channels, Autonomy, etc.) didn't update the URL. The address bar stayed at `/dashboard/agents/<id>` regardless of which tab was active. Three downstream problems:
+
+1. **Refresh always snapped back to Overview** — `useState('overview')` was the source of truth; the URL contributed nothing on reload.
+2. **Deep-links / shared links / external doc links to a specific tab were impossible** — there was no URL shape that meant "open this agent at the Channels tab".
+3. **Browser back/forward buttons didn't navigate between tabs** — popstate had nothing tab-shaped to react to.
+
+### What changed
+
+URL contract is now `/dashboard/agents/<id>/<tab>` (and bare `/dashboard/agents/<id>` is honored as a redirect to `/overview`):
+
+- `parseRoute()` in `src/dashboard/app.js` reads the third path segment as `agentTab` (returns `null` when absent).
+- `selectedAgentTab` is now state on `App` alongside `selectedAgentId`, so the URL contract lives in exactly one place rather than in `AgentDetailPage`'s internal state.
+- `setSelectedAgentId(id)` and `navigateToAgent(id)` both push `/dashboard/agents/<id>/overview` (so the URL is always tab-qualified, not bare).
+- New `setSelectedAgentTab(tab)` helper pushes the new tab segment and is wired down to `AgentDetailPage` as the `onTabChange` prop.
+- `popstate` handler reads `agentTab` too — browser back / forward now navigates between tabs the same way it navigates between pages.
+
+In `src/dashboard/pages/agent-detail/index.js`:
+
+- `useState('overview')` becomes `useState(props.agentTab || 'overview')` so deep-links land on the right tab on first paint.
+- `useEffect` on `[props.agentTab]` re-syncs the local tab state when the parent's URL parsing emits a new value (e.g. operator hit browser-back).
+- New `changeTab(t)` wrapper that does `setTab(t) + props.onTabChange(t)` in one place; every tab-button click + the programmatic switch inside `WhatsAppSection` now flow through it.
+
+### What I deliberately didn't change
+
+- **Bare `/dashboard/agents/<id>` is still accepted** on direct navigation (the bookmark won't 404). It just becomes `.../<id>/overview` once `setSelectedAgentId` runs. Strict redirect would break existing bookmarks for zero gain.
+- **Unknown tab values aren't redirected away.** A URL like `/dashboard/agents/<id>/banana` will render with no tab body (because the section render is gated by `tab === '<name>'`). Could add a toast + redirect to overview, but silent fall-through matches how the rest of the dashboard treats unknown URLs.
+
 ## [0.5.453] - 2026-03-13
 
 ### Fixed

@@ -75,17 +75,28 @@ export { Modal } from './components/modal.js';
 function App() {
   const [authed, setAuthed] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  // URL-synced routing
+  // URL-synced routing.
+  //
+  // Agent-detail URLs now carry the active tab as a third path segment:
+  //   /dashboard/agents/<id>            → no tab (falls back to overview)
+  //   /dashboard/agents/<id>/<tab>      → that tab is active
+  //
+  // Why: previously `tab` was internal React state on `AgentDetailPage`,
+  // which meant a deep-link to an agent always landed on overview AND the
+  // URL didn't change when the operator clicked a tab — so refresh / share
+  // links / browser back / external doc links all snapped back to overview.
+  // Now the URL is the source of truth and the back/forward buttons work.
   function parseRoute() {
     const p = window.location.pathname.replace(/^\/dashboard\/?/, '') || '';
     const parts = p.split('/').filter(Boolean);
-    if (parts[0] === 'agents' && parts[1]) return { page: 'agents', agentId: parts[1] };
-    if (parts[0]) return { page: parts[0], agentId: null };
-    return { page: 'dashboard', agentId: null };
+    if (parts[0] === 'agents' && parts[1]) return { page: 'agents', agentId: parts[1], agentTab: parts[2] || null };
+    if (parts[0]) return { page: parts[0], agentId: null, agentTab: null };
+    return { page: 'dashboard', agentId: null, agentTab: null };
   }
   const initial = parseRoute();
   const [page, _setPage] = useState(initial.page);
   const [selectedAgentId, _setSelectedAgentId] = useState(initial.agentId);
+  const [selectedAgentTab, _setSelectedAgentTab] = useState(initial.agentTab);
 
   // ─── Scroll Position Restoration ────────────────────
   const _scrollPositions = useRef({});
@@ -116,14 +127,32 @@ function App() {
   function setSelectedAgentId(id) {
     _saveScroll();
     _setSelectedAgentId(id);
-    if (id) history.pushState(null, '', '/dashboard/agents/' + id);
+    // Reset to overview when entering an agent — older URLs that bookmarked
+    // a tabbed deep-link are still honored by parseRoute on direct navigation.
+    _setSelectedAgentTab('overview');
+    if (id) history.pushState(null, '', '/dashboard/agents/' + id + '/overview');
+  }
+
+  /**
+   * Push a new tab segment for the currently-selected agent. Called from
+   * `AgentDetailPage` whenever the operator clicks a tab. Keeping the
+   * write-side in the parent (rather than letting the child manage its own
+   * pushState) means there's exactly one place that owns the URL contract
+   * for `/dashboard/agents/...` — `parseRoute` here.
+   */
+  function setSelectedAgentTab(tab) {
+    if (!tab) return;
+    _setSelectedAgentTab(tab);
+    if (selectedAgentId) {
+      history.pushState(null, '', '/dashboard/agents/' + selectedAgentId + '/' + tab);
+    }
   }
 
   useEffect(() => {
     const onPop = () => {
       _saveScroll();
       const r = parseRoute();
-      _setPage(r.page); _setSelectedAgentId(r.agentId);
+      _setPage(r.page); _setSelectedAgentId(r.agentId); _setSelectedAgentTab(r.agentTab);
       _restoreScroll(r.page + (r.agentId ? '/' + r.agentId : ''));
     };
     window.addEventListener('popstate', onPop);
@@ -474,7 +503,11 @@ function App() {
     cluster: ClusterPage,
   };
 
-  const navigateToAgent = (agentId) => { _setSelectedAgentId(agentId); history.pushState(null, '', '/dashboard/agents/' + agentId); };
+  const navigateToAgent = (agentId) => {
+    _setSelectedAgentId(agentId);
+    _setSelectedAgentTab('overview');
+    history.pushState(null, '', '/dashboard/agents/' + agentId + '/overview');
+  };
 
   // Filter nav based on permissions
   const hasAccess = (pageId) => permissions === '*' || (permissions && pageId in permissions);
@@ -613,7 +646,12 @@ function App() {
             updateInfo.releaseUrl && h('a', { href: updateInfo.releaseUrl, target: '_blank', style: { display: 'inline-block', marginTop: 6, fontSize: 11, color: 'rgba(16,185,129,0.9)' } }, 'View full release notes \u2192')
           ),
           selectedAgentId
-            ? h(AgentDetailPage, { agentId: selectedAgentId, onBack: () => { _setSelectedAgentId(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); } })
+            ? h(AgentDetailPage, {
+                agentId: selectedAgentId,
+                agentTab: selectedAgentTab,
+                onTabChange: setSelectedAgentTab,
+                onBack: () => { _setSelectedAgentId(null); _setSelectedAgentTab(null); _setPage('agents'); history.pushState(null, '', '/dashboard/agents'); }
+              })
             : page === 'agents'
               ? h(AgentsPage, { key: 'agents-' + orgVersion, onSelectAgent: navigateToAgent })
               : PageComponent ? h(PageComponent, { key: page + '-' + orgVersion })
