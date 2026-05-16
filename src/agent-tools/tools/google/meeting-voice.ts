@@ -429,7 +429,8 @@ async function playAudioToDevice(
 ): Promise<void> {
   const { exec: execCb } = await import('child_process');
   const { promisify } = await import('util');
-  const exec = promisify(execCb);
+  const _exec = promisify(execCb);
+  const exec = (cmd: string, opts?: any) => _exec(cmd, { ...(opts || {}), windowsHide: true });
 
   if (process.platform === 'darwin') {
     if (device) {
@@ -491,7 +492,10 @@ async function checkAudioSetup(): Promise<{
 }> {
   const { exec: execCb } = await import('child_process');
   const { promisify } = await import('util');
-  const exec = promisify(execCb);
+  const _exec = promisify(execCb);
+  // windowsHide prevents `where sox`, `sox --help`, the PowerShell
+  // Get-AudioDevice probe, etc. from each flashing a cmd console.
+  const exec = (cmd: string, opts?: any) => _exec(cmd, { ...(opts || {}), windowsHide: true });
 
   const platform = process.platform;
   let hasBlackHole = false;

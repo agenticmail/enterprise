@@ -2,6 +2,25 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.564] - 2026-05-16
+
+### Fixed — more cmd.exe flashes from agent-init dependency probes
+
+0.5.563 fixed `deployer.execCommand` (the 30s `pm2 jlist` health-check loop). Process-monitoring after that release caught MORE flashes from **every agent process startup**: `cli-agent.ts ensureSystemDependencies` runs winget/choco probes, `npx playwright install chromium`, `where sox`, plus the meeting-voice tool checks `sox --help` and PowerShell `Get-AudioDevice` queries. Each `exec()` without `windowsHide:true` flashes a console window on Windows.
+
+### What changed
+
+Wrapped the local `exec = promisify(execCb)` in each of:
+- `src/cli-agent.ts ensureSystemDependencies` (~30 callers across this function)
+- `src/agent-tools/tools/google/meeting-voice.ts checkAudioDevices` (where sox, sox --help, PowerShell Get-AudioDevice)
+- `src/agent-tools/tools/google/meeting-voice.ts playAudioToDevice` (sox playback shellouts)
+
+Wrap shape: `const exec = (cmd, opts) => _exec(cmd, { ...(opts||{}), windowsHide: true })`. Single-line addition that catches every call site automatically.
+
+### Operator action
+
+After upgrading, both enterprise AND every agent-* PM2 process must restart (not just the enterprise daemon). Each agent process runs its own `ensureSystemDependencies` on boot, which is where the bulk of the flashes come from. `pm2 restart all` works.
+
 ## [0.5.563] - 2026-05-16
 
 ### Fixed — the REAL cause of flashing cmd.exe windows on Windows

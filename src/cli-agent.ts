@@ -79,7 +79,14 @@ function _stripMd(text: string): string {
 async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) => Promise<boolean> }): Promise<void> {
   const { exec: execCb } = await import('child_process');
   const { promisify } = await import('util');
-  const exec = promisify(execCb);
+  const _exec = promisify(execCb);
+  // Wrap exec so windowsHide:true is the default — without this, every
+  // package-manager probe on Windows (winget, choco, where sox, npx
+  // playwright install, ...) flashes a cmd.exe console window. This
+  // function runs every time an agent process starts up; the flashes
+  // were the bulk of operator complaints about "terminal windows
+  // keep opening". macOS/Linux ignore the flag.
+  const exec = (cmd: string, opts?: any) => _exec(cmd, { ...(opts || {}), windowsHide: true });
   const platform = process.platform; // darwin | linux | win32
 
   const installed: string[] = [];
