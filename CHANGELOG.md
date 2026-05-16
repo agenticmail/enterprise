@@ -2,6 +2,28 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.576] - 2026-05-16
+
+### Fixed — `/dashboard/workforce` and `/dashboard/messages` crashed on load
+
+Both pages threw `ReferenceError: getOrgId is not defined` on first render and the ErrorBoundary swallowed them. Root cause: the two page files never imported the shared dashboard utilities from `components/utils.js` — they imported only their page-specific components and relied on identifiers that don't exist as globals.
+
+`getOrgId` was the first undefined reference React hit, so the error message named it; `h`, `useState`, `useEffect`, `useApp`, `engineCall`, `apiCall`, and the agent-helper functions would have all failed the same way had execution reached them.
+
+Fix: add the missing import line to both files, matching the pattern used by every other dashboard page.
+
+```js
+// workforce.js
+import { h, useState, useEffect, Fragment, useApp, engineCall, getOrgId, buildAgentDataMap, buildAgentEmailMap, renderAgentBadge } from '../components/utils.js';
+
+// messages.js
+import { h, useState, useEffect, useRef, useApp, apiCall, engineCall, getOrgId, buildAgentDataMap, buildAgentEmailMap, renderAgentBadge } from '../components/utils.js';
+```
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`, then hard-refresh the dashboard so the browser drops the cached `workforce.js` / `messages.js`.
+
 ## [0.5.575] - 2026-05-16
 
 ### Added — Recurring task scheduler
