@@ -2,6 +2,29 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.577] - 2026-05-16
+
+### Added — Recurring task templates now visible in the dashboard
+
+The 0.5.575 release shipped the recurring task scheduler with API endpoints (`POST/GET/PATCH/DELETE /api/engine/workforce/recurring-tasks`) but no dashboard UI — templates lived in the DB and fired on schedule, but operators couldn't see or manage them through `/dashboard/workforce` or `/dashboard/agents/:id/workforce`. After creating halo's growth shift template via curl, "where do I see it?" was the natural next question.
+
+### What's new
+
+**1. Templates surface inline with one-shot tasks.** Both the org-wide task queue tab (`/dashboard/workforce`) and the per-agent workforce tab (`/dashboard/agents/:id/workforce`) now list recurring templates alongside ad-hoc tasks. Each template row shows:
+- A blue **Recurring** badge in the Type column (replaces the usual type badge)
+- The cron expression in monospace + the next computed fire time in the Schedule column
+- A status badge of `template` (also blue)
+
+**2. Click any row → detail modal.** Tasks and templates are now clickable. The modal shows:
+- For one-shot tasks: title, description, type, priority, status, source, parent template (if spawned from a recurring template), scheduled/started/completed timestamps, full context JSON
+- For recurring templates: title, description, cron rule, timezone, next fire, last fired, priority, source, template ID, context JSON
+
+**3. Backend filter relaxed.** `getAgentTasks` no longer excludes `status='template'` rows — they're returned alongside one-shot tasks so a single list query surfaces the full picture. Existing status filters in the UI still let operators narrow to specific states.
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`, then hard-refresh the dashboard so the browser drops cached `workforce.js`. Recurring templates created via the API in 0.5.575 will appear immediately — no data migration needed.
+
 ## [0.5.576] - 2026-05-16
 
 ### Fixed — `/dashboard/workforce` and `/dashboard/messages` crashed on load

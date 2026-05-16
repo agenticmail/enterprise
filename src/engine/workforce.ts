@@ -435,10 +435,12 @@ export class WorkforceManager {
     if (!this.engineDb) return [];
 
     const priorityOrder = "CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 END";
-    // Exclude recurring templates from the regular task queue — they're
-    // surfaced via listRecurringTemplates(). Without this filter, dashboard
-    // listings would mix templates and one-shot tasks confusingly.
-    let sql = `SELECT * FROM task_queue WHERE agent_id = ? AND status != 'template'`;
+    // Templates are returned alongside one-shot tasks so the dashboard
+    // task queue shows the full picture (recurring shifts + ad-hoc
+    // tasks). The UI distinguishes templates via the 'template' status
+    // badge + a "next fire" column. Status filters can still narrow
+    // either side.
+    let sql = `SELECT * FROM task_queue WHERE agent_id = ?`;
     const params: any[] = [agentId];
 
     if (status) {

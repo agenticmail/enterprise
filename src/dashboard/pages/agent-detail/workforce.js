@@ -5,6 +5,7 @@ import { TimezoneSelect } from '../../components/timezones.js';
 import { Badge, StatCard, EmptyState, formatTime } from './shared.js?v=4';
 import { HelpButton } from '../../components/help-button.js';
 import { AgentTaskPipeline } from '../task-pipeline.js';
+import { DetailModal } from '../../components/modal.js';
 
 // ════════════════════════════════════════════════════════════
 // WORKFORCE SECTION
@@ -32,6 +33,8 @@ export function WorkforceSection(props) {
   var taskForm = _taskForm[0]; var setTaskForm = _taskForm[1];
   var _editing = useState(false);
   var editing = _editing[0]; var setEditing = _editing[1];
+  var _selectedTask = useState(null);
+  var selectedTask = _selectedTask[0]; var setSelectedTask = _selectedTask[1];
   var _saving = useState(false);
   var saving = _saving[0]; var setSaving = _saving[1];
 
@@ -436,23 +439,41 @@ export function WorkforceSection(props) {
                   h('th', null, 'Priority'),
                   h('th', null, 'Type'),
                   h('th', null, 'Status'),
+                  h('th', null, 'Schedule'),
                   h('th', null, 'Actions')
                 )
               ),
               h('tbody', null,
                 tasks.map(function(task, i) {
+                  var isTemplate = task.status === 'template';
                   var priorityColor = task.priority === 'urgent' ? 'badge-danger' : task.priority === 'high' ? 'badge-warning' : task.priority === 'low' ? 'badge-neutral' : 'badge-info';
                   var typeColor = task.type === 'email' ? 'badge-primary' : task.type === 'research' ? 'badge-info' : task.type === 'communication' ? 'badge-success' : 'badge-neutral';
-                  var statusColor = task.status === 'completed' ? 'badge-success' : task.status === 'cancelled' ? 'badge-neutral' : task.status === 'in_progress' ? 'badge-info' : 'badge-warning';
+                  var statusColor = task.status === 'completed' ? 'badge-success' : task.status === 'cancelled' ? 'badge-neutral' : task.status === 'in_progress' ? 'badge-info' : isTemplate ? 'badge-primary' : 'badge-warning';
 
-                  return h('tr', { key: task.id || i },
+                  return h('tr', {
+                    key: task.id || i,
+                    style: { cursor: 'pointer' },
+                    onClick: function(e) {
+                      // Action buttons swallow the row click so they don't double-fire.
+                      if (e.target.closest('button')) return;
+                      setSelectedTask(task);
+                    }
+                  },
                     h('td', { style: { fontWeight: 500, fontSize: 13 } }, task.title || 'Untitled'),
                     h('td', null, h('span', { className: 'badge ' + priorityColor }, task.priority || 'normal')),
-                    h('td', null, h('span', { className: 'badge ' + typeColor }, task.type || 'general')),
+                    h('td', null, isTemplate
+                      ? h('span', { className: 'badge badge-primary' }, 'Recurring')
+                      : h('span', { className: 'badge ' + typeColor }, task.type || 'general')),
                     h('td', null, h('span', { className: 'badge ' + statusColor }, task.status || 'pending')),
+                    h('td', { style: { fontSize: 12 } }, isTemplate
+                      ? h(Fragment, null,
+                          h('div', { style: { fontFamily: 'var(--font-mono, monospace)' } }, task.recurrenceRule || '-'),
+                          task.nextFireAt && h('div', { style: { color: 'var(--text-muted)' } }, 'next: ' + formatTime(task.nextFireAt))
+                        )
+                      : '-'),
                     h('td', null,
                       h('div', { style: { display: 'flex', gap: 4 } },
-                        task.status !== 'completed' && task.status !== 'cancelled' && h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { completeTask(task.id); } }, I.check(), ' Complete'),
+                        !isTemplate && task.status !== 'completed' && task.status !== 'cancelled' && h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { completeTask(task.id); } }, I.check(), ' Complete'),
                         task.status !== 'completed' && task.status !== 'cancelled' && h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)' }, onClick: function() { cancelTask(task.id); } }, I.x(), ' Cancel')
                       )
                     )
@@ -465,6 +486,57 @@ export function WorkforceSection(props) {
             h('div', { style: { textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 13 } }, 'No tasks in queue.')
           )
     ),
+
+    // ─── Task / Template Detail Modal ─────────────────────
+    selectedTask && (function() {
+      var st = selectedTask;
+      var isTemplate = st.status === 'template';
+      var data = isTemplate
+        ? {
+            'Title': st.title || '-',
+            'Description': st.description || '-',
+            'Recurrence (cron)': st.recurrenceRule || '-',
+            'Timezone': st.recurrenceTimezone || 'UTC',
+            'Next fire': st.nextFireAt ? formatTime(st.nextFireAt) : '-',
+            'Last fired': st.lastFiredAt ? formatTime(st.lastFiredAt) : 'never',
+            'Priority': st.priority || 'normal',
+            'Source': st.source || '-',
+            'Template ID': st.id || '-',
+            'Created': formatTime(st.createdAt),
+            'Updated': formatTime(st.updatedAt),
+            'Context': st.context && Object.keys(st.context).length > 0 ? JSON.stringify(st.context, null, 2) : '-',
+          }
+        : {
+            'Title': st.title || '-',
+            'Description': st.description || '-',
+            'Type': st.type || '-',
+            'Priority': st.priority || 'normal',
+            'Status': st.status || '-',
+            'Source': st.source || '-',
+            'Task ID': st.id || '-',
+            'Parent template': st.parentTaskId || '-',
+            'Scheduled for': st.scheduledFor ? formatTime(st.scheduledFor) : '-',
+            'Started at': st.startedAt ? formatTime(st.startedAt) : '-',
+            'Completed at': st.completedAt ? formatTime(st.completedAt) : '-',
+            'Created': formatTime(st.createdAt),
+            'Updated': formatTime(st.updatedAt),
+            'Context': st.context && Object.keys(st.context).length > 0 ? JSON.stringify(st.context, null, 2) : '-',
+          };
+      return h(DetailModal, {
+        title: isTemplate ? 'Recurring Task Template' : 'Task Details',
+        onClose: function() { setSelectedTask(null); },
+        badge: {
+          label: isTemplate ? 'RECURRING' : (st.status || 'queued').toUpperCase(),
+          color: isTemplate ? 'var(--accent, #6366f1)' :
+                  st.status === 'completed' ? 'var(--success)' :
+                  st.status === 'cancelled' ? 'var(--text-muted)' :
+                  st.status === 'in_progress' ? 'var(--info)' :
+                  'var(--warning)',
+        },
+        data: data,
+        exclude: [],
+      });
+    })(),
 
     // ─── Centralized Task Pipeline ─────────────────────
     h('div', { className: 'card', style: { marginBottom: 20 } },

@@ -60,6 +60,7 @@ export function WorkforcePage() {
   const [budgetSearch, setBudgetSearch] = useState('');
   const [budgetStatusFilter, setBudgetStatusFilter] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
 
   const formatTime = (iso) => iso ? new Date(iso).toLocaleString() : '-';
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -510,18 +511,36 @@ export function WorkforcePage() {
         : h('div', { className: 'card' },
           h('table', { className: 'data-table' },
             h('thead', null, h('tr', null,
-              h('th', null, 'Agent'), h('th', null, 'Type'), h('th', null, 'Title'), h('th', null, 'Priority'), h('th', null, 'Status'), h('th', null, 'Created'), h('th', null, 'Actions')
+              h('th', null, 'Agent'), h('th', null, 'Type'), h('th', null, 'Title'), h('th', null, 'Priority'), h('th', null, 'Status'), h('th', null, 'Schedule / Created'), h('th', null, 'Actions')
             )),
             h('tbody', null,
-              pageTasks.map(function(t) { return h('tr', { key: t.id },
+              pageTasks.map(function(t) {
+                var isTemplate = t.status === 'template';
+                var statusBg = isTemplate ? 'var(--accent, #6366f1)' : 'var(--bg-tertiary)';
+                return h('tr', {
+                  key: t.id,
+                  style: { cursor: 'pointer' },
+                  onClick: function(e) {
+                    // Don't trigger row-open when clicking action buttons
+                    if (e.target.closest('button')) return;
+                    setSelectedTask(t);
+                  }
+                },
                 h('td', null, renderAgentBadge(t.agentId, agentData)),
-                h('td', null, typeBadge(t.type)),
+                h('td', null, isTemplate
+                  ? h('span', { className: 'badge', style: { background: 'var(--accent, #6366f1)', color: 'white' } }, 'Recurring')
+                  : typeBadge(t.type)),
                 h('td', null, h('strong', null, t.title || '-')),
                 h('td', null, h('span', { className: 'badge', style: { background: t.priority === 'critical' ? 'var(--danger)' : t.priority === 'high' ? 'var(--warning)' : 'var(--bg-tertiary)' } }, t.priority || 'normal')),
-                h('td', null, t.status || '-'),
-                h('td', null, formatTime(t.createdAt)),
+                h('td', null, h('span', { className: 'badge', style: { background: statusBg, color: isTemplate ? 'white' : undefined } }, t.status || '-')),
+                h('td', null, isTemplate
+                  ? h('div', { style: { fontSize: 12 } },
+                      h('div', { style: { fontFamily: 'var(--font-mono, monospace)', color: 'var(--text)' } }, t.recurrenceRule || '-'),
+                      t.nextFireAt && h('div', { style: { color: 'var(--text-muted)' } }, 'next: ' + formatTime(t.nextFireAt))
+                    )
+                  : formatTime(t.createdAt)),
                 h('td', { style: { display: 'flex', gap: 4 } },
-                  h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { completeTask(t.id); } }, I.check(), ' Done'),
+                  !isTemplate && h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { completeTask(t.id); } }, I.check(), ' Done'),
                   h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)' }, onClick: function() { cancelTask(t.id); } }, I.x(), ' Cancel')
                 )
               ); })
@@ -742,6 +761,66 @@ export function WorkforcePage() {
       },
       exclude: [],
     }),
+
+    // ===== TASK DETAIL MODAL =====
+    // Same modal renders for both one-shot tasks and recurring templates.
+    // Recurring templates surface the cron rule, timezone, and the next/
+    // last fire timestamps; one-shot tasks fall back to the standard
+    // started/completed timeline.
+    selectedTask && (function() {
+      var st = selectedTask;
+      var isTemplate = st.status === 'template';
+      var data = isTemplate
+        ? {
+            'Title': st.title || '-',
+            'Description': st.description || '-',
+            'Agent ID': st.agentId || '-',
+            'Recurrence (cron)': st.recurrenceRule || '-',
+            'Timezone': st.recurrenceTimezone || 'UTC',
+            'Next fire': st.nextFireAt ? formatTime(st.nextFireAt) : '-',
+            'Last fired': st.lastFiredAt ? formatTime(st.lastFiredAt) : 'never',
+            'Priority': st.priority || 'normal',
+            'Source': st.source || '-',
+            'Template ID': st.id || '-',
+            'Created': formatTime(st.createdAt),
+            'Updated': formatTime(st.updatedAt),
+            'Context': st.context && Object.keys(st.context).length > 0 ? JSON.stringify(st.context, null, 2) : '-',
+          }
+        : {
+            'Title': st.title || '-',
+            'Description': st.description || '-',
+            'Agent ID': st.agentId || '-',
+            'Type': st.type || '-',
+            'Priority': st.priority || 'normal',
+            'Status': st.status || '-',
+            'Source': st.source || '-',
+            'Task ID': st.id || '-',
+            'Parent template': st.parentTaskId || '-',
+            'Scheduled for': st.scheduledFor ? formatTime(st.scheduledFor) : '-',
+            'Started at': st.startedAt ? formatTime(st.startedAt) : '-',
+            'Completed at': st.completedAt ? formatTime(st.completedAt) : '-',
+            'Created': formatTime(st.createdAt),
+            'Updated': formatTime(st.updatedAt),
+            'Context': st.context && Object.keys(st.context).length > 0 ? JSON.stringify(st.context, null, 2) : '-',
+          };
+      return h(DetailModal, {
+        title: isTemplate ? 'Recurring Task Template' : 'Task Details',
+        onClose: function() { setSelectedTask(null); },
+        badge: {
+          label: isTemplate ? 'RECURRING' : (st.status || 'queued').toUpperCase(),
+          color: isTemplate ? 'var(--accent, #6366f1)' :
+                  st.status === 'completed' ? 'var(--success)' :
+                  st.status === 'cancelled' ? 'var(--text-muted)' :
+                  st.status === 'in_progress' ? 'var(--info)' :
+                  'var(--warning)',
+        },
+        header: h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          renderAgentBadge(st.agentId, agentData)
+        ),
+        data: data,
+        exclude: [],
+      });
+    })(),
 
     showScheduleModal && h('div', { className: 'modal-overlay', onClick: () => { setShowScheduleModal(false); setEditingScheduleId(null); } },
       h('div', { className: 'modal', style: { maxWidth: 560 }, onClick: e => e.stopPropagation() },
