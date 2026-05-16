@@ -359,16 +359,65 @@ export class KnowledgeImportManager {
 
   private chunkPosition = 0;
 
+  /**
+   * Lazily-resolved OpenAI key for inline embedding during chunk insert.
+   * Pulled from KnowledgeBaseEngine.apiKeys (which itself is populated
+   * from company_settings.modelPricingConfig.providerApiKeys at startup
+   * + every 30s in the agent process, see cli-agent.ts / server.ts).
+   */
+  private getEmbeddingKey(): string | null {
+    const ke = this.knowledgeEngine as any;
+    return ke?.apiKeys?.openai || ke?.apiKeys?.['openai-official'] || null;
+  }
+
+  /**
+   * Embed a batch of chunk-content strings via OpenAI. Returns an array
+   * of float[] aligned with `inputs`. Returns null on any failure so the
+   * caller can fall back to writing un-embedded chunks (the backfill
+   * endpoint catches them later).
+   */
+  private async embedBatch(inputs: string[], model = 'text-embedding-3-small'): Promise<number[][] | null> {
+    const apiKey = this.getEmbeddingKey();
+    if (!apiKey) return null;
+    try {
+      const resp = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, input: inputs }),
+      });
+      if (!resp.ok) {
+        console.error(`[knowledge-import] embedBatch: OpenAI ${resp.status} — ${(await resp.text()).slice(0, 200)}`);
+        return null;
+      }
+      const data = await resp.json() as any;
+      return data.data.map((d: any) => d.embedding);
+    } catch (e: any) {
+      console.error(`[knowledge-import] embedBatch: fetch failed: ${e.message}`);
+      return null;
+    }
+  }
+
   private async insertChunk(job: ImportJob, chunk: ImportChunk): Promise<void> {
     if (!this.db) throw new Error('No database configured');
     const docId = await this.ensureDocument(job, chunk);
     const chunkId = uid();
     const tokenCount = Math.ceil(chunk.content.length / 4); // rough estimate
+
+    // Generate embedding inline. If the embedding provider isn't
+    // configured or the call fails, fall through to writing the chunk
+    // with embedding=NULL — the startup health-check + /regenerate-
+    // embeddings endpoint cover the recovery path. Better to have the
+    // chunk content stored without an embedding than to abort the
+    // entire import.
+    const vecs = await this.embedBatch([chunk.content]);
+    const embeddingJson = vecs && vecs[0] ? JSON.stringify(vecs[0]) : null;
+
     await this.db.run(
-      `INSERT INTO kb_chunks (id, document_id, content, token_count, position, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO kb_chunks (id, document_id, content, token_count, position, metadata, embedding)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [chunkId, docId, chunk.content, tokenCount, this.chunkPosition++,
-       JSON.stringify({ title: chunk.title, summary: chunk.summary, tags: chunk.tags, sourceUrl: chunk.sourceUrl, sourcePath: chunk.sourcePath })]
+       JSON.stringify({ title: chunk.title, summary: chunk.summary, tags: chunk.tags, sourceUrl: chunk.sourceUrl, sourcePath: chunk.sourcePath }),
+       embeddingJson]
     );
   }
 

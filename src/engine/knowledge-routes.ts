@@ -65,6 +65,22 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
     return ok ? c.json({ success: true }) : c.json({ error: 'Not found' }, 404);
   });
 
+  // Regenerate embeddings for chunks that were imported without them.
+  // Returns synchronously after the run (batches of 100 through OpenAI;
+  // 1k chunks ≈ 30-60 s real time). For very large KBs this can be a
+  // long-running request — operators who don't want a long-poll can
+  // wrap it in a background job, but the synchronous path is the
+  // simplest and works for the common case (low thousands of chunks).
+  router.post('/knowledge-bases/:id/regenerate-embeddings', async (c) => {
+    const id = c.req.param('id');
+    try {
+      const result = await knowledgeBase.regenerateEmbeddings(id);
+      return c.json({ ok: true, ...result });
+    } catch (e: any) {
+      return c.json({ ok: false, error: e.message }, 400);
+    }
+  });
+
   router.post('/knowledge-bases/search', async (c) => {
     const { agentId, query, kbIds, maxResults, minScore } = await c.req.json();
     const results = await knowledgeBase.search(agentId, query, { kbIds, maxResults, minScore });

@@ -729,19 +729,24 @@ export function createServer(config: ServerConfig): ServerInstance {
                   }
                 }
               }
-              // Wire the same keys into the KnowledgeBaseEngine. Without
-              // this, `apiKeys.openai` is undefined inside the KB engine
-              // and `generateEmbeddings` exits at line 497, leaving every
-              // imported chunk un-embedded. Operators hit the same trap:
-              // import job shows "completed", chunks exist, but
-              // `knowledge_search` returns 0 hits because vector search
-              // has nothing to match.
+              // Wire the same keys into the KnowledgeBaseEngine + run the
+              // startup health-check. Without setApiKeys, embeddings never
+              // generate. With keys but un-embedded chunks (the common
+              // upgrade case), warnAboutMissingEmbeddings prints a loud
+              // log line per affected KB with the exact curl command to
+              // run. Operators no longer need to know about
+              // "regenerate-embeddings" out of band.
               try {
                 const routesMod = await import('./engine/routes.js');
-                (routesMod as any).knowledgeBase?.setApiKeys?.(decryptedKeys);
+                const kbEngine = (routesMod as any).knowledgeBase;
+                kbEngine?.setApiKeys?.(decryptedKeys);
                 if (Object.keys(decryptedKeys).length > 0) {
                   console.log(`[knowledge] API keys wired to embedding engine: ${Object.keys(decryptedKeys).join(', ')}`);
                 }
+                // Give the KB load a moment to finish, then health-check.
+                setTimeout(() => {
+                  try { kbEngine?.warnAboutMissingEmbeddings?.(); } catch {}
+                }, 5_000);
               } catch { /* engine routes not loaded yet */ }
             }).catch(() => {});
 

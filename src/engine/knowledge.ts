@@ -97,6 +97,140 @@ export class KnowledgeBaseEngine {
   }
 
   /**
+   * Backfill embeddings for chunks that were imported without them (the
+   * `import-manager.ts insertChunk` path used to skip embeddings entirely;
+   * the inline-embed fix in 0.5.572 fixes future imports but doesn't
+   * retroactively update older un-embedded chunks). Iterates kb_chunks
+   * with NULL embedding, batches 100 at a time through OpenAI, writes
+   * the embedding column.
+   *
+   * Returns: { total, embedded, alreadyEmbedded, skipped, errors }.
+   */
+  async regenerateEmbeddings(kbId: string, opts?: { batchSize?: number; onProgress?: (done: number, total: number) => void }): Promise<{ total: number; embedded: number; alreadyEmbedded: number; skipped: number; errors: number }> {
+    if (!this.engineDb) throw new Error('regenerateEmbeddings requires an attached engineDb');
+    const kb = this.knowledgeBases.get(kbId) || await this.engineDb.getKnowledgeBase(kbId);
+    if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
+
+    const apiKey = this.apiKeys.openai || this.apiKeys['openai-official'];
+    if (!apiKey) throw new Error('No OpenAI API key wired to KnowledgeBaseEngine. Add one in Settings → Models & API Keys, then restart enterprise.');
+
+    const batchSize = opts?.batchSize ?? 100;
+
+    // Pull every chunk in this KB that has no embedding yet. Doing this at
+    // the DB layer (rather than walking in-memory kb.documents[].chunks[])
+    // because the in-memory snapshot might be stale relative to the DB
+    // immediately after a fresh import.
+    const rows = await this.engineDb.query<any>(
+      `SELECT c.id AS id, c.content AS content
+       FROM kb_chunks c
+       JOIN kb_documents d ON c.document_id = d.id
+       WHERE d.knowledge_base_id = $1 AND c.embedding IS NULL
+       ORDER BY c.id`,
+      [kbId]
+    );
+
+    const totalAlready = await this.engineDb.query<any>(
+      `SELECT count(*)::int AS n FROM kb_chunks c JOIN kb_documents d ON c.document_id = d.id WHERE d.knowledge_base_id = $1 AND c.embedding IS NOT NULL`,
+      [kbId]
+    );
+    const alreadyEmbedded = totalAlready[0]?.n ?? 0;
+
+    let embedded = 0, errors = 0, skipped = 0;
+    const total = rows.length;
+
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      try {
+        const resp = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: (kb.config?.embeddingModel) || 'text-embedding-3-small',
+            input: batch.map((c: any) => c.content),
+          }),
+        });
+        if (!resp.ok) {
+          const msg = await resp.text();
+          console.error(`[knowledge] regenerateEmbeddings: OpenAI ${resp.status} — ${msg.slice(0, 200)}`);
+          errors += batch.length;
+          continue;
+        }
+        const data = await resp.json() as any;
+        for (let j = 0; j < batch.length; j++) {
+          try {
+            const vec = data.data[j].embedding;
+            await this.engineDb.run(
+              `UPDATE kb_chunks SET embedding = $1 WHERE id = $2`,
+              [JSON.stringify(vec), batch[j].id]
+            );
+            this.embeddings.set(batch[j].id, vec);
+            embedded++;
+          } catch (err: any) {
+            console.error(`[knowledge] regenerateEmbeddings: UPDATE failed for chunk ${batch[j].id}: ${err.message}`);
+            skipped++;
+          }
+        }
+      } catch (err: any) {
+        console.error(`[knowledge] regenerateEmbeddings: batch failed: ${err.message}`);
+        errors += batch.length;
+      }
+      if (opts?.onProgress) {
+        try { opts.onProgress(embedded, total); } catch {}
+      }
+    }
+
+    // Reload the KB so in-memory documents pick up the new embeddings
+    if (this.engineDb) {
+      try {
+        const fresh = await this.engineDb.getKnowledgeBase(kbId);
+        if (fresh) this.knowledgeBases.set(kbId, fresh);
+      } catch {}
+    }
+
+    console.log(`[knowledge] regenerateEmbeddings("${kb.name}"): embedded=${embedded} alreadyEmbedded=${alreadyEmbedded} errors=${errors} skipped=${skipped}`);
+    return { total, embedded, alreadyEmbedded, skipped, errors };
+  }
+
+  /**
+   * Startup health-check: report KBs that have chunks but no embeddings.
+   * Designed to be loud in the boot log so operators don't silently
+   * deploy with a dead RAG. Logs to stdout; never throws.
+   */
+  async warnAboutMissingEmbeddings(): Promise<void> {
+    if (!this.engineDb) return;
+    try {
+      const rows = await this.engineDb.query<any>(
+        `SELECT d.knowledge_base_id AS kb_id,
+                count(*)::int FILTER (WHERE c.embedding IS NULL) AS missing,
+                count(*)::int AS total
+         FROM kb_chunks c
+         JOIN kb_documents d ON c.document_id = d.id
+         GROUP BY d.knowledge_base_id`
+      );
+      for (const r of rows) {
+        if (r.missing > 0) {
+          const kb = this.knowledgeBases.get(r.kb_id);
+          const name = kb?.name || r.kb_id;
+          const provider = kb?.config?.embeddingProvider || 'openai';
+          const haveKey = !!(this.apiKeys[provider] || this.apiKeys['openai-official']);
+          console.warn(`[knowledge] ⚠️  KB "${name}" has ${r.missing}/${r.total} chunks WITHOUT embeddings.`);
+          console.warn(`[knowledge]    Embedding provider: ${provider}  (key ${haveKey ? 'present' : 'MISSING'})`);
+          console.warn(`[knowledge]    RAG search will return 0 hits until embeddings are generated.`);
+          if (haveKey) {
+            console.warn(`[knowledge]    Fix: POST /api/engine/knowledge-bases/${r.kb_id}/regenerate-embeddings`);
+          } else {
+            console.warn(`[knowledge]    Fix: add ${provider} key in Settings → Models & API Keys, then call regenerate-embeddings.`);
+          }
+        }
+      }
+    } catch (err: any) {
+      // Health check failures are non-fatal; the tables might not exist on
+      // a fresh DB before the first import.
+      console.log(`[knowledge] warnAboutMissingEmbeddings: ${err.message}`);
+    }
+  }
+
+  /**
    * Set the database adapter and load existing knowledge bases from DB
    */
   async setDb(db: EngineDatabase): Promise<void> {

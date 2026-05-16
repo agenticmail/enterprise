@@ -2,6 +2,76 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.572] - 2026-05-16
+
+### Fixed — KB import path now embeds inline + new `/regenerate-embeddings` endpoint + startup warning
+
+Three fixes for the broken RAG path that traced back to 0.5.571:
+
+### 1. Import flow now embeds inline
+
+`src/engine/knowledge-import/import-manager.ts insertChunk` previously wrote chunks with `embedding=NULL` and never called OpenAI. The `generateEmbeddings` method on `KnowledgeBaseEngine` was orphaned — only callable from `KnowledgeBaseEngine.addDocument` which the dashboard's "Import from GitHub / URL / SharePoint" pipeline never uses.
+
+Now `insertChunk`:
+- Calls `embedBatch([chunk.content])` against OpenAI using the API key wired into `KnowledgeBaseEngine.apiKeys` (the 0.5.571 fix)
+- INSERTs the chunk row with the embedding column populated in one shot
+- Falls back to writing `embedding=NULL` if the embedding call fails (better to keep the chunk content than abort the entire import) — the backfill endpoint below catches the un-embedded chunks later
+
+Result: every new import via the dashboard now produces a fully-searchable KB. No manual scripting needed.
+
+### 2. New endpoint: `POST /api/engine/knowledge-bases/:id/regenerate-embeddings`
+
+For operators upgrading from 0.5.571 or earlier who already have un-embedded chunks sitting in their DB:
+
+```bash
+curl -X POST https://<your-domain>/api/engine/knowledge-bases/<kb-id>/regenerate-embeddings \
+  -H "X-API-Key: <your-master-key>"
+```
+
+Response:
+```json
+{ "ok": true, "total": 1118, "embedded": 1118, "alreadyEmbedded": 0, "skipped": 0, "errors": 0 }
+```
+
+Runs synchronously (batches 100 chunks per OpenAI call; 1k chunks ≈ 30-60 s). Idempotent — chunks that already have embeddings are skipped. Implemented as `KnowledgeBaseEngine.regenerateEmbeddings(kbId)` and surfaced via the `/regenerate-embeddings` route.
+
+### 3. Startup warning when a KB has chunks without embeddings
+
+Most operators won't know they need to call the endpoint above. Enterprise now runs `warnAboutMissingEmbeddings()` 5 s after boot (after the KB list + API keys are loaded) and prints a loud log line per affected KB:
+
+```
+[knowledge] ⚠️  KB "AgenticMail Project Knowledgebase" has 1118/1118 chunks WITHOUT embeddings.
+[knowledge]    Embedding provider: openai  (key present)
+[knowledge]    RAG search will return 0 hits until embeddings are generated.
+[knowledge]    Fix: POST /api/engine/knowledge-bases/1344a7aa-…/regenerate-embeddings
+```
+
+If the embedding provider key is missing (e.g. operator hasn't added one yet), the suggested fix changes to "add ${provider} key in Settings → Models & API Keys, then call regenerate-embeddings."
+
+Surfaces the bug + the exact recovery command in the same place operators look when triaging — no need to know about the endpoint out-of-band.
+
+### Why three releases (0.5.570 → 0.5.571 → 0.5.572) to fix this
+
+- 0.5.570 added visibility into permission profiles, didn't touch knowledge
+- 0.5.571 wired `dbApiKeys` → `KnowledgeBaseEngine.setApiKeys()` (which had never been called) — necessary but not sufficient
+- 0.5.572 is the actual fix: the import-manager bypassed the engine's embedding code path entirely, so wiring keys to the engine didn't help. Embedding had to happen INSIDE `insertChunk` (or via a backfill pass), which is what this release does
+
+### Files
+
+- `src/engine/knowledge.ts` — `regenerateEmbeddings(kbId)` + `warnAboutMissingEmbeddings()`
+- `src/engine/knowledge-routes.ts` — `POST /knowledge-bases/:id/regenerate-embeddings`
+- `src/engine/knowledge-import/import-manager.ts` — `getEmbeddingKey()` + `embedBatch()` + `insertChunk` writes the embedding column
+- `src/server.ts` — calls `warnAboutMissingEmbeddings()` 5s post-boot
+
+### Existing operators
+
+```bash
+npm install -g @agenticmail/enterprise@latest && pm2 restart all
+# Watch the enterprise log for "[knowledge] ⚠️" lines after boot.
+# For each affected KB, run:
+curl -X POST http://127.0.0.1:8080/api/engine/knowledge-bases/<kb-id>/regenerate-embeddings -H "X-API-Key: <master-key>"
+```
+
 ## [0.5.571] - 2026-05-16
 
 ### Fixed — KnowledgeBaseEngine.setApiKeys() was never called
