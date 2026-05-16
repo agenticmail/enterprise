@@ -493,6 +493,55 @@ async function deploy(
         if (sudoMatch) try { execSync(sudoMatch[0], { timeout: 15000, stdio: 'pipe' }); } catch {}
       } catch {}
 
+      // ─── Windows: disable sleep / hibernate so the server stays up ─────
+      //
+      // Operators on Windows laptops report the website goes down when they
+      // close the lid or the screen locks. Cause: by default Windows sleeps
+      // after 5 min on AC and 3 min on battery. Sleep suspends every
+      // process, including the Cloudflare tunnel — site returns 502 until
+      // the laptop wakes.
+      //
+      // Fix: tell Windows to never sleep / hibernate (this affects only
+      // the current power scheme), and register `node.exe` and
+      // `cloudflared.exe` as sleep-blockers via /requestsoverride so even
+      // an interactive "Sleep" menu action gets ignored while the server
+      // is running.
+      //
+      // The /change form doesn't require admin. The /requestsoverride
+      // form does — we attempt it without elevation; if it fails, the
+      // /change settings still take effect (sufficient for most cases).
+      // Operators who want the request-override too can re-run setup as
+      // Administrator OR manually run:
+      //   powercfg /requestsoverride PROCESS node.exe SYSTEM EXECUTION AWAYMODE
+      //   powercfg /requestsoverride PROCESS cloudflared.exe SYSTEM EXECUTION AWAYMODE
+      if (process.platform === 'win32') {
+        try {
+          execSync('powercfg /change standby-timeout-ac 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          execSync('powercfg /change standby-timeout-dc 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          execSync('powercfg /change hibernate-timeout-ac 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          execSync('powercfg /change hibernate-timeout-dc 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          execSync('powercfg /change disk-timeout-ac 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          execSync('powercfg /change disk-timeout-dc 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          // Lid close action: do nothing (so closing the lid doesn't sleep)
+          // Sub-group: 4f971e89-eebd-4455-a8de-9e59040e7347 (Power Buttons and Lid)
+          // Setting:   5ca83367-6e45-459f-a27b-476b1d01c936 (Lid close action)
+          execSync('powercfg /setacvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 5ca83367-6e45-459f-a27b-476b1d01c936 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          execSync('powercfg /setdcvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 5ca83367-6e45-459f-a27b-476b1d01c936 0', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          execSync('powercfg /setactive SCHEME_CURRENT', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+          console.log(chalk.dim('  Power: sleep & hibernate disabled, lid-close action = none.'));
+          // Request override (admin-only — fails silently otherwise)
+          try {
+            execSync('powercfg /requestsoverride PROCESS node.exe SYSTEM EXECUTION AWAYMODE', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+            execSync('powercfg /requestsoverride PROCESS cloudflared.exe SYSTEM EXECUTION AWAYMODE', { stdio: 'pipe', timeout: 5000, windowsHide: true });
+            console.log(chalk.dim('  Power: node.exe + cloudflared.exe registered as sleep-blockers.'));
+          } catch {
+            console.log(chalk.dim('  Power: process sleep-blocker needs admin — re-run setup elevated to apply.'));
+          }
+        } catch (pwErr: any) {
+          console.log(chalk.dim(`  Power: could not disable sleep automatically — ${pwErr.message}`));
+        }
+      }
+
       spinner.succeed(`Live at https://${cloud.fqdn}`);
       console.log(chalk.dim('  PM2 will auto-restart on crash and survive reboots.'));
     } catch (e: any) {

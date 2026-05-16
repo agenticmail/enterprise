@@ -2,6 +2,43 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.566] - 2026-05-16
+
+### Fixed — Windows: website went down on screen lock / sleep
+
+Operator-reported (Windows laptop deploy): "whenever my window computer locks screen or sleeps, the website is down." Root cause: Windows' default power plan sleeps after **5 min on AC, 3 min on DC**. Sleep suspends every process — including the Cloudflare tunnel, the enterprise server, and Postgres — so Cloudflare's edge returns 502 until the laptop wakes. Screen lock alone doesn't sleep, but the lock-then-leave-the-room pattern hits the timer.
+
+For a server-class deployment on a laptop, the only correct setting is "never sleep" + lock-screen doesn't pause anything + the running process explicitly blocks sleep requests.
+
+### What changed
+
+In `src/setup/provision.ts` (local-deploy flow), Windows-only block added right before the `Live at https://...` success message:
+
+1. **`powercfg /change standby-timeout-{ac,dc} 0`** — never sleep, on either power source. No admin required.
+2. **`powercfg /change hibernate-timeout-{ac,dc} 0`** — never hibernate. No admin required.
+3. **`powercfg /change disk-timeout-{ac,dc} 0`** — disk never spins down. No admin required.
+4. **Lid close action set to "Do nothing"** on both AC and DC (sub-group `4f971e89-...`, setting `5ca83367-...`). No admin required.
+5. **`powercfg /requestsoverride PROCESS node.exe SYSTEM EXECUTION AWAYMODE`** and same for `cloudflared.exe` — tells Windows these processes block sleep even on user-initiated "Sleep" menu actions. Requires admin; fails silently with a note printed for the operator if not elevated. The first four settings still take effect either way.
+
+### Operator action on upgrade
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all` is enough for new installs. For existing operators, the setup wizard needs to re-run to apply the power settings (it's part of `provisionLocal`):
+
+```bash
+npx @agenticmail/enterprise@latest setup
+```
+
+Or apply the four `powercfg /change ... 0` commands manually (no admin):
+
+```powershell
+powercfg /change standby-timeout-ac 0; powercfg /change standby-timeout-dc 0
+powercfg /change hibernate-timeout-ac 0; powercfg /change hibernate-timeout-dc 0
+```
+
+### Battery note
+
+This disables sleep on DC (battery) too. If you deploy on a laptop without external power, expect the battery to drain to zero in 2-4 hours and the box to ungraciously power off. For a true 24/7 deployment, keep the laptop plugged in.
+
 ## [0.5.565] - 2026-05-16
 
 ### Fixed — last remaining Windows cmd.exe flash sources (wrappers + provision)
