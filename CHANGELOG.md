@@ -2,6 +2,52 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.561] - 2026-05-16
+
+### Fixed — `npm install -g @agenticmail/enterprise@latest` now actually takes effect on Windows
+
+Operator report (correct, and reproducible): on Windows, running `npm install -g @agenticmail/enterprise@latest` then `pm2 restart enterprise` leaves the running process on the OLD version. Only manually wiping `%LOCALAPPDATA%\npm-cache\_npx\<hash>` and restarting forces an update.
+
+### Root cause
+
+The setup wizard generates `~/.agenticmail/start.cjs` with:
+
+```js
+spawnSync('npx', ['@agenticmail/enterprise', 'start'], { ... });
+```
+
+`npx @agenticmail/enterprise` (no `@latest`, no `--prefer-online`) hits npx's local cache first and reuses whatever version satisfies the bare package spec. On Windows that cache lives at `%LOCALAPPDATA%\npm-cache\_npx\<hash>\node_modules\@agenticmail\enterprise` and gets populated on the first install — and never refreshed thereafter, regardless of what the operator does with `npm install -g`. The global install at `%APPDATA%\npm\node_modules\@agenticmail\enterprise` updates correctly but is bypassed because PM2's wrapper always goes through npx.
+
+Why Mac mostly seemed unaffected: depending on which Node distribution (Homebrew, nvm, system) the operator uses, npm's cache layout and PATH precedence sometimes resolve `npx @agenticmail/enterprise` to the global install via PATH rather than the npx-hash cache, so updates land. It's accidental — the same cache-reuse trap exists; it just bites less often.
+
+### What changed
+
+The generated `start.cjs` now has a two-tier resolution:
+
+1. **Prefer the globally-installed bin.** Calls `npm prefix -g` to find npm's global prefix, then resolves `<prefix>\node_modules\@agenticmail\enterprise\bin\agenticmail-enterprise.cjs` (Windows) or `<prefix>/lib/node_modules/@agenticmail/enterprise/bin/agenticmail-enterprise.cjs` (Unix), and invokes it directly with `node`. Fastest, no npx involved, picks up `npm install -g` immediately on the next PM2 restart.
+
+2. **Fallback for fresh boxes that only used `npx … setup`.** If no global install is found, calls `npx -y @agenticmail/enterprise@latest start` — both `-y` (skip the install prompt) and `@latest` (force a version-spec re-resolution) make npx hit the registry on each start instead of just reusing the cache.
+
+This is the same fix shape we use in `@agenticmail/cli` for the auto-start service: never trust npx's cache for long-lived processes.
+
+### Migration for existing operators
+
+The fix lives in the generator. Operators who already have a `~/.agenticmail/start.cjs` from a previous setup run won't pick up the new code automatically — the wrapper is regenerated only by the setup wizard.
+
+Two options:
+
+- **Re-run setup** (heavier — also re-prompts for cloudflared, domain, etc.):
+  ```bash
+  npx @agenticmail/enterprise@latest setup
+  ```
+
+- **Manually replace `~/.agenticmail/start.cjs`** with the new content (see `src/setup/provision.ts` in this release for the canonical version), then `pm2 restart enterprise`.
+
+### Files
+
+- `src/setup/provision.ts` — replaced the 6-line `start.cjs` body with the two-tier resolver. ~50 lines, fully commented.
+- `package.json` — version → 0.5.561.
+
 ## [0.5.560] - 2026-05-16
 
 ### Fixed — agent-detail tab URL now reflects the active tab
