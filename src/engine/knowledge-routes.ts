@@ -104,14 +104,25 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
     if (body.agentIds !== undefined) (kb as any).agentIds = body.agentIds;
     if (body.clientOrgId !== undefined) (kb as any).clientOrgId = body.clientOrgId || null;
     (kb as any).updatedAt = new Date().toISOString();
-    // Persist to DB if engine supports it
-    if ((knowledgeBase as any).db) {
+    // Persist to DB. Two bugs were here before:
+    //  1. accessed `(knowledgeBase as any).db` but the field is actually
+    //     `engineDb` — so the persistence branch silently fell through
+    //     to the catch.
+    //  2. used `db.execute(...)` but the EngineDatabase adapter exposes
+    //     `run(...)` for parameterized writes; `execute` is undefined.
+    // Result: every PUT returned 200 with the updated in-memory KB, but
+    // the DB never got the new agentIds. Dashboard-side "assign agent"
+    // appeared to succeed and broke search silently.
+    const engineDb = (knowledgeBase as any).engineDb;
+    if (engineDb) {
       try {
-        await (knowledgeBase as any).db.execute(
+        await engineDb.run(
           'UPDATE knowledge_bases SET name = $1, description = $2, agent_ids = $3, updated_at = $4, client_org_id = $5 WHERE id = $6',
-          [kb.name, kb.description, JSON.stringify((kb as any).agentIds || []), (kb as any).updatedAt, (kb as any).clientOrgId || null, id]
+          [kb.name, kb.description || null, JSON.stringify((kb as any).agentIds || []), (kb as any).updatedAt, (kb as any).clientOrgId || null, id]
         );
-      } catch { /* in-memory only fallback */ }
+      } catch (err: any) {
+        console.error(`[knowledge] PUT /knowledge-bases/${id} persist failed: ${err.message}`);
+      }
     }
     return c.json({ knowledgeBase: kb });
   });

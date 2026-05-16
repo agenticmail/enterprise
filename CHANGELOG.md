@@ -2,6 +2,32 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.574] - 2026-05-16
+
+### Fixed — `PUT /api/engine/knowledge-bases/:id` never persisted to DB
+
+After 0.5.573 fixed the embedding-format mismatch, search still returned 0 hits. The KB engine logged "Loaded KB 'AgenticMail Project Knowledgebase' with 53 docs" and embeddings decoded correctly, but `kb.agentIds = []` meant the search filter at `knowledge.ts:406` rejected every KB.
+
+Re-running the PUT to set `agentIds` returned 200 with the new value echoed in the response — but the DB column stayed `[]`.
+
+Two bugs in the same route handler:
+
+1. **Wrong field name**: route accessed `(knowledgeBase as any).db` but the engine stores its adapter as `engineDb`. The `if ((knowledgeBase as any).db) { ... }` branch evaluated false every time → the UPDATE SQL never ran.
+2. **Wrong method name**: the (never-reached) UPDATE called `db.execute(...)`, but the EngineDatabase adapter exposes `run(...)` for parameterized writes — `execute` is undefined.
+
+Both were silenced by the surrounding `try / catch { /* in-memory only fallback */ }`. Operators got 200 OK from every PUT, dashboard-side "assign agent" appeared to succeed, and search broke silently because the persisted `agent_ids` stayed empty.
+
+### Fix
+
+`src/engine/knowledge-routes.ts`:
+- Access the adapter as `engineDb` (the field's real name)
+- Call `.run(sql, params)` (the method's real name)
+- On error, log the failure instead of silently swallowing it
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`. If your KB has `agent_ids = []` from prior PUTs that silently failed, just re-assign in the dashboard (or `curl -X PUT /api/engine/knowledge-bases/<id> -d '{"agentIds":["<agent-id>"]}'`) — this time it'll actually persist.
+
 ## [0.5.573] - 2026-05-16
 
 ### Fixed — RAG search returned 0 hits despite chunks being embedded
