@@ -2,6 +2,22 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.563] - 2026-05-16
+
+### Fixed — the REAL cause of flashing cmd.exe windows on Windows
+
+0.5.562 fixed the `which` shellouts in capability checks, but the operator was still seeing console windows pop in and out. Process-watcher diagnostic (60-second WMI poll) caught it: **the deployer's lifecycle health-check loop runs `pm2 jlist` every 30 seconds for each deployed agent**, and `deployer.execCommand` was calling `exec()` without `windowsHide: true`.
+
+Code path: `lifecycle.ts:1041 setInterval(...30_000)` → `deployer.getStatus(config)` → `getPm2Status()` → `execCommand("pm2 jlist")` → `exec(cmd)` → new cmd.exe + conhost.exe pair = visible flash. With one local-deployed agent (halo), that's a flash every 30s. With N agents, N flashes per 30s.
+
+### What changed
+
+One-line fix in `src/engine/deployer.ts execCommand()`: added `windowsHide: true` to the `execAsync` options. Every shellout from the deployer (pm2 jlist, pm2 restart, pm2 logs, docker, ssh, railway, fly, ...) now hides the window on Windows. Has no effect on macOS/Linux.
+
+### Why 0.5.562 didn't catch it
+
+I fixed the `which` callers because that was the loud symptom in the error log (`'which' is not recognized`). But the deployer was using `pm2` directly via `exec`, which DOES exist on Windows (so no error message in the log) but **still spawned a visible cmd.exe window** because nothing told Windows to hide it. Silent on the error log; visible on the desktop.
+
 ## [0.5.562] - 2026-05-16
 
 ### Fixed — visible cmd.exe console flashes on Windows from `which` shellouts

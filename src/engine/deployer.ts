@@ -907,6 +907,12 @@ CMD ["agenticmail-enterprise", "start"]
       const { stdout, stderr } = await execAsync(cmd, {
         timeout: 300_000, // 5 min max
         env: { ...process.env, ...env },
+        // windowsHide prevents a console window from flashing on Windows
+        // every time we shell out. The health-check loop (lifecycle.ts)
+        // calls `getStatus → execCommand("pm2 jlist")` every 30s per
+        // deployed agent — without this, operators see a cmd.exe pop in
+        // and out twice a minute. Has no effect on macOS/Linux.
+        windowsHide: true,
       });
       return { success: true, message: stdout || stderr };
     } catch (error: any) {
