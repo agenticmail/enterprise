@@ -2,6 +2,35 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.568] - 2026-05-16
+
+### Fixed — Provider API keys don't hot-reload in running agent processes
+
+Operator (Windows): "I just re-updated the API key and it's saved to DB but it's not hot loading, nothing is hotloading on the window but this was working on mac."
+
+Root cause: the agent process loads `dbApiKeys` ONCE at boot in `src/cli-agent.ts:547` from `company_settings.modelPricingConfig.providerApiKeys`. After that, it's a static object for the lifetime of the process. The enterprise process hot-reloads via its in-process `configBus.onConfigKey()` listeners — but the agent is a SEPARATE PM2 process, so it never sees those events.
+
+Why it "worked on Mac": operators on Mac were probably running enterprise and agent in the same Node process during dev, OR they were restarting the agent after each key change without realizing it. On Windows with everything in PM2-managed separate processes, the behavior surfaced.
+
+### What changed
+
+`src/cli-agent.ts` — `dbApiKeys` is now refreshed every 30 seconds via a `setInterval` poll of `db.getSettings()`. The refresh uses an in-place mutation pattern (delete-then-assign) so the same object reference passed to `createAgentRuntime({ apiKeys: dbApiKeys })` is preserved — the runtime's `resolveApiKeyForProvider(provider, this.config.apiKeys, ...)` reads `apiKeys[provider]` fresh on each call, so updates land immediately without an agent restart.
+
+30 s was chosen because:
+
+- It's frequent enough that dashboard edits land before the next user message hits the agent (median user reaction time after toggling a setting is way longer than 30 s).
+- It's cheap — a single-row `SELECT * FROM company_settings WHERE id='default'`. Postgres handles this easily.
+- `setInterval(...).unref()` so it doesn't keep the event loop alive on graceful shutdown.
+
+### What I deliberately didn't do
+
+- **PG NOTIFY/LISTEN for real-time push** would be the proper architecture but adds a persistent connection per agent + LISTEN channel management. Polling at 30 s is the lower-risk fix; can upgrade to NOTIFY later if 30 s latency ever becomes a complaint.
+- **On-error-refresh** (refresh from DB when an API call fails with "no key") would be even more responsive but adds error-handling complexity. The 30 s poll covers the common case.
+
+### Existing operators
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all` — that's it. No setup re-run needed. After the upgrade, future API-key updates in `Settings → Models & API Keys` propagate to running agents within 30 seconds.
+
 ## [0.5.567] - 2026-05-16
 
 ### Fixed — Telegram/WhatsApp messages silently dropped on local deployments

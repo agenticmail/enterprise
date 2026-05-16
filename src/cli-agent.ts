@@ -541,30 +541,54 @@ export async function runAgent(_args: string[]) {
   } catch (memErr: any) { console.log(`   Memory: failed (${memErr.message})`); }
 
   // 6. Load provider API keys from DB settings (decrypt via vault, NOT process.env)
+  //
+  // The agent process is SEPARATE from the enterprise process. Enterprise hot-
+  // reloads on settings changes via in-process `configBus` events; the agent
+  // never sees those events. Operators expected that updating a provider API
+  // key in `Settings → Models & API Keys` would be picked up by running agents
+  // — it wasn't, because dbApiKeys was a static object set at boot.
+  //
+  // Fix: load into a shared object that we re-populate from DB every 30s. The
+  // runtime reads via the same object reference, so updates land without an
+  // agent restart. The in-place .clear+.assign pattern preserves the runtime's
+  // reference; we don't reassign the variable.
   const { SecureVault } = await import('./engine/vault.js');
   const vault = new SecureVault();
   await vault.setDb(engineDb);
-  let dbApiKeys: Record<string, string> = {};
-  try {
-    const settings = await db.getSettings();
-    const keys = settings?.modelPricingConfig?.providerApiKeys;
-    if (keys && typeof keys === 'object') {
+  const dbApiKeys: Record<string, string> = {};
+
+  async function _loadProviderKeys(): Promise<number> {
+    try {
+      const settings = await db.getSettings();
+      const keys = settings?.modelPricingConfig?.providerApiKeys;
+      if (!keys || typeof keys !== 'object') return 0;
+      const fresh: Record<string, string> = {};
       for (const [providerId, apiKey] of Object.entries(keys)) {
         if (apiKey && typeof apiKey === 'string') {
-          try {
-            // Try to decrypt (new format: encrypted JSON payload)
-            dbApiKeys[providerId] = vault.decrypt(apiKey);
-          } catch {
-            // Fallback: plaintext key (legacy, pre-encryption)
-            dbApiKeys[providerId] = apiKey;
-          }
-          var keyPreview = dbApiKeys[providerId];
-          var firstChar = keyPreview.charCodeAt(0);
-          console.log(`   🔑 Loaded API key for ${providerId}: starts="${keyPreview.slice(0,8)}..." len=${keyPreview.length} firstCharCode=${firstChar} rawStored="${(apiKey as string).slice(0,12)}..."`);
+          try { fresh[providerId] = vault.decrypt(apiKey); }
+          catch { fresh[providerId] = apiKey; } // legacy plaintext
         }
       }
-    }
-  } catch {}
+      // In-place mutate so the runtime's reference stays valid
+      for (const k of Object.keys(dbApiKeys)) {
+        if (!(k in fresh)) delete dbApiKeys[k];
+      }
+      Object.assign(dbApiKeys, fresh);
+      return Object.keys(fresh).length;
+    } catch { return 0; }
+  }
+
+  const _initialKeyCount = await _loadProviderKeys();
+  for (const [providerId, apiKey] of Object.entries(dbApiKeys)) {
+    var firstChar = apiKey.charCodeAt(0);
+    console.log(`   🔑 Loaded API key for ${providerId}: starts="${apiKey.slice(0,8)}..." len=${apiKey.length} firstCharCode=${firstChar}`);
+  }
+
+  // Refresh every 30 s so dashboard-side API-key edits land without a
+  // pm2 restart. Cheap query — single row from company_settings.
+  setInterval(() => {
+    void _loadProviderKeys();
+  }, 30_000).unref();
 
   // 7. Create agent runtime
   const { createAgentRuntime } = await import('./runtime/index.js');
