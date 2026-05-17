@@ -809,9 +809,13 @@ export function WorkforceSection(props) {
               ),
               h('div', { className: 'form-group', style: { marginBottom: 0 } },
                 h('label', { className: 'form-label' }, 'Timezone'),
-                h(TimezoneSelect, {
-                  value: taskForm.recurrenceTimezone,
-                  onChange: function(v) { setTaskForm(Object.assign({}, taskForm, { recurrenceTimezone: v })); }
+                // TimezoneSelect is a helper, not a component — it takes
+                // (h, value, onChange, props) and returns the <select>
+                // element directly. Treating it as a component (h(TZ, …))
+                // collapses the args into a single props object, which
+                // bound `h` to the props arg and exploded at render time.
+                TimezoneSelect(h, taskForm.recurrenceTimezone, function(e) {
+                  setTaskForm(Object.assign({}, taskForm, { recurrenceTimezone: e.target.value }));
                 })
               )
             )

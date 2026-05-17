@@ -2,6 +2,20 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.579] - 2026-05-16
+
+### Fixed — Add Task modal crashed when "Recurring task" was checked
+
+Toggling the Recurring checkbox on the per-agent workforce Add Task modal threw `TypeError: h is not a function at TimezoneSelect (timezones.js:345:5)` and the modal blanked out via the ErrorBoundary.
+
+Root cause: `TimezoneSelect` is a helper function (`TimezoneSelect(h, value, onChange, props)`), not a component — it takes `h` as its first argument and returns the `<select>` tree directly. 0.5.578 called it as `h(TimezoneSelect, { value, onChange })`, which passed a single props object as `h` and bound the actual `h` reference to the props object → crash on first internal `h(...)` call inside the helper.
+
+Every other usage in the codebase calls it correctly as a plain function. Fixed in this one site to match.
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`, hard-refresh the dashboard.
+
 ## [0.5.578] - 2026-05-16
 
 ### Added — Per-agent Add Task modal supports recurring tasks
