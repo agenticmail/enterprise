@@ -459,9 +459,16 @@ export class WorkforceManager {
   }
 
   /**
-   * Update fields on a queued task.
+   * Update fields on a queued task. The route handler accepts title
+   * and description from the dashboard edit modal — those need to
+   * flow through here too (previously they were named in the route
+   * but silently dropped because this method's signature didn't
+   * accept them, so the SQL never included them).
    */
-  async updateTask(taskId: string, updates: Partial<Pick<QueuedTask, 'status' | 'startedAt' | 'completedAt' | 'priority'>>): Promise<void> {
+  async updateTask(
+    taskId: string,
+    updates: Partial<Pick<QueuedTask, 'status' | 'startedAt' | 'completedAt' | 'priority' | 'title' | 'description'>>,
+  ): Promise<void> {
     if (!this.engineDb) return;
 
     const sets: string[] = [];
@@ -482,6 +489,14 @@ export class WorkforceManager {
     if (updates.priority !== undefined) {
       sets.push('priority = ?');
       params.push(updates.priority);
+    }
+    if (updates.title !== undefined) {
+      sets.push('title = ?');
+      params.push(updates.title);
+    }
+    if (updates.description !== undefined) {
+      sets.push('description = ?');
+      params.push(updates.description || null);
     }
 
     sets.push('updated_at = ?');

@@ -44,6 +44,94 @@ export function WorkforceSection(props) {
     recurrenceTimezone: 'America/Chicago',
   });
   var taskForm = _taskForm[0]; var setTaskForm = _taskForm[1];
+  // editingTaskId tracks "I'm editing this existing task/template"
+  // vs the default "I'm creating a new one". When set, the modal
+  // submit handler PATCHes the existing row instead of POSTing a
+  // new one, and the modal title/button labels switch to match.
+  var _editingTaskId = useState(null);
+  var editingTaskId = _editingTaskId[0]; var setEditingTaskId = _editingTaskId[1];
+
+  // Reverse of buildCronFromForm — parses an existing template's
+  // cron expression back into {times, days} so edits land in the
+  // same human-friendly form the create flow uses. Supports the
+  // shapes the form itself produces (single minute, hour list,
+  // day list or range) plus a couple of common patterns (`*` =
+  // any day, `1-5` = weekdays). Returns null on anything we can't
+  // round-trip; caller falls back to defaults + warns.
+  function parseCronToForm(rule) {
+    if (!rule || typeof rule !== 'string') return null;
+    var parts = rule.trim().split(/\s+/);
+    if (parts.length !== 5) return null;
+    var minStr = parts[0];
+    var hourStr = parts[1];
+    var dowStr = parts[4];
+    var minute = parseInt(minStr, 10);
+    if (!isFinite(minute) || minute < 0 || minute > 59) return null;
+    var hours = hourStr.split(',').map(function(h) { return parseInt(h, 10); }).filter(function(h) { return isFinite(h) && h >= 0 && h <= 23; });
+    if (hours.length === 0) return null;
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    var times = hours.map(function(h) { return pad(h) + ':' + pad(minute); });
+    var days = [];
+    if (dowStr === '*') {
+      days = [0, 1, 2, 3, 4, 5, 6];
+    } else {
+      var tokens = dowStr.split(',');
+      for (var i = 0; i < tokens.length; i++) {
+        var tok = tokens[i];
+        if (tok.indexOf('-') !== -1) {
+          var range = tok.split('-').map(function(n) { return parseInt(n, 10); });
+          var a = range[0], b = range[1];
+          if (!isFinite(a) || !isFinite(b)) return null;
+          for (var d = a; d <= b; d++) { if (d >= 0 && d <= 7) days.push(d === 7 ? 0 : d); }
+        } else {
+          var dv = parseInt(tok, 10);
+          if (!isFinite(dv) || dv < 0 || dv > 7) return null;
+          days.push(dv === 7 ? 0 : dv);
+        }
+      }
+    }
+    return { times: times, days: Array.from(new Set(days)) };
+  }
+
+  // Begin editing the supplied task. Mirrors the create flow but
+  // pre-populates taskForm + sets editingTaskId so submit takes
+  // the PATCH path. Templates round-trip through parseCronToForm
+  // so the day/time pickers reflect the live schedule; if parse
+  // fails (legacy cron with shapes the form can't represent), we
+  // open the modal with defaults and surface a warning.
+  function beginEdit(task) {
+    if (!task) return;
+    if (task.status === 'template') {
+      var parsed = parseCronToForm(task.recurrenceRule);
+      if (!parsed) {
+        toast('This template uses a cron pattern the form can\u2019t edit \u2014 use the API directly', 'error');
+        return;
+      }
+      setTaskForm({
+        title: task.title || '',
+        description: task.description || '',
+        priority: task.priority || 'normal',
+        type: 'general',
+        recurring: true,
+        recurrenceTimes: parsed.times,
+        recurrenceDays: parsed.days,
+        recurrenceTimezone: task.recurrenceTimezone || 'UTC',
+      });
+    } else {
+      setTaskForm({
+        title: task.title || '',
+        description: task.description || '',
+        priority: task.priority || 'normal',
+        type: task.type || 'general',
+        recurring: false,
+        recurrenceTimes: ['09:00', '13:00', '18:00'],
+        recurrenceDays: [1, 2, 3, 4, 5],
+        recurrenceTimezone: 'America/Chicago',
+      });
+    }
+    setEditingTaskId(task.id);
+    setShowAddTask(true);
+  }
 
   // ─── Cron composer for recurring tasks ─────────────────
   // Convert the human-friendly {times, days} pair into a 5-field cron
@@ -263,33 +351,63 @@ export function WorkforceSection(props) {
     // with a cron rule + tz, one-shot posts to /workforce/tasks. Routing on the
     // recurring toggle keeps the operator UX simple: one button, two shapes.
     var isRecurring = !!taskForm.recurring;
-    var endpoint = isRecurring ? '/workforce/recurring-tasks' : '/workforce/tasks';
-    var body;
+    var isEditing = !!editingTaskId;
+
+    // Endpoint + method depend on (creating vs editing) × (one-shot vs recurring)
+    var url, method, body;
     if (isRecurring) {
       var cron = buildCronFromForm(taskForm.recurrenceTimes, taskForm.recurrenceDays);
       if (cron.error) { toast(cron.error, 'error'); return; }
-      body = {
-        agentId: agentId,
-        title: taskForm.title,
-        description: taskForm.description,
-        priority: taskForm.priority,
-        recurrenceRule: cron.rule,
-        recurrenceTimezone: (taskForm.recurrenceTimezone || 'UTC').trim(),
-      };
+      if (isEditing) {
+        url = '/workforce/recurring-tasks/' + encodeURIComponent(editingTaskId);
+        method = 'PATCH';
+        body = {
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          recurrenceRule: cron.rule,
+          recurrenceTimezone: (taskForm.recurrenceTimezone || 'UTC').trim(),
+        };
+      } else {
+        url = '/workforce/recurring-tasks';
+        method = 'POST';
+        body = {
+          agentId: agentId,
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          recurrenceRule: cron.rule,
+          recurrenceTimezone: (taskForm.recurrenceTimezone || 'UTC').trim(),
+        };
+      }
     } else {
-      body = {
-        agentId: agentId,
-        title: taskForm.title,
-        description: taskForm.description,
-        priority: taskForm.priority,
-        type: taskForm.type,
-      };
+      if (isEditing) {
+        url = '/workforce/tasks/' + encodeURIComponent(editingTaskId);
+        method = 'PATCH';
+        body = {
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+        };
+      } else {
+        url = '/workforce/tasks';
+        method = 'POST';
+        body = {
+          agentId: agentId,
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          type: taskForm.type,
+        };
+      }
     }
 
-    engineCall(endpoint, { method: 'POST', body: JSON.stringify(body) })
+    engineCall(url, { method: method, body: JSON.stringify(body) })
       .then(function() {
-        toast(isRecurring ? 'Recurring task template created' : 'Task created', 'success');
+        var verb = isEditing ? 'updated' : 'created';
+        toast((isRecurring ? 'Recurring task template' : 'Task') + ' ' + verb, 'success');
         setShowAddTask(false);
+        setEditingTaskId(null);
         setTaskForm({
           title: '', description: '', priority: 'normal', type: 'general',
           recurring: false,
@@ -582,6 +700,7 @@ export function WorkforceSection(props) {
                       : '-'),
                     h('td', null,
                       h('div', { style: { display: 'flex', gap: 4 } },
+                        h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { beginEdit(task); } }, I.edit ? I.edit() : '✎', ' Edit'),
                         !isTemplate && task.status !== 'completed' && task.status !== 'cancelled' && h('button', { className: 'btn btn-ghost btn-sm', onClick: function() { completeTask(task.id); } }, I.check(), ' Complete'),
                         task.status !== 'completed' && task.status !== 'cancelled' && h('button', { className: 'btn btn-ghost btn-sm', style: { color: 'var(--danger)' }, onClick: function() { cancelTask(task.id); } }, I.x(), ' Cancel')
                       )
@@ -817,11 +936,13 @@ export function WorkforceSection(props) {
     ),
 
     // ─── Add Task Modal ─────────────────────────────────
-    showAddTask && h('div', { className: 'modal-overlay', onClick: function() { setShowAddTask(false); } },
+    showAddTask && h('div', { className: 'modal-overlay', onClick: function() { setShowAddTask(false); setEditingTaskId(null); } },
       h('div', { className: 'modal', style: { maxWidth: 540 }, onClick: function(e) { e.stopPropagation(); } },
         h('div', { className: 'modal-header' },
-          h('h2', null, 'Add Task'),
-          h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setShowAddTask(false); } }, I.x())
+          h('h2', null, editingTaskId
+            ? (taskForm.recurring ? 'Edit Recurring Task' : 'Edit Task')
+            : 'Add Task'),
+          h('button', { className: 'btn btn-ghost btn-icon', onClick: function() { setShowAddTask(false); setEditingTaskId(null); } }, I.x())
         ),
         h('div', { className: 'modal-body' },
           h('div', { className: 'form-group' },
@@ -854,14 +975,20 @@ export function WorkforceSection(props) {
           ),
           // ── Recurring toggle + fields ─────────────────────
           h('div', { className: 'form-group', style: { marginTop: 8, padding: 12, background: 'var(--bg-secondary, #1e293b)', borderRadius: 'var(--radius, 8px)' } },
-            h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 500 } },
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: 8, cursor: editingTaskId ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: editingTaskId ? 0.7 : 1 } },
               h('input', {
                 type: 'checkbox',
                 checked: !!taskForm.recurring,
+                // Locked while editing — a one-shot task and a recurring
+                // template live in different table semantics (template
+                // status='template'; one-shot has scheduled_for/etc).
+                // Switching via PATCH would silently fail. To convert
+                // one to the other, cancel the old + create new.
+                disabled: !!editingTaskId,
                 onChange: function(e) { setTaskForm(Object.assign({}, taskForm, { recurring: e.target.checked })); }
               }),
               'Recurring task',
-              h('span', { style: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 } }, '— fires repeatedly on a schedule')
+              h('span', { style: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 } }, editingTaskId ? '— locked while editing' : '— fires repeatedly on a schedule')
             ),
             taskForm.recurring && (function() {
               var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -963,8 +1090,10 @@ export function WorkforceSection(props) {
           )
         ),
         h('div', { className: 'modal-footer' },
-          h('button', { className: 'btn btn-ghost', onClick: function() { setShowAddTask(false); } }, 'Cancel'),
-          h('button', { className: 'btn btn-primary', onClick: addTask }, taskForm.recurring ? 'Create Recurring Task' : 'Create Task')
+          h('button', { className: 'btn btn-ghost', onClick: function() { setShowAddTask(false); setEditingTaskId(null); } }, 'Cancel'),
+          h('button', { className: 'btn btn-primary', onClick: addTask }, editingTaskId
+            ? (taskForm.recurring ? 'Save Recurring Task' : 'Save Task')
+            : (taskForm.recurring ? 'Create Recurring Task' : 'Create Task'))
         )
       )
     )

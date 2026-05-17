@@ -2,6 +2,29 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.581] - 2026-05-16
+
+### Added — Edit existing tasks and recurring templates from the per-agent workforce page
+
+Each task row now has an **Edit** button that opens the same Add Task modal, pre-populated with the row's current data. Submit PATCHes the right endpoint:
+
+- One-shot tasks → `PATCH /api/engine/workforce/tasks/:taskId` with title, description, priority
+- Recurring templates → `PATCH /api/engine/workforce/recurring-tasks/:id` with title, description, priority, recurrenceRule, recurrenceTimezone (cron rule rebuilt from the day/time pickers on submit)
+
+For recurring templates, the existing cron rule is parsed back into the day toggle buttons + time pickers via `parseCronToForm` so edits round-trip cleanly. Legacy cron patterns the form can't represent (mixed-minute schedules, day-of-month constraints, etc.) surface a toast directing the operator to the API.
+
+The **Recurring task** checkbox is locked in edit mode — switching a one-shot to a template (or vice versa) would silently fail since they live in different table semantics. Cancel and recreate to convert.
+
+Modal header switches to `Edit Task` / `Edit Recurring Task`, submit button switches to `Save Task` / `Save Recurring Task` so the operator knows which path they're on.
+
+### Fixed — `updateTask` was silently dropping title / description updates
+
+The PATCH route accepted `title` and `description` in the body, but the underlying `updateTask` method only typed `status | startedAt | completedAt | priority` so the SQL never included title/description even when the route forwarded them. Pre-0.5.581 there was no edit UI so this didn't manifest, but the bug was real — any external caller hitting the PATCH endpoint with a title would have seen a silent no-op. Method signature + SQL extended to include both fields.
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`, hard-refresh.
+
 ## [0.5.580] - 2026-05-16
 
 ### Changed — Recurring task scheduler: pick days + times, no cron syntax
