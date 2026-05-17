@@ -31,12 +31,81 @@ export function WorkforceSection(props) {
   var showAddTask = _showAddTask[0]; var setShowAddTask = _showAddTask[1];
   var _taskForm = useState({
     title: '', description: '', priority: 'normal', type: 'general',
-    // Recurring fields — empty means "one-shot task" (default).
+    // Recurring fields: human-friendly inputs (days + times list +
+    // timezone). We compose the cron expression at submit time so
+    // operators never see "min hour dom mon dow" syntax. All times
+    // share a single minute value to keep the cron a clean
+    // `<M> <H1,H2,…> * * <D1,D2,…>` shape — picking 09:00 and 13:30
+    // would force two separate cron templates which we don't surface
+    // through this form (use the API directly for that).
     recurring: false,
-    recurrenceRule: '0 9,13,18 * * 1-5',
+    recurrenceTimes: ['09:00', '13:00', '18:00'],
+    recurrenceDays: [1, 2, 3, 4, 5], // 0=Sun..6=Sat (matches JS Date.getDay)
     recurrenceTimezone: 'America/Chicago',
   });
   var taskForm = _taskForm[0]; var setTaskForm = _taskForm[1];
+
+  // ─── Cron composer for recurring tasks ─────────────────
+  // Convert the human-friendly {times, days} pair into a 5-field cron
+  // expression. Returns { rule } on success or { error } on invalid
+  // input. The form's submit handler surfaces the error via toast so
+  // operators get a clear "fix this" message rather than a generic
+  // 400 from the API.
+  function buildCronFromForm(times, days) {
+    if (!Array.isArray(times) || times.length === 0) {
+      return { error: 'Add at least one time of day' };
+    }
+    if (!Array.isArray(days) || days.length === 0) {
+      return { error: 'Pick at least one day of the week' };
+    }
+    var parsed = [];
+    for (var i = 0; i < times.length; i++) {
+      var match = String(times[i]).match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) return { error: 'Time "' + times[i] + '" is not in HH:MM format' };
+      var hh = parseInt(match[1], 10);
+      var mm = parseInt(match[2], 10);
+      if (!(hh >= 0 && hh < 24) || !(mm >= 0 && mm < 60)) {
+        return { error: 'Time "' + times[i] + '" is out of range' };
+      }
+      parsed.push({ h: hh, m: mm });
+    }
+    var distinctMinutes = {};
+    parsed.forEach(function(p) { distinctMinutes[p.m] = true; });
+    var minuteValues = Object.keys(distinctMinutes);
+    if (minuteValues.length > 1) {
+      return { error: 'All times must share the same minute (e.g. all :00 or all :30). Use the API directly for mixed schedules.' };
+    }
+    var minute = parseInt(minuteValues[0], 10);
+    var hourSet = {};
+    parsed.forEach(function(p) { hourSet[p.h] = true; });
+    var hours = Object.keys(hourSet).map(function(x) { return parseInt(x, 10); }).sort(function(a, b) { return a - b; });
+    var dows = days.slice().sort(function(a, b) { return a - b; });
+    return { rule: minute + ' ' + hours.join(',') + ' * * ' + dows.join(',') };
+  }
+
+  // Human-readable preview of the recurrence, surfaced under the
+  // form so operators can sanity-check before submitting.
+  function describeRecurrence(times, days, tz) {
+    if (!times || times.length === 0 || !days || days.length === 0) return '';
+    var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var sortedDays = days.slice().sort(function(a, b) { return a - b; });
+    // Detect contiguous weekday range for a nicer phrasing
+    var label;
+    if (sortedDays.length === 7) label = 'Every day';
+    else if (sortedDays.length === 5 && sortedDays.join(',') === '1,2,3,4,5') label = 'Weekdays (Mon–Fri)';
+    else if (sortedDays.length === 2 && sortedDays.join(',') === '0,6') label = 'Weekends (Sat & Sun)';
+    else label = sortedDays.map(function(d) { return dayNames[d]; }).join(', ');
+    var timeLabel = times.slice().sort().map(function(t) {
+      var m = t.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return t;
+      var hh = parseInt(m[1], 10);
+      var mm = m[2];
+      var period = hh >= 12 ? 'PM' : 'AM';
+      var disp = hh % 12 || 12;
+      return disp + ':' + mm + ' ' + period;
+    }).join(', ');
+    return 'Fires ' + label + ' at ' + timeLabel + (tz ? ' (' + tz + ')' : '');
+  }
   var _editing = useState(false);
   var editing = _editing[0]; var setEditing = _editing[1];
   var _selectedTask = useState(null);
@@ -195,26 +264,26 @@ export function WorkforceSection(props) {
     // recurring toggle keeps the operator UX simple: one button, two shapes.
     var isRecurring = !!taskForm.recurring;
     var endpoint = isRecurring ? '/workforce/recurring-tasks' : '/workforce/tasks';
-    var body = isRecurring
-      ? {
-          agentId: agentId,
-          title: taskForm.title,
-          description: taskForm.description,
-          priority: taskForm.priority,
-          recurrenceRule: (taskForm.recurrenceRule || '').trim(),
-          recurrenceTimezone: (taskForm.recurrenceTimezone || 'UTC').trim(),
-        }
-      : {
-          agentId: agentId,
-          title: taskForm.title,
-          description: taskForm.description,
-          priority: taskForm.priority,
-          type: taskForm.type,
-        };
-
-    if (isRecurring && !body.recurrenceRule) {
-      toast('Cron expression is required for recurring tasks', 'error');
-      return;
+    var body;
+    if (isRecurring) {
+      var cron = buildCronFromForm(taskForm.recurrenceTimes, taskForm.recurrenceDays);
+      if (cron.error) { toast(cron.error, 'error'); return; }
+      body = {
+        agentId: agentId,
+        title: taskForm.title,
+        description: taskForm.description,
+        priority: taskForm.priority,
+        recurrenceRule: cron.rule,
+        recurrenceTimezone: (taskForm.recurrenceTimezone || 'UTC').trim(),
+      };
+    } else {
+      body = {
+        agentId: agentId,
+        title: taskForm.title,
+        description: taskForm.description,
+        priority: taskForm.priority,
+        type: taskForm.type,
+      };
     }
 
     engineCall(endpoint, { method: 'POST', body: JSON.stringify(body) })
@@ -223,7 +292,10 @@ export function WorkforceSection(props) {
         setShowAddTask(false);
         setTaskForm({
           title: '', description: '', priority: 'normal', type: 'general',
-          recurring: false, recurrenceRule: '0 9,13,18 * * 1-5', recurrenceTimezone: 'America/Chicago',
+          recurring: false,
+          recurrenceTimes: ['09:00', '13:00', '18:00'],
+          recurrenceDays: [1, 2, 3, 4, 5],
+          recurrenceTimezone: 'America/Chicago',
         });
         loadAll();
       })
@@ -791,34 +863,103 @@ export function WorkforceSection(props) {
               'Recurring task',
               h('span', { style: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 } }, '— fires repeatedly on a schedule')
             ),
-            taskForm.recurring && h('div', { style: { marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
-              h('div', { className: 'form-group', style: { marginBottom: 0 } },
-                h('label', { className: 'form-label' }, 'Cron expression *'),
-                h('input', {
-                  className: 'input',
-                  style: { fontFamily: 'var(--font-mono, monospace)' },
-                  placeholder: '0 9,13,18 * * 1-5',
-                  value: taskForm.recurrenceRule,
-                  onChange: function(e) { setTaskForm(Object.assign({}, taskForm, { recurrenceRule: e.target.value })); }
-                }),
-                h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 } },
-                  'min hour dom mon dow · ',
-                  h('code', null, '0 9,13,18 * * 1-5'),
-                  ' = 9am/1pm/6pm weekdays'
-                )
-              ),
-              h('div', { className: 'form-group', style: { marginBottom: 0 } },
-                h('label', { className: 'form-label' }, 'Timezone'),
-                // TimezoneSelect is a helper, not a component — it takes
-                // (h, value, onChange, props) and returns the <select>
-                // element directly. Treating it as a component (h(TZ, …))
-                // collapses the args into a single props object, which
-                // bound `h` to the props arg and exploded at render time.
-                TimezoneSelect(h, taskForm.recurrenceTimezone, function(e) {
-                  setTaskForm(Object.assign({}, taskForm, { recurrenceTimezone: e.target.value }));
-                })
-              )
-            )
+            taskForm.recurring && (function() {
+              var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+              var toggleDay = function(dayIdx) {
+                var current = (taskForm.recurrenceDays || []).slice();
+                var pos = current.indexOf(dayIdx);
+                if (pos === -1) current.push(dayIdx);
+                else current.splice(pos, 1);
+                setTaskForm(Object.assign({}, taskForm, { recurrenceDays: current }));
+              };
+              var updateTime = function(idx, value) {
+                var current = (taskForm.recurrenceTimes || []).slice();
+                current[idx] = value;
+                setTaskForm(Object.assign({}, taskForm, { recurrenceTimes: current }));
+              };
+              var removeTime = function(idx) {
+                var current = (taskForm.recurrenceTimes || []).slice();
+                current.splice(idx, 1);
+                setTaskForm(Object.assign({}, taskForm, { recurrenceTimes: current }));
+              };
+              var addTime = function() {
+                var current = (taskForm.recurrenceTimes || []).slice();
+                current.push('12:00');
+                setTaskForm(Object.assign({}, taskForm, { recurrenceTimes: current }));
+              };
+              var preview = describeRecurrence(taskForm.recurrenceTimes, taskForm.recurrenceDays, taskForm.recurrenceTimezone);
+              return h('div', { style: { marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 } },
+                // Days of week
+                h('div', { className: 'form-group', style: { marginBottom: 0 } },
+                  h('label', { className: 'form-label' }, 'Days of the week *'),
+                  h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+                    dayNames.map(function(name, idx) {
+                      var selected = (taskForm.recurrenceDays || []).indexOf(idx) !== -1;
+                      return h('button', {
+                        key: idx,
+                        type: 'button',
+                        className: 'btn btn-sm',
+                        style: {
+                          minWidth: 52,
+                          background: selected ? 'var(--accent, #6366f1)' : 'var(--bg-tertiary, #2a2a2a)',
+                          color: selected ? 'white' : 'var(--text)',
+                          borderColor: selected ? 'var(--accent, #6366f1)' : 'transparent',
+                        },
+                        onClick: function() { toggleDay(idx); }
+                      }, name);
+                    })
+                  )
+                ),
+                // Times list
+                h('div', { className: 'form-group', style: { marginBottom: 0 } },
+                  h('label', { className: 'form-label' }, 'Times of day *'),
+                  h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+                    (taskForm.recurrenceTimes || []).map(function(t, idx) {
+                      return h('div', { key: idx, style: { display: 'flex', gap: 6, alignItems: 'center' } },
+                        h('input', {
+                          type: 'time',
+                          className: 'input',
+                          style: { width: 140 },
+                          value: t,
+                          onChange: function(e) { updateTime(idx, e.target.value); }
+                        }),
+                        (taskForm.recurrenceTimes || []).length > 1 && h('button', {
+                          type: 'button',
+                          className: 'btn btn-ghost btn-sm',
+                          style: { color: 'var(--danger)' },
+                          onClick: function() { removeTime(idx); }
+                        }, I.x(), ' Remove')
+                      );
+                    }),
+                    h('button', {
+                      type: 'button',
+                      className: 'btn btn-ghost btn-sm',
+                      style: { alignSelf: 'flex-start' },
+                      onClick: addTime
+                    }, I.plus(), ' Add another time')
+                  )
+                ),
+                // Timezone
+                h('div', { className: 'form-group', style: { marginBottom: 0 } },
+                  h('label', { className: 'form-label' }, 'Timezone'),
+                  TimezoneSelect(h, taskForm.recurrenceTimezone, function(e) {
+                    setTaskForm(Object.assign({}, taskForm, { recurrenceTimezone: e.target.value }));
+                  })
+                ),
+                // Human-readable preview
+                preview && h('div', {
+                  style: {
+                    marginTop: 4,
+                    padding: 10,
+                    background: 'var(--bg-tertiary, #2a2a2a)',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    color: 'var(--text-muted)',
+                    borderLeft: '3px solid var(--accent, #6366f1)',
+                  }
+                }, preview)
+              );
+            })()
           )
         ),
         h('div', { className: 'modal-footer' },

@@ -2,6 +2,32 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.580] - 2026-05-16
+
+### Changed — Recurring task scheduler: pick days + times, no cron syntax
+
+0.5.578 surfaced raw cron syntax (`0 9,13,18 * * 1-5`) in the Add Task modal. Operators correctly pointed out that "min hour dom mon dow" is engineer-only language — most people setting up a growth shift just want to say "Mon–Fri at 9 AM, 1 PM, 6 PM."
+
+The recurring section now shows:
+
+- **Days of the week** — seven toggle buttons (Sun…Sat). Selected days get the accent colour.
+- **Times of day** — a list of `<input type="time">` pickers with `Add another time` and per-row `Remove`. Each defaults to 12:00 when added.
+- **Timezone** — the standard IANA dropdown (unchanged).
+- **Live preview** — a callout reading e.g. *"Fires Weekdays (Mon–Fri) at 9:00 AM, 1:00 PM, 6:00 PM (America/Chicago)"* so the operator can sanity-check before submitting.
+
+The cron expression is composed on submit. Validation surfaces clear errors via toast (e.g. *"All times must share the same minute (e.g. all :00 or all :30)"* — a cron-syntax constraint we keep simple by not letting the form generate mixed-minute schedules).
+
+Special-case phrasings in the preview:
+
+- All 7 days → *"Every day"*
+- Mon–Fri exactly → *"Weekdays (Mon–Fri)"*
+- Sat & Sun exactly → *"Weekends (Sat & Sun)"*
+- Anything else → comma-separated day list
+
+### Operator action
+
+`npm install -g @agenticmail/enterprise@latest && pm2 restart all`, hard-refresh.
+
 ## [0.5.579] - 2026-05-16
 
 ### Fixed — Add Task modal crashed when "Recurring task" was checked
