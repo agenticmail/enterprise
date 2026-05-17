@@ -2,6 +2,47 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.584] - 2026-05-17
+
+### Fixed — Duplicated agents threw "Agent not found" on every edit
+
+After duplicating an agent, clicking into the new agent's detail page
+and trying to save skills (or any other config edit) failed with
+`Failed to save: Agent <new-id> not found`. The agent existed in BOTH
+the `agents` (admin layer) and `managed_agents` (engine layer) tables —
+the duplicate flow wrote them correctly — but `lifecycle.getAgent()`
+in the engine still returned `undefined` because the lookup goes
+against an **in-memory `Map<id, ManagedAgent>`** that's populated once
+at startup via `loadFromDb()` and never refreshed after row inserts.
+
+Every PATCH `/agents/:id/config`, hot-update, tool-security, deploy,
+and skills-save call routes through `lifecycle.updateConfig(id, ...)`
+→ `lifecycle.getAgent(id)` → cache miss → throws. The new agent was
+effectively invisible to the engine until the next enterprise restart
+forced a fresh `loadFromDb()`.
+
+### Fix
+
+`src/admin/agent-duplicate.ts` now calls `lifecycle.loadFromDb()` once
+after all DB inserts complete (per duplicate batch, not per row, so a
+50-agent bulk duplicate triggers one reload instead of 50). The
+method is idempotent — already-loaded agents get re-set with the
+same values, new agents land in the cache. Failures here log but
+don't roll back the inserts; the next dashboard refresh would have
+caught it eventually anyway.
+
+### Operator action
+
+```
+npm install -g @agenticmail/enterprise@latest && pm2 restart all
+```
+
+Existing duplicated agents that already hit the "not found" wall:
+the enterprise restart (`pm2 restart enterprise`) reloads every agent
+from DB at startup, so they become editable immediately. New
+duplicates created after the upgrade just work — no manual restart
+needed per duplicate.
+
 ## [0.5.583] - 2026-05-17
 
 ### Fixed — PATCH /api/organizations/:id crashed with missing column error

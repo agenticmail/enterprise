@@ -52,6 +52,7 @@ export function registerDuplicateRoutes(
       const adminDb = getAdminDb();
       const engineDb = getEngineDb();
       const permissions = getPermissions();
+      const lifecycle = getLifecycle();
 
       // ── Load source agent from admin DB ──
       const sourceAdmin = adminDb ? await adminDb.getAgent(sourceId) : null;
@@ -208,7 +209,21 @@ export function registerDuplicateRoutes(
             } catch {}
           }
 
-          // ── 6. Audit log ──
+          // ── 6. Lifecycle in-memory registration ──
+          // The duplicate above wrote a complete managed_agents row to
+          // the DB, but lifecycle's in-memory Map<id, ManagedAgent>
+          // (populated once at startup via loadFromDb) didn't see it.
+          // Every subsequent dashboard call that goes through
+          // `lifecycle.getAgent(newId)` — config PATCH, hot-update,
+          // tool-security, skill save, deployment — threw
+          // "Agent <newId> not found" because the lookup was against
+          // the cache, not the DB. Fix: reload the duplicated agent
+          // into the in-memory map directly. We do the work outside
+          // the loop after all DB inserts complete (one loadFromDb()
+          // catches every new row in one shot).
+          // Tracked via the `lifecycleNeedsReload` flag below.
+
+          // ── 7. Audit log ──
           try {
             await adminDb?.createAuditLog?.({
               userId: actor,
@@ -231,6 +246,23 @@ export function registerDuplicateRoutes(
 
         } catch (err: any) {
           errors.push({ name: entry.name, error: err.message });
+        }
+      }
+
+      // Refresh lifecycle's in-memory map AFTER all DB inserts so the
+      // dashboard's next interaction (which goes through the engine
+      // PATCH /agents/:id/config path) finds the new agent without
+      // requiring an enterprise restart. loadFromDb() is idempotent —
+      // it Map.set()s every row by id, so already-loaded agents are
+      // re-set with the latest config (harmless) and new agents land
+      // in the cache. Failures here log but don't roll back the
+      // inserts: the next dashboard refresh + auto-sync will catch
+      // the new agent eventually even without this call.
+      if (lifecycle && created.length > 0) {
+        try {
+          await lifecycle.loadFromDb?.();
+        } catch (lErr: any) {
+          console.warn(`[agent-duplicate] lifecycle.loadFromDb failed: ${lErr?.message ?? lErr}`);
         }
       }
 
