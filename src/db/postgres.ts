@@ -268,6 +268,14 @@ export class PostgresAdapter extends DatabaseAdapter {
         ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS billing_rate_per_agent NUMERIC(10,2) DEFAULT 0;
         ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
         ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS allowed_pages JSONB;
+        -- PATCH /api/organizations/:id writes allowed_roles and allowed_skills
+        -- (the dashboard's per-org role + skill allow-lists). They were
+        -- missing from the original CREATE TABLE, so every PATCH from a
+        -- new install crashed with 'column "allowed_roles" of relation
+        -- "client_organizations" does not exist'. Adding them inline so
+        -- existing deployments pick them up on the next boot.
+        ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS allowed_roles JSONB;
+        ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS allowed_skills JSONB;
         ALTER TABLE agents ADD COLUMN IF NOT EXISTS client_org_id TEXT REFERENCES client_organizations(id);
 
         CREATE TABLE IF NOT EXISTS org_billing_records (

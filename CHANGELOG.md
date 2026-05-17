@@ -2,6 +2,45 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.583] - 2026-05-17
+
+### Fixed — PATCH /api/organizations/:id crashed with missing column error
+
+Saving allowed roles or allowed skills on a freshly-created organization
+returned 500 with the underlying error `column "allowed_roles" of relation
+"client_organizations" does not exist` (and the same for `allowed_skills`).
+The dashboard surfaced the second attempt as 400 "No fields to update"
+because the route's error handler returned 500 on the first crash, then
+the retry hit a request shape that didn't include those keys.
+
+Root cause: the `client_organizations` CREATE TABLE in
+`src/db/postgres.ts` and `src/db/sqlite.ts` only declared `allowed_pages`.
+`allowed_roles` and `allowed_skills` were referenced by the PATCH route
+in `src/admin/routes.ts:2419-2426` but the columns were never added —
+either dropped from a migration or never written in the first place.
+
+### Fix
+
+Added `ALTER TABLE ADD COLUMN IF NOT EXISTS allowed_roles` and
+`allowed_skills` to both the Postgres and SQLite init paths so existing
+deployments pick them up on the next boot, and fresh installs get them
+from the start. Postgres uses `JSONB`, SQLite uses `TEXT` (route handler
+JSON-stringifies before write either way).
+
+### Operator action
+
+```
+npm install -g @agenticmail/enterprise@latest && pm2 restart all
+```
+
+The migration runs on enterprise boot. If you want to verify before
+restarting the agent processes too, the columns can be added manually:
+
+```sql
+ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS allowed_roles JSONB;
+ALTER TABLE client_organizations ADD COLUMN IF NOT EXISTS allowed_skills JSONB;
+```
+
 ## [0.5.582] - 2026-05-17
 
 ### Fixed — Recurring tasks fired on schedule but never executed

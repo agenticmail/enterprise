@@ -84,6 +84,12 @@ export class SqliteAdapter extends DatabaseAdapter {
       try { this.db.exec(`ALTER TABLE client_organizations ADD COLUMN billing_rate_per_agent REAL DEFAULT 0`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE client_organizations ADD COLUMN currency TEXT DEFAULT 'USD'`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE client_organizations ADD COLUMN allowed_pages TEXT`); } catch { /* exists */ }
+      // Mirrors the postgres path — the dashboard PATCH for org detail
+      // expects allowed_roles + allowed_skills to exist. Stored as TEXT
+      // here (JSON-stringified by the route handler); the postgres path
+      // uses JSONB.
+      try { this.db.exec(`ALTER TABLE client_organizations ADD COLUMN allowed_roles TEXT`); } catch { /* exists */ }
+      try { this.db.exec(`ALTER TABLE client_organizations ADD COLUMN allowed_skills TEXT`); } catch { /* exists */ }
       try { this.db.exec(`ALTER TABLE agents ADD COLUMN client_org_id TEXT REFERENCES client_organizations(id)`); } catch { /* exists */ }
       this.db.exec(`CREATE TABLE IF NOT EXISTS org_billing_records (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL, agent_id TEXT, month TEXT NOT NULL,
