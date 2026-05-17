@@ -4,6 +4,13 @@
 
 Deploy, manage, and govern AI agents as first-class employees — each with their own email, phone number, calendar, browser, tools, memory, and identity. Enterprise-grade security, compliance, and multi-tenant isolation built in.
 
+[![GitHub App](https://img.shields.io/badge/GitHub%20App-AgenticMail-2da44e?logo=github)](https://github.com/marketplace/agenticmail)
+[![Install](https://img.shields.io/badge/install-1%20click-2da44e)](https://github.com/apps/agenticmail)
+
+> **New: [AgenticMail for GitHub](https://github.com/marketplace/agenticmail)** —
+> tag `@agenticmail` in any issue or pull request and an AI agent reads the
+> thread and replies inline. Free on the GitHub Marketplace.
+
 ```bash
 npx @agenticmail/enterprise
 ```
