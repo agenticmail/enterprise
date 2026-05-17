@@ -2,6 +2,53 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.582] - 2026-05-17
+
+### Fixed — Recurring tasks fired on schedule but never executed
+
+Symptom: halo's "Growth shift" template fired correctly (`lastFiredAt`
+advanced every 4 hours, execution rows piled up in `task_queue` with
+`status='queued'`) but the agent never ran the playbook. She kept
+responding to emails and daily catch-ups; only the scheduled work was
+silently ignored.
+
+Root cause: missing consumer. The workforce scheduler in
+`engine/workforce.ts` correctly inserted `status='queued'` rows into
+`task_queue` when templates fired, but **nothing in the agent runtime
+polled that table.** Every scheduled fire produced a row that just
+sat there forever. There was no bridge between the enterprise process
+(which runs the scheduler) and the agent process (which runs the loop).
+
+### Fix
+
+Added a workforce-task drain loop in `cli-agent.ts`. Every 30 seconds
+(plus one immediate run 10 s after agent boot to drain anything that
+accumulated while the agent was offline), the loop:
+
+1. Selects up to 5 queued tasks for this agent, ordered by priority
+   then age.
+2. Conditionally claims each via `UPDATE … WHERE status = 'queued'`
+   followed by a `SELECT` ownership check. Two processes can't grab
+   the same task because the second update affects 0 rows.
+3. Spawns a session with `runtime.spawnSession()`, using the task's
+   title + description as a system-style prompt prefixed with
+   `[Scheduled task]` so the agent doesn't mistake it for a chat reply.
+4. Registers `runtime.onSessionComplete()` to mark the row `completed`
+   (or `failed`, on error) with a `completed_at` timestamp when the
+   session finishes.
+5. On spawn failure, releases the claim so a later tick can retry.
+
+### Operator action
+
+```
+npm install -g @agenticmail/enterprise@latest && pm2 restart all
+```
+
+Halo's two already-queued executions (10 PM yesterday + 9 AM today)
+will get picked up within ~10 s of her process restarting. The next
+scheduled fire (1 PM ET today = 17:00 UTC) will go through the same
+path and actually execute.
+
 ## [0.5.581] - 2026-05-16
 
 ### Added — Edit existing tasks and recurring templates from the per-agent workforce page

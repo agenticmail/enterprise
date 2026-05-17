@@ -1071,6 +1071,128 @@ export async function runAgent(_args: string[]) {
   });
   taskPoller.start();
 
+  // ─── Workforce Task Drain ───────────────────────────────
+  // Pulls execution rows from the workforce `task_queue` table (the
+  // table populated by the recurring-task scheduler in
+  // engine/workforce.ts) and turns them into actual agent sessions.
+  //
+  // Architecture before this loop: the recurring scheduler ran in the
+  // enterprise process, fired template clones into `task_queue` with
+  // status='queued' on time, and... that was it. Nothing consumed
+  // those rows. Halo's growth-shift template was firing on schedule
+  // (lastFiredAt advanced as expected), but the queued execution
+  // rows piled up at `status='queued'` because no code in the agent
+  // process polled them. Result: every scheduled task was a no-op.
+  //
+  // Now: every 30s this loop selects up to 5 queued tasks for THIS
+  // agent (joined by agent_id), flips them to 'in_progress' with a
+  // started_at timestamp, then spawns a session with the task's
+  // title + description as the user prompt. On session completion
+  // we mark the row 'completed' with completed_at. Per-task try/catch
+  // so one failure doesn't poison the batch — failed rows go to
+  // 'failed' (not 'cancelled', which is operator-initiated).
+  //
+  // Polls UPDATE … RETURNING-style by reading first, then writing
+  // with a conditional WHERE status='queued' clause. Two processes
+  // can't grab the same task because the second update will affect
+  // 0 rows and we skip.
+  const WORKFORCE_DRAIN_INTERVAL_MS = 30_000;
+  const WORKFORCE_DRAIN_BATCH = 5;
+  async function drainWorkforceTasks(): Promise<void> {
+    if (!engineDb) return;
+    let rows: any[] = [];
+    try {
+      rows = await engineDb.query(
+        `SELECT id, type, title, description, context, priority, parent_task_id
+         FROM task_queue
+         WHERE agent_id = $1 AND status = 'queued'
+         ORDER BY priority DESC, created_at ASC
+         LIMIT $2`,
+        [AGENT_ID, WORKFORCE_DRAIN_BATCH],
+      );
+    } catch {
+      return;
+    }
+    if (rows.length === 0) return;
+
+    for (const row of rows) {
+      const taskId = row.id;
+      const startedAt = new Date().toISOString();
+      let claimed = false;
+      try {
+        // Conditional claim — UPDATE returns 0 if another worker raced us.
+        // We use a SELECT-after-UPDATE to detect: if status is now
+        // 'in_progress' AND started_at matches what we just wrote, we
+        // own the task. Cheap enough on a small table.
+        await engineDb.execute(
+          `UPDATE task_queue SET status = 'in_progress', started_at = $1, updated_at = $1
+           WHERE id = $2 AND status = 'queued'`,
+          [startedAt, taskId],
+        );
+        const check = await engineDb.query<any>(
+          `SELECT started_at FROM task_queue WHERE id = $1 AND status = 'in_progress' LIMIT 1`,
+          [taskId],
+        );
+        claimed = Array.isArray(check) && check.length > 0 && check[0].started_at === startedAt;
+      } catch (err: any) {
+        console.warn(`[workforce-drain] Failed to claim task ${taskId}: ${err?.message ?? err}`);
+        continue;
+      }
+      if (!claimed) continue;
+
+      // Format the prompt. Title is the human label; description is
+      // the playbook the agent should run. We prefix with a system-
+      // style header so the agent doesn't mistake it for a chat reply.
+      const promptLines = [
+        `[Scheduled task] ${row.title || 'Untitled task'}`,
+        '',
+        row.description || '(no description)',
+      ];
+      const message = promptLines.join('\n');
+
+      try {
+        const session = await runtime.spawnSession({
+          agentId: AGENT_ID,
+          message,
+          model: (defaultModel || undefined) as any,
+        });
+        if (session?.id) {
+          runtime.onSessionComplete(session.id, async (result: any) => {
+            const completedAt = new Date().toISOString();
+            const status = result?.error ? 'failed' : 'completed';
+            try {
+              await engineDb.execute(
+                `UPDATE task_queue SET status = $1, completed_at = $2, updated_at = $2 WHERE id = $3`,
+                [status, completedAt, taskId],
+              );
+            } catch (err: any) {
+              console.warn(`[workforce-drain] Failed to mark task ${taskId} as ${status}: ${err?.message ?? err}`);
+            }
+            console.log(`[workforce-drain] Task ${taskId.slice(0, 8)} → ${status} (session ${session.id.slice(0, 8)})`);
+          });
+          console.log(`[workforce-drain] Started task ${taskId.slice(0, 8)} "${(row.title || '').slice(0, 60)}" → session ${session.id.slice(0, 8)}`);
+        } else {
+          // Spawn failed — release the claim so a later tick can retry.
+          await engineDb.execute(
+            `UPDATE task_queue SET status = 'queued', started_at = NULL, updated_at = $1 WHERE id = $2`,
+            [new Date().toISOString(), taskId],
+          ).catch(() => {});
+          console.warn(`[workforce-drain] spawnSession returned null for task ${taskId} — re-queued`);
+        }
+      } catch (err: any) {
+        await engineDb.execute(
+          `UPDATE task_queue SET status = 'failed', completed_at = $1, updated_at = $1 WHERE id = $2`,
+          [new Date().toISOString(), taskId],
+        ).catch(() => {});
+        console.error(`[workforce-drain] Task ${taskId} spawn failed: ${err?.message ?? err}`);
+      }
+    }
+  }
+  // Fire once at startup to drain anything that piled up while the
+  // agent was offline, then on the regular interval.
+  setTimeout(() => { void drainWorkforceTasks(); }, 10_000);
+  setInterval(() => { void drainWorkforceTasks(); }, WORKFORCE_DRAIN_INTERVAL_MS);
+
   // 8. Start health check HTTP server
   const app = new Hono();
 
