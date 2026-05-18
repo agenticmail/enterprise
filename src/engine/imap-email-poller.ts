@@ -623,15 +623,24 @@ export class ImapEmailPoller {
   private async extractBody(client: any, uid: number, structure: any): Promise<{ text: string; html: string }> {
     if (!structure) return { text: '', html: '' };
 
-    // Find the first text/plain and text/html parts.
-    const find = (node: any, type: string, subtype: string): any => {
+    // Find the first node matching a given MIME type. imapflow 1.3.x
+    // stores the full type/subtype as a single string on `type` (e.g.
+    // "text/plain") — NOT separated into .type + .subtype. We accept
+    // both shapes so this stays compatible across imapflow versions.
+    const matchesMime = (node: any, want: string): boolean => {
+      const t = String(node.type || '').toLowerCase();
+      if (t === want) return true; // imapflow 1.3+: "text/plain"
+      // imapflow 1.0–1.2 split form: type="text", subtype="plain"
+      const [wantType, wantSubtype] = want.split('/');
+      const sub = String(node.subtype || '').toLowerCase();
+      return t === wantType && sub === wantSubtype;
+    };
+    const find = (node: any, want: string): any => {
       if (!node) return null;
-      if (String(node.type || '').toLowerCase() === type && String(node.subtype || '').toLowerCase() === subtype) {
-        return node;
-      }
+      if (matchesMime(node, want)) return node;
       const children = node.childNodes || [];
       for (const child of children) {
-        const hit = find(child, type, subtype);
+        const hit = find(child, want);
         if (hit) return hit;
       }
       return null;
@@ -640,11 +649,9 @@ export class ImapEmailPoller {
     const downloadPart = async (part: string): Promise<string> => {
       try {
         const dl: any = await client.download(String(uid), part, { uid: true });
-        if (!dl) return '';
-        // imapflow's download returns { content: Readable, meta: ... }
-        const stream = dl.content;
+        if (!dl || !dl.content) return '';
         const chunks: Buffer[] = [];
-        for await (const chunk of stream) {
+        for await (const chunk of dl.content) {
           chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
         }
         return Buffer.concat(chunks).toString('utf8');
@@ -653,11 +660,19 @@ export class ImapEmailPoller {
       }
     };
 
-    const plain = find(structure, 'text', 'plain');
-    const html = find(structure, 'text', 'html');
+    const plain = find(structure, 'text/plain');
+    const html = find(structure, 'text/html');
 
     let text = plain ? await downloadPart(plain.part || '1') : '';
     let htmlBody = html ? await downloadPart(html.part || '1') : '';
+
+    // Single-part message: structure IS the body, no childNodes. The
+    // recursive find() above will return structure itself when it
+    // matches; if neither matched (e.g. type wasn't reported), try
+    // downloading part "1" anyway as a last resort.
+    if (!text && !htmlBody && (!structure.childNodes || structure.childNodes.length === 0)) {
+      text = await downloadPart(structure.part || '1');
+    }
 
     // If we only got HTML, derive a plain-text fallback so downstream
     // agents always have a body field. Tag-strip is intentionally crude;
