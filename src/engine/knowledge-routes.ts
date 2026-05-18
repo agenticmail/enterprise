@@ -26,6 +26,32 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
     return c.json({ knowledgeBase: kb }, 201);
   });
 
+  // List endpoint omits documents entirely — the page only needs KB
+  // metadata + counts. Halo's KB with 53 docs ships as ~70 MB of chunk
+  // embeddings if we don't strip, which silently times out the dashboard
+  // fetch and renders an empty list. ~1.5 KB after stripping.
+  function summarizeKB(kb: any) {
+    const { documents, ...rest } = kb;
+    return rest;
+  }
+
+  // Detail endpoint keeps documents + chunks (the page renders them) but
+  // strips chunk.embedding (1536-float arrays are server-side-only for
+  // similarity search; the UI never used them). Drops ~70 MB → ~1.4 MB
+  // for a typical KB.
+  function stripEmbeddings(kb: any) {
+    return {
+      ...kb,
+      documents: (kb.documents || []).map((d: any) => ({
+        ...d,
+        chunks: (d.chunks || []).map((ch: any) => {
+          const { embedding, ...rest } = ch;
+          return rest;
+        }),
+      })),
+    };
+  }
+
   router.get('/knowledge-bases', (c) => {
     const orgId = c.req.query('orgId');
     const agentId = c.req.query('agentId');
@@ -35,19 +61,19 @@ export function createKnowledgeRoutes(knowledgeBase: KnowledgeBaseEngine) {
       // If agent has a clientOrgId, only show KBs belonging to that org (or explicitly assigned)
       if (clientOrgId) {
         const filtered = bases.filter((kb: any) => kb.clientOrgId === clientOrgId || (Array.isArray(kb.agentIds) && kb.agentIds.includes(agentId)));
-        return c.json({ knowledgeBases: filtered });
+        return c.json({ knowledgeBases: filtered.map(summarizeKB) });
       }
-      return c.json({ knowledgeBases: bases });
+      return c.json({ knowledgeBases: bases.map(summarizeKB) });
     }
-    if (orgId) return c.json({ knowledgeBases: knowledgeBase.getKnowledgeBasesByOrg(orgId) });
+    if (orgId) return c.json({ knowledgeBases: knowledgeBase.getKnowledgeBasesByOrg(orgId).map(summarizeKB) });
     // No filter = return all (admin dashboard context)
-    return c.json({ knowledgeBases: knowledgeBase.getAllKnowledgeBases() });
+    return c.json({ knowledgeBases: knowledgeBase.getAllKnowledgeBases().map(summarizeKB) });
   });
 
   router.get('/knowledge-bases/:id', (c) => {
     const kb = knowledgeBase.getKnowledgeBase(c.req.param('id'));
     if (!kb) return c.json({ error: 'Knowledge base not found' }, 404);
-    return c.json({ knowledgeBase: kb });
+    return c.json({ knowledgeBase: stripEmbeddings(kb) });
   });
 
   router.post('/knowledge-bases/:id/documents', async (c) => {
