@@ -319,7 +319,7 @@ Each agent runs independently with its own port, connects to the shared database
 | Skills | Assigned skills with risk levels |
 | Tools | Available tools with security policies |
 | Tool Security | Per-tool DLP and guardrail overrides |
-| Email | Gmail OAuth, signature, email config |
+| Email | Gmail OAuth / IMAP+SMTP (app password), send-as alias, signature, auto-polled inbox |
 | Channels | Telegram, WhatsApp, Google Chat setup |
 | WhatsApp | WhatsApp Business integration |
 | Communication | Agent messaging preferences |

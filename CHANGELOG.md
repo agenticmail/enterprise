@@ -2,6 +2,115 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.590] - 2026-05-18
+
+### Fixed — IMAP poller alias filter rejected forwarded mail
+
+Replies routed through Cloudflare Email Routing (or any forwarder)
+arrive at the underlying mailbox with the envelope `To:` rewritten to
+the forwarding destination. The original recipient is preserved in
+`Delivered-To` / `X-Forwarded-To` / `X-Original-To`. The alias filter
+in `ImapEmailPoller.processMessage` only inspected envelope To/Cc, so
+every forwarded reply was silently dropped.
+
+Now reads those headers too. Bare addresses and `Name <addr>` both
+extracted, RFC822 header continuation lines unfolded. The skip log
+now lists what recipients we DID see so misconfigured forwards are
+debuggable at a glance.
+
+## [0.5.589] - 2026-05-18
+
+### Added — IMAP email polling for non-OAuth agents
+
+Agents configured with `provider: 'imap'` (email + app password or any
+non-OAuth mailbox) now have their inbox polled automatically.
+Previously these agents could send via SMTP but had nothing watching
+for replies — the central email poller was Gmail-OAuth-only. New
+`ImapEmailPoller` runs alongside the existing Gmail poller from
+`src/engine/routes.ts`.
+
+Features:
+
+- Per-mailbox long-lived `ImapFlow` connection, recreated on disconnect
+- 30 s interval polling (matches Gmail poller cadence; IDLE deferred to v2)
+- State persisted to `engine_settings.imap_poller_state` — UID +
+  UIDVALIDITY per mailbox
+- First poll seeds `lastUid = UIDNEXT - 1` (no historical backfill)
+- UIDVALIDITY rotation detected and `lastUid` resets
+- Per-agent circuit breaker with exponential backoff (30 s → 5 min cap)
+- Max 50 new messages per cycle; overflow queued for the next round
+- Auto-discovery: new IMAP agents picked up without restart;
+  credential changes trigger reconnect
+- Send-as alias awareness: when `emailConfig.sendAsAlias` is set,
+  only dispatches messages addressed to the alias (otherwise the
+  agent would see every email in the underlying mailbox owner's inbox)
+- Self-loop guard, work-hours enforcement, manager bypass — mirrors
+  the Gmail poller's rules
+- Skips Draft / Deleted-flagged messages
+- Body extraction: text/plain preferred, tag-strip fallback from HTML
+- Dispatches to `localhost:<agent-port>/api/runtime/email` with
+  `source='imap'`
+
+## [0.5.588] - 2026-05-18
+
+### Added — Send-as alias on SMTP path + lifted UI out of Google block
+
+`smtp-email.ts` `From` resolver now prefers `emailConfig.sendAsAlias`
+before falling back to `emailConfig.email` or `emailConfig.smtpUser`.
+Lets an agent authenticate against `smtp.gmail.com` with the primary
+Gmail account + app password while sending as `ashley@yourdomain.com`.
+
+Dashboard email page: the **Send as alias** input is now in a shared
+section that renders for IMAP, Microsoft, and Google alike — was
+previously Google-only.
+
+## [0.5.587] - 2026-05-18
+
+### Added — Send-as alias dashboard UI
+
+Surfaces the `sendAsAlias` field added in 0.5.586 on the agent's
+email page. Backend `GET /bridge/agents/:id/email-config` returns it;
+`PUT` accepts and persists it (empty string clears).
+
+## [0.5.586] - 2026-05-18
+
+### Added — Gmail send-as alias on OAuth send paths
+
+`gmail_send` / `gmail_reply` / `gmail_forward` previously hardcoded
+the `From:` header to the OAuth account's primary address. Agents
+whose outbound identity is a verified "Send mail as" alias on the
+underlying Gmail account were forced to send under the OAuth address.
+
+New `GoogleToolsConfig.sendAsAlias` — `gmail.ts` resolves From via
+`config.sendAsAlias || tp.getEmail()` at the four send/reply/forward
+sites. `src/agent-tools/index.ts` plumbs the alias through from
+`options.emailConfig.sendAsAlias` (or legacy `fromAlias`) when the
+Google token provider is active. Alias must be verified at Gmail's
+Settings → Accounts → Send mail as; otherwise Gmail silently rewrites
+From to the primary address.
+
+## [0.5.585] - 2026-05-18
+
+### Fixed — Knowledge-base API payload size killed the dashboard
+
+Both KB endpoints shipped the full chunk embeddings (1536-float
+arrays × hundreds of chunks) on every request. A KB with 53
+documents produced a 69 MB JSON response. The dashboard's `fetch()`
+silently timed out over Cloudflare, the `.catch(() => {})` swallowed
+it, and the KB list rendered empty — even though the data was
+correct in the DB.
+
+Fixes:
+
+- `GET /knowledge-bases` — strip `documents` per KB before
+  serializing. Metadata + counts only. ~70 MB → ~1.5 KB, 9 s → 0.2 s.
+- `GET /knowledge-bases/:id` — keep documents + chunks (the page
+  renders them) but strip `chunk.embedding`. ~70 MB → ~1.4 MB,
+  9 s → 0.2 s.
+
+Embeddings continue to live in the in-memory engine and the DB.
+Similarity search via `/knowledge-bases/:id/search` is unchanged.
+
 ## [0.5.584] - 2026-05-17
 
 ### Fixed — Duplicated agents threw "Agent not found" on every edit

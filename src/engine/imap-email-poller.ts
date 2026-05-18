@@ -440,12 +440,18 @@ export class ImapEmailPoller {
   // ─── Message processing ───────────────────────────────
 
   private async processMessage(mailbox: ImapMailbox, client: any, uid: number): Promise<void> {
+    // Also fetch forwarding headers — Cloudflare Email Routing,
+    // postmasters, and most forwarders rewrite the envelope To and
+    // preserve the original recipient in Delivered-To / X-Forwarded-To
+    // / X-Original-To. Without these we'd reject every forwarded reply.
+    const forwardingHeaders = ['delivered-to', 'x-forwarded-to', 'x-original-to', 'x-forwarded-for'];
     const msg: any = await client.fetchOne(String(uid), {
       uid: true,
       envelope: true,
       bodyStructure: true,
       flags: true,
       internalDate: true,
+      headers: forwardingHeaders,
     });
     if (!msg) return;
 
@@ -461,6 +467,11 @@ export class ImapEmailPoller {
     const threadId = env.inReplyTo || messageId; // best-effort
     const flags: string[] = Array.isArray(msg.flags) ? msg.flags.map((f: any) => String(f)) : [];
 
+    // Parse forwarding headers — imapflow returns msg.headers as a Buffer
+    // of the raw header lines we asked for, NOT a parsed object. Walk
+    // them manually so we don't drag in a mailparser dependency.
+    const forwardingRecipients = this.extractForwardingRecipients(msg.headers);
+
     // ── Skip rules (mirror the Gmail poller) ────────────
     // Drafts
     if (flags.includes('\\Draft')) return;
@@ -475,12 +486,30 @@ export class ImapEmailPoller {
     // Alias filter: when the agent has a Send-as alias, only dispatch
     // messages addressed to that alias. Otherwise the agent would see
     // every email in the underlying mailbox owner's inbox.
+    //
+    // Three places a recipient can show up:
+    //   1. envelope To / Cc — the standard case
+    //   2. Delivered-To / X-Forwarded-To / X-Original-To — when a
+    //      forwarder (Cloudflare Email Routing, Postfix relay,
+    //      Gmail's own forwarding) rewrites the envelope but
+    //      preserves the original recipient in a separate header
+    //   3. Bcc — not visible to recipients, can't filter on it
+    //
+    // We accept the message if the alias appears in any of (1) or (2).
     if (mailbox.sendAsAlias) {
       const alias = mailbox.sendAsAlias.toLowerCase();
-      const addressedToAlias = [...toList, ...ccList]
+      const envelopeAddresses = [...toList, ...ccList]
         .map((a: any) => (a?.address || '').toLowerCase())
-        .some(a => a === alias);
-      if (!addressedToAlias) return;
+        .filter(Boolean);
+      const allRecipients = new Set<string>([
+        ...envelopeAddresses,
+        ...forwardingRecipients,
+      ]);
+      if (!allRecipients.has(alias)) {
+        // Log skip reason so debugging is fast on misconfigured forwards.
+        console.log(`[imap-poller] ${mailbox.agentName}: uid=${uid} SKIPPED — alias ${alias} not in recipients ${[...allRecipients].join(',') || '<none>'}`);
+        return;
+      }
     }
 
     // Work-hours enforcement: only manager can wake the agent off-hours.
@@ -528,6 +557,42 @@ export class ImapEmailPoller {
 
     mailbox.totalDispatched++;
     mailbox.lastDispatchAt = new Date().toISOString();
+  }
+
+  /**
+   * Pull every email address that appears in forwarding headers
+   * (Delivered-To / X-Forwarded-To / X-Original-To, repeated as
+   * many times as the message has been hopped). imapflow returns
+   * the requested headers as a Buffer of raw RFC822 header lines.
+   * Format example:
+   *   Delivered-To: agenticfola@gmail.com
+   *   X-Forwarded-To: support@folaform.com
+   * Returns lowercased addresses.
+   */
+  private extractForwardingRecipients(headersBuf: any): string[] {
+    if (!headersBuf) return [];
+    let raw: string;
+    if (Buffer.isBuffer(headersBuf)) raw = headersBuf.toString('utf8');
+    else if (typeof headersBuf === 'string') raw = headersBuf;
+    else return [];
+
+    const addresses: string[] = [];
+    // Unfold continuation lines: RFC822 allows headers to wrap onto the
+    // next line with leading whitespace.
+    const unfolded = raw.replace(/\r?\n[ \t]+/g, ' ');
+    const lines = unfolded.split(/\r?\n/);
+    for (const line of lines) {
+      const colon = line.indexOf(':');
+      if (colon < 0) continue;
+      const name = line.slice(0, colon).trim().toLowerCase();
+      if (!/^(delivered-to|x-forwarded-to|x-original-to)$/.test(name)) continue;
+      const value = line.slice(colon + 1).trim();
+      // Extract addresses from "Name <addr@x>" or bare "addr@x" or
+      // comma-separated lists.
+      const matches = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+      for (const m of matches) addresses.push(m.toLowerCase());
+    }
+    return addresses;
   }
 
   private async extractBody(client: any, uid: number, structure: any): Promise<{ text: string; html: string }> {
