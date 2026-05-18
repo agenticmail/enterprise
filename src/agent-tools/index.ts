@@ -395,7 +395,17 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     var provider = tp.getProvider();
     if (provider === 'google') {
       const googleOpts = options?.enabledGoogleServices ? { ...options, enabledGoogleServices: options.enabledGoogleServices } : options;
-      workspaceTools = createAllGoogleTools({ tokenProvider: tp }, googleOpts);
+      // Pull the agent's send-as alias from emailConfig if configured.
+      // Accepts either `sendAsAlias` (preferred) or `fromAlias` as a
+      // legacy field. Must be a verified "Send mail as" in the
+      // underlying Google account's settings — otherwise Gmail will
+      // silently rewrite From to the primary address. We read from
+      // `options.emailConfig` rather than the local `ec` because `tp`
+      // can be supplied via `options.oauthTokenProvider` in which case
+      // the auto-create block above (where `ec` is declared) didn't run.
+      const aliasEc = options?.emailConfig as any;
+      const sendAsAlias = aliasEc?.sendAsAlias || aliasEc?.fromAlias || undefined;
+      workspaceTools = createAllGoogleTools({ tokenProvider: tp, sendAsAlias }, googleOpts);
       // Meeting lifecycle tools (work on all deployments — API-based)
       workspaceTools = workspaceTools.concat(createMeetingLifecycleTools({ tokenProvider: tp }, options));
     }

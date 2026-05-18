@@ -112,7 +112,26 @@ export interface AgentConfig {
     };
   };
 
-  // Email config (OAuth/IMAP credentials — flexible shape, varies by provider)
+  // Email config (OAuth/IMAP credentials — flexible shape, varies by provider).
+  // Common fields used at runtime:
+  //   email                — display address (used as From in SMTP path)
+  //   sendAsAlias          — optional. For Google OAuth send paths
+  //                          (gmail_send / gmail_reply / gmail_forward),
+  //                          overrides the From header. Must be a verified
+  //                          "Send mail as" alias in the underlying Gmail
+  //                          account, or Gmail will silently rewrite to the
+  //                          primary address. Replies route to wherever the
+  //                          alias's MX points (usually back to the same
+  //                          Gmail mailbox, so OAuth-based inbox polling
+  //                          picks them up without extra config).
+  //   smtpHost, smtpPort,
+  //   smtpUser, smtpPass   — SMTP relay credentials (e.g. Gmail app password)
+  //   oauthProvider        — 'google' | 'microsoft'
+  //   oauthClientId,
+  //   oauthClientSecret,
+  //   oauthAccessToken,
+  //   oauthRefreshToken,
+  //   oauthTokenExpiry     — populated by oauth-connect-routes after consent
   emailConfig?: Record<string, any> | null;
 
   // Browser config (CDP, Browserless, Browserbase, Steel, local — flexible shape)

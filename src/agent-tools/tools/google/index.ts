@@ -38,6 +38,19 @@ import { createGoogleMapsTools } from './maps.js';
 
 export interface GoogleToolsConfig {
   tokenProvider: TokenProvider;
+  /**
+   * Optional Gmail send-as alias. When set, gmail_send / gmail_reply /
+   * gmail_forward / gmail_send_template use this as the From header
+   * instead of the OAuth account's primary address.
+   *
+   * The alias must be verified as a "Send mail as" address in the
+   * underlying Gmail account's Settings → Accounts; otherwise Gmail
+   * silently rewrites From to the primary address. Replies to the alias
+   * route to wherever the alias's MX points (typically back to the same
+   * Gmail account, so receiving in this engine "just works" once the
+   * OAuth tokens for that account are configured).
+   */
+  sendAsAlias?: string;
 }
 
 /**

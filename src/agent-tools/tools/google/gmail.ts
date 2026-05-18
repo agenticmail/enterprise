@@ -299,6 +299,10 @@ function appendSignatureHtml(bodyHtml: string, signatureHtml: string): string {
 
 export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreationOptions): AnyAgentTool[] {
   const tp = config.tokenProvider;
+  // Resolved at send time per tool — kept here as a closure so the four
+  // send/reply/forward paths share one source of truth. Falls back to
+  // the OAuth account's primary email when no alias is configured.
+  const resolveFrom = () => config.sendAsAlias || tp.getEmail();
   return [
     // ─── List / Search ─────────────────────────────────
     {
@@ -438,7 +442,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
       async execute(_id: string, params: any) {
         try {
           const token = await tp.getAccessToken();
-          const email = tp.getEmail();
+          const email = resolveFrom();
           const sig = await getSignature(token);
           const bodyWithSig = appendSignature(params.body, sig);
           const htmlWithSig = params.html ? appendSignatureHtml(params.html, sig) : (sig ? `<div>${params.body.replace(/\n/g, '<br>')}</div><br><br>${sig}` : undefined);
@@ -478,7 +482,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
       async execute(_id: string, params: any) {
         try {
           const token = await tp.getAccessToken();
-          const email = tp.getEmail();
+          const email = resolveFrom();
 
           // Fetch original message for threading (use full format to ensure headers are present)
           const original = await gmail(token, `/messages/${params.messageId}`, { query: { format: 'full' } });
@@ -539,7 +543,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
       async execute(_id: string, params: any) {
         try {
           const token = await tp.getAccessToken();
-          const email = tp.getEmail();
+          const email = resolveFrom();
 
           const original = await gmail(token, `/messages/${params.messageId}`, { query: { format: 'full' } });
           const parsed = parseMessage(original, 'full');
@@ -712,7 +716,7 @@ export function createGmailTools(config: GoogleToolsConfig, _options?: ToolCreat
         try {
           const token = await tp.getAccessToken();
           const action = params.action || 'list';
-          const email = tp.getEmail();
+          const email = resolveFrom();
 
           if (action === 'create' || action === 'update') {
             if (!params.to || !params.subject) return errorResult('to and subject required');
