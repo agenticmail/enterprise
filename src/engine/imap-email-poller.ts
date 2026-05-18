@@ -390,6 +390,12 @@ export class ImapEmailPoller {
         return;
       }
 
+      // Force the server to push any pending EXISTS/EXPUNGE updates
+      // before we search. Long-lived IMAP connections can have stale
+      // cached mailbox state; without NOOP, search may not see UIDs
+      // delivered since the last command. RFC 3501 §6.1.2.
+      try { await client.noop(); } catch {}
+
       // Fetch UIDs strictly greater than lastUid.
       const range = `${mailbox.lastUid + 1}:*`;
       const newUids: number[] = [];
@@ -408,6 +414,8 @@ export class ImapEmailPoller {
       }
 
       if (newUids.length === 0) return;
+
+      console.log(`[imap-poller] ${mailbox.agentName}: ${newUids.length} new UID(s) > ${mailbox.lastUid}: ${newUids.slice(0, 5).join(',')}${newUids.length > 5 ? '...' : ''}`);
 
       newUids.sort((a, b) => a - b);
       const slice = newUids.slice(0, MAX_NEW_PER_CYCLE);
