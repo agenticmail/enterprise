@@ -128,7 +128,7 @@ async function emailReply(ctx: ToolContext, params: any): Promise<ToolResult> {
   const original = await withImap(ctx, async (client) => {
     const lock = await client.getMailboxLock(folder || 'INBOX');
     try {
-      const msg = await client.fetchOne({ uid: String(uid) }, { envelope: true, uid: true });
+      const msg = await client.fetchOne(String(uid), { envelope: true }, { uid: true });
       return msg?.envelope;
     } finally {
       lock.release();
@@ -163,7 +163,7 @@ async function emailForward(ctx: ToolContext, params: any): Promise<ToolResult> 
   const original = await withImap(ctx, async (client) => {
     const lock = await client.getMailboxLock(folder || 'INBOX');
     try {
-      const msg = await client.fetchOne({ uid: String(uid) }, { envelope: true, source: true, uid: true });
+      const msg = await client.fetchOne(String(uid), { envelope: true, source: true }, { uid: true });
       return msg;
     } finally {
       lock.release();
@@ -241,10 +241,10 @@ async function emailRead(ctx: ToolContext, params: any): Promise<ToolResult> {
       // source: true gives the full RFC822 source. Earlier we passed
       // `source: { maxBytes: 500000 }` which imapflow 1.3.x rejects
       // with a generic "Command failed" error.
-      const msg = await client.fetchOne({ uid: String(uid) }, {
-        envelope: true, uid: true, flags: true,
+      const msg = await client.fetchOne(String(uid), {
+        envelope: true, flags: true,
         bodyStructure: true, source: true,
-      });
+      }, { uid: true });
 
       if (!msg) return { error: `Email UID ${uid} not found` };
 
