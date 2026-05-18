@@ -128,7 +128,7 @@ async function emailReply(ctx: ToolContext, params: any): Promise<ToolResult> {
   const original = await withImap(ctx, async (client) => {
     const lock = await client.getMailboxLock(folder || 'INBOX');
     try {
-      const msg = await client.fetchOne(String(uid), { envelope: true, uid: true });
+      const msg = await client.fetchOne({ uid: String(uid) }, { envelope: true, uid: true });
       return msg?.envelope;
     } finally {
       lock.release();
@@ -163,7 +163,7 @@ async function emailForward(ctx: ToolContext, params: any): Promise<ToolResult> 
   const original = await withImap(ctx, async (client) => {
     const lock = await client.getMailboxLock(folder || 'INBOX');
     try {
-      const msg = await client.fetchOne(String(uid), { envelope: true, source: true, uid: true });
+      const msg = await client.fetchOne({ uid: String(uid) }, { envelope: true, source: true, uid: true });
       return msg;
     } finally {
       lock.release();
@@ -212,7 +212,7 @@ async function emailSearch(ctx: ToolContext, params: any): Promise<ToolResult> {
       if (recentUids.length === 0) return { result: { messages: [], total: 0 } };
 
       const messages: any[] = [];
-      for await (const msg of client.fetch(recentUids.map(String), { envelope: true, uid: true, flags: true })) {
+      for await (const msg of client.fetch({ uid: recentUids.map(String) }, { envelope: true, uid: true, flags: true })) {
         messages.push({
           uid: msg.uid,
           from: formatAddressList(msg.envelope?.from),
@@ -238,7 +238,7 @@ async function emailRead(ctx: ToolContext, params: any): Promise<ToolResult> {
   return withImap(ctx, async (client) => {
     const lock = await client.getMailboxLock(folder || 'INBOX');
     try {
-      const msg = await client.fetchOne(String(uid), {
+      const msg = await client.fetchOne({ uid: String(uid) }, {
         envelope: true, uid: true, flags: true,
         bodyStructure: true, source: { maxBytes: 500000 },
       });
@@ -292,7 +292,7 @@ async function emailList(ctx: ToolContext, params: any): Promise<ToolResult> {
       if (recentUids.length === 0) return { result: { messages: [], total: 0 } };
 
       const messages: any[] = [];
-      for await (const msg of client.fetch(recentUids.map(String), { envelope: true, uid: true, flags: true })) {
+      for await (const msg of client.fetch({ uid: recentUids.map(String) }, { envelope: true, uid: true, flags: true })) {
         messages.push({
           uid: msg.uid,
           from: formatAddressList(msg.envelope?.from),
