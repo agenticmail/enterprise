@@ -448,13 +448,15 @@ export class ImapEmailPoller {
   // ─── Message processing ───────────────────────────────
 
   private async processMessage(mailbox: ImapMailbox, client: any, uid: number): Promise<void> {
-    // Use the async-iterator `client.fetch()` rather than `fetchOne()`.
-    // In our imapflow version, fetchOne returned `false` for valid UIDs
-    // depending on the query shape — the cause was opaque and silently
-    // skipped messages. The fetch() iterator with the same uid query
-    // form used by the standalone IMAP probe always yields the message.
+    // Fetch by UID. CRITICAL: imapflow treats a bare string like
+    // '265:265' as a SEQUENCE-number range, NOT a UID range — even
+    // when `uid: true` is in the second argument (that flag tells
+    // fetch to return the uid field on results, it does NOT change
+    // how the range is interpreted). To fetch by UID you must pass
+    // `{ uid: '<range>' }` as the FIRST argument. We learned this
+    // the hard way; getting it wrong silently returns 0 results.
     let msg: any = null;
-    for await (const m of client.fetch(`${uid}:${uid}`, {
+    for await (const m of client.fetch({ uid: `${uid}:${uid}` }, {
       uid: true,
       envelope: true,
       bodyStructure: true,
