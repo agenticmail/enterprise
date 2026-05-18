@@ -448,23 +448,24 @@ export class ImapEmailPoller {
   // ─── Message processing ───────────────────────────────
 
   private async processMessage(mailbox: ImapMailbox, client: any, uid: number): Promise<void> {
-    // Fetch envelope + flags + body structure. We don't pass the
-    // `headers: [...]` option here because some imapflow versions
-    // silently fail the fetch when given a header allow-list with the
-    // other body parts, returning `false` — in which case our
-    // `if (!msg) return` skipped UIDs without any log. Instead we fetch
-    // the full raw source for THIS message only when we need to read
-    // forwarding headers (Delivered-To etc), which we do anyway for the
-    // alias filter. Body extraction continues to use bodyStructure.
-    const msg: any = await client.fetchOne(String(uid), {
+    // Use the async-iterator `client.fetch()` rather than `fetchOne()`.
+    // In our imapflow version, fetchOne returned `false` for valid UIDs
+    // depending on the query shape — the cause was opaque and silently
+    // skipped messages. The fetch() iterator with the same uid query
+    // form used by the standalone IMAP probe always yields the message.
+    let msg: any = null;
+    for await (const m of client.fetch(`${uid}:${uid}`, {
       uid: true,
       envelope: true,
       bodyStructure: true,
       flags: true,
       internalDate: true,
-    });
+    })) {
+      msg = m;
+      break;
+    }
     if (!msg) {
-      console.warn(`[imap-poller] ${mailbox.agentName}: fetchOne returned empty for uid=${uid} — skipping`);
+      console.warn(`[imap-poller] ${mailbox.agentName}: fetch returned empty for uid=${uid} — skipping`);
       return;
     }
 
