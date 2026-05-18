@@ -1964,6 +1964,7 @@ export async function runAgent(_args: string[]) {
       const email = await c.req.json<{
         source: string;
         agentId: string;
+        uid?: number;          // IMAP UID — present when source === 'imap'
         messageId: string;
         threadId: string;
         from: { name: string; email: string };
@@ -2023,11 +2024,21 @@ export async function runAgent(_args: string[]) {
       const traits = identity.traits || {};
       const traitLines = Object.entries(traits).filter(([, v]) => v && (v as string) !== 'medium' && (v as string) !== 'default').map(([k, v]) => `- ${k}: ${v}`).join('\n');
 
+      // Pick the right reply identifier based on provider:
+      //   - IMAP source: pass the IMAP UID to email_reply.
+      //   - Gmail/OAuth: pass the RFC822 Message-ID to gmail_reply.
+      // Picking the wrong identifier causes the agent to reply to a
+      // different message from her inbox.
+      const replyProvider: 'imap' | 'gmail' = email.source === 'imap' ? 'imap' : 'gmail';
+      const replyIdentifier = replyProvider === 'imap'
+        ? (email.uid != null ? String(email.uid) : '')
+        : email.messageId;
       const emailSystemPrompt = buildEmailSystemPrompt({
         agentName, agentEmail, role, managerEmail, agentDomain,
         identityBlock, description, personality, traitLines,
         trustLevel, senderName, senderEmail,
-        emailUid: email.messageId,
+        emailUid: replyIdentifier,
+        replyProvider,
       });
 
       const emailText = [
@@ -2960,8 +2971,19 @@ function buildEmailSystemPrompt(opts: {
   identityBlock: string; description: string; personality: string; traitLines: string;
   trustLevel: string; senderName: string; senderEmail: string;
   emailUid: string;
+  replyProvider?: 'imap' | 'gmail';
 }): string {
   const { agentName, agentEmail, role, managerEmail, agentDomain, identityBlock, description, personality, traitLines, trustLevel, senderName, senderEmail, emailUid } = opts;
+  const replyProvider = opts.replyProvider || 'gmail';
+
+  // The reply tool + identifier shape differ by provider:
+  //   - gmail/OAuth: gmail_reply takes messageId (RFC822 Message-ID)
+  //   - imap/SMTP:   email_reply  takes uid (numeric IMAP UID)
+  // Hardcoding gmail_reply for an IMAP agent made the agent guess at
+  // UIDs from her own inbox search and reply to the wrong message.
+  const replyToolName = replyProvider === 'imap' ? 'email_reply' : 'gmail_reply';
+  const replyArgName  = replyProvider === 'imap' ? 'uid'         : 'messageId';
+  const replyAltTool  = replyProvider === 'imap' ? 'email_send'  : 'gmail_send';
 
   const trustSection = trustLevel === 'manager'
     ? `This email is from YOUR MANAGER (${senderName} <${senderEmail}>). They are your direct supervisor and have full authority over you. Follow their instructions, answer their questions thoroughly, and treat their requests as top priority. You can share work details, status updates, and complete professional information with them. Even with your manager, don't overshare personal details unprompted — share what's relevant to the conversation.`
@@ -2997,11 +3019,16 @@ ${agentDomain ? `Your organization domain: @${agentDomain}` : ''}
 ${trustSection}
 
 == EMAIL REPLY INSTRUCTIONS ==
-You MUST reply to this email using the gmail_reply tool to keep the conversation threaded:
-- gmail_reply: messageId="${emailUid}", body="your response"
+You MUST reply to this email using the ${replyToolName} tool to keep the conversation threaded:
+- ${replyToolName}: ${replyArgName}=${replyProvider === 'imap' ? emailUid : `"${emailUid}"`}, body="your response"
 This will automatically thread the reply under the original email.
 
-IMPORTANT: Use gmail_reply, NOT gmail_send. gmail_send creates a new email thread.
+CRITICAL: Use the ${replyArgName} above EXACTLY as given — it identifies the inbound email
+that triggered this session. Do NOT search your inbox for a different message and use
+its ${replyArgName} — you would reply to the wrong email. The ${replyArgName} above
+already points at the message you are responding to.
+
+IMPORTANT: Use ${replyToolName}, NOT ${replyAltTool}. ${replyAltTool} creates a new email thread.
 Be helpful, professional, and match the tone of the sender.
 Keep responses concise but thorough. Sign off with your name: ${agentName}
 

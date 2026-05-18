@@ -555,7 +555,13 @@ export class ImapEmailPoller {
     } catch {}
 
     // ── Dispatch ────────────────────────────────────────
+    // `uid` is the IMAP UID — agents using the smtp-email tool family
+    // need this to call email_reply, email_read, etc. Without it, an
+    // agent receiving the dispatch has only the RFC822 messageId and
+    // has to guess which inbox UID corresponds (often picking the
+    // wrong one and replying to an unrelated message).
     await this.dispatchToAgent(mailbox, {
+      uid,
       messageId,
       threadId,
       from: { name: fromName, email: fromEmail },
