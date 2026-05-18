@@ -533,29 +533,33 @@ export function EmailSection(props) {
           )
         ),
 
-        // ─── Send-as alias ───────────────────────────────
-        h('div', { style: { marginBottom: 16 } },
-          h('label', { style: labelStyle }, 'Send as alias (optional)'),
-          h('input', {
-            style: Object.assign({}, inputStyle, { maxWidth: 480 }),
-            type: 'email',
-            value: form.sendAsAlias || '',
-            placeholder: 'ashley@yourdomain.com',
-            onChange: function(e) { set('sendAsAlias', e.target.value); },
-          }),
-          h('p', { style: helpStyle },
-            'When set, outgoing emails use this address as the From header instead of the Gmail account. ',
-            h('strong', null, 'Must already be verified'),
-            ' in the Gmail account at Settings \u2192 Accounts \u2192 Send mail as. Replies route to wherever the alias\u2019s MX points (typically back to the same mailbox).'
-          )
-        ),
-
         emailConfig && emailConfig.status === 'awaiting_oauth' && h('div', { style: { padding: '12px 16px', background: 'var(--warning-soft)', borderRadius: 'var(--radius)', marginBottom: 16 } },
           h('div', { style: { fontWeight: 600, marginBottom: 4, fontSize: 13 } }, 'Authorization Required'),
           h('p', { style: { fontSize: 12, margin: '0 0 8px', color: 'var(--text-secondary)' } }, 'Click the button below to sign in with the agent\'s Google account and grant Gmail permissions.'),
           h('button', { className: 'btn btn-primary btn-sm', onClick: openOAuth }, 'Authorize with Google')
         )
       ); })(),
+
+      // ─── Send-as alias (shared across all providers) ────
+      // Works for both OAuth (Gmail API send) and IMAP/SMTP (relay
+      // with app password). The alias must be a verified Send-mail-as
+      // in the underlying mailbox (Gmail's Settings → Accounts → Send
+      // mail as), or Gmail rewrites From silently.
+      h('div', { style: { marginBottom: 16 } },
+        h('label', { style: labelStyle }, 'Send as alias (optional)'),
+        h('input', {
+          style: Object.assign({}, inputStyle, { maxWidth: 480 }),
+          type: 'email',
+          value: form.sendAsAlias || '',
+          placeholder: 'ashley@yourdomain.com',
+          onChange: function(e) { set('sendAsAlias', e.target.value); },
+        }),
+        h('p', { style: helpStyle },
+          'When set, outbound emails use this address as the From header instead of the configured mailbox. Works with both OAuth (Gmail/Microsoft) and email + password (SMTP). ',
+          h('strong', null, 'The alias must already be verified'),
+          ' on the underlying mailbox (e.g. Gmail Settings \u2192 Accounts \u2192 Send mail as). Replies route to wherever the alias\u2019s MX points.'
+        )
+      ),
 
       // ─── Test Result ─────────────────────────────────
       testResult && h('div', { style: { padding: '12px 16px', borderRadius: 'var(--radius)', marginBottom: 16, background: testResult.success ? 'var(--success-soft)' : 'var(--danger-soft)' } },

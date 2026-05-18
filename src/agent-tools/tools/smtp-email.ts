@@ -104,7 +104,7 @@ async function emailSend(ctx: ToolContext, params: any): Promise<ToolResult> {
   if (!subject && !body) return { error: 'Must provide subject or body' };
 
   const transport = createTransport(getSmtpConfig(ctx));
-  const from = ctx.emailConfig?.email || ctx.emailConfig?.smtpUser;
+  const from = (ctx.emailConfig as any)?.sendAsAlias || ctx.emailConfig?.email || ctx.emailConfig?.smtpUser;
 
   const info = await transport.sendMail({
     from,
@@ -138,7 +138,7 @@ async function emailReply(ctx: ToolContext, params: any): Promise<ToolResult> {
   if (!original) return { error: `Email UID ${uid} not found` };
 
   const transport = createTransport(getSmtpConfig(ctx));
-  const from = ctx.emailConfig?.email || ctx.emailConfig?.smtpUser;
+  const from = (ctx.emailConfig as any)?.sendAsAlias || ctx.emailConfig?.email || ctx.emailConfig?.smtpUser;
   const replyTo = all
     ? [...(original.from || []), ...(original.to || []), ...(original.cc || [])].map((a: any) => a.address).filter((a: string) => a !== from)
     : (original.replyTo || original.from || []).map((a: any) => a.address);
@@ -173,7 +173,7 @@ async function emailForward(ctx: ToolContext, params: any): Promise<ToolResult> 
   if (!original) return { error: `Email UID ${uid} not found` };
 
   const transport = createTransport(getSmtpConfig(ctx));
-  const from = ctx.emailConfig?.email || ctx.emailConfig?.smtpUser;
+  const from = (ctx.emailConfig as any)?.sendAsAlias || ctx.emailConfig?.email || ctx.emailConfig?.smtpUser;
   const origSubject = original.envelope?.subject || '';
 
   const body = comment
