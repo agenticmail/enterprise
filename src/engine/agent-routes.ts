@@ -867,6 +867,11 @@ export function createAgentRoutes(opts: {
       oauthAuthUrl: emailConfig.oauthAuthUrl || undefined,
       lastConnected: emailConfig.lastConnected,
       lastError: emailConfig.lastError,
+      // Send-as alias used to override the From header on OAuth send
+      // paths (gmail_send / gmail_reply / gmail_forward). The alias
+      // must be a verified "Send mail as" in the underlying Google
+      // account, otherwise Gmail silently rewrites From.
+      sendAsAlias: emailConfig.sendAsAlias || '',
       orgEmailConfig,
       // Sending config override (no password)
       sendingConfig: emailConfig.sendingConfig ? {
@@ -931,6 +936,15 @@ export function createAgentRoutes(opts: {
     if (existingConfig.oauthAccessToken) emailConfig.oauthAccessToken = existingConfig.oauthAccessToken;
     if (existingConfig.oauthTokenExpiry) emailConfig.oauthTokenExpiry = existingConfig.oauthTokenExpiry;
     if (existingConfig.lastConnected) emailConfig.lastConnected = existingConfig.lastConnected;
+    // Send-as alias — accept on every save (empty string clears it).
+    // Validation is intentionally light: Gmail itself enforces that the
+    // alias is verified, and silently rewrites From if not.
+    if (typeof body.sendAsAlias === 'string') {
+      const trimmed = body.sendAsAlias.trim();
+      if (trimmed) emailConfig.sendAsAlias = trimmed;
+    } else if (existingConfig.sendAsAlias) {
+      emailConfig.sendAsAlias = existingConfig.sendAsAlias;
+    }
 
     if (provider === 'imap') {
       // Auto-detect IMAP/SMTP from well-known providers

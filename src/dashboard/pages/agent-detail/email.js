@@ -53,6 +53,9 @@ export function EmailSection(props) {
     smtpSendPassword: '',
     smtpSendHost: '',
     smtpSendPort: 587,
+    // Gmail send-as alias (verified in Settings → Accounts → Send mail as).
+    // Used as From on OAuth send paths only.
+    sendAsAlias: '',
   });
   var form = _form[0]; var setForm = _form[1];
 
@@ -81,6 +84,7 @@ export function EmailSection(props) {
             smtpSendEmail: d.sendingConfig ? d.sendingConfig.email || '' : '',
             smtpSendHost: d.sendingConfig ? d.sendingConfig.smtpHost || '' : '',
             smtpSendPort: d.sendingConfig ? d.sendingConfig.smtpPort || 587 : 587,
+            sendAsAlias: d.sendAsAlias || '',
           }); });
         } else {
           // Pre-fill email from agent identity
@@ -174,6 +178,8 @@ export function EmailSection(props) {
     setSaving(true);
     try {
       var body = { provider: form.provider, email: form.email };
+      // Always include the alias — empty string clears it server-side.
+      body.sendAsAlias = (form.sendAsAlias || '').trim();
       // If using a separate SMTP for sending, attach that config
       if (form.sendingMethod === 'smtp' && form.smtpSendHost) {
         body.sendingConfig = {
@@ -524,6 +530,23 @@ export function EmailSection(props) {
           h('div', null,
             h('label', { style: labelStyle }, 'Client Secret *'),
             h('input', { style: inputStyle, type: 'password', value: form.oauthClientSecret, placeholder: 'Enter client secret', onChange: function(e) { set('oauthClientSecret', e.target.value); } })
+          )
+        ),
+
+        // ─── Send-as alias ───────────────────────────────
+        h('div', { style: { marginBottom: 16 } },
+          h('label', { style: labelStyle }, 'Send as alias (optional)'),
+          h('input', {
+            style: Object.assign({}, inputStyle, { maxWidth: 480 }),
+            type: 'email',
+            value: form.sendAsAlias || '',
+            placeholder: 'ashley@yourdomain.com',
+            onChange: function(e) { set('sendAsAlias', e.target.value); },
+          }),
+          h('p', { style: helpStyle },
+            'When set, outgoing emails use this address as the From header instead of the Gmail account. ',
+            h('strong', null, 'Must already be verified'),
+            ' in the Gmail account at Settings \u2192 Accounts \u2192 Send mail as. Replies route to wherever the alias\u2019s MX points (typically back to the same mailbox).'
           )
         ),
 
