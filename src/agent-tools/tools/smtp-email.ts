@@ -238,9 +238,12 @@ async function emailRead(ctx: ToolContext, params: any): Promise<ToolResult> {
   return withImap(ctx, async (client) => {
     const lock = await client.getMailboxLock(folder || 'INBOX');
     try {
+      // source: true gives the full RFC822 source. Earlier we passed
+      // `source: { maxBytes: 500000 }` which imapflow 1.3.x rejects
+      // with a generic "Command failed" error.
       const msg = await client.fetchOne({ uid: String(uid) }, {
         envelope: true, uid: true, flags: true,
-        bodyStructure: true, source: { maxBytes: 500000 },
+        bodyStructure: true, source: true,
       });
 
       if (!msg) return { error: `Email UID ${uid} not found` };
