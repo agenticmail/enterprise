@@ -331,9 +331,46 @@ export class KnowledgeImportManager {
     job.progress.currentItem = undefined;
     await this.persistJob(job);
 
-    // Refresh in-memory cache so dashboard sees the new docs immediately
-    if (this.knowledgeEngine?.reloadKnowledgeBase) {
-      try { await this.knowledgeEngine.reloadKnowledgeBase(job.baseId); } catch { /* non-blocking */ }
+    // Refresh the in-memory KB cache so the engine sees the newly-imported
+    // docs immediately. This is the ONLY signal the engine has — the
+    // import writes kb_documents / kb_chunks via raw SQL and bypasses
+    // KnowledgeBaseEngine.ingestDocument(), so without this reload the
+    // in-memory KB stays at whatever doc count it had at startup. (Bug
+    // observed in prod: KB had 11 ready docs + 1278 embedded chunks in
+    // Postgres but the engine reported "0 docs" until pm2 restart.)
+    //
+    // We now log every reload — start, success, failure — instead of
+    // swallowing exceptions silently. If knowledgeEngine isn't wired,
+    // log that too so it's obvious in production logs why the reload
+    // didn't happen.
+    await this.refreshEngineCache(job.baseId, `import job ${job.id} completed (${job.progress.importedItems} chunks)`);
+  }
+
+  /**
+   * Force the KnowledgeBaseEngine to re-read this KB from the database.
+   *
+   * Called at every exit path of `runImport()` (success, failure,
+   * cancellation) so that whatever chunks made it into the DB before
+   * the exit become visible to search. The old single-call-on-happy-path
+   * design left the engine cache stale whenever an import failed
+   * mid-flight, was cancelled, or the runImport promise rejected
+   * before reaching the bottom.
+   *
+   * Logs every outcome explicitly — operators need to be able to
+   * triage "why doesn't agent X see this KB's docs?" from the logs
+   * alone.
+   */
+  private async refreshEngineCache(baseId: string, reason: string): Promise<void> {
+    if (!this.knowledgeEngine?.reloadKnowledgeBase) {
+      console.warn(`[knowledge-import] cache refresh skipped for kb=${baseId} (${reason}) — knowledgeEngine not wired into KnowledgeImportManager`);
+      return;
+    }
+    try {
+      await this.knowledgeEngine.reloadKnowledgeBase(baseId);
+      const docCount = this.knowledgeEngine.getKnowledgeBase?.(baseId)?.documents?.length ?? 'unknown';
+      console.log(`[knowledge-import] refreshed engine cache for kb=${baseId} (${reason}); in-memory now reports ${docCount} docs`);
+    } catch (err: any) {
+      console.error(`[knowledge-import] FAILED to refresh engine cache for kb=${baseId} (${reason}): ${err?.message || err}. The DB has the new chunks but agent search won't see them until the next process restart or a successful reload. Investigate the reloadKnowledgeBase path.`);
     }
   }
 

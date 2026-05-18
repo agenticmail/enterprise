@@ -601,6 +601,52 @@ export async function runAgent(_args: string[]) {
     (routes as any).knowledgeBase?.setApiKeys?.(dbApiKeys);
   } catch { /* ignore */ }
 
+  // Wire the engine DB into the KnowledgeBaseEngine singleton so the
+  // agent's `knowledge_base_search` tool actually sees the org's KBs.
+  //
+  // ROOT-CAUSE BUG fixed here: cli-agent.ts used to wire `setApiKeys`
+  // on `routes.knowledgeBase` but NEVER `setDb`. The engine's
+  // in-memory `knowledgeBases` Map stayed empty for the lifetime of
+  // every agent process, so every `knowledge_base_search` returned
+  // `[]` even when the KB had hundreds of embedded chunks in
+  // Postgres. The dashboard saw the KB fine (it talks to the
+  // enterprise main process, which DOES call setEngineDb at boot —
+  // routes.ts setEngineDb cascades setDb to every engine module
+  // including knowledgeBase). The agent process is a *separate* node
+  // process with its own singleton instance of routes.knowledgeBase;
+  // setDb has to be called here too.
+  //
+  // This block is intentionally `await`ed: setDb() runs loadFromDb()
+  // internally, which is the synchronous moment the KBs get hydrated.
+  // We want that done before the agent runtime starts spawning tool
+  // calls.
+  try {
+    await (routes as any).knowledgeBase?.setDb?.(engineDb);
+    const loaded = (routes as any).knowledgeBase?.getAllKnowledgeBases?.() ?? [];
+    console.log(`   📚 Wired KnowledgeBaseEngine to engineDb — ${loaded.length} KB(s) hydrated into memory`);
+  } catch (err: any) {
+    console.error(`   ⚠️  Failed to wire KnowledgeBaseEngine to engineDb: ${err?.message || err}. knowledge_base_search will return [] until this is fixed.`);
+  }
+
+  // Periodic refresh: another process (the enterprise dashboard, an
+  // import job, the contribution scheduler) may add or remove docs
+  // from a KB this agent has access to. Re-read every 60 s so the
+  // agent's in-memory cache doesn't drift more than a minute behind
+  // what's actually in Postgres. Each reload is a SELECT per KB —
+  // cheap enough at this cadence.
+  setInterval(() => {
+    const kb = (routes as any).knowledgeBase;
+    if (!kb?.reloadKnowledgeBase || !kb?.getAllKnowledgeBases) return;
+    void (async () => {
+      try {
+        const all = kb.getAllKnowledgeBases();
+        for (const k of all) {
+          await kb.reloadKnowledgeBase(k.id);
+        }
+      } catch { /* non-fatal — keep the previous snapshot */ }
+    })();
+  }, 60_000).unref();
+
   // Refresh every 30 s so dashboard-side API-key edits land without a
   // pm2 restart. Cheap query — single row from company_settings.
   setInterval(() => {

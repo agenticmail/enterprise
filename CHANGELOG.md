@@ -2,6 +2,52 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.600] - 2026-05-18
+
+### Fixed — `knowledge_base_search` always returned `[]` in agent processes
+
+`cli-agent.ts` wired API keys into the `KnowledgeBaseEngine` singleton
+(via `setApiKeys`) but **never called `setDb`** on it, so the engine's
+in-memory `knowledgeBases` Map stayed empty for the lifetime of every
+agent process. Every `knowledge_base_search` call landed on an engine
+that knew about zero KBs and returned `[]` — even when Postgres held
+the KB with ready, embedded chunks.
+
+The enterprise main process was unaffected (it calls `setEngineDb`
+which cascades `setDb` to the engine modules including
+`knowledgeBase`). The agent process is a *separate* node process with
+its own singleton instance of `routes.knowledgeBase`, so `setDb` has
+to be called there independently — that wiring was missing.
+
+Observed in prod: Ashley's "About Fola Form" KB had 11 ready docs +
+160 embedded chunks in Postgres. The dashboard saw it correctly. The
+`knowledge_base_search` tool returned 0 results for every query.
+Boot log now shows `📚 Wired KnowledgeBaseEngine to engineDb —
+N KB(s) hydrated into memory` so this kind of silent-empty failure
+is debuggable at a glance.
+
+Also added: a 60s background reload loop in each agent process that
+re-reads every KB the agent has access to, so docs added/removed by
+the enterprise dashboard or an import job land in the agent's
+in-memory cache within a minute instead of waiting for a process
+restart.
+
+### Fixed — `knowledge-import` reload failures swallowed silently
+
+`KnowledgeImportManager.runImport` ended with a one-line attempt to
+refresh the engine cache:
+
+```ts
+try { await this.knowledgeEngine.reloadKnowledgeBase(job.baseId); } catch { /* non-blocking */ }
+```
+
+That swallowed every failure with no log line — if the reload errored
+(or `knowledgeEngine` was never wired into the import manager), the
+operator had no signal at all that the in-memory cache was stale
+after the import. The new path logs reload start/success/failure
+explicitly and reports the post-reload document count, so cache
+drift is no longer silent.
+
 ## [0.5.590] - 2026-05-18
 
 ### Fixed — IMAP poller alias filter rejected forwarded mail
