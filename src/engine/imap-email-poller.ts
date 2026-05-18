@@ -448,20 +448,25 @@ export class ImapEmailPoller {
   // ─── Message processing ───────────────────────────────
 
   private async processMessage(mailbox: ImapMailbox, client: any, uid: number): Promise<void> {
-    // Also fetch forwarding headers — Cloudflare Email Routing,
-    // postmasters, and most forwarders rewrite the envelope To and
-    // preserve the original recipient in Delivered-To / X-Forwarded-To
-    // / X-Original-To. Without these we'd reject every forwarded reply.
-    const forwardingHeaders = ['delivered-to', 'x-forwarded-to', 'x-original-to', 'x-forwarded-for'];
+    // Fetch envelope + flags + body structure. We don't pass the
+    // `headers: [...]` option here because some imapflow versions
+    // silently fail the fetch when given a header allow-list with the
+    // other body parts, returning `false` — in which case our
+    // `if (!msg) return` skipped UIDs without any log. Instead we fetch
+    // the full raw source for THIS message only when we need to read
+    // forwarding headers (Delivered-To etc), which we do anyway for the
+    // alias filter. Body extraction continues to use bodyStructure.
     const msg: any = await client.fetchOne(String(uid), {
       uid: true,
       envelope: true,
       bodyStructure: true,
       flags: true,
       internalDate: true,
-      headers: forwardingHeaders,
     });
-    if (!msg) return;
+    if (!msg) {
+      console.warn(`[imap-poller] ${mailbox.agentName}: fetchOne returned empty for uid=${uid} — skipping`);
+      return;
+    }
 
     const env = msg.envelope || {};
     const subject = (env.subject || '').toString();
@@ -475,10 +480,11 @@ export class ImapEmailPoller {
     const threadId = env.inReplyTo || messageId; // best-effort
     const flags: string[] = Array.isArray(msg.flags) ? msg.flags.map((f: any) => String(f)) : [];
 
-    // Parse forwarding headers — imapflow returns msg.headers as a Buffer
-    // of the raw header lines we asked for, NOT a parsed object. Walk
-    // them manually so we don't drag in a mailparser dependency.
-    const forwardingRecipients = this.extractForwardingRecipients(msg.headers);
+    console.log(`[imap-poller] ${mailbox.agentName}: processing uid=${uid} from=${fromEmail} subject="${subject.slice(0, 40)}"`);
+
+    // Pull forwarding headers from a HEADER.FIELDS body part. This is a
+    // separate, smaller fetch but is reliably implemented by imapflow.
+    const forwardingRecipients = await this.fetchForwardingHeaders(client, uid);
 
     // ── Skip rules (mirror the Gmail poller) ────────────
     // Drafts
@@ -568,39 +574,47 @@ export class ImapEmailPoller {
   }
 
   /**
-   * Pull every email address that appears in forwarding headers
-   * (Delivered-To / X-Forwarded-To / X-Original-To, repeated as
-   * many times as the message has been hopped). imapflow returns
-   * the requested headers as a Buffer of raw RFC822 header lines.
+   * Read forwarding headers (Delivered-To / X-Forwarded-To /
+   * X-Original-To) via a HEADER.FIELDS body part download. This is a
+   * small, well-supported imapflow call that returns the requested
+   * header lines as a stream. We then parse them ourselves.
+   *
    * Format example:
    *   Delivered-To: agenticfola@gmail.com
    *   X-Forwarded-To: support@folaform.com
-   * Returns lowercased addresses.
+   * Returns lowercased addresses, or [] on any failure.
    */
-  private extractForwardingRecipients(headersBuf: any): string[] {
-    if (!headersBuf) return [];
-    let raw: string;
-    if (Buffer.isBuffer(headersBuf)) raw = headersBuf.toString('utf8');
-    else if (typeof headersBuf === 'string') raw = headersBuf;
-    else return [];
-
-    const addresses: string[] = [];
-    // Unfold continuation lines: RFC822 allows headers to wrap onto the
-    // next line with leading whitespace.
-    const unfolded = raw.replace(/\r?\n[ \t]+/g, ' ');
-    const lines = unfolded.split(/\r?\n/);
-    for (const line of lines) {
-      const colon = line.indexOf(':');
-      if (colon < 0) continue;
-      const name = line.slice(0, colon).trim().toLowerCase();
-      if (!/^(delivered-to|x-forwarded-to|x-original-to)$/.test(name)) continue;
-      const value = line.slice(colon + 1).trim();
-      // Extract addresses from "Name <addr@x>" or bare "addr@x" or
-      // comma-separated lists.
-      const matches = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
-      for (const m of matches) addresses.push(m.toLowerCase());
+  private async fetchForwardingHeaders(client: any, uid: number): Promise<string[]> {
+    try {
+      const dl: any = await client.download(
+        String(uid),
+        'HEADER.FIELDS (DELIVERED-TO X-FORWARDED-TO X-ORIGINAL-TO)',
+        { uid: true },
+      );
+      if (!dl || !dl.content) return [];
+      const chunks: Buffer[] = [];
+      for await (const chunk of dl.content) {
+        chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+      }
+      const raw = Buffer.concat(chunks).toString('utf8');
+      // Unfold continuation lines per RFC 822: a header value can wrap
+      // onto the next line with leading whitespace.
+      const unfolded = raw.replace(/\r?\n[ \t]+/g, ' ');
+      const lines = unfolded.split(/\r?\n/);
+      const addresses: string[] = [];
+      for (const line of lines) {
+        const colon = line.indexOf(':');
+        if (colon < 0) continue;
+        const name = line.slice(0, colon).trim().toLowerCase();
+        if (!/^(delivered-to|x-forwarded-to|x-original-to)$/.test(name)) continue;
+        const value = line.slice(colon + 1).trim();
+        const matches = value.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+        for (const m of matches) addresses.push(m.toLowerCase());
+      }
+      return addresses;
+    } catch {
+      return [];
     }
-    return addresses;
   }
 
   private async extractBody(client: any, uid: number, structure: any): Promise<{ text: string; html: string }> {
