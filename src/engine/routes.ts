@@ -88,6 +88,7 @@ import { createOrgIntegrationRoutes } from './org-integration-routes.js';
 import { createChatWebhookRoutes } from './chat-webhook-routes.js';
 import { ChatPoller } from './chat-poller.js';
 import { EmailPoller } from './email-poller.js';
+import { ImapEmailPoller } from './imap-email-poller.js';
 import { MessagingPoller } from './messaging-poller.js';
 import { TaskQueueManager } from './task-queue.js';
 import { createTaskQueueRoutes } from './task-queue-routes.js';
@@ -1060,6 +1061,14 @@ export async function setEngineDb(
     startEmailPoller(db).catch(err => console.error(`[email-poller] Failed to start:`, err));
   }
 
+  // ─── Start IMAP Email Poller ──────────────────────────
+  // Handles agents configured with provider='imap' (email + app password
+  // or domain mailbox). Gmail OAuth agents are handled by the dedicated
+  // Gmail poller above; this one fills the gap for everyone else.
+  if (!_imapPoller) {
+    startImapPoller(db).catch(err => console.error(`[imap-poller] Failed to start:`, err));
+  }
+
   // ─── Start Messaging Poller (WhatsApp, Telegram) ──
   if (!_messagingPoller) {
     startMessagingPoller(db).catch(err => console.error(`[messaging-poller] Failed to start:`, err));
@@ -1197,6 +1206,24 @@ async function startEmailPoller(engineDb: any): Promise<void> {
 
 export function getEmailPoller(): EmailPoller | null {
   return _emailPoller;
+}
+
+// ─── IMAP Poller ────────────────────────────────────────
+
+let _imapPoller: ImapEmailPoller | null = null;
+
+async function startImapPoller(engineDb: any): Promise<void> {
+  _imapPoller = new ImapEmailPoller({
+    engineDb,
+    lifecycle,
+    intervalMs: 30_000,
+    workforce,
+  });
+  await _imapPoller.start();
+}
+
+export function getImapPoller(): ImapEmailPoller | null {
+  return _imapPoller;
 }
 
 // ─── Messaging Poller (WhatsApp, Telegram) ─────────
