@@ -2,6 +2,44 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.606] - 2026-05-24
+
+### Added — rich HTML email with embedded images (no external hosting) + file-based body input
+
+Agents could not reliably send rich HTML emails: an email with inline
+images encoded as `data:` base64 URIs is huge (800KB+ is normal), and
+passing that as a single tool-call string argument blew past the LLM's
+per-argument size limit — the send never reached SMTP. The previous
+workaround (host images on S3/Cloudinary) isn't acceptable for many
+deployments.
+
+`email_send` / `email_reply` now do what real mail clients (Outlook,
+Gmail, Mailchimp) do — embed images **in** the message as
+`multipart/related` `cid:` parts, keeping the HTML body tiny while the
+images travel inline. Three additions:
+
+- **Auto-hoist data: URIs.** Any `data:<mime>;base64,…` in the HTML
+  (in `src="…"` or CSS `url(…)`) is automatically pulled out into a
+  `cid:` inline attachment and the reference rewritten. Identical
+  images are de-duplicated to a single part. The agent keeps authoring
+  natural data-URI HTML; we transparently produce a proper
+  multipart/related message with a small wire body. No external
+  hosting.
+- **File-based body input (`htmlPath` / `textPath`).** For large
+  emails, the agent writes the HTML to disk with the `write` tool and
+  passes a path — completely bypassing the argument-size limit.
+- **Explicit `attachments` / `inlineImages`** by file path (preferred,
+  streamed from disk) or base64 content, with optional `cid` for
+  inline embedding.
+
+A 25MB total-embed guard matches typical SMTP provider caps. Verified:
+an 836KB data-URI email collapses to a ~few-KB HTML body plus inline
+image parts that render in the recipient's inbox.
+
+### Bumps
+
+`enterprise` 0.5.605 → 0.5.606.
+
 ## [0.5.605] - 2026-05-24
 
 ### Fixed — Anthropic OAuth token got 429 on Sonnet (agents hung / never replied)
