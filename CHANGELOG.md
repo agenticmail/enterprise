@@ -2,6 +2,38 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.603] - 2026-05-24
+
+### Fixed — agent could hang forever on a stalled LLM call (no reply on Telegram/chat)
+
+A model call whose stream stalled — socket open, no bytes, no error
+(a provider edge that accepts the request then goes silent) — blocked
+the agent loop's `await reader.read()` indefinitely. The only abort
+wired into the fetch was the SESSION signal, which doesn't fire until
+the 15-minute stale-session sweep, and the agent-loop's transient-retry
++ model-fallback logic only triggers when the call *throws* — a silent
+hang throws nothing. Net effect: the agent spawned a session for an
+incoming Telegram/chat message, the first model call hung, and the
+user never got a reply (until the session was reaped 15 min later).
+
+`callLLM` now wraps each individual model call in a per-attempt
+timeout (default 240s, env `AGENTICMAIL_LLM_CALL_TIMEOUT_MS`). On
+expiry it aborts the fetch — which unblocks the stalled stream read —
+and throws an `ETIMEDOUT` error, so the existing transient-retry and
+model-fallback path takes over and the turn completes (or fails
+cleanly) instead of hanging. This is a PER-CALL (single turn) cap far
+below the per-SESSION stale timeout, so legitimate long multi-turn
+sessions are unaffected.
+
+Combined with the `agent-watchdog` (0.5.602) and the in-process 15-min
+stale sweep, there are now three independent layers preventing a wedged
+agent: per-call LLM timeout (seconds–minutes), in-process stale-session
+abort (15 min), and external PM2 watchdog (process/health level).
+
+### Bumps
+
+`enterprise` 0.5.602 → 0.5.603.
+
 ## [0.5.602] - 2026-05-24
 
 ### Added — `agent-watchdog`: PM2-managed stuck/crashed-agent recovery

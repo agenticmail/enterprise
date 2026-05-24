@@ -1174,6 +1174,21 @@ export async function callLLM(
   onEvent?: (event: StreamEvent) => void,
   retryConfig?: RetryConfig,
 ): Promise<LLMResponse> {
+  // Per-call hang guard. A stalled stream (socket open, no bytes, no
+  // error — e.g. a provider edge that accepts the request then goes
+  // silent) would otherwise block `reader.read()` forever: the only
+  // abort wired in is the SESSION signal, which doesn't fire until the
+  // 15-minute stale-session sweep. The visible symptom is an agent that
+  // "never replies" (e.g. on Telegram) even though its process is
+  // healthy. We cap each individual model call with a timeout; on
+  // expiry we abort the fetch (which unblocks the stream read) and
+  // throw an ETIMEDOUT-flavoured error so callWithRetry / the
+  // agent-loop's transient-retry + model-fallback path takes over.
+  // This is a PER-CALL (single turn) timeout, far below the per-SESSION
+  // stale timeout, so legitimate long sessions (many turns) are
+  // unaffected. Tunable via AGENTICMAIL_LLM_CALL_TIMEOUT_MS.
+  var LLM_CALL_TIMEOUT_MS = Number(process.env.AGENTICMAIL_LLM_CALL_TIMEOUT_MS) || 240_000;
+
   var invokeLLM = function(): Promise<LLMResponse> {
     // Resolve provider definition from registry
     var providerDef = resolveProvider(config.provider);
@@ -1184,34 +1199,61 @@ export async function callLLM(
     // Resolve base URL: explicit config > provider registry
     var baseURL = config.baseUrl || (providerDef ? providerDef.baseUrl : undefined);
 
-    switch (apiType) {
-      case 'anthropic':
-        return callAnthropic(
-          { modelId: config.modelId, apiKey: config.apiKey, thinkingLevel: config.thinkingLevel, authMode: config.authMode, baseUrl: baseURL },
-          messages, tools, options, onEvent,
-        );
-
-      case 'openai-compatible':
-        return callOpenAICompatible(
-          { modelId: config.modelId, apiKey: config.apiKey, baseURL: baseURL, headers: config.headers },
-          messages, tools, options, onEvent,
-        );
-
-      case 'google':
-        return callGoogle(
-          { modelId: config.modelId, apiKey: config.apiKey },
-          messages, tools, options, onEvent,
-        );
-
-      case 'ollama':
-        return callOllama(
-          { modelId: config.modelId, baseURL: baseURL },
-          messages, tools, options, onEvent,
-        );
-
-      default:
-        throw new Error(`Unsupported API type "${apiType}" for provider "${config.provider}"`);
+    // Build a per-attempt abort controller: caller's signal OR our
+    // timeout aborts it. Fresh per invocation so retries get a new clock.
+    var ac = new AbortController();
+    var timedOut = false;
+    var timer = setTimeout(function() { timedOut = true; try { ac.abort(); } catch { /* noop */ } }, LLM_CALL_TIMEOUT_MS);
+    var onCallerAbort = function() { try { ac.abort(); } catch { /* noop */ } };
+    if (options.signal) {
+      if (options.signal.aborted) { try { ac.abort(); } catch { /* noop */ } }
+      else options.signal.addEventListener('abort', onCallerAbort, { once: true });
     }
+    var effOptions: LLMCallOptions = { ...options, signal: ac.signal };
+    var cleanup = function() {
+      clearTimeout(timer);
+      if (options.signal) options.signal.removeEventListener('abort', onCallerAbort);
+    };
+
+    var dispatch = function(): Promise<LLMResponse> {
+      switch (apiType) {
+        case 'anthropic':
+          return callAnthropic(
+            { modelId: config.modelId, apiKey: config.apiKey, thinkingLevel: config.thinkingLevel, authMode: config.authMode, baseUrl: baseURL },
+            messages, tools, effOptions, onEvent,
+          );
+        case 'openai-compatible':
+          return callOpenAICompatible(
+            { modelId: config.modelId, apiKey: config.apiKey, baseURL: baseURL, headers: config.headers },
+            messages, tools, effOptions, onEvent,
+          );
+        case 'google':
+          return callGoogle(
+            { modelId: config.modelId, apiKey: config.apiKey },
+            messages, tools, effOptions, onEvent,
+          );
+        case 'ollama':
+          return callOllama(
+            { modelId: config.modelId, baseURL: baseURL },
+            messages, tools, effOptions, onEvent,
+          );
+        default:
+          throw new Error(`Unsupported API type "${apiType}" for provider "${config.provider}"`);
+      }
+    };
+
+    return Promise.resolve()
+      .then(dispatch)
+      .then(function(r) { cleanup(); return r; })
+      .catch(function(e: any) {
+        cleanup();
+        if (timedOut && !(options.signal && options.signal.aborted)) {
+          var te: any = new Error(`LLM call timed out after ${LLM_CALL_TIMEOUT_MS}ms with no response (ETIMEDOUT) — aborting hung call`);
+          te.code = 'ETIMEDOUT';
+          throw te;
+        }
+        throw e;
+      });
   };
 
   return callWithRetry(invokeLLM, retryConfig, onEvent);
