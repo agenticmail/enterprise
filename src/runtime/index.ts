@@ -167,6 +167,7 @@ export class AgentRuntime {
       workspaceDir: agentWorkspace,
       agenticmailManager: this.config.agenticmailManager,
       agentMemoryManager: this.config.agentMemoryManager,
+      agentTaskManager: this.config.agentTaskManager,
       engineDb: this.config.engineDb,
       knowledgeEngine: this.config.knowledgeEngine,
       orgId: this.config.orgId || process.env.ORG_ID || 'default',

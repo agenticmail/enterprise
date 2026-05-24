@@ -46,6 +46,8 @@ export type ToolSet =
   // Memory
   | 'memory'
   | 'visual_memory'
+  // Local task tracker
+  | 'tasks'
   // Meetings
   | 'meeting_voice'
   | 'meeting_lifecycle'
@@ -119,6 +121,7 @@ const TIER_MAP: Record<ToolSet, ToolTier> = {
   // Tier 1 — Agent can't function without these
   core: 1,           // read/write/search/bash — fundamental
   memory: 1,         // agent memory is always needed
+  tasks: 1,          // local to-do tracker — always available so the agent can plan/track batch work
 
   // Tier 2 — Common workflows, loaded by context
   gws_chat: 2,       // only when source is Google Chat
@@ -199,6 +202,7 @@ const TOOL_REGISTRY: Record<string, ToolSet> = {
   memory_context: 'memory',
   memory_reflect: 'memory',
   memory_stats: 'memory',
+  tasks: 'tasks',
 
   // ── Visual Memory (10) ──
   vision_capture: 'visual_memory',
@@ -1105,6 +1109,7 @@ const SET_DESCRIPTIONS: Record<ToolSet, string> = {
   browser: 'Web browser automation (1 tool)',
   system: 'System capabilities check (1 tool)',
   memory: 'Agent memory — store/search/reflect (4 tools)',
+  tasks: 'Local to-do tracker — add/list/update/complete tasks across lists (1 tool)',
   visual_memory: 'Vision capture, OCR, visual comparison (10 tools)',
   meeting_voice: 'In-meeting voice + chat (4 tools)',
   meeting_lifecycle: 'Join/schedule/manage meetings (8 tools)',

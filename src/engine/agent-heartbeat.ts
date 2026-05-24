@@ -383,6 +383,61 @@ function createTaskDeadlineCheck(): HeartbeatCheck {
 }
 
 /**
+ * Reminder for unfinished LOCAL tasks (the agent's own to-do tracker,
+ * agent_tasks). This is what closes the loop on the task tool: a batch
+ * job like "email 120 cities" parks itself as needs_action/in_progress
+ * tasks, and this check nudges the agent during work hours to pick up
+ * where it left off — so tasks don't sit forgotten after a restart or a
+ * quiet period. Pure DB count, zero tokens on idle ticks.
+ */
+function createPendingLocalTasksCheck(): HeartbeatCheck {
+  return {
+    id: 'pending_local_tasks',
+    name: 'Unfinished Tasks',
+    intervalMs: 30 * 60_000,  // 30 minutes
+    priority: 'medium',
+    requiresClockIn: true,    // only nudge during work hours
+    consecutiveNoOps: 0,
+    enabled: true,
+    check: async (ctx: HeartbeatContext): Promise<HeartbeatCheckResult> => {
+      try {
+        const rows = await ctx.db.query<any>(
+          `SELECT status, COUNT(*) AS cnt FROM agent_tasks
+           WHERE agent_id = $1 AND status IN ('in_progress','needs_action')
+           GROUP BY status`,
+          [ctx.agentId],
+        );
+        let inProgress = 0; let pending = 0;
+        for (const r of rows || []) {
+          const c = parseInt(r.cnt || '0');
+          if (r.status === 'in_progress') inProgress = c; else pending = c;
+        }
+        const total = inProgress + pending;
+        if (total === 0) return { needsAction: false, priority: 'low' };
+
+        // A couple of titles for context (cheap — limit 3).
+        const titleRows = await ctx.db.query<any>(
+          `SELECT title FROM agent_tasks
+           WHERE agent_id = $1 AND status IN ('in_progress','needs_action')
+           ORDER BY CASE status WHEN 'in_progress' THEN 0 ELSE 1 END, position ASC LIMIT 3`,
+          [ctx.agentId],
+        );
+        const titles = (titleRows || []).map((t: any) => t.title).filter(Boolean);
+        const preview = titles.length ? ` Next: ${titles.join('; ')}.` : '';
+        return {
+          needsAction: true,
+          summary: `You have ${total} unfinished task(s) in your tracker (${inProgress} in progress, ${pending} pending). Continue working through them with the \`tasks\` tool — mark each complete as you finish.${preview}`,
+          priority: inProgress > 0 ? 'high' : 'medium',
+          data: { inProgress, pending, total },
+        };
+      } catch {
+        return { needsAction: false, priority: 'low' };
+      }
+    },
+  };
+}
+
+/**
  * Check error rate — if agent has had many failed sessions recently,
  * something may be wrong (API keys expired, service down, etc.)
  */
@@ -456,6 +511,7 @@ export class AgentHeartbeatManager {
     this.registerCheck(createMemoryHealthCheck());
     this.registerCheck(createUnansweredChatCheck());
     this.registerCheck(createTaskDeadlineCheck());
+    this.registerCheck(createPendingLocalTasksCheck());
     this.registerCheck(createErrorRateCheck());
 
     // Apply per-check enable/disable overrides

@@ -157,6 +157,8 @@ import { createBrowserTool } from './tools/browser.js';
 // createEnterpriseBrowserTool is lazy-loaded — not imported at startup
 import { createMemoryTools } from './tools/memory.js';
 import type { MemoryToolOptions } from './tools/memory.js';
+import { createTaskTools } from './tools/tasks.js';
+import type { TaskToolOptions } from './tools/tasks.js';
 
 // Enterprise tool creators
 import { createDatabaseTools } from './tools/enterprise-database.js';
@@ -189,6 +191,8 @@ export interface AllToolsOptions extends ToolCreationOptions {
   agenticmailManager?: AgenticMailManagerRef;
   /** Agent memory manager for persistent DB-backed memory */
   agentMemoryManager?: AgentMemoryManager;
+  /** Agent task manager for the per-agent local task tracker */
+  agentTaskManager?: import('../engine/agent-tasks.js').AgentTaskManager;
   /** Engine database for direct table access (visual memory, etc.) */
   engineDb?: any;
   /** Organization ID for memory scoping */
@@ -320,6 +324,15 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     orgId: options?.orgId,
   } as MemoryToolOptions);
   rawTools = rawTools.concat(memoryTools as any);
+
+  // Local task tracker (Google-Tasks-style; DB-backed, file-based fallback)
+  var taskTools = createTaskTools({
+    ...options,
+    agentTaskManager: (options as any)?.agentTaskManager,
+    agentId: options?.agentId,
+    orgId: options?.orgId,
+  } as TaskToolOptions);
+  rawTools = rawTools.concat(taskTools as any);
 
   // Visual memory tools (enterprise DB-backed, integrated with AgentMemoryManager)
   // Initialize storage with centralized DB + memory manager (not local files)

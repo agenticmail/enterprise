@@ -126,6 +126,8 @@ export interface RuntimeConfig {
   agenticmailManager?: import('../agent-tools/tools/agenticmail.js').AgenticMailManagerRef;
   /** Agent memory manager for persistent DB-backed memory (optional — enables enhanced memory tools) */
   agentMemoryManager?: import('../engine/agent-memory.js').AgentMemoryManager;
+  /** Agent task manager for the per-agent local task tracker (optional — enables the `tasks` tool DB-backed) */
+  agentTaskManager?: import('../engine/agent-tasks.js').AgentTaskManager;
   /** Get OAuth email config for an agent (enables Google/Microsoft Workspace tools) */
   getEmailConfig?: (agentId: string) => any;
   /** Callback to persist refreshed OAuth tokens */

@@ -327,14 +327,35 @@ export class AgentAutonomyManager {
       failedSessions = parseInt(failedRows?.[0]?.cnt || '0');
 
       const chatRows = await db.query<any>(
-        `SELECT COUNT(*) as cnt FROM agent_sessions 
+        `SELECT COUNT(*) as cnt FROM agent_sessions
          WHERE agent_id = $1 AND status = 'failed' AND metadata::text LIKE '%chat%' AND created_at > $2`,
         [agentId, lastClockOut]
       );
       failedChats = parseInt(chatRows?.[0]?.cnt || '0');
     } catch {}
 
-    const totalItems = unhandledEmails + failedSessions + failedChats;
+    // Unfinished LOCAL tasks (the agent's own tracker). These should pull
+    // the agent back into a morning session even when nothing new
+    // accumulated overnight — that's the whole point of "reminding the
+    // agent": a half-done batch job ("email 120 cities") gets resumed.
+    let openTasks = 0;
+    let openTaskTitles: string[] = [];
+    try {
+      const taskRows = await db.query<any>(
+        `SELECT title FROM agent_tasks
+         WHERE agent_id = $1 AND status IN ('in_progress','needs_action')
+         ORDER BY CASE status WHEN 'in_progress' THEN 0 ELSE 1 END, position ASC LIMIT 5`,
+        [agentId]
+      );
+      openTaskTitles = (taskRows || []).map((t: any) => t.title).filter(Boolean);
+      const cntRows = await db.query<any>(
+        `SELECT COUNT(*) as cnt FROM agent_tasks WHERE agent_id = $1 AND status IN ('in_progress','needs_action')`,
+        [agentId]
+      );
+      openTasks = parseInt(cntRows?.[0]?.cnt || '0');
+    } catch {}
+
+    const totalItems = unhandledEmails + failedSessions + failedChats + openTasks;
     
     // If nothing accumulated, skip the LLM session entirely (zero tokens)
     if (totalItems === 0) {
@@ -343,32 +364,42 @@ export class AgentAutonomyManager {
       return;
     }
 
-    console.log(`[autonomy] 🌅 Morning triage: ${unhandledEmails} emails, ${failedSessions} failed sessions, ${failedChats} failed chats`);
+    console.log(`[autonomy] 🌅 Morning triage: ${unhandledEmails} emails, ${failedSessions} failed sessions, ${failedChats} failed chats, ${openTasks} unfinished task(s)`);
 
     // Only spawn LLM session if there's enough to warrant triage (> 3 items)
-    if (totalItems <= 3) {
+    // — BUT always run it when there are unfinished tasks to resume, since
+    // reminding the agent to pick those back up is the whole point.
+    if (totalItems <= 3 && openTasks === 0) {
       console.log('[autonomy] 🌅 Only a few items — skipping triage session, they\'ll be handled individually.');
       await this.setMemoryFlag(triageKey);
       return;
     }
 
+    // Unfinished-task reminder block (only when there are any).
+    const taskBlock = openTasks > 0
+      ? `\n\n⚠️ You have ${openTasks} UNFINISHED task(s) in your local task tracker from before — resume these first:\n` +
+        openTaskTitles.map((t, i) => `   ${i + 1}. ${t}`).join('\n') +
+        `\n   Use the \`tasks\` tool: \`tasks({action:"list"})\` to see them all, work through each, and \`tasks({action:"complete", id})\` as you finish.`
+      : '';
+
     // Spawn one triage session
     const prompt = `Good morning! You just clocked in. Here's what accumulated while you were off:
 
 - ${unhandledEmails} email session(s) were created overnight
-- ${failedSessions} session(s) failed (may need retry)  
+- ${failedSessions} session(s) failed (may need retry)
 - ${failedChats} chat message(s) may be unanswered
+- ${openTasks} unfinished task(s) in your tracker${taskBlock}
 
 Your morning routine:
-1. Check your inbox with gmail_search (unread only) — scan subjects and senders
-2. For each important email, create a Google Task: google_tasks_create with title, notes, and priority
-3. Check Google Chat for any unanswered messages: google_chat_list_messages
-4. For any failed sessions that look important, add them as tasks too
-5. Send your manager (${this.config.managerEmail}) a brief "starting my day" message listing your top priorities
-6. After triage, start working through tasks in priority order
+1. ${openTasks > 0 ? 'FIRST, resume your unfinished tasks above (tasks tool).' : 'Check your inbox with gmail_search / email_search (unread only) — scan subjects and senders'}
+2. Check your inbox (gmail_search or email_search, unread only). For each important email, create a task with the \`tasks\` tool: \`tasks({action:"add", title, notes, priority})\`. (If you use Google Tasks instead, google_tasks_create also works.)
+3. Check for any unanswered chat messages.
+4. For any failed sessions that look important, add them as tasks too.
+5. Send your manager (${this.config.managerEmail}) a brief "starting my day" message listing your top priorities.
+6. After triage, start working through your tasks in priority order, marking each complete as you go.
 
-Prioritize: manager emails > urgent requests > routine items > FYI messages.
-Create tasks in a "Today" list so you can track progress throughout the day.`;
+Prioritize: unfinished tasks > manager emails > urgent requests > routine items > FYI messages.
+Track everything in the \`tasks\` tool so nothing slips — add tasks to a "Today" list and update their status as you work.`;
 
     const systemPrompt = `You are ${this.config.agentName}, a ${this.config.role}. 
 You just clocked in for the day. Your first task is to triage everything that accumulated overnight.

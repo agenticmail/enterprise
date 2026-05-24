@@ -628,6 +628,15 @@ export async function runAgent(_args: string[]) {
     console.log('   Memory: DB-backed');
   } catch (memErr: any) { console.log(`   Memory: failed (${memErr.message})`); }
 
+  // 5b. Initialize local task manager (Google-Tasks-style per-agent tracker)
+  let taskManager: any;
+  try {
+    const { AgentTaskManager } = await import('./engine/agent-tasks.js');
+    taskManager = new AgentTaskManager();
+    await taskManager.setDb(engineDb);
+    console.log('   Tasks: DB-backed');
+  } catch (taskErr: any) { console.log(`   Tasks: failed (${taskErr.message})`); }
+
   // 6. Load provider API keys from DB settings (decrypt via vault, NOT process.env)
   //
   // The agent process is SEPARATE from the enterprise process. Enterprise hot-
@@ -815,6 +824,7 @@ export async function runAgent(_args: string[]) {
       return m?.config || null;
     },
     agentMemoryManager: memoryManager,
+    agentTaskManager: taskManager,
     vault,
     getIntegrationKey: async (skillId: string, orgId?: string) => {
       try {

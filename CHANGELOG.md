@@ -2,6 +2,40 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.607] - 2026-05-24
+
+### Added — local task tracker (Google-Tasks-style) wired into agent autonomy
+
+Agents without Google Tasks were hacking to-do tracking into their
+memory system (e.g. a freeform "120 NC cities, PENDING/DONE" note).
+That doesn't survive structured queries, can't be reminded on, and
+drifts. New first-class, DB-backed per-agent task tracker:
+
+- **`tasks` tool** (always loaded, Tier 1 like memory). Actions: add,
+  list, get, start, complete/done, reopen, block, update, delete,
+  clear_completed, stats, lists. Multiple named lists (auto-created),
+  subtasks, priority, due dates, tags, notes, ordered positions.
+  Statuses: needs_action / in_progress / completed / blocked.
+  DB-backed (new `agent_tasks` table, migration 34) with a file
+  fallback for local/dev.
+- **Distinct from `task_queue`** (inter-agent delegation) — this is the
+  agent's OWN checklist that it updates as it works, surviving restarts.
+
+Wired into autonomy so the agent is REMINDED to work its tasks:
+- **Heartbeat**: new `pending_local_tasks` check (every 30 min, work
+  hours) nudges the agent when it has in_progress/needs_action tasks —
+  "you have N unfinished tasks, continue them", with the next few
+  titles. Pure DB, zero tokens on idle ticks.
+- **Morning catch-up**: now counts unfinished tasks, always runs the
+  catch-up session when any exist (even with a quiet overnight), and
+  leads the routine with "resume your unfinished tasks first" + the
+  list. The catch-up prompt no longer hard-codes `google_tasks_create`
+  — it uses the local `tasks` tool (Google Tasks still works if present).
+
+### Bumps
+
+`enterprise` 0.5.606 → 0.5.607.
+
 ## [0.5.606] - 2026-05-24
 
 ### Added — rich HTML email with embedded images (no external hosting) + file-based body input

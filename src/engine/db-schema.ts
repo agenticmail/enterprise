@@ -1907,6 +1907,39 @@ CREATE INDEX IF NOT EXISTS idx_task_queue_next_fire ON task_queue(next_fire_at);
 CREATE INDEX IF NOT EXISTS idx_task_queue_parent ON task_queue(parent_task_id);
     `,
   },
+  {
+    version: 34,
+    name: 'agent_local_tasks',
+    // Per-agent local to-do tracker (Google Tasks-style). Distinct from
+    // task_queue, which is the inter-agent delegation/spawn queue — this
+    // is an agent's OWN checklist that it reads and updates as it works
+    // (e.g. "120 NC cities, mark each DONE as I send"). Lists are just a
+    // label column (auto-created by name) — no separate list table needed.
+    sql: `
+CREATE TABLE IF NOT EXISTS agent_tasks (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  org_id TEXT NOT NULL DEFAULT 'default',
+  list TEXT NOT NULL DEFAULT 'Tasks',
+  title TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'needs_action',
+  priority TEXT NOT NULL DEFAULT 'normal',
+  due TEXT,
+  parent_id TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
+  tags JSON NOT NULL DEFAULT '[]',
+  metadata JSON NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_agent ON agent_tasks(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(agent_id, status);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_list ON agent_tasks(agent_id, list);
+CREATE INDEX IF NOT EXISTS idx_agent_tasks_parent ON agent_tasks(parent_id);
+    `,
+  },
 ];
 
 // ─── Dynamic Table Definitions ─────────────────────────
