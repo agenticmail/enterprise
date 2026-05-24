@@ -2,6 +2,27 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.609] - 2026-05-24
+
+### Fixed — `tasks` tool blocked at runtime as "Unknown tool" despite being enabled
+
+The local task tracker reached the LLM (the agent could see and call
+`tasks`), but every call was rejected by the permission engine with
+"Unknown tool \"tasks\"". Cause: the permission gate resolves a tool
+via `_findTool()`, which falls back to the central `TOOL_INDEX`
+(tool-catalog `ALL_TOOLS`) — and `tasks` had been added to the tool
+DEFINITIONS and the runtime resolver, but never to that catalog, so the
+gate couldn't find it and blocked it pre-execution (before the skill/
+risk checks even ran). Enabling the category in the dashboard didn't
+help because the block fired first.
+
+Added `tasks` (skillId `tasks`, low risk) to `CORE_TOOLS` in the tool
+catalog so `_findTool` resolves it and the call is permitted.
+
+### Bumps
+
+`enterprise` 0.5.608 → 0.5.609.
+
 ## [0.5.608] - 2026-05-24
 
 ### Fixed — `tasks` tool missing from the dashboard tools page

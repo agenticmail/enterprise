@@ -65,6 +65,11 @@ export const CORE_TOOLS: ToolDefinition[] = [
   // Memory
   { id: 'memory_search', name: 'Memory Search', description: 'Search agent memory files', category: 'read', risk: 'low', skillId: 'memory', sideEffects: [] },
   { id: 'memory_get', name: 'Memory Get', description: 'Read memory file snippets', category: 'read', risk: 'low', skillId: 'memory', sideEffects: [] },
+
+  // Local task tracker (Google-Tasks-style). Low-risk, always-on — without
+  // this entry the permission engine's _findTool() can't resolve it and the
+  // hook blocks every call as "Unknown tool".
+  { id: 'tasks', name: 'Tasks', description: 'Local to-do tracker — add/list/update/complete tasks across lists', category: 'write', risk: 'low', skillId: 'tasks', sideEffects: [] },
 ];
 
 // ─── AgenticMail Tools (all 63) ─────────────────────────
