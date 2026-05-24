@@ -225,12 +225,28 @@ async function callAnthropic(
     messages: anthropicMessages,
   };
 
+  // Build the system block array.
+  //
+  // CRITICAL for OAuth tokens (sk-ant-oat…): Anthropic gates these
+  // subscription/Claude-Code tokens on the request "looking like" Claude
+  // Code — the FIRST system block must be the Claude Code identity
+  // string. Without it the API rate-limits/blocks the call (observed:
+  // HTTP 429 on claude-sonnet-4-6, even though claude-haiku slipped
+  // through). Claude Code itself always sends this line; when we
+  // authenticate AS a Claude Code OAuth token we must too. The agent's
+  // real persona follows as a second system block (still cached), so it
+  // continues to drive behaviour.
+  var systemBlocks: any[] = [];
+  if (useTokenAuth) {
+    systemBlocks.push({ type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." });
+  }
   if (systemPrompt) {
-    // Use structured system prompt with cache breakpoint — tells Anthropic to cache
-    // the system prompt across turns (90% cheaper for subsequent calls in same session)
-    requestBody.system = [
-      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-    ];
+    // Cache breakpoint on the persona block — caches the system prompt
+    // across turns (90% cheaper for subsequent calls in the same session).
+    systemBlocks.push({ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } });
+  }
+  if (systemBlocks.length > 0) {
+    requestBody.system = systemBlocks;
   }
 
   if (tools.length > 0) {

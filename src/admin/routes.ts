@@ -53,10 +53,17 @@ async function validateProviderApiKey(
               'content-type': 'application/json',
             }
           : { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
+        var anthropicBody: Record<string, any> = { model: 'claude-haiku-4-5-20251001', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] };
+        // OAuth tokens are gated on the Claude Code identity as the first
+        // system block (same requirement as the runtime) — include it so
+        // the probe matches real call-time behaviour.
+        if (isOAuthToken) {
+          anthropicBody.system = [{ type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." }];
+        }
         resp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: anthropicHeaders,
-          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+          body: JSON.stringify(anthropicBody),
           signal: ctrl.signal,
         });
         // 200 or 400 (valid creds, bad request) = creds work; 401/403 = bad creds

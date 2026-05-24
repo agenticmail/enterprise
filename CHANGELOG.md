@@ -2,6 +2,32 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.605] - 2026-05-24
+
+### Fixed — Anthropic OAuth token got 429 on Sonnet (agents hung / never replied)
+
+When authenticating with a Claude subscription / Claude Code OAuth
+token (`sk-ant-oat…`), Anthropic gates the request on it "looking like"
+Claude Code: the FIRST system block must be the Claude Code identity
+line. The runtime's `callAnthropic()` set the OAuth Bearer auth + beta
+headers but sent the agent's persona as the only system block — so
+Anthropic rate-limited the call (observed: **HTTP 429 on
+claude-sonnet-4-6**; claude-haiku slipped through). The agent-loop then
+treated the 429 as a rate-limit and burned minutes in backoff retries,
+which presented as "the agent never replies" on Telegram/chat.
+
+Fix: when using an OAuth token, prepend
+`"You are Claude Code, Anthropic's official CLI for Claude."` as the
+first system block; the agent's persona follows as a second (cached)
+block and still drives behaviour. This is exactly what Claude Code
+itself sends — verified the same token goes 429 → 200 on Sonnet once
+the identity block is present. The save-time validator probe was
+hardened the same way.
+
+### Bumps
+
+`enterprise` 0.5.604 → 0.5.605.
+
 ## [0.5.604] - 2026-05-24
 
 ### Fixed — saving an Anthropic OAuth token (`sk-ant-oat…`) failed with "Invalid API key (HTTP 401)"
