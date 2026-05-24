@@ -2,6 +2,27 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.610] - 2026-05-24
+
+### Added — Tasks tab on the agent detail page (view the agent's local tasks)
+
+The local task tracker (0.5.607–0.5.609) was usable by the agent but
+there was no way to SEE what an agent was tracking from the dashboard.
+Added a **Tasks** tab to the agent-detail page that shows the agent's
+live task list with a status breakdown (Pending / In Progress / Done /
+Blocked), list & status filters, per-task detail (notes, tags, due,
+timestamps), and light operator controls (start / mark done / reopen /
+delete, plus clear-completed).
+
+Backed by new read/admin routes `GET /local-tasks/agent/:id` and
+`/local-tasks/agent/:id/stats` (plus PATCH/DELETE for oversight),
+served by an engine-side AgentTaskManager. Mounted at `/local-tasks`
+(not `/tasks`, which is the inter-agent delegation queue).
+
+### Bumps
+
+`enterprise` 0.5.609 → 0.5.610.
+
 ## [0.5.609] - 2026-05-24
 
 ### Fixed — `tasks` tool blocked at runtime as "Unknown tool" despite being enabled

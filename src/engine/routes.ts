@@ -66,6 +66,7 @@ import { WorkforceManager } from './workforce.js';
 import { createWorkforceRoutes } from './workforce-routes.js';
 import { OrgPolicyEngine } from './org-policies.js';
 import { AgentMemoryManager } from './agent-memory.js';
+import { AgentTaskManager } from './agent-tasks.js';
 import { OnboardingManager } from './onboarding.js';
 import { createPolicyRoutes } from './policy-routes.js';
 import { KnowledgeContributionManager } from './knowledge-contribution.js';
@@ -74,6 +75,7 @@ import { SkillAutoUpdater } from './skill-updater.js';
 import { createSkillUpdaterRoutes } from './skill-updater-routes.js';
 import { KnowledgeImportManager, createKnowledgeImportRoutes } from './knowledge-import/index.js';
 import { createMemoryRoutes } from './memory-routes.js';
+import { createLocalTaskRoutes } from './local-task-routes.js';
 import { createMemoryTransferRoutes } from './memory-transfer-routes.js';
 import { createOnboardingRoutes } from './onboarding-routes.js';
 import { SecureVault } from './vault.js';
@@ -130,6 +132,7 @@ const communityRegistry = new CommunitySkillRegistry({ permissions: permissionEn
 const workforce = new WorkforceManager({ lifecycle, guardrails });
 const policyEngine = new OrgPolicyEngine();
 const memoryManager = new AgentMemoryManager();
+const taskManager = new AgentTaskManager();
 const onboarding = new OnboardingManager({ policyEngine, memoryManager });
 const vault = new SecureVault();
 const orgIntegrations = new OrgIntegrationManager();
@@ -517,6 +520,7 @@ engine.route('/community', createCommunityRoutes(communityRegistry));
 engine.route('/workforce', createWorkforceRoutes(workforce, { lifecycle }));
 engine.route('/policies', createPolicyRoutes(policyEngine));
 engine.route('/memory', createMemoryRoutes(memoryManager));
+engine.route('/local-tasks', createLocalTaskRoutes(taskManager));
 engine.route('/memory-transfer', createMemoryTransferRoutes(memoryManager, _engineDb));
 engine.route('/onboarding', createOnboardingRoutes(onboarding));
 engine.route('/vault', createVaultRoutes(vault, dlp));
@@ -983,6 +987,7 @@ export async function setEngineDb(
     policyEngine.setDb(db),
     (async () => { cluster.setDb(db); await cluster.loadFromDb(); })(),
     memoryManager.setDb(db),
+    taskManager.setDb(db),
     onboarding.setDb(db),
     vault.setDb(db),
     agentStatus.setDb(db),
