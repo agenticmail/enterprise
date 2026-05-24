@@ -2,6 +2,21 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.608] - 2026-05-24
+
+### Fixed — `tasks` tool missing from the dashboard tools page
+
+The local task tracker (0.5.607) was available to the agent at runtime
+but didn't appear on the dashboard's per-agent Tools page, because that
+page is backed by a separate hard-coded `TOOL_CATALOG` in agent-routes,
+not the runtime tool resolver. Added a "Tasks" category (always-on,
+clipboard icon) so the `tasks` tool shows up and is correctly marked
+as always available.
+
+### Bumps
+
+`enterprise` 0.5.607 → 0.5.608.
+
 ## [0.5.607] - 2026-05-24
 
 ### Added — local task tracker (Google-Tasks-style) wired into agent autonomy

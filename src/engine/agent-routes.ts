@@ -1411,6 +1411,11 @@ export function createAgentRoutes(opts: {
       tools: ['read', 'write', 'edit', 'bash', 'glob', 'grep', 'web_fetch', 'web_search', 'browser', 'memory'],
     },
     {
+      id: 'tasks', name: 'Tasks', description: 'Local to-do tracker — add/list/update/complete tasks across lists, with reminders via heartbeat & morning catch-up',
+      icon: Emoji.clipboard, alwaysOn: true,
+      tools: ['tasks'],
+    },
+    {
       id: 'agenticmail', name: 'AgenticMail', description: 'Email send/receive, inbox management, inter-agent messaging',
       icon: Emoji.envelope,
       tools: ['agenticmail_inbox', 'agenticmail_read', 'agenticmail_send', 'agenticmail_reply', 'agenticmail_forward',
