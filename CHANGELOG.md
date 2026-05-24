@@ -2,6 +2,32 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.604] - 2026-05-24
+
+### Fixed — saving an Anthropic OAuth token (`sk-ant-oat…`) failed with "Invalid API key (HTTP 401)"
+
+Anthropic credentials come in two shapes: standard API keys
+(`sk-ant-api…`, authenticated with the `x-api-key` header) and OAuth
+access tokens (`sk-ant-oat…`, from a Claude subscription / Claude Code,
+authenticated with `Authorization: Bearer` + the oauth/claude-code
+beta headers). The runtime's `callAnthropic()` already auto-detects
+OAuth tokens and uses Bearer auth — but the **save-time validator**
+(`/api/providers/anthropic/api-key`) hard-coded the `x-api-key`
+header, which Anthropic rejects with 401 for OAuth tokens. Result: a
+perfectly valid `sk-ant-oat…` token could never be saved through the
+dashboard ("Invalid API key (HTTP 401)").
+
+The validator now detects `sk-ant-oat` tokens and probes with
+`Authorization: Bearer` + `anthropic-beta: claude-code-20250219,oauth-2025-04-20`
+(+ the Claude Code identity headers), exactly matching what the
+runtime does at call time — so validation agrees with actual usage.
+Also refreshed the probe model from a stale id to a current one
+(`claude-haiku-4-5-20251001`).
+
+### Bumps
+
+`enterprise` 0.5.603 → 0.5.604.
+
 ## [0.5.603] - 2026-05-24
 
 ### Fixed — agent could hang forever on a stalled LLM call (no reply on Telegram/chat)

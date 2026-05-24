@@ -33,14 +33,33 @@ async function validateProviderApiKey(
 
     switch (providerId) {
       case 'anthropic': {
-        // POST /v1/messages with a tiny request — Anthropic returns 401 for bad keys
+        // Two credential shapes:
+        //  - Standard API key  (sk-ant-api…) → x-api-key header.
+        //  - OAuth access token (sk-ant-oat…) → Authorization: Bearer +
+        //    the oauth/claude-code beta headers. These come from a Claude
+        //    subscription / Claude Code and are REJECTED (401) by the
+        //    x-api-key header, so probing with x-api-key falsely flagged a
+        //    perfectly valid token as "Invalid API key". Mirror exactly
+        //    what the runtime's callAnthropic() does so validation agrees
+        //    with actual call-time behaviour.
+        var isOAuthToken = apiKey.includes('sk-ant-oat');
+        var anthropicHeaders: Record<string, string> = isOAuthToken
+          ? {
+              'authorization': 'Bearer ' + apiKey,
+              'anthropic-version': '2023-06-01',
+              'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20',
+              'user-agent': 'claude-cli/1.0.0 (external, cli)',
+              'x-app': 'cli',
+              'content-type': 'application/json',
+            }
+          : { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
         resp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
-          headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-          body: JSON.stringify({ model: 'claude-haiku-4-20250414', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+          headers: anthropicHeaders,
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
           signal: ctrl.signal,
         });
-        // 200 or 400 (valid key, bad request) = key works; 401/403 = bad key
+        // 200 or 400 (valid creds, bad request) = creds work; 401/403 = bad creds
         if (resp.status === 401 || resp.status === 403) {
           return { ok: false, error: 'Invalid API key (HTTP ' + resp.status + ')' };
         }
