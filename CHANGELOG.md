@@ -2,6 +2,50 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.602] - 2026-05-24
+
+### Added — `agent-watchdog`: PM2-managed stuck/crashed-agent recovery
+
+Agents could end up dead with no recovery in two ways PM2 can't handle:
+
+1. **Crash loop abandoned** — once a process exceeds `max_restarts`
+   within `min_uptime`, PM2 parks it in `errored`/`stopped` forever
+   (observed: halo-agent hit 116 restarts → errored → dead, never
+   came back).
+2. **Hung agent loop** — the process stays `online` and its HTTP
+   `/health` still answers (event loop alive), but the agent loop is
+   wedged inside a session (e.g. a tool call with no timeout). PM2
+   sees "online" and does nothing.
+
+New `dist/watchdog.js` (bin `agenticmail-watchdog`) runs as its own
+PM2 process and recovers both. Every tick it inspects each `*-agent`
+process and:
+   - `errored`/`stopped` ⇒ `pm2 restart` (resets the restart counter,
+     bringing crash-looped agents back).
+   - `online` ⇒ probes `/health` on the agent's port (read from the
+     PM2 env). Restarts if `/health` is unreachable N times in a row
+     (process wedged) OR if `/health` reports `oldestSessionAgeMs`
+     beyond a stuck threshold (default 20 min — longer than any normal
+     turn).
+   - Per-agent restart cooldown prevents thrash.
+
+Depends only on Node built-ins + the `pm2` CLI, so it keeps working
+even if the enterprise package itself is broken. Tunable via
+`WATCHDOG_INTERVAL_MS`, `WATCHDOG_HEALTH_FAILS`,
+`WATCHDOG_STUCK_SESSION_MS`, `WATCHDOG_NAME_PATTERN`, etc.
+
+### Added — agent `/health` now reports loop liveness
+
+`/health` gained `activeSessions`, `oldestSessionAgeMs`, and
+`lastActivityMs` (backed by new start-time tracking in the runtime),
+so the watchdog can tell a hung loop from a merely-idle agent. The
+existing in-process 15-min stale-session abort is unchanged — the
+watchdog is the external safety net above it.
+
+### Bumps
+
+`enterprise` 0.5.601 → 0.5.602.
+
 ## [0.5.601] - 2026-05-23
 
 ### Fixed — agent `bash` tool ran nothing on Windows ("Exit code: 1", no output)

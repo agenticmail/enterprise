@@ -122,6 +122,14 @@ export class AgentRuntime {
   private emailChannel: EmailChannel | null = null;
   private gatewayApp: Hono | null = null;
   private activeSessions = new Map<string, AbortController>();
+  /** sessionId → epoch ms the session started. Powers the liveness
+   *  signal in getLiveness() so an external watchdog can tell a
+   *  hung-but-process-alive agent (loop wedged inside a tool call with
+   *  no timeout) from a merely-idle one. */
+  private sessionStartedAt = new Map<string, number>();
+  /** Last time any session was started or completed — coarse "the
+   *  agent loop is making progress" signal. */
+  private lastActivityAt = Date.now();
   private sessionCompleteCallbacks = new Map<string, Array<(result: any) => void>>();
   /** Sessions that should NOT complete even when the LLM returns end_turn (e.g., meeting monitor active) */
   private keepAliveSessions = new Set<string>();
@@ -756,6 +764,8 @@ export class AgentRuntime {
     // Create abort controller
     var abortController = new AbortController();
     this.activeSessions.set(sessionId, abortController);
+    this.sessionStartedAt.set(sessionId, Date.now());
+    this.lastActivityAt = Date.now();
 
     // Emit session event
     if (isResume) {
@@ -1035,6 +1045,30 @@ export class AgentRuntime {
   }
 
   /**
+   * Liveness snapshot for the external (PM2) watchdog. Exposed on the
+   * agent's /health endpoint. `oldestSessionAgeMs` is the key signal:
+   * a session that has been open far longer than any normal agent turn
+   * means the loop is wedged (e.g. a tool call with no timeout), even
+   * when the HTTP server itself still answers /health. Prunes any
+   * start-time entries whose session already ended.
+   */
+  getLiveness(): { activeSessions: number; oldestSessionAgeMs: number; lastActivityMs: number } {
+    var now = Date.now();
+    var oldest = 0;
+    for (var id of Array.from(this.sessionStartedAt.keys())) {
+      if (!this.activeSessions.has(id)) { this.sessionStartedAt.delete(id); continue; }
+      var startedAt = this.sessionStartedAt.get(id)!;
+      var age = now - startedAt;
+      if (age > oldest) oldest = age;
+    }
+    return {
+      activeSessions: this.activeSessions.size,
+      oldestSessionAgeMs: oldest,
+      lastActivityMs: now - this.lastActivityAt,
+    };
+  }
+
+  /**
    * Find and mark sessions that have gone stale (no heartbeat within timeout).
    */
   private async cleanupStaleSessions(timeoutMs: number): Promise<void> {
@@ -1047,6 +1081,8 @@ export class AgentRuntime {
           controller.abort();
           this.activeSessions.delete(id);
         }
+        this.sessionStartedAt.delete(id);
+        this.lastActivityAt = Date.now();
         console.warn(`[runtime] Marked stale session: ${id}`);
       }
     } catch {}

@@ -1383,12 +1383,26 @@ export async function runAgent(_args: string[]) {
     return next();
   });
 
-  app.get('/health', (c) => c.json({
-    status: 'ok',
-    agentId: agentId,
-    agentName: agent.display_name || agent.name,
-    uptime: process.uptime(),
-  }));
+  app.get('/health', (c) => {
+    // Liveness fields let the external PM2 watchdog distinguish a
+    // hung agent-loop (a session open far longer than any normal turn)
+    // from a merely-idle one. The HTTP server answering /health only
+    // proves the event loop isn't fully blocked — not that the agent
+    // is making progress.
+    let liveness: { activeSessions: number; oldestSessionAgeMs: number; lastActivityMs: number } = {
+      activeSessions: 0, oldestSessionAgeMs: 0, lastActivityMs: 0,
+    };
+    try {
+      if (typeof (runtime as any).getLiveness === 'function') liveness = (runtime as any).getLiveness();
+    } catch { /* keep defaults */ }
+    return c.json({
+      status: 'ok',
+      agentId: agentId,
+      agentName: agent.display_name || agent.name,
+      uptime: process.uptime(),
+      ...liveness,
+    });
+  });
 
   app.get('/ready', (c) => c.json({ ready: true, agentId: AGENT_ID }));
 
