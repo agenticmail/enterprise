@@ -9,6 +9,7 @@ import { exec } from 'node:child_process';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { readStringParam, readNumberParam, textResult, errorResult } from '../common.js';
 import type { CommandSanitizer } from '../security.js';
+import { resolveShell } from './shell-resolver.js';
 
 const DEFAULT_TIMEOUT_MS = 300_000;
 const MAX_TIMEOUT_MS = 600_000;
@@ -128,7 +129,8 @@ export function createBashTool(options?: ToolCreationOptions & { commandSanitize
 
       var maxOutput = bashConfig?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
       var cwd = workingDir || options?.workspaceDir || process.cwd();
-      var env = buildSanitizedEnv(sandboxed);
+      var shellInfo = resolveShell();
+      var env = { ...buildSanitizedEnv(sandboxed), ...shellInfo.env };
 
       return new Promise(function(resolve) {
         var child = exec(command, {
@@ -136,7 +138,7 @@ export function createBashTool(options?: ToolCreationOptions & { commandSanitize
           timeout: timeoutMs,
           maxBuffer: maxOutput * 2,
           env,
-          shell: '/bin/bash',
+          shell: shellInfo.shell,
           killSignal: 'SIGTERM',
         }, function(error, stdout, stderr) {
           var exitCode = error?.code ?? (error ? 1 : 0);

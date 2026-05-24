@@ -90,7 +90,34 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
   const platform = process.platform; // darwin | linux | win32
 
   const installed: string[] = [];
-  const failed: string[] = [];
+  const failed: string[] = [];           // required deps that failed — loud warning
+  const failedOptional: string[] = [];   // optional deps (audio/OCR) — quiet, one-line note
+
+  // ─── Skip-cache ─────────────────────────────────────
+  // ensureSystemDependencies runs once per process start. Without a
+  // cache, every agent restart re-attempts installs that already
+  // failed (e.g. an optional tool with no winget package), each
+  // attempt taking seconds + spamming the log. We remember which
+  // OPTIONAL deps were attempted-and-failed and skip re-attempting
+  // them for SKIP_TTL_MS. Required deps are always re-checked.
+  const SKIP_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+  let stateDir = '';
+  let stateFile = '';
+  let prevSkip: Record<string, number> = {};
+  try {
+    const { homedir } = await import('os');
+    const { join } = await import('path');
+    stateDir = join(homedir(), '.agenticmail');
+    stateFile = join(stateDir, 'deps-state.json');
+    if (existsSync(stateFile)) {
+      const parsed = JSON.parse(readFileSync(stateFile, 'utf8'));
+      if (parsed && typeof parsed.optionalFailedAt === 'object') prevSkip = parsed.optionalFailedAt;
+    }
+  } catch { /* best-effort */ }
+  const recentlyFailedOptional = (name: string): boolean => {
+    const ts = prevSkip[name];
+    return typeof ts === 'number' && (Date.now() - ts) < SKIP_TTL_MS;
+  };
 
   // ─── Platform detection helpers ─────────────────────
 
@@ -153,6 +180,15 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
     scoop?: string;                      // Windows Scoop
     onlyOn?: ('darwin' | 'linux' | 'win32')[];  // restrict to these platforms
     sudoHint?: string;                   // message if install needs sudo/admin
+    optional?: boolean;                  // non-core (audio/OCR/voice) — failures are quiet, not warnings
+  };
+
+  /** Record a failure to the right bucket (loud for required, quiet for optional). */
+  const recordFailure = (spec: PkgSpec, msg: string): void => {
+    const hint = spec.sudoHint ? ` — ${spec.sudoHint}` : '';
+    const entry = `${spec.name}: ${msg}${hint}`;
+    if (spec.optional) failedOptional.push(entry);
+    else failed.push(entry);
   };
 
   const installPkg = async (spec: PkgSpec): Promise<void> => {
@@ -165,6 +201,10 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
       : await has(spec.check);
     if (present) return;
 
+    // Skip optional deps that failed to install recently — avoids
+    // re-attempting (and re-spamming) doomed installs every restart.
+    if (spec.optional && recentlyFailedOptional(spec.name)) return;
+
     try {
       if (platform === 'darwin') {
         if (spec.brewCask) {
@@ -175,9 +215,9 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
         } else return;
       } else if (platform === 'linux') {
         const pm = await detectLinuxPkgManager();
-        if (!pm) { failed.push(`${spec.name}: no package manager found`); return; }
+        if (!pm) { recordFailure(spec, 'no package manager found'); return; }
         const pkg = (spec as any)[pm] || spec.apt; // fallback to apt name
-        if (!pkg) { failed.push(`${spec.name}: no package for ${pm}`); return; }
+        if (!pkg) { recordFailure(spec, `no package for ${pm}`); return; }
         const cmds: Record<string, string> = {
           apt:    `sudo apt-get update -qq && sudo apt-get install -y -qq ${pkg}`,
           dnf:    `sudo dnf install -y -q ${pkg}`,
@@ -188,21 +228,40 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
         };
         await exec(cmds[pm], { timeout: 120_000 });
       } else if (platform === 'win32') {
-        const pm = await detectWinPkgManager();
-        if (!pm) { failed.push(`${spec.name}: no package manager (install winget, choco, or scoop)`); return; }
-        const pkg = (spec as any)[pm];
-        if (!pkg) { failed.push(`${spec.name}: no package for ${pm}`); return; }
-        const cmds: Record<string, string> = {
-          winget: `winget install --id ${pkg} --accept-source-agreements --accept-package-agreements -e`,
-          choco:  `choco install ${pkg} -y`,
-          scoop:  `scoop install ${pkg}`,
+        // Try EVERY available Windows manager that has a package id for
+        // this spec — not just the first manager on the box. Previously
+        // we picked one manager (usually winget) and failed if it didn't
+        // carry the package, even when choco/scoop did (e.g. VB-CABLE,
+        // nircmd are choco/scoop-only). Order: winget → choco → scoop.
+        const winCmd: Record<string, (pkg: string) => string> = {
+          winget: (pkg) => `winget install --id ${pkg} --accept-source-agreements --accept-package-agreements -e`,
+          choco:  (pkg) => `choco install ${pkg} -y`,
+          scoop:  (pkg) => `scoop install ${pkg}`,
         };
-        await exec(cmds[pm], { timeout: 180_000 });
+        let anyMgr = false;
+        let lastErr = '';
+        let ok = false;
+        for (const pm of ['winget', 'choco', 'scoop'] as const) {
+          const pkg = (spec as any)[pm];
+          if (!pkg) continue;            // this manager has no id for the spec
+          if (!(await has(pm))) continue; // manager not installed on this box
+          anyMgr = true;
+          try {
+            await exec(winCmd[pm](pkg), { timeout: 180_000 });
+            ok = true;
+            break;
+          } catch (e: any) {
+            lastErr = e.message?.split('\n')[0] || 'install failed';
+          }
+        }
+        if (!ok) {
+          recordFailure(spec, anyMgr ? (lastErr || 'install failed') : 'no package manager carries this tool (install via the link in the hint)');
+          return;
+        }
       }
       installed.push(spec.name);
     } catch (e: any) {
-      const hint = spec.sudoHint ? ` — ${spec.sudoHint}` : '';
-      failed.push(`${spec.name}: ${e.message?.split('\n')[0] || 'unknown error'}${hint}`);
+      recordFailure(spec, e.message?.split('\n')[0] || 'unknown error');
     }
   };
 
@@ -211,25 +270,27 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
   // ─── Define all packages ────────────────────────────
 
   const packages: PkgSpec[] = [
-    // Audio / Voice (meeting TTS)
+    // Audio / Voice (meeting TTS) — all optional; absence only disables
+    // the live-meeting voice feature, not core agent operation.
     {
-      name: 'sox', check: 'sox',
+      name: 'sox', check: 'sox', optional: true,
       brew: 'sox', apt: 'sox', dnf: 'sox', pacman: 'sox', apk: 'sox', zypper: 'sox',
-      winget: 'sox.sox', choco: 'sox.portable', scoop: 'sox',
+      // No reliable winget package for sox — choco/scoop carry it.
+      choco: 'sox.portable', scoop: 'sox',
     },
     {
-      name: 'SwitchAudioSource', check: 'SwitchAudioSource',
+      name: 'SwitchAudioSource', check: 'SwitchAudioSource', optional: true,
       brew: 'switchaudio-osx',
       onlyOn: ['darwin'],
     },
     {
       name: 'BlackHole-2ch', check: '/Library/Audio/Plug-Ins/HAL/BlackHole2ch.driver',
-      checkIsFile: true, brewCask: 'blackhole-2ch',
+      checkIsFile: true, brewCask: 'blackhole-2ch', optional: true,
       onlyOn: ['darwin'],
       sudoHint: 'run `brew install --cask blackhole-2ch` manually (requires sudo)',
     },
     {
-      name: 'PulseAudio', check: 'pactl',
+      name: 'PulseAudio', check: 'pactl', optional: true,
       apt: 'pulseaudio-utils', dnf: 'pulseaudio-utils', pacman: 'pulseaudio',
       apk: 'pulseaudio-utils', zypper: 'pulseaudio-utils',
       onlyOn: ['linux'],
@@ -237,7 +298,7 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
     // Windows virtual audio cable
     {
       name: 'VB-CABLE', check: 'C:\\Program Files\\VB\\CABLE\\vbcable.exe',
-      checkIsFile: true, choco: 'vb-cable',
+      checkIsFile: true, choco: 'vb-cable', scoop: 'vb-cable', optional: true,
       onlyOn: ['win32'],
       sudoHint: 'install VB-CABLE from https://vb-audio.com/Cable/ or `choco install vb-cable`',
     },
@@ -263,16 +324,16 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
       winget: 'Gyan.FFmpeg', choco: 'ffmpeg', scoop: 'ffmpeg',
     },
 
-    // OCR
+    // OCR — optional (only needed for image-text extraction).
     {
-      name: 'tesseract', check: 'tesseract',
+      name: 'tesseract', check: 'tesseract', optional: true,
       brew: 'tesseract', apt: 'tesseract-ocr', dnf: 'tesseract', pacman: 'tesseract', apk: 'tesseract-ocr', zypper: 'tesseract-ocr',
       winget: 'UB-Mannheim.TesseractOCR', choco: 'tesseract', scoop: 'tesseract',
     },
 
     // NirCmd (Windows audio control — like SwitchAudioSource for Windows)
     {
-      name: 'nircmd', check: 'nircmd',
+      name: 'nircmd', check: 'nircmd', optional: true,
       choco: 'nircmd', scoop: 'nircmd',
       onlyOn: ['win32'],
     },
@@ -313,10 +374,37 @@ async function ensureSystemDependencies(opts?: { checkVaultKey?: (name: string) 
     } catch {}
   }
 
+  // ─── Persist skip-cache ────────────────────────────
+  // Record optional deps that failed so we don't re-attempt them every
+  // restart. Carry forward still-valid prior entries; refresh the
+  // timestamp for any that failed again this run.
+  try {
+    if (stateFile) {
+      const next: Record<string, number> = {};
+      for (const [k, v] of Object.entries(prevSkip)) {
+        if (typeof v === 'number' && (Date.now() - v) < SKIP_TTL_MS) next[k] = v;
+      }
+      for (const entry of failedOptional) {
+        const name = entry.split(':')[0].trim();
+        if (name) next[name] = Date.now();
+      }
+      const { mkdirSync } = await import('fs');
+      try { mkdirSync(stateDir, { recursive: true }); } catch { /* ignore */ }
+      writeFileSync(stateFile, JSON.stringify({ optionalFailedAt: next, updatedAt: Date.now() }, null, 2));
+    }
+  } catch { /* best-effort */ }
+
   // ─── Summary ───────────────────────────────────────
   if (installed.length) console.log(`\x1b[32m[deps] ✅ Installed: ${installed.join(', ')}\x1b[0m`);
+  // Required-dep failures are loud (they break features the agent relies on).
   if (failed.length) console.warn(`\x1b[33m[deps] ⚠️  Could not auto-install: ${failed.join(' | ')}\x1b[0m`);
-  if (!installed.length && !failed.length) console.log('\x1b[32m[deps] ✅ All system dependencies present\x1b[0m');
+  // Optional-dep failures (audio/OCR/voice tooling) are a quiet one-liner —
+  // they only disable add-on features and are skipped on future restarts.
+  if (failedOptional.length) {
+    const names = failedOptional.map((f) => f.split(':')[0].trim()).join(', ');
+    console.log(`\x1b[90m[deps] Optional tools unavailable (features that use them are disabled): ${names}. Install manually if needed.\x1b[0m`);
+  }
+  if (!installed.length && !failed.length && !failedOptional.length) console.log('\x1b[32m[deps] ✅ All system dependencies present\x1b[0m');
 
   // ─── Voice Meeting Setup Guide ─────────────────────
   // Show guide if voice deps are missing or partially installed
@@ -1468,6 +1556,16 @@ export async function runAgent(_args: string[]) {
         isManager?: boolean;
         mediaFiles?: Array<{ path: string; type: string; mimeType?: string }>;
       }>();
+
+      // Normalize messageText once: media-only inbound messages (a
+      // WhatsApp/Telegram photo or voice note with no caption) arrive
+      // with messageText undefined. Downstream code — and the preview
+      // log below — calls .slice() on it, which threw
+      // "Cannot read properties of undefined (reading 'slice')" and
+      // killed the whole chat turn. Coerce to '' so a caption-less
+      // media message still routes to the agent (the mediaFiles are
+      // what matter in that case).
+      if (typeof ctx.messageText !== 'string') ctx.messageText = '';
 
       const isMessagingSource = ['whatsapp', 'telegram'].includes(ctx.source);
       console.log(`[chat] Message from ${ctx.senderName} (${ctx.senderEmail}) in ${ctx.source || ctx.spaceName}: "${ctx.messageText.slice(0, 80)}"`);

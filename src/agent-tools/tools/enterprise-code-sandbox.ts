@@ -13,6 +13,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import type { AnyAgentTool, ToolCreationOptions } from '../types.js';
 import { readStringParam, readNumberParam, jsonResult, errorResult } from '../common.js';
+import { resolveShell } from './shell-resolver.js';
 
 function promiseExecFile(cmd: string, args: string[], opts: Record<string, unknown>): Promise<{ stdout: string; stderr: string }> {
   return new Promise(function(resolve, reject) {
@@ -214,11 +215,13 @@ export function createCodeSandboxTools(options?: ToolCreationOptions): AnyAgentT
       if (timeoutMs < 500) timeoutMs = 500;
 
       try {
+        var sandboxShell = resolveShell();
         var result = await promiseExec(script, {
           timeout: timeoutMs,
           maxBuffer: 2 * 1024 * 1024,
-          shell: '/bin/bash',
+          shell: sandboxShell.shell,
           cwd: options?.workspaceDir || os.tmpdir(),
+          env: { ...process.env, ...sandboxShell.env },
         });
 
         return jsonResult({

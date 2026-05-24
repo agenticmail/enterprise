@@ -2,6 +2,62 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.601] - 2026-05-23
+
+### Fixed — agent `bash` tool ran nothing on Windows ("Exit code: 1", no output)
+
+The `bash` and code-sandbox tools hardcoded `shell: '/bin/bash'`. On
+Windows there is no `/bin/bash` — Node resolves it to `C:\bin\bash`,
+which doesn't exist, so **every** command failed with `ENOENT`, got
+coerced to exit-code 1, and returned empty output (`\n\nExit code: 1`).
+Windows agents appeared unable to run any shell command at all.
+
+- New shared `shell-resolver.ts`: on POSIX honours `$SHELL` then
+  `/bin/bash`; on Windows locates the git-for-windows bash
+  (`usr\bin\bash.exe` preferred for the full MSYS environment +
+  coreutils, then `bin\bash.exe`, then `bash` on PATH). Override via
+  `AGENTICMAIL_BASH_PATH`.
+- **`/tmp` alignment on Windows**: git-bash's `usertemp` `/tmp` mount
+  normally points at `%TEMP%`, but Node resolves `/tmp` drive-relative
+  (e.g. `C:\tmp`). They diverged, so a file the agent wrote via the
+  `write` tool at `/tmp/x` was invisible to a subsequent `bash` tool
+  reading `/tmp/x` — breaking the write-script-then-run-it workflow.
+  The resolver now sets `TMP`/`TEMP` for the bash subprocess so both
+  sides agree on `/tmp`.
+- Both `bash` and `enterprise-code-sandbox` now share the resolver.
+
+### Fixed — `[chat] Error: Cannot read properties of undefined (reading 'slice')`
+
+A media-only inbound message (a WhatsApp/Telegram photo or voice note
+with no caption) arrived with `messageText` undefined. The chat
+handler called `.slice()` on it, throwing and killing the entire chat
+turn. `messageText` is now normalized to `''` at handler entry, so
+caption-less media messages route to the agent normally (the
+`mediaFiles` are what matter in that case).
+
+### Fixed — `[deps]` startup spam re-attempting doomed optional installs every restart
+
+System-dependency auto-install on Windows picked a single package
+manager (usually winget) and failed if it didn't carry the package —
+even when choco/scoop did (VB-CABLE, nircmd are choco/scoop-only) — and
+re-attempted on every process restart, flooding the log.
+
+- Windows install now tries **every available manager** that has a
+  package id for the tool (winget → choco → scoop) before giving up.
+- Audio/OCR/voice tools (sox, tesseract, VB-CABLE, nircmd, PulseAudio,
+  BlackHole, SwitchAudioSource) are marked **optional**: their failures
+  are a single quiet one-liner, not a warning, since they only disable
+  add-on features.
+- A skip-cache (`~/.agenticmail/deps-state.json`) records optional
+  installs that failed and skips re-attempting them for 14 days — no
+  more re-running doomed winget calls on every restart.
+- Removed the bogus `sox.sox` winget id (no such package); sox installs
+  via choco `sox.portable` / scoop.
+
+### Bumps
+
+`enterprise` 0.5.600 → 0.5.601.
+
 ## [0.5.600] - 2026-05-18
 
 ### Fixed — `knowledge_base_search` always returned `[]` in agent processes
