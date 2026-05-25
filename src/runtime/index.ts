@@ -55,6 +55,7 @@ import { buildPolymarketPrompt } from '../system-prompts/polymarket.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
+import { getAgentWorkspaceDir, ensureAgentWorkspace, WORKSPACE_SUBDIRS } from '../agent-tools/workspace.js';
 
 const _remotionPrompt = buildRemotonPrompt();
 
@@ -158,9 +159,10 @@ export class AgentRuntime {
   /** Build tool options for a given agent, including OAuth email config if available */
   private buildToolOptions(agentId: string, sessionId?: string): any {
     const self = this;
-    // Create a dedicated workspace for each agent
-    const agentWorkspace = join(homedir(), '.agenticmail', 'workspaces', agentId);
-    try { mkdirSync(agentWorkspace, { recursive: true }); } catch {}
+    // Create the agent's PERMANENT workspace (neat subfolder layout). Canonical
+    // cross-platform path via the shared helper — never /tmp.
+    const agentWorkspace = getAgentWorkspaceDir(agentId);
+    try { ensureAgentWorkspace(agentId); } catch {}
 
     const base: any = {
       agentId,
@@ -1140,7 +1142,7 @@ export function createAgentRuntime(config: RuntimeConfig): AgentRuntime {
 // ─── Default System Prompt ───────────────────────────────
 
 function buildDefaultSystemPrompt(agentId: string, memoryContext?: string, hierarchyContext?: string, agentIdentity?: any, dbConnections?: string[], agentConfig?: any): string {
-  const wsDir = join(homedir(), '.agenticmail', 'workspaces', agentId);
+  const wsDir = getAgentWorkspaceDir(agentId);
   var base = `You are an AI agent managed by AgenticMail Enterprise (agent: ${agentId}).
 
 You have access to a comprehensive set of tools for completing tasks. Use them effectively.
@@ -1155,10 +1157,12 @@ Guidelines:
 - For long tasks, work systematically and report progress
 
 ## Your Workspace
-Your dedicated workspace directory is: ${wsDir}
-ALWAYS save files, deliverables, rendered videos, images, and outputs here — NEVER in /tmp.
-/tmp files are cleaned up by the OS and will be lost. Your workspace persists across sessions.
-Create subdirectories as needed (e.g. videos/, images/, projects/, exports/).
+Your permanent workspace directory is: ${wsDir}
+ALWAYS save files, deliverables, rendered videos, images, templates, and outputs here — NEVER in /tmp.
+/tmp files are cleaned up by the OS and WILL be lost. Your workspace persists across sessions, restarts, and reboots.
+Keep it neat — it already has these subfolders (use them, create more as needed):
+${Object.entries(WORKSPACE_SUBDIRS).map(([n, d]) => `  - ${n}/ — ${d}`).join('\n')}
+Examples: email/HTML templates → templates/ ; attachments & images → media/ ; finished deliverables → exports/ ; scratch → tmp/ (inside your workspace, NOT the OS /tmp).
 - ACTIVELY USE YOUR MEMORY: After corrections, lessons, or insights, call memory_reflect to record them
 - Before complex tasks, call memory_context to recall relevant knowledge
 - Your memory persists across conversations — it's how you grow as an expert

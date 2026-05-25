@@ -83,11 +83,13 @@ export class MessagingPoller {
     // WhatsApp — always event-driven (Baileys WebSocket)
     // Register handlers for ALL agents + auto-start saved connections
     if (this.config.getCapability('whatsapp')) {
-      var dataDir = process.env.DATA_DIR || '/tmp/agenticmail-data';
+      var { getAgentWorkspaceDir } = await import('../agent-tools/workspace.js');
+      var { join: _join } = await import('path');
       var agentEndpoints: { id: string; dataDir: string; endpoint: AgentEndpoint }[] = [];
       for (var ag of agents) {
         var ep = { id: ag.id, displayName: ag.displayName || ag.name || 'Agent', host: ag.host || 'localhost', port: ag.port || 3100 };
-        agentEndpoints.push({ id: ag.id, dataDir: `${dataDir}/agents/${ag.id}/whatsapp`, endpoint: ep });
+        // Permanent per-agent workspace — never /tmp (auth/session creds must persist).
+        agentEndpoints.push({ id: ag.id, dataDir: _join(getAgentWorkspaceDir(ag.id), 'whatsapp'), endpoint: ep });
         await this.startWhatsApp(ep);
       }
       // Auto-connect agents with saved auth state (no QR needed)
@@ -488,10 +490,11 @@ export class MessagingPoller {
       if (!response.ok) return null;
 
       // Determine local path
-      var { join, dirname } = await import('path');
-      var { mkdirSync, writeFileSync } = await import('fs');
-      var mediaDir = join(agent.dataDir || `/tmp/agents/${agent.id}`, 'media');
-      try { mkdirSync(mediaDir, { recursive: true }); } catch {}
+      var { join } = await import('path');
+      var { writeFileSync } = await import('fs');
+      var { getAgentSubdir } = await import('../agent-tools/workspace.js');
+      // Permanent per-agent workspace — never /tmp (OS wipes it).
+      var mediaDir = getAgentSubdir(agent.id, 'media');
 
       var ext = filePath.split('.').pop() || (mediaType === 'photo' ? 'jpg' : 'bin');
       var localName = fileName || `${mediaType}-${Date.now()}.${ext}`;

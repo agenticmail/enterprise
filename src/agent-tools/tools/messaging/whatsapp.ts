@@ -199,9 +199,10 @@ export async function getOrCreateConnection(config: WhatsAppConfig): Promise<Wha
               var buffer = await downloadMediaMessage(msg, 'buffer', {});
               if (buffer && buffer.length > 0) {
                 var { join } = await import('path');
-                var { mkdirSync, writeFileSync } = await import('fs');
-                var mediaDir = join(config.dataDir || `/tmp/agents/${config.agentId}`, 'media');
-                try { mkdirSync(mediaDir, { recursive: true }); } catch {}
+                var { writeFileSync } = await import('fs');
+                var { getAgentSubdir } = await import('../../workspace.js');
+                // Permanent per-agent workspace — never /tmp (OS wipes it).
+                var mediaDir = getAgentSubdir(config.agentId, 'media');
 
                 mediaType = msg.message?.imageMessage ? 'photo'
                   : msg.message?.videoMessage ? 'video'

@@ -243,9 +243,23 @@ export interface AllToolsOptions extends ToolCreationOptions {
  * Includes 10 core tools + 87 enterprise tools (16 skills) + 63 AgenticMail tools (if configured).
  */
 export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgentTool[]> {
+  // Every agent works from its PERMANENT workspace — never /tmp. If a caller
+  // didn't pass a workspaceDir, derive the canonical per-agent path and make
+  // sure the neat folder layout exists before any tool can touch the disk.
+  if (options && options.agentId && !options.workspaceDir) {
+    try {
+      var { getAgentWorkspaceDir, ensureAgentWorkspace } = await import('./workspace.js');
+      options.workspaceDir = getAgentWorkspaceDir(options.agentId);
+      ensureAgentWorkspace(options.agentId);
+    } catch { /* best-effort */ }
+  }
+
   // Create security primitives
-  // Default allowed dirs: workspace + /tmp + home (agents need temp file access for media processing, etc.)
-  var defaultAllowedDirs = ['/tmp', '/var/tmp', process.env.HOME || '/root'];
+  // Default allowed dirs: OS temp + home (cross-platform — mac/linux/windows).
+  // The agent's primary workspace is the sandbox ROOT; these are additional
+  // read/write allowances for transient media processing by native libs.
+  var _os = await import('node:os');
+  var defaultAllowedDirs = [_os.tmpdir(), _os.homedir()].filter(Boolean);
   var configuredDirs = options?.security?.pathSandbox?.allowedDirs || [];
   var pathSandbox = options?.workspaceDir && options?.security?.pathSandbox?.enabled !== false
     ? createPathSandbox(options.workspaceDir, {
@@ -561,8 +575,13 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
       }
     } catch {}
 
-    // WhatsApp
-    const dataDir = options?.workspaceDir ? (await import('node:path')).resolve(options.workspaceDir, '..') : process.cwd();
+    // WhatsApp — auth/session creds live in the agent's OWN permanent workspace
+    // under a dedicated `whatsapp/` subdir (matches the messaging-poller path so
+    // both entry points share one auth state). Per-agent, survives restarts, never /tmp.
+    const _wsRoot = options?.agentId
+      ? (await import('./workspace.js')).getAgentWorkspaceDir(options.agentId)
+      : (options?.workspaceDir || process.cwd());
+    const dataDir = (await import('node:path')).join(_wsRoot, 'whatsapp');
     const _rec = _outboundRecorder;
     messagingTools = messagingTools.concat(createWhatsAppTools({
       agentId: options?.agentId || '', dataDir,
@@ -573,6 +592,7 @@ export async function createAllTools(options?: AllToolsOptions): Promise<AnyAgen
     if (telegramConfig.botToken) {
       messagingTools = messagingTools.concat(createTelegramTools({
         botToken: telegramConfig.botToken,
+        agentId: options?.agentId || '',
         onOutbound: _rec ? (chatId: string, text: string) => _rec('telegram', chatId, text) : undefined,
       }) as any);
     }

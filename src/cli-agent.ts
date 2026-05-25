@@ -21,6 +21,8 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { getAgentSubdir } from './agent-tools/workspace.js';
+import { join as _joinPath } from 'node:path';
 import { TaskQueueManager } from './engine/task-queue.js';
 import { beforeSpawn } from './engine/task-queue-before-spawn.js';
 import { afterSpawn, markInProgress } from './engine/task-queue-after-spawn.js';
@@ -2975,7 +2977,8 @@ async function startCalendarPolling(
   const CALENDAR_POLL_INTERVAL = 5 * 60_000; // Check every 5 minutes
   // Track already-joined meeting IDs — persist to file so restarts don't re-trigger
   const joinedMeetings = new Set<string>();
-  const joinedMeetingsFile = `/tmp/agenticmail-joined-meetings-${agentId}.json`;
+  // Permanent per-agent workspace — never /tmp (state must survive restarts).
+  const joinedMeetingsFile = _joinPath(getAgentSubdir(agentId, 'data'), 'joined-meetings.json');
   // Restore from file on startup (synchronous — must complete before first poll)
   try {
     if (existsSync(joinedMeetingsFile)) {

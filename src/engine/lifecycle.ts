@@ -360,6 +360,26 @@ export class AgentLifecycleManager {
     await this.persistAgent(agent);
     this.emitEvent(agent, 'created', { createdBy });
 
+    // Provision the agent's PERMANENT workspace (neat folder layout) and record
+    // its location in long-term memory so the agent never forgets where to work.
+    try {
+      const { ensureAgentWorkspace, renderWorkspaceMarkdown } = await import('../agent-tools/workspace.js');
+      const displayName = (config as any).identity?.displayName || (config as any).displayName || (config as any).name;
+      const wsRoot = ensureAgentWorkspace(agent.id, displayName);
+      try {
+        const { memoryManager } = await import('./routes.js');
+        await memoryManager.createMemory({
+          agentId: agent.id,
+          orgId,
+          category: 'system_notice',
+          title: 'My permanent workspace location',
+          content: renderWorkspaceMarkdown(wsRoot, displayName),
+          source: 'system',
+          importance: 'high',
+        });
+      } catch { /* memory is optional at creation time */ }
+    } catch { /* never block agent creation on workspace provisioning */ }
+
     return agent;
   }
 

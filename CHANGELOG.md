@@ -2,6 +2,34 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.613] - 2026-05-25
+
+### Fixed — Agents now always use a PERMANENT workspace, never /tmp
+
+Agents were saving files (e.g. email templates) under `/tmp/agents/<id>/media`,
+which the OS wipes on reboot — work silently lost. Now every agent has one
+canonical, permanent, cross-platform (mac/linux/windows) workspace and never
+falls back to /tmp.
+
+- New `src/agent-tools/workspace.ts`: `getAgentWorkspaceDir()` /
+  `ensureAgentWorkspace()` / `getAgentSubdir()`. Canonical path
+  `~/.agenticmail/workspaces/<agentId>/` (override via
+  `AGENTICMAIL_WORKSPACE_DIR`), built with `os.homedir()` + `path.join()` so it
+  works on every platform.
+- Neat, predictable layout created on init: `media/ files/ templates/ exports/
+  projects/ data/ tmp/` (+ a `WORKSPACE.md` describing it).
+- Removed every `/tmp/agents/...` and `os.tmpdir()` fallback in the
+  file/media paths: WhatsApp + Telegram inbound media, the messaging-poller,
+  the calendar joined-meetings state file, and WhatsApp auth/session creds
+  (now per-agent under `<workspace>/whatsapp`, was a shared dir).
+- `createAllTools` now derives + provisions the workspace from `agentId` when a
+  caller didn't pass one, so no code path can land in /tmp. Path-sandbox allowed
+  dirs are now cross-platform (`os.tmpdir()` + `os.homedir()` instead of
+  hardcoded `/tmp`, `/var/tmp`, `/root`).
+- On agent creation the workspace is provisioned and its location is written to
+  the agent's long-term memory; the path + layout are documented in the system
+  prompt and in generated `AGENTS.md` so the agent never forgets where to work.
+
 ## [0.5.612] - 2026-05-25
 
 ### Fixed — Packaging: stop shipping `logs/` in the npm tarball

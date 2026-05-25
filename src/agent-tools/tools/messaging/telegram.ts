@@ -27,6 +27,7 @@ function stripMarkdown(text: string): string {
 
 interface TelegramConfig {
   botToken: string;
+  agentId?: string;
   onOutbound?: (chatId: string, text: string) => void;
 }
 
@@ -127,9 +128,10 @@ export function createTelegramTools(config: TelegramConfig): ToolDefinition[] {
         var resp = await fetch(downloadUrl);
         if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
         var { join } = await import('path');
-        var { mkdirSync, writeFileSync } = await import('fs');
-        var mediaDir = join('/tmp/agents/media');
-        try { mkdirSync(mediaDir, { recursive: true }); } catch {}
+        var { writeFileSync } = await import('fs');
+        var { getAgentSubdir } = await import('../../workspace.js');
+        // Permanent per-agent workspace — never /tmp (OS wipes it).
+        var mediaDir = getAgentSubdir(config.agentId || 'default', 'media');
         var ext = fileData.file_path.split('.').pop() || 'bin';
         var localName = input.fileName || `telegram-${Date.now()}.${ext}`;
         var localPath = join(mediaDir, localName);

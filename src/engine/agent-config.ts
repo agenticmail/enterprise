@@ -6,6 +6,8 @@
  * Everything needed to spin up a fully configured agent from the admin dashboard.
  */
 
+import { WORKSPACE_SUBDIRS } from '../agent-tools/workspace.js';
+
 // ─── Types ──────────────────────────────────────────────
 
 export interface AgentConfig {
@@ -585,6 +587,15 @@ ${personaSection ? '\n' + personaSection + '\n' : ''}
 ## Memory
 - Daily notes: memory/YYYY-MM-DD.md
 - Long-term: MEMORY.md
+
+## Files & Workspace
+You have ONE permanent workspace folder. ALWAYS work from it — NEVER write to /tmp
+(OS temp files get wiped and are lost). It persists across sessions and reboots.
+Location: \`~/.agenticmail/workspaces/<your-agent-id>/\` (also injected into your
+system prompt at runtime, and saved in your memory). Keep it neat:
+${Object.entries(WORKSPACE_SUBDIRS).map(([n, d]) => `- \`${n}/\` — ${d}`).join('\n')}
+Email/HTML templates → \`templates/\` · attachments & images → \`media/\` · finished
+deliverables → \`exports/\` · scratch → \`tmp/\` (inside your workspace, not the OS /tmp).
 
 ## Safety
 - Don't exfiltrate private data
