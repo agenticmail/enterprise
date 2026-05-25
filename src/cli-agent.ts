@@ -52,6 +52,30 @@ if (_LOG_THRESHOLD > 2) {
   console.warn = function() {};
 }
 
+// ─── Typing Indicator (keep "typing…" alive for the WHOLE agent turn) ──
+// Telegram's sendChatAction 'typing' only lasts ~5s, and WhatsApp 'composing'
+// also decays — so a one-shot ping shows briefly then vanishes while the agent
+// is still working. We refresh on a timer (like the open-source bridge) and
+// stop when the session turn completes. Keyed by chat so follow-ups don't stack.
+const _typingTimers = new Map<string, { interval: NodeJS.Timeout; safety: NodeJS.Timeout }>();
+const _TYPING_REFRESH_MS = 4000;          // refresh under Telegram's ~5s window
+const _TYPING_MAX_MS = 15 * 60_000;       // safety cap so a stuck turn can't loop forever
+function startTypingIndicator(key: string, tick: () => void): void {
+  if (!key || _typingTimers.has(key)) return; // idempotent per chat
+  try { tick(); } catch {}
+  const interval = setInterval(() => { try { tick(); } catch {} }, _TYPING_REFRESH_MS);
+  const safety = setTimeout(() => stopTypingIndicator(key), _TYPING_MAX_MS);
+  (interval as any).unref?.(); (safety as any).unref?.();
+  _typingTimers.set(key, { interval, safety });
+}
+function stopTypingIndicator(key: string): void {
+  const t = _typingTimers.get(key);
+  if (!t) return;
+  clearInterval(t.interval);
+  clearTimeout(t.safety);
+  _typingTimers.delete(key);
+}
+
 // ─── Markdown Stripping (for Telegram/WhatsApp fallback delivery) ──
 function _stripMd(text: string): string {
   if (!text) return text;
@@ -1569,6 +1593,7 @@ export async function runAgent(_args: string[]) {
   // Enterprise server forwards Chat events here for processing
   // Uses SessionRouter to avoid spawning duplicate sessions
   app.post('/api/runtime/chat', async (c) => {
+    let typingKey = ''; // hoisted so the catch block can stop the typing loop
     try {
       const ctx = await c.req.json<{
         source: string;
@@ -1596,24 +1621,36 @@ export async function runAgent(_args: string[]) {
       const isMessagingSource = ['whatsapp', 'telegram'].includes(ctx.source);
       console.log(`[chat] Message from ${ctx.senderName} (${ctx.senderEmail}) in ${ctx.source || ctx.spaceName}: "${ctx.messageText.slice(0, 80)}"`);
 
-      // Send typing indicator immediately for messaging platforms
+      // Start a SELF-REFRESHING typing indicator that stays visible for the
+      // whole agent turn (stopped in onSessionComplete / error paths below).
+      // Keyed by chat so follow-up messages don't stack multiple loops.
+      typingKey = ctx.source === 'telegram'
+        ? `tg:${ctx.spaceId || ctx.senderEmail}`
+        : ctx.source === 'whatsapp'
+          ? `wa:${ctx.senderEmail}`
+          : '';
       if (ctx.source === 'telegram') {
-        const tgToken = agent.config?.channels?.telegram?.botToken;
+        const tgToken = agent.config?.channels?.telegram?.botToken
+          || agent.config?.messagingChannels?.telegram?.botToken;
         const chatId = ctx.spaceId || ctx.senderEmail;
         if (tgToken && chatId) {
-          fetch(`https://api.telegram.org/bot${tgToken}/sendChatAction`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
-          }).catch(() => {});
+          startTypingIndicator(typingKey, () => {
+            fetch(`https://api.telegram.org/bot${tgToken}/sendChatAction`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+            }).catch(() => {});
+          });
         }
       } else if (ctx.source === 'whatsapp') {
-        import('./agent-tools/tools/messaging/whatsapp.js').then(({ getConnection }) => {
-          const conn = getConnection(AGENT_ID);
-          if (!conn?.connected) return;
-          const jid = ctx.senderEmail.includes('@') ? ctx.senderEmail : ctx.senderEmail.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-          conn.sock.presenceSubscribe(jid).then(() => conn.sock.sendPresenceUpdate('composing', jid)).catch(() => {});
-        }).catch(() => {});
+        const jid = ctx.senderEmail.includes('@') ? ctx.senderEmail : ctx.senderEmail.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        startTypingIndicator(typingKey, () => {
+          import('./agent-tools/tools/messaging/whatsapp.js').then(({ getConnection }) => {
+            const conn = getConnection(AGENT_ID);
+            if (!conn?.connected) return;
+            conn.sock.presenceSubscribe(jid).then(() => conn.sock.sendPresenceUpdate('composing', jid)).catch(() => {});
+          }).catch(() => {});
+        });
       }
 
       const agentDomain = agent.email?.split('@')[1] || 'agenticmail.io';
@@ -1948,6 +1985,8 @@ export async function runAgent(_args: string[]) {
 
       // Unregister when session completes + deliver reply if agent didn't send one via tool
       runtime.onSessionComplete(session.id, async (result: any) => {
+        // Agent turn finished — stop the "typing…" indicator.
+        stopTypingIndicator(typingKey);
         sessionRouter?.unregister(agentId, session.id);
 
         // Record task completion in pipeline
@@ -2123,6 +2162,8 @@ export async function runAgent(_args: string[]) {
 
       return c.json({ ok: true, sessionId: session.id });
     } catch (err: any) {
+      // Never leave a typing loop running if the turn failed to start.
+      try { stopTypingIndicator(typingKey); } catch {}
       console.error(`[chat] Error: ${err.message}`);
       return c.json({ error: err.message }, 500);
     }

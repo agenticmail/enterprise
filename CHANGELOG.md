@@ -2,6 +2,18 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.614] - 2026-05-25
+
+### Fixed — Telegram/WhatsApp "typing…" now stays on for the whole turn
+
+The agent sent the chat-action ONCE on inbound, so "typing…" showed for ~5s
+(Telegram's window) then vanished while the agent was still working — unlike
+the open-source bridge, which refreshes it. Added a self-refreshing typing
+indicator in the chat handler: pings every 4s and stops when the session turn
+completes (and on error / a 15-min safety cap). Keyed per-chat so follow-up
+messages don't stack multiple loops. Applies to both Telegram (`sendChatAction`)
+and WhatsApp (`composing` presence).
+
 ## [0.5.613] - 2026-05-25
 
 ### Fixed — Agents now always use a PERMANENT workspace, never /tmp
