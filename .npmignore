@@ -16,3 +16,9 @@ enterprise-live-test.db
 ecosystem.config.cjs
 .github/
 src/
+logs/
+logs
+*.log
+test-gemma4.mjs
+test-*.mjs
+*.tgz

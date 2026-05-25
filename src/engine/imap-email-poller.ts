@@ -589,8 +589,8 @@ export class ImapEmailPoller {
    * header lines as a stream. We then parse them ourselves.
    *
    * Format example:
-   *   Delivered-To: agenticfola@gmail.com
-   *   X-Forwarded-To: support@folaform.com
+   *   Delivered-To: inbox@gmail.com
+   *   X-Forwarded-To: support@example.com
    * Returns lowercased addresses, or [] on any failure.
    */
   private async fetchForwardingHeaders(client: any, uid: number): Promise<string[]> {

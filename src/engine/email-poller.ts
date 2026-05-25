@@ -8,7 +8,7 @@
  *   ┌─────────────────────────────────────────────────────┐
  *   │                  EmailPoller                        │
  *   │  ┌───────────────────────────────────────────────┐  │
- *   │  │  Agent Mailbox 1 (Fola)                       │  │
+ *   │  │  Agent Mailbox 1 (Aria)                       │  │
  *   │  │  - Gmail History API → delta detection        │  │
  *   │  │  - historyId cursor (DB-persisted)            │  │
  *   │  │  - processedIds set (DB-persisted, capped)    │  │

@@ -53,14 +53,14 @@ export var PROVIDER_REGISTRY: Record<string, ProviderDef> = {
     baseUrl: 'https://api.openai.com/v1',
     apiType: 'openai-compatible', envKey: 'OPENAI_API_KEY',
     requiresApiKey: true, supportsTools: true, supportsStreaming: true, isLocal: false,
-    defaultModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini'],
+    defaultModels: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
   },
   google: {
     id: 'google', name: 'Google',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     apiType: 'google', envKey: 'GOOGLE_API_KEY',
     requiresApiKey: true, supportsTools: true, supportsStreaming: true, isLocal: false,
-    defaultModels: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3-pro'],
+    defaultModels: ['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
   },
   deepseek: {
     id: 'deepseek', name: 'DeepSeek',
@@ -74,7 +74,7 @@ export var PROVIDER_REGISTRY: Record<string, ProviderDef> = {
     baseUrl: 'https://api.x.ai/v1',
     apiType: 'openai-compatible', envKey: 'XAI_API_KEY',
     requiresApiKey: true, supportsTools: true, supportsStreaming: true, isLocal: false,
-    defaultModels: ['grok-4', 'grok-4-fast', 'grok-3', 'grok-3-mini'],
+    defaultModels: ['grok-4-1', 'grok-4-1-fast', 'grok-4', 'grok-4-fast', 'grok-3'],
   },
   mistral: {
     id: 'mistral', name: 'Mistral',

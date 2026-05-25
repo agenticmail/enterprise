@@ -681,7 +681,7 @@ export function DeploymentSection(props) {
           deployForm.localProcessManager !== 'in-process' && h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 } },
             h('div', { className: 'form-group' },
               h('label', { style: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 } }, 'Process Name'),
-              h('input', { className: 'input', value: deployForm.localProcessName, onChange: function(e) { setDf('localProcessName', e.target.value); }, placeholder: 'e.g. fola-agent' }),
+              h('input', { className: 'input', value: deployForm.localProcessName, onChange: function(e) { setDf('localProcessName', e.target.value); }, placeholder: 'e.g. my-agent' }),
               h('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 } }, 'PM2/systemd service name for start/stop/restart')
             ),
             h('div', { className: 'form-group' },

@@ -2066,27 +2066,32 @@ export function createAdminRoutes(db: DatabaseAdapter) {
       { provider: 'anthropic', modelId: 'claude-sonnet-4-6', displayName: 'Claude Sonnet 4.6', inputCostPerMillion: 3, outputCostPerMillion: 15, contextWindow: 1000000 },
       { provider: 'anthropic', modelId: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', inputCostPerMillion: 3, outputCostPerMillion: 15, contextWindow: 1000000 },
       { provider: 'anthropic', modelId: 'claude-haiku-4-5-20251001', displayName: 'Claude Haiku 4.5', inputCostPerMillion: 0.8, outputCostPerMillion: 4, contextWindow: 200000 },
-      // OpenAI
-      { provider: 'openai', modelId: 'gpt-4o', displayName: 'GPT-4o', inputCostPerMillion: 2.5, outputCostPerMillion: 10, contextWindow: 128000 },
-      { provider: 'openai', modelId: 'gpt-4o-mini', displayName: 'GPT-4o Mini', inputCostPerMillion: 0.15, outputCostPerMillion: 0.6, contextWindow: 128000 },
+      // OpenAI (GPT-5 family — 1M context)
+      { provider: 'openai', modelId: 'gpt-5', displayName: 'GPT-5', inputCostPerMillion: 1.25, outputCostPerMillion: 10, contextWindow: 1000000 },
+      { provider: 'openai', modelId: 'gpt-5-mini', displayName: 'GPT-5 Mini', inputCostPerMillion: 0.25, outputCostPerMillion: 2, contextWindow: 1000000 },
+      { provider: 'openai', modelId: 'gpt-5-nano', displayName: 'GPT-5 Nano', inputCostPerMillion: 0.05, outputCostPerMillion: 0.4, contextWindow: 1000000 },
       { provider: 'openai', modelId: 'gpt-4.1', displayName: 'GPT-4.1', inputCostPerMillion: 2, outputCostPerMillion: 8, contextWindow: 1000000 },
       { provider: 'openai', modelId: 'gpt-4.1-mini', displayName: 'GPT-4.1 Mini', inputCostPerMillion: 0.4, outputCostPerMillion: 1.6, contextWindow: 1000000 },
       { provider: 'openai', modelId: 'gpt-4.1-nano', displayName: 'GPT-4.1 Nano', inputCostPerMillion: 0.1, outputCostPerMillion: 0.4, contextWindow: 1000000 },
+      { provider: 'openai', modelId: 'gpt-4o', displayName: 'GPT-4o', inputCostPerMillion: 2.5, outputCostPerMillion: 10, contextWindow: 128000 },
+      { provider: 'openai', modelId: 'gpt-4o-mini', displayName: 'GPT-4o Mini', inputCostPerMillion: 0.15, outputCostPerMillion: 0.6, contextWindow: 128000 },
       { provider: 'openai', modelId: 'o3', displayName: 'o3', inputCostPerMillion: 10, outputCostPerMillion: 40, contextWindow: 200000 },
       { provider: 'openai', modelId: 'o4-mini', displayName: 'o4-mini', inputCostPerMillion: 1.1, outputCostPerMillion: 4.4, contextWindow: 200000 },
-      // Google Gemini (up to 2M context)
+      // Google Gemini (1M–2M context)
+      { provider: 'google', modelId: 'gemini-3-pro', displayName: 'Gemini 3 Pro', inputCostPerMillion: 2.5, outputCostPerMillion: 15, contextWindow: 2000000 },
+      { provider: 'google', modelId: 'gemini-3-flash', displayName: 'Gemini 3 Flash', inputCostPerMillion: 0.3, outputCostPerMillion: 2.5, contextWindow: 1000000 },
       { provider: 'google', modelId: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro', inputCostPerMillion: 2.5, outputCostPerMillion: 15, contextWindow: 1000000 },
       { provider: 'google', modelId: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', inputCostPerMillion: 0.15, outputCostPerMillion: 0.6, contextWindow: 1000000 },
       { provider: 'google', modelId: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', inputCostPerMillion: 0.1, outputCostPerMillion: 0.4, contextWindow: 1000000 },
-      { provider: 'google', modelId: 'gemini-3-pro', displayName: 'Gemini 3 Pro', inputCostPerMillion: 2.5, outputCostPerMillion: 15, contextWindow: 1000000 },
-      // DeepSeek (128K context)
-      { provider: 'deepseek', modelId: 'deepseek-chat', displayName: 'DeepSeek Chat (V3)', inputCostPerMillion: 0.14, outputCostPerMillion: 0.28, contextWindow: 128000 },
+      // DeepSeek (V3.2 — 128K context)
+      { provider: 'deepseek', modelId: 'deepseek-chat', displayName: 'DeepSeek Chat (V3.2)', inputCostPerMillion: 0.14, outputCostPerMillion: 0.28, contextWindow: 128000 },
       { provider: 'deepseek', modelId: 'deepseek-reasoner', displayName: 'DeepSeek Reasoner (R1)', inputCostPerMillion: 0.55, outputCostPerMillion: 2.19, contextWindow: 128000 },
       // xAI Grok (2M context window)
+      { provider: 'xai', modelId: 'grok-4-1', displayName: 'Grok 4.1', inputCostPerMillion: 3, outputCostPerMillion: 15, contextWindow: 2000000 },
+      { provider: 'xai', modelId: 'grok-4-1-fast', displayName: 'Grok 4.1 Fast', inputCostPerMillion: 0.2, outputCostPerMillion: 0.5, contextWindow: 2000000 },
       { provider: 'xai', modelId: 'grok-4', displayName: 'Grok 4', inputCostPerMillion: 3, outputCostPerMillion: 15, contextWindow: 2000000 },
       { provider: 'xai', modelId: 'grok-4-fast', displayName: 'Grok 4 Fast', inputCostPerMillion: 0.2, outputCostPerMillion: 0.5, contextWindow: 2000000 },
       { provider: 'xai', modelId: 'grok-3', displayName: 'Grok 3', inputCostPerMillion: 3, outputCostPerMillion: 15, contextWindow: 131072 },
-      { provider: 'xai', modelId: 'grok-3-mini', displayName: 'Grok 3 Mini', inputCostPerMillion: 0.3, outputCostPerMillion: 0.5, contextWindow: 131072 },
       // Mistral
       { provider: 'mistral', modelId: 'mistral-large-latest', displayName: 'Mistral Large', inputCostPerMillion: 2, outputCostPerMillion: 6, contextWindow: 128000 },
       { provider: 'mistral', modelId: 'mistral-small-latest', displayName: 'Mistral Small', inputCostPerMillion: 0.1, outputCostPerMillion: 0.3, contextWindow: 128000 },

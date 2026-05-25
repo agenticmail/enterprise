@@ -268,7 +268,7 @@ export function MeetingCapabilitiesSection(props) {
       h('div', { style: { display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr', marginTop: 12 } },
         h('div', { className: 'form-group' },
           h('label', { style: labelStyle }, 'Display Name in Meetings'),
-          h('input', { className: 'input', placeholder: 'Agent name (e.g. "Fola - AI Assistant")',
+          h('input', { className: 'input', placeholder: 'Agent name (e.g. "Aria - AI Assistant")',
             value: cfg.meetingDisplayName || '',
             onChange: function(e) { update('meetingDisplayName', e.target.value || undefined); }
           }),

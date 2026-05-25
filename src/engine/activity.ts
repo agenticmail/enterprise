@@ -44,6 +44,7 @@ export type ActivityType =
   | 'heartbeat'             // Periodic check-in
   | 'memory_write'          // Agent wrote to memory
   | 'budget_alert'          // Approaching or exceeding budget
+  | 'context_compaction'    // Agent compacted its context window (summarized older history)
   | 'llm_call';             // LLM API call
 
 export interface ToolCallRecord {

@@ -14,7 +14,7 @@ import { execSync } from 'child_process';
 /**
  * Derive PM2 process name from agent config.
  * Uses config.deployment.config.local?.pm2Name if set,
- * otherwise derives from agent name: "Fola Olatunji" → "fola-agent"
+ * otherwise derives from agent name: "Jane Smith" → "jane-agent"
  */
 function getPm2Name(config: AgentConfig): string {
   const local = (config.deployment?.config as any)?.local;

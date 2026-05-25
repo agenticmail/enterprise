@@ -98,6 +98,8 @@ export type StreamEvent =
   | { type: 'tool_call_end'; toolName: string; result: any; blocked?: boolean }
   | { type: 'turn_end'; stopReason: string }
   | { type: 'checkpoint'; turnNumber: number; tokenCount: number; messageCount: number }
+  | { type: 'compaction_start'; tokenCount: number; contextWindowSize: number }
+  | { type: 'compaction_end'; tokensBefore: number; tokensAfter: number; msElapsed: number }
   | { type: 'heartbeat'; timestamp: number; activeTurns: number }
   | { type: 'retry'; attempt: number; maxRetries: number; delayMs: number; reason: string }
   | { type: 'budget_warning'; remainingUsd: number; usedUsd: number }
@@ -224,6 +226,8 @@ export interface RuntimeHooks {
   /** Session lifecycle */
   onSessionStart(sessionId: string, agentId: string, orgId: string): Promise<void>;
   onSessionEnd(sessionId: string, agentId: string, orgId: string): Promise<void>;
+  /** Fired when compaction begins — surface a "currently compacting" signal (UI + operator notify) */
+  onCompactionStart?(sessionId: string, agentId: string, tokenCount: number, contextWindowSize: number): Promise<void>;
   /** Flush learnings to memory on context compaction */
   onContextCompaction(sessionId: string, agentId: string, summary: string): Promise<void>;
 }

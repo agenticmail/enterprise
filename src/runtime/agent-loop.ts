@@ -263,7 +263,15 @@ export async function runAgentLoop(
     // Check context window — compact if needed
     var estimatedTokens = estimateMessageTokens(messages);
     if (estimatedTokens > contextWindowSize * COMPACTION_THRESHOLD) {
+      var compactStartMs = Date.now();
+      console.log(`[agent-loop] Context compaction starting (${estimatedTokens}/${contextWindowSize} tokens, ${Math.round(estimatedTokens / contextWindowSize * 100)}% full)`);
+      options.onEvent?.({ type: 'compaction_start', tokenCount: estimatedTokens, contextWindowSize: contextWindowSize });
+      // Notify the operator (UI activity + telegram/email) that we're pausing to compact.
+      try { await hooks.onCompactionStart?.(options.sessionId || sessionId, config.agentId, estimatedTokens, contextWindowSize); } catch {}
       messages = await compactContext(messages, config, hooks, { apiKey: options.apiKey, sessionId: options.sessionId });
+      var tokensAfter = estimateMessageTokens(messages);
+      console.log(`[agent-loop] Context compaction done (${estimatedTokens} → ${tokensAfter} tokens in ${Date.now() - compactStartMs}ms)`);
+      options.onEvent?.({ type: 'compaction_end', tokensBefore: estimatedTokens, tokensAfter: tokensAfter, msElapsed: Date.now() - compactStartMs });
     }
 
     // Always fix orphaned tool blocks before LLM call (can happen from compaction,

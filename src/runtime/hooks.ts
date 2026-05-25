@@ -66,6 +66,79 @@ var COMMUNICATION_TOOLS = new Set([
   'agent_message_send', 'agent_message_broadcast',
 ]);
 
+// ─── Compaction Notification Helpers ─────────────────────
+
+/** Throttle compaction notifications per agent (avoid spamming on busy sessions). */
+var lastCompactionNotify = new Map<string, number>();
+var COMPACTION_NOTIFY_THROTTLE_MS = 10 * 60_000; // at most one heads-up per 10 min
+
+async function loadAgentConfig(engineDb: any, agentId: string): Promise<any | null> {
+  try {
+    var rows = await engineDb.query(`SELECT config FROM managed_agents WHERE id = $1`, [agentId]);
+    if (!rows?.[0]?.config) return null;
+    return typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config;
+  } catch { return null; }
+}
+
+/** Send a one-line "I'm compacting" heads-up over Telegram to trusted/manager chats. */
+async function notifyCompactionTelegram(cfg: any, text: string): Promise<void> {
+  try {
+    var tg = cfg?.messagingChannels?.telegram || cfg?.channels?.telegram || {};
+    var botToken = tg.botToken;
+    if (!botToken) return;
+    var chatIds = new Set<string>();
+    var add = function (v: any) { if (v) chatIds.add(String(v)); };
+    add(tg.chatId); add(tg.defaultChatId);
+    if (Array.isArray(tg.trustedChatIds)) tg.trustedChatIds.forEach(add);
+    add(cfg?.manager?.telegramId);
+    add(cfg?.managerIdentity?.telegramId);
+    add(cfg?.messagingChannels?.managerIdentity?.telegramId);
+    for (var chatId of chatIds) {
+      try {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: text }),
+        });
+      } catch { /* best-effort */ }
+    }
+  } catch { /* best-effort */ }
+}
+
+/** Email the manager about compaction — only when explicitly opted-in (compactionNotify.email). */
+async function notifyCompactionEmail(cfg: any, agentName: string, text: string): Promise<void> {
+  try {
+    if (cfg?.compactionNotify?.email !== true) return; // opt-in only — never spam inboxes
+    var managerEmail = cfg?.manager?.email || cfg?.managerEmail;
+    var emailCfg = cfg?.emailConfig;
+    if (!managerEmail || !emailCfg?.oauthAccessToken) return;
+    var provider = emailCfg.oauthProvider || 'google';
+    var subject = `${agentName}: compacting context`;
+    if (provider === 'google') {
+      var raw = Buffer.from(
+        `To: ${managerEmail}\r\nSubject: ${subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}`
+      ).toString('base64url');
+      await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${emailCfg.oauthAccessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw: raw }),
+      });
+    } else if (provider === 'microsoft') {
+      await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${emailCfg.oauthAccessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            subject: subject,
+            body: { contentType: 'Text', content: text },
+            toRecipients: [{ emailAddress: { address: managerEmail } }],
+          },
+        }),
+      });
+    }
+  } catch { /* best-effort */ }
+}
+
 // ─── Create Runtime Hooks ────────────────────────────────
 
 export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
@@ -505,8 +578,52 @@ export function createRuntimeHooks(deps: HookDependencies): RuntimeHooks {
       } catch { /* non-blocking */ }
     },
 
+    // ─── Compaction Start (currently-compacting signal) ──
+    async onCompactionStart(sessionId, agentId, tokenCount, contextWindowSize): Promise<void> {
+      var pct = contextWindowSize > 0 ? Math.round((tokenCount / contextWindowSize) * 100) : 0;
+
+      // 1. UI signal — record an activity event so the dashboard shows "compacting".
+      try {
+        var { activity } = await import('../engine/routes.js');
+        await activity.record({
+          agentId,
+          orgId: deps.orgId,
+          sessionId,
+          type: 'context_compaction',
+          data: { phase: 'start', tokenCount, contextWindowSize, pct },
+        });
+      } catch { /* non-blocking */ }
+
+      // 2. Operator notify (Telegram always-on, email opt-in) — throttled per agent.
+      try {
+        var now = Date.now();
+        var last = lastCompactionNotify.get(agentId) || 0;
+        if (now - last < COMPACTION_NOTIFY_THROTTLE_MS) return;
+        lastCompactionNotify.set(agentId, now);
+
+        var cfg = await loadAgentConfig(deps.engineDb, agentId);
+        if (!cfg) return;
+        var agentName = cfg.displayName || cfg.name || 'Your agent';
+        var msg = `🧠 ${agentName} here — pausing for a moment to compact my working memory (context ${pct}% full). I'll pick right back up where we left off.`;
+        await notifyCompactionTelegram(cfg, msg);
+        await notifyCompactionEmail(cfg, agentName, msg);
+      } catch { /* non-blocking */ }
+    },
+
     // ─── Context Compaction ─────────────────────────
     async onContextCompaction(sessionId, agentId, summary): Promise<void> {
+      // UI signal — record completion of the compaction.
+      try {
+        var { activity: activityTracker } = await import('../engine/routes.js');
+        await activityTracker.record({
+          agentId,
+          orgId: deps.orgId,
+          sessionId,
+          type: 'context_compaction',
+          data: { phase: 'end', summaryChars: summary.length },
+        });
+      } catch { /* non-blocking */ }
+
       // Save compaction summary to persistent agent memory
       try {
         var { memoryManager } = await import('../engine/routes.js');

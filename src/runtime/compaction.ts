@@ -30,8 +30,14 @@ const MIN_KEEP_RECENT = 10;
 /** Maximum messages to keep verbatim */
 const MAX_KEEP_RECENT = 30;
 
-/** Max tokens for the LLM summary itself */
-const SUMMARY_MAX_TOKENS = 4096;
+/**
+ * Tokens for the LLM summary itself. Adaptive within this range — a tiny 4K
+ * summary was the main reason agents "woke up dumb" after compaction: a dense
+ * mid-task transcript simply does not survive compression into 4K tokens.
+ * We now spend as much of the available headroom as the budget allows.
+ */
+const SUMMARY_MIN_TOKENS = 6000;
+const SUMMARY_MAX_TOKENS = 16000;
 
 /** Max transcript chars to send to LLM for summarization per chunk */
 const CHUNK_MAX_CHARS = 80_000;
@@ -144,12 +150,18 @@ export async function compactContext(
   }
 
   // ─── Group messages for importance scoring ─────────────────────────────
-  const groups = groupMessages(toSummarize);
-  const sortedGroups = groups.sort((a, b) => b.importance - a.importance);
+  const groups = groupMessages(toSummarize); // chronological order
+  // Copy before sorting — .sort() mutates in place, and we MUST preserve the
+  // chronological order for the LLM transcript (Tier 3). Feeding the model an
+  // importance-shuffled transcript was scrambling cause→effect and producing
+  // confused summaries (a major "wake up dumb" contributor).
+  const sortedGroups = [...groups].sort((a, b) => b.importance - a.importance);
 
-  // Separate previous compaction summaries (they chain)
-  const previousSummaries = sortedGroups.filter(g => g.isPreviousSummary);
-  const regularGroups = sortedGroups.filter(g => !g.isPreviousSummary);
+  // Chronological partitions — used for the LLM transcript & continuation fidelity
+  const previousSummaries = groups.filter(g => g.isPreviousSummary);
+  const regularGroupsChrono = groups.filter(g => !g.isPreviousSummary);
+  // Importance-ordered partition — used only for extractive selection (Tier 2)
+  const regularGroupsByImportance = sortedGroups.filter(g => !g.isPreviousSummary);
 
   // ─── Tier 2: Extractive (no LLM call) ─────────────────────────────────
   const keepTokenBudget = estimateMessageTokens(systemMessages) + estimateMessageTokens(keepRecent);
@@ -157,7 +169,7 @@ export async function compactContext(
 
   if (!options?.apiKey || summaryBudget < 1000) {
     // No API key or very little budget — use extractive
-    const summary = buildExtractiveSummary(previousSummaries, regularGroups, summaryBudget);
+    const summary = buildExtractiveSummary(previousSummaries, regularGroupsByImportance, summaryBudget);
     const result = assembleFinal(systemMessages, summary, keepRecent);
     const stats: CompactionStats = {
       strategy: 'tier2_extractive',
@@ -175,7 +187,7 @@ export async function compactContext(
 
   // ─── Tier 3: LLM-powered summarization ─────────────────────────────────
   try {
-    const transcript = buildTranscript(previousSummaries, regularGroups);
+    const transcript = buildTranscript(previousSummaries, regularGroupsChrono);
     const summary = await llmSummarize(transcript, config, options.apiKey, summaryBudget);
     const result = assembleFinal(systemMessages, summary.text, keepRecent);
     const tokensAfter = estimateMessageTokens(result);
@@ -198,7 +210,7 @@ export async function compactContext(
     return result;
   } catch (err: any) {
     console.warn(`[compaction] LLM summarization failed: ${err.message} — falling back to extractive`);
-    const summary = buildExtractiveSummary(previousSummaries, regularGroups, summaryBudget);
+    const summary = buildExtractiveSummary(previousSummaries, regularGroupsByImportance, summaryBudget);
     const result = assembleFinal(systemMessages, summary, keepRecent);
     await persistSummary(hooks, options?.sessionId, config.agentId, summary);
     console.log(`[compaction] Extractive fallback: ${tokensBefore} → ${estimateMessageTokens(result)} tokens in ${Date.now() - startMs}ms`);
@@ -437,15 +449,8 @@ function buildTranscript(previousSummaries: MessageGroup[], groups: MessageGroup
     parts.push('=== PRIOR COMPACTION SUMMARY ===\n' + content.slice(0, 20_000) + '\n=== END PRIOR SUMMARY ===');
   }
 
-  // Build transcript from groups (in original order — re-sort by position)
-  // Groups are sorted by importance, but transcript needs chronological order
-  const _chronoGroups = [...groups];
-  // We don't have explicit position, but original array order is chronological
-  // Since we only sorted a copy, use the original `groups` order... 
-  // Actually, groups come from groupMessages which is already chronological.
-  // They were sorted by importance for extractive, but for transcript we need chrono.
-  // We need to pass original order. Let's use regularGroups before sorting.
-  
+  // `groups` is passed in chronological order (regularGroupsChrono) so the
+  // transcript preserves cause→effect ordering for the summarizer.
   for (const group of groups) {
     for (const msg of group.messages) {
       const text = extractText(msg);
@@ -477,8 +482,8 @@ Required sections:
 ## Completed Work (chronological)
 ## Key Data (IDs, paths, URLs, names — EXACT values)
 ## Decisions & Rationale
-## Current State
-## Next Steps
+## Current State — what was happening at the EXACT moment of compaction, including any half-finished tool call or pending reply
+## Next Steps — the concrete, ordered actions to take RIGHT NOW. Write these as imperative instructions ("Reply to X with Y", "Run tool Z"), not vague intentions. The agent will act on this section immediately.
 ## Errors & Lessons (if any)`;
 
 interface LLMSummaryResult {
@@ -492,11 +497,15 @@ async function llmSummarize(
   transcript: string,
   config: AgentConfig,
   apiKey: string,
-  _tokenBudget: number,
+  tokenBudget: number,
 ): Promise<LLMSummaryResult> {
+  // Spend as much of the available headroom on the summary as we can, within
+  // [SUMMARY_MIN_TOKENS, SUMMARY_MAX_TOKENS]. More detail = better continuation.
+  const summaryTokens = Math.max(SUMMARY_MIN_TOKENS, Math.min(SUMMARY_MAX_TOKENS, tokenBudget || 0));
+
   // If transcript fits in one chunk, do single call
   if (transcript.length <= CHUNK_MAX_CHARS) {
-    return singleChunkSummarize(transcript, config, apiKey);
+    return singleChunkSummarize(transcript, config, apiKey, summaryTokens);
   }
 
   // Split into chunks and summarize in parallel
@@ -511,6 +520,7 @@ async function llmSummarize(
         `[Chunk ${idx + 1}/${limitedChunks.length}]\n${chunk}`,
         config,
         apiKey,
+        summaryTokens,
       ).catch(err => {
         console.warn(`[compaction] Chunk ${idx + 1} failed: ${err.message}`);
         return null;
@@ -535,6 +545,7 @@ async function llmSummarize(
     `Merge these partial summaries into one cohesive summary:\n\n${mergedTranscript}`,
     config,
     apiKey,
+    summaryTokens,
   );
 
   return {
@@ -549,6 +560,7 @@ async function singleChunkSummarize(
   transcript: string,
   config: AgentConfig,
   apiKey: string,
+  maxOutputTokens: number = SUMMARY_MIN_TOKENS,
 ): Promise<LLMSummaryResult> {
   const response = await callLLM(
     {
@@ -561,7 +573,7 @@ async function singleChunkSummarize(
       { role: 'user' as const, content: `Summarize this conversation:\n\n${transcript}` },
     ],
     [],
-    { maxTokens: SUMMARY_MAX_TOKENS, temperature: 0.2 },
+    { maxTokens: maxOutputTokens, temperature: 0.2 },
   );
 
   const text = response.textContent || '';
@@ -606,7 +618,7 @@ function assembleFinal(
 ): AgentMessage[] {
   const summaryMessage: AgentMessage = {
     role: 'user' as const,
-    content: `[CONTEXT COMPACTION — Your earlier conversation was compressed to fit the context window. The summary below is authoritative — treat it as ground truth. Continue from where you left off.]\n\n${summaryText}`,
+    content: `[CONTEXT COMPACTION — Your earlier conversation was compressed to fit the context window. The summary below is authoritative — treat it as ground truth and trust it as if you remembered it yourself. You did NOT lose your task. RESUME IMMEDIATELY: re-read the "## Next Steps" section and carry out the very next action right now, without waiting for further instructions and without re-asking the user for information already captured below. The messages after this summary are the most recent turns and continue the same task.]\n\n${summaryText}`,
   };
 
   return [...systemMessages, summaryMessage, ...keepRecent];

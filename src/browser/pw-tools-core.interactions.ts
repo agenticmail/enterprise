@@ -43,7 +43,7 @@ export async function clickViaPlaywright(opts: {
   const locator = refLocator(page, ref);
 
   // Pre-step: Scroll element into viewport and let animations settle
-  // Fola's field testing showed elements fail because they're off-screen or mid-animation
+  // Field testing showed elements fail because they're off-screen or mid-animation
   try {
     await locator.evaluate((el: any) => {
       el.scrollIntoView({ block: 'center', behavior: 'instant' });

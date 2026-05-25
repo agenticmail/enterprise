@@ -2,6 +2,56 @@
 
 All notable changes to AgenticMail Enterprise are documented here.
 
+## [0.5.612] - 2026-05-25
+
+### Fixed — Packaging: stop shipping `logs/` in the npm tarball
+
+`0.5.611` accidentally bundled the working `logs/` directory (cloudflared
++ agent process logs) into the published package — these contained local
+`/Users/...` paths (no credentials). Added `logs/`, `*.log`, and
+`test-*.mjs` to `.npmignore`. `0.5.611` is deprecated; use `0.5.612`.
+This release is otherwise identical to `0.5.611`.
+
+## [0.5.611] - 2026-05-20
+
+### Fixed — Agents no longer "wake up dumb" after context compaction
+
+Three root causes were making agents lose the plot after they compacted:
+
+1. **Scrambled summary transcript.** `compactContext` sorted message
+   groups by importance and then fed that *importance-ordered* list to
+   the LLM summarizer, so the model saw effects before causes. The
+   transcript is now passed in strict chronological order (extractive
+   selection still uses importance ranking). This was the biggest
+   "wake up dumb" contributor.
+2. **Summary too small.** The LLM summary was capped at a fixed 4096
+   tokens — far too little to losslessly carry a mid-task transcript.
+   The cap is now adaptive within `[6000, 16000]` tokens, spending the
+   available context headroom on a denser, more complete summary.
+3. **Weak resume instruction.** The post-compaction wrapper now tells
+   the agent to RESUME IMMEDIATELY from the `## Next Steps` section
+   (rewritten to be imperative) instead of waiting for the user, and to
+   trust the summary as its own memory.
+
+### Added — Compaction is now visible (UI + Telegram/email)
+
+Previously a compaction happened silently. Now:
+
+- The runtime emits `compaction_start` / `compaction_end` stream events
+  and records a `context_compaction` activity event, so the dashboard
+  can show when an agent is compacting.
+- On compaction start the agent sends a one-line "pausing to compact my
+  working memory" heads-up over Telegram to its trusted/manager chats
+  (throttled to once per 10 min). Manager email is opt-in via
+  `compactionNotify.email`.
+
+### Updated — Model catalog refreshed with latest 1M+ context models
+
+Added GPT-5 family (gpt-5 / gpt-5-mini / gpt-5-nano, 1M context),
+Gemini 3 Pro (2M) / Gemini 3 Flash (1M), and Grok 4.1 / 4.1 Fast (2M),
+and reordered each provider's defaults to surface the newest flagships
+first. Updated `getDefaultModelPricing()` and `PROVIDER_REGISTRY`.
+
 ## [0.5.610] - 2026-05-24
 
 ### Added — Tasks tab on the agent detail page (view the agent's local tasks)
