@@ -101,6 +101,29 @@ Skill Development:
     import('./cli-agent.js').then(m => m.runAgent(args.slice(1))).catch(fatal);
     break;
 
+  case 'startup':
+  case 'autostart':
+    // Repair / verify the launchd plist so PM2 resurrects on
+    // boot. Delegates to the standalone helper that the
+    // postinstall hook also runs — keeping integration via
+    // spawn (rather than a TS import) means the script stays
+    // the single source of truth and remains runnable as a
+    // plain `node` invocation from npm scripts, CI, or a
+    // recovery shell.
+    Promise.all([
+      import('node:child_process'),
+      import('node:path'),
+      import('node:url'),
+    ]).then(([cp, p, u]) => {
+      const here = p.dirname(u.fileURLToPath(import.meta.url));
+      const helper = p.join(here, '..', 'scripts', 'ensure-pm2-startup.cjs');
+      const child = cp.spawn(process.execPath, [helper, ...args.slice(1)], {
+        stdio: 'inherit',
+      });
+      child.on('exit', (code) => process.exit(code ?? 0));
+    }).catch(fatal);
+    break;
+
   case 'setup':
   default:
     import('./setup/index.js').then(m => m.runSetupWizard()).catch(fatal);
